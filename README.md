@@ -44,6 +44,7 @@ WEAVIATE_API_KEY=your-weaviate-key
 GAODE_API_KEY=your-gaode-map-key
 GITHUB_CLIENT_ID=your-github-oauth-id
 GITHUB_CLIENT_SECRET=your-github-oauth-secret
+
 ```
 
 ## 🚀 Quick Deployment
