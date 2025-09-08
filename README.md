@@ -131,7 +131,6 @@ graph TD
 ```
 
 ## 🔧 Troubleshooting
-
 Q: How to check service logs?
 ```bash
 docker compose logs -f
