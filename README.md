@@ -91,6 +91,8 @@ services:
 
 volumes:
   pg_data:
+
+
 ```
 
 ### 2. Multi-Provider Setup
