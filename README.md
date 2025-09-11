@@ -35,6 +35,7 @@ DEEPSEEK_API_KEY=sk-your-deepseek-key
 OPENAI_API_KEY=sk-your-openai-key
 DASHSCOPE_API_KEY=sk-your-dashscope-key
 
+
 # ===== OPTIONAL SERVICES =====
 # Vector DB (Choose one)
 PINECONE_API_KEY=your-pinecone-key
