@@ -46,6 +46,7 @@ GITHUB_CLIENT_ID=your-github-oauth-id
 GITHUB_CLIENT_SECRET=your-github-oauth-secret
 ```
 
+
 ## 🚀 快速部署
 
 ### 基础环境要求
@@ -143,4 +144,5 @@ ports:
 
 ## 📜 许可证
 MIT License | Copyright © 2025 
+
 
