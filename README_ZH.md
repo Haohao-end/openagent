@@ -119,6 +119,7 @@ graph TD
     D --> G[Celery Worker]
     G --> H[AI模型服务]
 ```
+<img width="1495" height="910" alt="LLMops项目7层架构" src="https://github.com/user-attachments/assets/6f61eab3-88af-4db3-b50f-3c51677a6b41" />
 
 ## 🔧 常见问题
 
@@ -144,5 +145,6 @@ ports:
 
 ## 📜 许可证
 MIT License | Copyright © 2025 
+
 
 
