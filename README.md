@@ -119,7 +119,8 @@ OPENAI_API_KEY=sk-xxx
   ```
 
 ## 📊 System Architecture
-<img width="990" height="505" alt="Snipaste_2025-09-27_09-16-06" src="https://github.com/user-attachments/assets/1a9b01f6-3fae-4ee8-a33c-c0993646f648" />
+<img width="1887" height="944" alt="image" src="https://github.com/user-attachments/assets/2d6d9518-9157-4fca-97f9-c4ad12c08de9" />
+
 
 
 
