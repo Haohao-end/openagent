@@ -119,17 +119,9 @@ OPENAI_API_KEY=sk-xxx
   ```
 
 ## 📊 System Architecture
+<img width="990" height="505" alt="Snipaste_2025-09-27_09-16-06" src="https://github.com/user-attachments/assets/1a9b01f6-3fae-4ee8-a33c-c0993646f648" />
 
-```mermaid
-graph TD
-    A[Client] --> B[Nginx 80]
-    B --> C[Frontend Vue.js 3000]
-    B --> D[Backend Flask 5001]
-    D --> E[(PostgreSQL)]
-    D --> F[(Redis)]
-    D --> G[Celery Worker]
-    G --> H[AI Providers]
-```
+
 
 ## 🔧 Troubleshooting
 
