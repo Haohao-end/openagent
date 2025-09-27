@@ -58,7 +58,7 @@ GITHUB_CLIENT_SECRET=your-github-oauth-secret
 ```bash
 # 克隆仓库
 git clone https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents.git
-cd Open-Coze/docker
+cd llmops/docker
 
 # 配置环境变量
 nano .env  # 填写您的实际配置
