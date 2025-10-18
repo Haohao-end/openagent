@@ -108,7 +108,6 @@ OPENAI_API_KEY=sk-xxx
   ```
 
 ## 📊 系统架构
-<img width="1495" height="910" alt="LLMops项目7层架构" src="https://github.com/user-attachments/assets/6f61eab3-88af-4db3-b50f-3c51677a6b41" />
 
 <img width="1887" height="944" alt="image" src="https://github.com/user-attachments/assets/30c30ed9-1e8f-4f88-a0ff-9f63b4d913c9" />
 
@@ -138,6 +137,7 @@ ports:
 
 ## 📜 许可证
 MIT License | Copyright © 2025 
+
 
 
 
