@@ -1,5 +1,8 @@
 # 🚀 Open-Coze-AI Agent应用开发平台
+## AI Agent
 ![image](https://github.com/user-attachments/assets/4a5091b6-09e6-44fb-91a4-ddca8d176bab)
+## 工作流编排
+<img width="1920" height="959" alt="workflow" src="https://github.com/user-attachments/assets/26d6dd8f-03d2-4b45-8ae0-a9817771fa08" />
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/docker-20.10+-blue.svg)](https://www.docker.com/)
@@ -137,6 +140,7 @@ ports:
 
 ## 📜 许可证
 MIT License | Copyright © 2025 
+
 
 
 
