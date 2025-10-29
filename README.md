@@ -1,5 +1,7 @@
 # 🚀 LLMOps - Large Language Model Operations Platform 
+# Agent
 ![image](https://github.com/user-attachments/assets/f4cad915-411e-4e0f-95bc-8f8afdcf1019)
+# WorkFlow
 <img width="1920" height="959" alt="workflow" src="https://github.com/user-attachments/assets/26d6dd8f-03d2-4b45-8ae0-a9817771fa08" />
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
