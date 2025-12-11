@@ -11,6 +11,8 @@
 [English](README.md) | [中文](README_ZH.md)
 在线地址: http://82.157.66.198
 
+详细项目文档: https://deepwiki.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents
+
 ## 🔐 重要配置说明
 
 **部署前必须完成以下配置**：
@@ -142,6 +144,7 @@ ports:
 
 ## 📜 许可证
 MIT License | Copyright © 2025 
+
 
 
 
