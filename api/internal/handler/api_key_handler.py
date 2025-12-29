@@ -77,4 +77,5 @@ class ApiKeyHandler:
         # 3.构建响应结构并返回
         resp = GetApiKeysWithPageResp(many=True)
 
-        return success_json(PageModel(list=resp.dumps(api_keys), paginator=paginator))
+
+        return success_json(PageModel(list=resp.dump(api_keys), paginator=paginator))
