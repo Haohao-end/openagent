@@ -1,0 +1,17 @@
+# Nginx 配置模板
+# 此文件会被 entrypoint.sh 动态替换变量
+
+# HTTP 重定向到 HTTPS（仅在启用 HTTPS 时生效）
+server {
+    listen 80;
+    server_name ${DOMAIN_NAME};
+
+    # 如果启用 HTTPS，重定向到 HTTPS
+    # 如果不启用 HTTPS，直接代理
+    ${HTTP_REDIRECT}
+
+    ${HTTP_PROXY}
+}
+
+# HTTPS 配置（仅在启用 HTTPS 时生效）
+${HTTPS_SERVER}

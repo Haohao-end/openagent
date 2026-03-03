@@ -143,11 +143,17 @@ services:
     image: nginx:latest
     restart: always
     container_name: llmops-nginx
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME:-localhost}
+      - ENABLE_HTTPS=${ENABLE_HTTPS:-false}
+      - SSL_CERT_FILE=${SSL_CERT_FILE:-server.crt}
+      - SSL_KEY_FILE=${SSL_KEY_FILE:-server.key}
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/proxy.conf:/etc/nginx/proxy.conf
-      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/entrypoint.sh:/docker-entrypoint.sh
       - ./nginx/ssl:/etc/ssl
+    entrypoint: ["/bin/bash", "/docker-entrypoint.sh"]
     depends_on:
       - llmops-ui
       - llmops-api
