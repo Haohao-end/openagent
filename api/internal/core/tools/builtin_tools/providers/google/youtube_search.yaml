@@ -1,0 +1,9 @@
+name: youtube_search
+label: YouTube视频搜索
+description: 搜索YouTube上的视频内容
+params:
+  - name: max_results
+    label: 最大结果数
+    type: number
+    default: 5
+    required: false

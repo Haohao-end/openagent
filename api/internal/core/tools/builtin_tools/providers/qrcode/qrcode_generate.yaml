@@ -1,0 +1,4 @@
+name: qrcode_generate
+label: 二维码生成
+description: 根据文本内容生成二维码图片
+params: []

@@ -60,6 +60,7 @@ class GetWorkflowResp(Schema):
     description = fields.String(dump_default="")
     status = fields.String(dump_default="")
     is_debug_passed = fields.Boolean(dump_default=False)
+    is_public = fields.Boolean(dump_default=False)
     node_count = fields.Integer(dump_default=0)
     published_at = fields.Integer(dump_default=0)
     updated_at = fields.Integer(dump_default=0)
@@ -75,6 +76,7 @@ class GetWorkflowResp(Schema):
             "description": data.description,
             "status": data.status,
             "is_debug_passed": data.is_debug_passed,
+            "is_public": data.is_public,
             "node_count": len(data.draft_graph.get("nodes", [])),
             "published_at": datetime_to_timestamp(data.published_at),
             "updated_at": datetime_to_timestamp(data.updated_at),
@@ -100,6 +102,7 @@ class GetWorkflowsWithPageResp(Schema):
     description = fields.String(dump_default="")
     status = fields.String(dump_default="")
     is_debug_passed = fields.Boolean(dump_default=False)
+    is_public = fields.Boolean(dump_default=False)
     node_count = fields.Integer(dump_default=0)
     published_at = fields.Integer(dump_default=0)
     updated_at = fields.Integer(dump_default=0)
@@ -115,7 +118,8 @@ class GetWorkflowsWithPageResp(Schema):
             "description": data.description,
             "status": data.status,
             "is_debug_passed": data.is_debug_passed,
-            "node_count": len(data.graph.get("nodes", [])),
+            "is_public": data.is_public,
+            "node_count": len(data.draft_graph.get("nodes", [])),
             "published_at": datetime_to_timestamp(data.published_at),
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),

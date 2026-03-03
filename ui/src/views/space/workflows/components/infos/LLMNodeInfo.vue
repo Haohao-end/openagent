@@ -1,10 +1,40 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch, inject } from 'vue'
 import { useVueFlow } from '@vue-flow/core'
-import { cloneDeep } from 'lodash'
+import { cloneDeep, debounce } from 'lodash'
 import { Message, type ValidatedError } from '@arco-design/web-vue'
 import { getReferencedVariables } from '@/utils/helper'
 import ModelConfig from './components/ModelConfig.vue'
+
+type NodeInputField = {
+  name: string
+  type: string
+  value: {
+    type: string
+    content: {
+      ref_node_id: string
+      ref_var_name: string
+    }
+  }
+}
+
+type FormInputField = {
+  name: string
+  type: string
+  ref: string
+  content?: unknown
+}
+
+type LLMNodeForm = {
+  id: string
+  type: string
+  title: string
+  description: string
+  prompt: string
+  model_config: Record<string, unknown>
+  inputs: FormInputField[]
+  outputs: Array<Record<string, unknown>>
+}
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
@@ -20,7 +50,25 @@ const props = defineProps({
 })
 const emits = defineEmits(['update:visible', 'updateNode'])
 const { nodes, edges } = useVueFlow()
-const form = ref<Record<string, any>>({})
+const form = ref<LLMNodeForm>({
+  id: '',
+  type: '',
+  title: '',
+  description: '',
+  prompt: '',
+  model_config: {},
+  inputs: [],
+  outputs: [],
+})
+const isSyncingForm = ref(false)
+
+// 注入只读状态
+const isReadonly = inject<boolean>('isReadonly', false)
+const debounceAutoSave = debounce(() => {
+  // 只读模式下不自动保存
+  if (isReadonly) return
+  void onSubmit({ errors: undefined })
+}, 800)
 
 // 2.定义节点可引用的变量选项
 const inputRefOptions = computed(() => {
@@ -53,7 +101,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
     description: form.value.description,
     prompt: form.value.prompt,
     model_config: form.value.model_config,
-    inputs: cloneInputs.map((input: any) => {
+    inputs: cloneInputs.map((input: FormInputField) => {
       return {
         name: input.name,
         description: '',
@@ -78,8 +126,13 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
 
 // 5.监听数据，将数据映射到表单模型上
 watch(
-  () => props.node,
-  (newNode) => {
+  () => props.node?.id,
+  () => {
+    const newNode = props.node
+    if (!newNode?.id) return
+    isSyncingForm.value = true
+    debounceAutoSave.flush()
+    debounceAutoSave.cancel()
     const cloneInputs = cloneDeep(newNode.data.inputs)
     form.value = {
       id: newNode.id,
@@ -88,7 +141,7 @@ watch(
       description: newNode.data.description,
       prompt: newNode.data.prompt,
       model_config: newNode.data.language_model_config,
-      inputs: cloneInputs.map((input: any) => {
+      inputs: cloneInputs.map((input: NodeInputField) => {
         // 5.1 计算引用的变量值信息
         const ref =
           input.value.type === 'ref'
@@ -116,9 +169,26 @@ watch(
       }),
       outputs: [{ name: 'output', type: 'string', value: { type: 'generated', content: '' } }],
     }
+    nextTick(() => {
+      isSyncingForm.value = false
+    })
   },
   { immediate: true },
 )
+
+watch(
+  form,
+  () => {
+    if (isSyncingForm.value) return
+    debounceAutoSave()
+  },
+  { deep: true },
+)
+
+onBeforeUnmount(() => {
+  debounceAutoSave.flush()
+  debounceAutoSave.cancel()
+})
 </script>
 
 <template>
@@ -126,7 +196,15 @@ watch(
     v-if="props.visible"
     id="llm-node-info"
     class="absolute top-0 right-0 bottom-0 w-[400px] border-l z-50 bg-white overflow-scroll scrollbar-w-none p-3"
-  >
+  >    <!-- 只读模式提示横幅 -->
+    <div v-if="isReadonly" class="mb-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+      <div class="flex items-center gap-2 text-orange-700">
+        <icon-lock class="flex-shrink-0" />
+        <span class="text-sm font-medium">预览模式：所有配置仅供查看，无法修改</span>
+      </div>
+    </div>
+
+
     <!-- 顶部标题信息 -->
     <div class="flex items-center justify-between gap-3 mb-2">
       <!-- 左侧标题 -->
@@ -162,7 +240,7 @@ watch(
     <!-- 分隔符 -->
     <a-divider class="my-2" />
     <!-- 表单信息 -->
-    <a-form size="mini" :model="form" layout="vertical" @submit="onSubmit">
+    <a-form size="mini" :model="form" :disabled="isReadonly" layout="vertical">
       <!-- 模型选择 -->
       <div class="flex flex-col gap-2">
         <!-- 标题&操作按钮 -->
@@ -248,7 +326,7 @@ watch(
           </div>
           <div class="w-[8%] text-right">
             <icon-minus-circle
-              class="text-gray-500 hover:text-gray-700 cursor-pointer flex-shrink-0"
+              v-if="!isReadonly" class="text-gray-500 hover:text-gray-700 cursor-pointer flex-shrink-0"
               @click="() => removeFormInputField(idx)"
             />
           </div>
@@ -296,20 +374,6 @@ watch(
           </div>
         </div>
       </div>
-      <a-divider class="my-4" />
-      <!-- 保存按钮 -->
-      <a-button
-        :loading="props.loading"
-        type="primary"
-        size="small"
-        html-type="submit"
-        long
-        class="rounded-lg"
-      >
-        保存
-      </a-button>
     </a-form>
   </div>
 </template>
-
-<style scoped></style>

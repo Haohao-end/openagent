@@ -239,7 +239,7 @@ class AppConfigService(BaseService):
                         "id": provider_entity.name,
                         "name": provider_entity.name,
                         "label": provider_entity.label,
-                        "icon": f"{request.scheme}://{request.host}/builtin-tools/{provider_entity.name}/icon",
+                        "icon": f"/builtin-tools/{provider_entity.name}/icon",
                         "description": provider_entity.description,
                     },
                     "tool": {
@@ -247,7 +247,7 @@ class AppConfigService(BaseService):
                         "name": tool_entity.name,
                         "label": tool_entity.label,
                         "description": tool_entity.description,
-                        "params": tool["params"],
+                        "params": params,
                     }
                 })
             elif tool["type"] == "api_tool":

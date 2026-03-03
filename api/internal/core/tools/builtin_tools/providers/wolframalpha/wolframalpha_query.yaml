@@ -1,0 +1,4 @@
+name: wolframalpha_query
+label: Wolfram Alpha计算
+description: 强大的计算引擎，支持数学计算、科学计算、单位转换、数据分析等
+params: []

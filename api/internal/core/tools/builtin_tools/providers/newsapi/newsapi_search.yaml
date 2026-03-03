@@ -1,0 +1,23 @@
+name: newsapi_search
+label: 新闻搜索
+description: 搜索全球新闻，支持关键词搜索和多语言
+params:
+  - name: page_size
+    label: 结果数量
+    type: number
+    default: 5
+    required: false
+  - name: language
+    label: 语言
+    type: select
+    default: en
+    required: false
+    options:
+      - value: en
+        label: "英语"
+      - value: zh
+        label: "中文"
+      - value: es
+        label: "西班牙语"
+      - value: fr
+        label: "法语"

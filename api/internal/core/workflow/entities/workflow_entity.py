@@ -70,10 +70,14 @@ class WorkflowConfig(BaseModel):
             DatasetRetrievalNodeData,
             EndNodeData,
             HttpRequestNodeData,
+            IfElseNodeData,
             LLMNodeData,
+            ParameterExtractorNodeData,
             StartNodeData,
             TemplateTransformNodeData,
+            TextProcessorNodeData,
             ToolNodeData,
+            VariableAssignerNodeData,
         )
         node_data_classes = {
             NodeType.START.value: StartNodeData,
@@ -84,6 +88,10 @@ class WorkflowConfig(BaseModel):
             NodeType.CODE.value: CodeNodeData,
             NodeType.TOOL.value: ToolNodeData,
             NodeType.HTTP_REQUEST.value: HttpRequestNodeData,
+            NodeType.TEXT_PROCESSOR.value: TextProcessorNodeData,
+            NodeType.VARIABLE_ASSIGNER.value: VariableAssignerNodeData,
+            NodeType.PARAMETER_EXTRACTOR.value: ParameterExtractorNodeData,
+            NodeType.IF_ELSE.value: IfElseNodeData,
         }
 
         # 5.循环遍历所有节点
@@ -148,9 +156,26 @@ class WorkflowConfig(BaseModel):
             ):
                 raise ValidateErrorException("工作流边起点/终点对应的节点不存在或类型错误，请核实后重试")
 
-            # 18.校验边Edges里的边必须唯一(source+target必须唯一)
+            # 17.5 校验条件分支节点的边必须有 source_handle
+            source_node = node_data_dict[edge_data.source]
+            if source_node.node_type == NodeType.IF_ELSE.value:
+                if not edge_data.source_handle:
+                    raise ValidateErrorException(
+                        f"条件分支节点 '{source_node.title}' 的边必须指定 source_handle (true/false)，"
+                        f"请在前端从正确的句柄（绿色勾表示true，红色叉表示false）拖拽连线"
+                    )
+                if edge_data.source_handle not in ["true", "false"]:
+                    raise ValidateErrorException(
+                        f"条件分支节点 '{source_node.title}' 的 source_handle 必须是 'true' 或 'false'，"
+                        f"当前值: {edge_data.source_handle}"
+                    )
+
+            # 18.校验边Edges里的边必须唯一(source+target+source_handle必须唯一)
+            # 对于条件分支节点，允许多条边连接到同一目标，但 source_handle 必须不同
             if any(
-                    (item.source == edge_data.source and item.target == edge_data.target)
+                    (item.source == edge_data.source
+                     and item.target == edge_data.target
+                     and item.source_handle == edge_data.source_handle)
                     for item in edge_data_dict.values()
             ):
                 raise ValidateErrorException("工作流边数据不能重复添加")

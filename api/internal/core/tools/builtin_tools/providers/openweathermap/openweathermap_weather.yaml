@@ -1,0 +1,4 @@
+name: openweathermap_weather
+label: 全球天气查询
+description: 查询全球任意城市的实时天气信息，支持中英文城市名
+params: []

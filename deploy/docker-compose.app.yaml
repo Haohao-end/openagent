@@ -1,0 +1,25 @@
+services:
+  llmops-api:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    container_name: llmops-api
+    restart: always
+    env_file:
+      - ${LLMOPS_API_ENV_FILE:-/opt/llmops/env/api.env}
+    ports:
+      - "5001:5001"
+    depends_on:
+      llmops-db:
+        condition: service_healthy
+      llmops-redis:
+        condition: service_started
+      llmops-weaviate:
+        condition: service_started
+
+  llmops-ui:
+    image: ${UI_IMAGE:?UI_IMAGE is required}
+    container_name: llmops-ui
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - llmops-api

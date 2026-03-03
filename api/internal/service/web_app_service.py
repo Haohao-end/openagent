@@ -1,5 +1,5 @@
 import json
-from typing import Generator
+from typing import Generator, Any
 from uuid import UUID
 from flask import current_app
 from injector import inject
@@ -48,6 +48,31 @@ class WebAppService(BaseService):
         # 2.返回查询的应用
         return app
 
+    def get_web_app_info(self, token: str) -> dict[str, Any]:
+        """根据传递的token获取WebApp信息"""
+        # 1.获取App基础信息
+        app = self.get_web_app(token)
+
+        # 2.根据App基础信息构建LLM
+        app_config = self.app_config_service.get_app_config(app)
+        llm = self.language_model_service.load_language_model(app_config.get("model_config", {}))
+
+        # 3.提取信息并返回
+        return {
+            "id": str(app.id),
+            "icon": app.icon,
+            "name": app.name,
+            "description": app.description,
+            "app_config": {
+                "opening_statement": app_config.get("opening_statement"),
+                "opening_questions": app_config.get("opening_questions"),
+                "suggested_after_answer": app_config.get("suggested_after_answer"),
+                "features": llm.features,
+                "text_to_speech": app_config.get("text_to_speech"),
+                "speech_to_text": app_config.get("speech_to_text"),
+            }
+        }
+
     def web_app_chat(self, token: str, req: WebAppChatReq, account: Account) -> Generator:
         """根据传递的token凭证+请求与指定的WebApp进行对话"""
         # 1.获取WebApp应用并校验应用是否发布
@@ -81,10 +106,11 @@ class WebAppService(BaseService):
             Message,
             app_id=app.id,
             conversation_id=conversation.id,
-            invoke_from=InvokeFrom.WEB_APP.value,
+            invoke_from=InvokeFrom.WEB_APP,
             created_by=account.id,
             query=req.query.data,
-            status=MessageStatus.NORMAL.value,
+            image_urls=req.image_urls.data,
+            status=MessageStatus.NORMAL,
         )
 
         # 6.从语言模型管理器中加载大语言模型
@@ -94,6 +120,7 @@ class WebAppService(BaseService):
         token_buffer_memory = TokenBufferMemory(
             db=self.db,
             conversation=conversation,
+            model_instance=llm,
         )
         history = token_buffer_memory.get_history_prompt_messages(
             message_limit=app_config["dialog_round"],
@@ -138,7 +165,7 @@ class WebAppService(BaseService):
         # 13.定义字典存储推理过程，并调用智能体获取消息
         agent_thoughts = {}
         for agent_thought in agent.stream({
-            "messages": [HumanMessage(req.query.data)],
+            "messages": [llm.convert_to_human_message(req.query.data, req.image_urls.data)],
             "history": history,
             "long_term_memory": conversation.summary,
         }):
@@ -204,10 +231,21 @@ class WebAppService(BaseService):
         # 2.调用智能体队列管理器停止特定服务
         AgentQueueManager.set_stop_flag(task_id, InvokeFrom.WEB_APP.value, account.id)
 
-    def get_conversations(self, token: str, is_pinned: bool, account: Account) -> list[Conversation]:
+    def get_conversations(
+            self,
+            token: str,
+            is_pinned: bool,
+            account: Account,
+            current_page: int = 1,
+            page_size: int = 20,
+    ) -> list[Conversation]:
         """根据传递的token+is_pinned+account获取指定账号在该WebApp下的会话列表信息"""
         # 1.获取WebApp应用并校验应用是否发布
         app = self.get_web_app(token)
+
+        safe_current_page = max(1, int(current_page or 1))
+        safe_page_size = max(1, min(int(page_size or 20), 100))
+        offset = (safe_current_page - 1) * safe_page_size
 
         # 2.筛选过滤并查询数据
         conversations = self.db.session.query(Conversation).filter(
@@ -216,6 +254,6 @@ class WebAppService(BaseService):
             Conversation.invoke_from == InvokeFrom.WEB_APP.value,
             Conversation.is_pinned == is_pinned,
             Conversation.is_deleted == False
-        ).order_by(desc("created_at")).all()
+        ).order_by(desc("created_at")).offset(offset).limit(safe_page_size).all()
 
         return conversations

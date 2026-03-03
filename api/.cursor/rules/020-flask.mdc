@@ -1,0 +1,17 @@
+---
+description: Flask API Gateway conventions for LMForge
+globs: "api/**"
+alwaysApply: false
+---
+Flask Rules:
+- All routes MUST use Blueprints (organized under api/internal/router/router.py).
+- Dependency Injection: ALWAYS use Injector modules (see api/modules/).
+- Configuration: load from .env, use app.config throughout.
+- Responses: always jsonify() with proper HTTP status codes.
+- Swagger/OpenAPI: add proper decorators/comments for /docs.
+- CORS/CSRF: already configured globally — do not override.
+- Never put routes directly in app.py — use blueprints.
+
+JSON Handling:
+- Request validation: use Pydantic or Flask-WTF schemas.
+- Response serialization: use Pydantic models with .model_dump(mode='json').

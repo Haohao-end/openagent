@@ -268,14 +268,14 @@ onMounted(() => {
       <!-- 加载器 -->
       <a-row v-if="paginator.total_page >= 2">
         <!-- 加载数据中 -->
-        <a-col v-if="paginator.current_page <= paginator.total_page" :span="24" align="center">
+        <a-col v-if="loading" :span="24" align="center">
           <a-space class="my-4">
             <a-spin />
             <div class="text-gray-400">加载中</div>
           </a-space>
         </a-col>
         <!-- 数据加载完成 -->
-        <a-col v-else :span="24" align="center">
+        <a-col v-else-if="paginator.current_page > paginator.total_page" :span="24" align="center">
           <div class="text-gray-400 my-4">数据已加载完成</div>
         </a-col>
       </a-row>

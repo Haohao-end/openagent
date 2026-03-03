@@ -119,3 +119,39 @@ class WorkflowHandler:
         """根据传递的工作流id取消发布指定的工作流"""
         self.workflow_service.cancel_publish_workflow(workflow_id, current_user)
         return success_message("取消发布工作流成功")
+
+    @login_required
+    def regenerate_icon(self, workflow_id: UUID):
+        """根据传递的工作流id重新生成工作流图标"""
+        icon_url = self.workflow_service.regenerate_icon(workflow_id, current_user)
+        return success_json({"icon": icon_url})
+
+    @login_required
+    def generate_icon_preview(self):
+        """根据传递的名称和描述生成图标预览（不保存到工作流）"""
+        # 1.获取请求数据
+        data = request.get_json(force=True, silent=True) or {}
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+
+        # 2.校验名称不能为空
+        if not name:
+            return validate_error_json({'name': ['工作流名称不能为空']})
+
+        # 3.调用服务生成图标
+        icon_url = self.workflow_service.generate_icon_preview(name, description)
+
+        return success_json({"icon": icon_url})
+
+    @login_required
+    def share_workflow_to_public(self, workflow_id: UUID):
+        """分享或取消分享工作流到广场"""
+        # 1.提取请求数据
+        data = request.get_json(force=True, silent=True) or {}
+        is_public = data.get("is_public", False)
+
+        # 2.调用服务更新工作流公开状态
+        self.workflow_service.share_workflow_to_public(workflow_id, current_user, is_public)
+
+        message = "分享工作流到广场成功" if is_public else "取消分享工作流成功"
+        return success_message(message)

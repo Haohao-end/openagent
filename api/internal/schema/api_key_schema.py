@@ -30,6 +30,7 @@ class UpdateApiKeyIsActiveReq(FlaskForm):
 
 class GetApiKeysWithPageResp(Schema):
     """获取API秘钥分页列表数据"""
+    MASKED_API_KEY = "****************"
     id = fields.UUID(dump_default="")
     api_key = fields.String(dump_default="")
     is_active = fields.Boolean(dump_default=False)
@@ -41,7 +42,7 @@ class GetApiKeysWithPageResp(Schema):
     def process_data(self, data: ApiKey, **kwargs):
         return {
             "id": data.id,
-            "api_key": data.api_key,
+            "api_key": self.MASKED_API_KEY,
             "is_active": data.is_active,
             "remark": data.remark,
             "updated_at": datetime_to_timestamp(data.updated_at),

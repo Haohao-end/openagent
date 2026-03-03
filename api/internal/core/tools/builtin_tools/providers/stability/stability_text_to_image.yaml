@@ -1,0 +1,33 @@
+name: stability_text_to_image
+label: Stable Diffusion绘图
+description: 使用Stable Diffusion XL生成高质量图像
+params:
+  - name: width
+    label: 图片宽度
+    type: select
+    default: 1024
+    required: false
+    options:
+      - value: 512
+        label: "512"
+      - value: 768
+        label: "768"
+      - value: 1024
+        label: "1024"
+  - name: height
+    label: 图片高度
+    type: select
+    default: 1024
+    required: false
+    options:
+      - value: 512
+        label: "512"
+      - value: 768
+        label: "768"
+      - value: 1024
+        label: "1024"
+  - name: steps
+    label: 生成步数
+    type: number
+    default: 30
+    required: false

@@ -1,18 +1,76 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, inject } from 'vue'
 import { useVueFlow } from '@vue-flow/core'
-import { cloneDeep } from 'lodash'
+import { cloneDeep, debounce } from 'lodash'
 import { getReferencedVariables } from '@/utils/helper'
 import { apiPrefix } from '@/config'
 import { useGetBuiltinTool, useGetBuiltinTools, useGetCategories } from '@/hooks/use-builtin-tool'
-import { useGetApiTool, useGetApiToolProvidersWithPage } from '@/hooks/use-tool'
+import { useGetApiToolProvidersWithPage } from '@/hooks/use-tool'
 import type { ValidatedError } from '@arco-design/web-vue'
+
+type ToolProvider = {
+  id: string
+  name: string
+  label: string
+  icon: string
+  description: string
+}
+
+type ToolMeta = {
+  id: string
+  name: string
+  label: string
+  description: string
+  params: Record<string, unknown>
+}
+
+type ToolSelection = {
+  type: string
+  provider: ToolProvider
+  tool: ToolMeta
+}
+
+type ToolNodeInputField = {
+  name: string
+  type: string
+  value: {
+    type: string
+    content: {
+      ref_node_id: string
+      ref_var_name: string
+    }
+  }
+}
+
+type ToolFormInputField = {
+  name: string
+  type: string
+  value_type: string
+  content?: unknown
+  ref: string
+}
+
+type ToolParam = {
+  key: string
+  value: unknown
+}
+
+type ToolNodeForm = {
+  id: string
+  type: string
+  title: string
+  description: string
+  tool: ToolSelection
+  params: ToolParam[]
+  inputs: ToolFormInputField[]
+  outputs: Array<Record<string, unknown>>
+}
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
   visible: { type: Boolean, required: true, default: false },
   node: {
-    type: Object as any,
+    type: Object,
     required: true,
     default: () => {
       return {}
@@ -29,27 +87,72 @@ const {
   loadApiToolProviders,
 } = useGetApiToolProvidersWithPage()
 const { builtin_tool, loadBuiltinTool } = useGetBuiltinTool()
-const { api_tool, loadApiTool } = useGetApiTool()
 const { builtin_tools, loadBuiltinTools } = useGetBuiltinTools()
 const { categories, loadCategories } = useGetCategories()
-const form = ref<Record<string, any>>({})
+const form = ref<ToolNodeForm>({
+  id: '',
+  type: '',
+  title: '',
+  description: '',
+  tool: {
+    type: 'api_tool',
+    provider: { id: '', name: '', label: '', icon: '', description: '' },
+    tool: { id: '', name: '', label: '', description: '', params: {} },
+  },
+  params: [],
+  inputs: [],
+  outputs: [],
+})
+const isSyncingForm = ref(false)
+
+// 注入只读状态
+const isReadonly = inject<boolean>('isReadonly', false)
+const debounceAutoSave = debounce(() => {
+  // 只读模式下不自动保存
+  if (isReadonly) return
+  void onSubmit({ errors: undefined })
+}, 800)
 const toolsModalVisible = ref(false)
 const toolsActivateType = ref('api_tool')
 const toolsActivateCategory = ref('all')
 const computedBuiltinTools = computed(() => {
   if (toolsActivateCategory.value === 'all') return builtin_tools.value
-  return builtin_tools.value.filter((item: any) => item.category === toolsActivateCategory.value)
+  return builtin_tools.value.filter((item: { category: string }) => item.category === toolsActivateCategory.value)
 })
-const pythonTypeMap: Record<string, any> = {
+const pythonTypeMap: Record<string, string> = {
   str: 'string',
   int: 'int',
   float: 'float',
   bool: 'boolean',
 }
-const defaultToolMeta = {
+const defaultToolMeta: ToolSelection = {
   type: 'api_tool',
   provider: { id: '', name: '', label: '', icon: '', description: '' },
   tool: { id: '', name: '', label: '', description: '', params: {} },
+}
+
+// 统一处理图标地址，兼容绝对地址、相对地址以及 /api 路径
+const normalizeIconUrl = (icon: string = '') => {
+  if (!icon) return ''
+  if (icon.startsWith('data:') || /^https?:\/\//.test(icon)) return icon
+  const fallbackOrigin = globalThis.location?.origin ?? 'http://localhost'
+  const apiUrl = new URL(apiPrefix, fallbackOrigin)
+  const basePath = apiUrl.pathname.replace(/\/+$/, '')
+  let path = icon.startsWith('/') ? icon : `/${icon}`
+
+  // 本地开发常见：后端实际无 /api 前缀，但返回了 /api/xxx
+  if (path.startsWith('/api/') && !basePath.startsWith('/api')) {
+    path = path.replace(/^\/api/, '')
+  }
+
+  if (basePath && basePath !== '/' && !path.startsWith(`${basePath}/`)) {
+    if (path.startsWith('/api/')) {
+      path = path.replace(/^\/api/, '')
+    }
+    return `${apiUrl.origin}${basePath}${path}`
+  }
+
+  return `${apiUrl.origin}${path}`
 }
 
 // 2.定义节点可引用的变量选项
@@ -75,7 +178,7 @@ const removeBindTool = () => {
 }
 
 // 5.定义是否关联工具判断函数
-const isToolSelected = (provider: Record<string, any>, tool: Record<string, any>) => {
+const isToolSelected = (provider: ToolProvider, tool: ToolMeta) => {
   return (
     form.value.tool?.provider?.name === provider.name && form.value.tool?.tool.name === tool.name
   )
@@ -84,7 +187,7 @@ const isToolSelected = (provider: Record<string, any>, tool: Record<string, any>
 // 6.定义工具选择处理器
 const handleSelectTool = async (provider_idx: number, tool_idx: number) => {
   // 6.1 根据不同的工具类型执行不同的操作
-  let selectTool: any
+  let selectTool: ToolSelection
   if (toolsActivateType.value === 'api_tool') {
     // 6.2 获取api工具提供者+工具本身，并更新selectTool
     const apiToolProvider = api_tool_providers.value[provider_idx]
@@ -125,7 +228,7 @@ const handleSelectTool = async (provider_idx: number, tool_idx: number) => {
         name: builtinTool.name,
         label: builtinTool.label,
         description: builtinTool.description,
-        params: params.reduce((newObj: any, item: any) => {
+        params: params.reduce((newObj: Record<string, unknown>, item: { name: string; default: unknown }) => {
           newObj[item.name] = item.default
           return newObj
         }, {}),
@@ -154,27 +257,29 @@ const handleSelectTool = async (provider_idx: number, tool_idx: number) => {
       const params = builtin_tool.value.params
 
       // 6.9 更新inputs+params
-      form.value.inputs = inputs.map((item: any) => {
+      form.value.inputs = inputs.map((item: { name: string; type: string }) => {
         return {
           name: item.name,
-          type: pythonTypeMap[item.type],
+          type: pythonTypeMap[item.type] || 'string',
           value_type: 'ref', // 工具调用参数默认设置为引用
           content: '',
           ref: '',
         }
       })
-      form.value.params = params.map((param: any) => {
+      form.value.params = params.map((param: { name: string; default: unknown }) => {
         return { key: param.name, value: param.default }
       })
     } else {
-      await loadApiTool(selectTool.provider.id, selectTool.tool.name)
-      const inputs = api_tool.value.inputs
+      // 6.10 自定义插件直接使用列表数据中的inputs，无需再次调用API
+      const apiToolProvider = api_tool_providers.value[provider_idx]
+      const apiTool = apiToolProvider['tools'][tool_idx]
+      const inputs = apiTool.inputs || []
 
-      // 6.10 更新inputs+params
-      form.value.inputs = inputs.map((item: any) => {
+      // 6.11 更新inputs+params
+      form.value.inputs = inputs.map((item: { name: string; type: string }) => {
         return {
           name: item.name,
-          type: pythonTypeMap[item.type],
+          type: pythonTypeMap[item.type] || 'string',
           value_type: 'ref', // 工具调用参数默认设置为引用
           content: '',
           ref: '',
@@ -207,8 +312,8 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   // 7.5 深度拷贝表单数据内容
   const cloneInputs = cloneDeep(form.value.inputs)
   const cloneParams = cloneDeep(form.value.params)
-  let params: Record<string, any> = {}
-  cloneParams.forEach((param: Record<string, any>) => {
+  const params: Record<string, unknown> = {}
+  cloneParams.forEach((param: ToolParam) => {
     params[param.key] = param.value
   })
 
@@ -222,7 +327,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
     tool_id: form.value.tool?.tool.name,
     meta: cloneDeep(form.value.tool),
     params: params, // 将列表转换成字典
-    inputs: cloneInputs.map((input: Record<string, any>) => {
+    inputs: cloneInputs.map((input: ToolFormInputField) => {
       return {
         name: input.name,
         description: '',
@@ -247,21 +352,26 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
 
 // 8.监听数据，将数据映射到表单模型上
 watch(
-  () => props.node,
-  (newNode) => {
+  () => props.node?.id,
+  () => {
+    const newNode = props.node
+    if (!newNode?.id) return
+    isSyncingForm.value = true
+    debounceAutoSave.flush()
+    debounceAutoSave.cancel()
     const cloneInputs = cloneDeep(newNode.data.inputs)
-    const cloneParams = cloneDeep(newNode.data.params)
+    const cloneParams = cloneDeep(newNode.data.params) as Record<string, unknown>
     form.value = {
       id: newNode.id,
       type: newNode.type,
       title: newNode.data.title,
       description: newNode.data.description,
-      tool: cloneDeep(newNode.data.meta) ?? defaultToolMeta,
+      tool: (cloneDeep(newNode.data.meta) as ToolSelection) ?? defaultToolMeta,
       params: Object.entries(cloneParams).map(([key, value]) => ({
         key: key,
         value: value,
       })), // 将字典转换成列表
-      inputs: cloneInputs.map((input: any) => {
+      inputs: cloneInputs.map((input: ToolNodeInputField) => {
         // 8.1 计算引用的变量值信息
         const ref =
           input.value.type === 'ref'
@@ -290,9 +400,26 @@ watch(
       }),
       outputs: [{ name: 'text', type: 'string', value: { type: 'generated', content: '' } }],
     }
+    nextTick(() => {
+      isSyncingForm.value = false
+    })
   },
   { immediate: true },
 )
+
+watch(
+  form,
+  () => {
+    if (isSyncingForm.value) return
+    debounceAutoSave()
+  },
+  { deep: true },
+)
+
+onBeforeUnmount(() => {
+  debounceAutoSave.flush()
+  debounceAutoSave.cancel()
+})
 
 onMounted(() => {
   // 加载内置工具分类
@@ -302,10 +429,17 @@ onMounted(() => {
 
 <template>
   <div
-    v-if="props.visible"
-    id="llm-node-info"
+    id="tool-node-info"
     class="absolute top-0 right-0 bottom-0 w-[400px] border-l z-50 bg-white overflow-scroll scrollbar-w-none p-3"
-  >
+  >    <!-- 只读模式提示横幅 -->
+    <div v-if="isReadonly" class="mb-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+      <div class="flex items-center gap-2 text-orange-700">
+        <icon-lock class="flex-shrink-0" />
+        <span class="text-sm font-medium">预览模式：所有配置仅供查看，无法修改</span>
+      </div>
+    </div>
+
+
     <!-- 顶部标题信息 -->
     <div class="flex items-center justify-between gap-3 mb-2">
       <!-- 左侧标题 -->
@@ -315,7 +449,7 @@ onMounted(() => {
         </a-avatar>
         <a-input
           v-model:model-value="form.title"
-          placeholder="请输入标题"
+          :disabled="isReadonly" placeholder="请输入标题"
           class="!bg-white text-gray-700 font-semibold px-2"
         />
       </div>
@@ -335,13 +469,13 @@ onMounted(() => {
     <a-textarea
       :auto-size="{ minRows: 3, maxRows: 5 }"
       v-model="form.description"
-      class="rounded-lg text-gray-700 !text-xs"
+      :disabled="isReadonly" class="rounded-lg text-gray-700 !text-xs"
       placeholder="输入描述..."
     />
     <!-- 分隔符 -->
     <a-divider class="my-2" />
     <!-- 表单信息 -->
-    <a-form size="mini" :model="form" layout="vertical" @submit="onSubmit">
+    <a-form size="mini" :model="form" :disabled="isReadonly" layout="vertical">
       <!-- 绑定插件 -->
       <div class="flex flex-col gap-2">
         <!-- 标题&操作按钮 -->
@@ -354,7 +488,7 @@ onMounted(() => {
             </a-tooltip>
           </div>
           <!-- 右侧绑定工具按钮 -->
-          <a-button type="text" size="mini" class="!text-gray-700" @click="handleShowToolsModal">
+          <a-button v-if="!isReadonly" type="text" size="mini" class="!text-gray-700" @click="handleShowToolsModal">
             <template #icon>
               <icon-plus />
             </template>
@@ -371,7 +505,7 @@ onMounted(() => {
                 :size="36"
                 shape="square"
                 class="rounded flex-shrink-0"
-                :image-url="form?.tool?.provider?.icon"
+                :image-url="normalizeIconUrl(form?.tool?.provider?.icon)"
               />
               <!-- 名称与描述信息 -->
               <div class="flex flex-col flex-1 gap-1 h-9">
@@ -385,6 +519,7 @@ onMounted(() => {
             </div>
             <!-- 右侧删除按钮 -->
             <a-button
+              v-if="!isReadonly"
               size="mini"
               type="text"
               class="hidden group-hover:block flex-shrink-0 ml-2 !text-red-700 rounded"
@@ -512,18 +647,6 @@ onMounted(() => {
           </div>
         </div>
       </div>
-      <a-divider class="my-4" />
-      <!-- 保存按钮 -->
-      <a-button
-        :loading="props.loading"
-        type="primary"
-        size="small"
-        html-type="submit"
-        long
-        class="rounded-lg"
-      >
-        保存
-      </a-button>
     </a-form>
     <!-- 选择工具模态窗 -->
     <a-modal
@@ -541,7 +664,7 @@ onMounted(() => {
           <!-- 标题 -->
           <div class="text-gray-900 font-bold text-lg mb-4">关联插件</div>
           <!-- 添加插件按钮 -->
-          <router-link :to="{ name: 'space-tools-list' }">
+          <router-link :to="{ name: 'space-tools-list', query: { create_type: 'tool' } }">
             <a-button long type="primary" class="rounded-lg mb-5">创建自定义插件</a-button>
           </router-link>
           <!-- 工具类别导航 -->
@@ -581,7 +704,7 @@ onMounted(() => {
                 :class="`rounded-lg h-8 leading-8 px-3 flex items-center gap-2 cursor-pointer hover:bg-white hover:text-blue-700 ${toolsActivateCategory === category.category ? 'text-blue-700 bg-white' : ' text-gray-700'}`"
                 @click="toolsActivateCategory = category.category"
               >
-                <span v-html="category.icon"></span>
+                <icon-apps />
                 {{ category.name }}
               </div>
             </div>
@@ -677,7 +800,11 @@ onMounted(() => {
                   >
                     <!-- 工具信息 -->
                     <div class="flex items-center gap-2">
-                      <a-avatar :size="20" shape="circle" :image-url="api_tool_provider.icon" />
+                      <a-avatar
+                        :size="20"
+                        shape="circle"
+                        :image-url="normalizeIconUrl(api_tool_provider.icon)"
+                      />
                       <div class="text-gray-900">{{ tool.name }}</div>
                     </div>
                     <!-- 添加按钮 -->
@@ -704,7 +831,7 @@ onMounted(() => {
               <a-row v-if="paginator.total_page >= 2">
                 <!-- 加载数据中 -->
                 <a-col
-                  v-if="paginator.current_page <= paginator.total_page"
+                  v-if="getApiToolProvidersLoading"
                   :span="24"
                   class="!text-center"
                 >
@@ -714,7 +841,7 @@ onMounted(() => {
                   </a-space>
                 </a-col>
                 <!-- 数据加载完成 -->
-                <a-col v-else :span="24" class="!text-center">
+                <a-col v-else-if="paginator.current_page > paginator.total_page" :span="24" class="!text-center">
                   <div class="text-gray-400 my-4">数据已加载完成</div>
                 </a-col>
               </a-row>
@@ -729,20 +856,17 @@ onMounted(() => {
 <style>
 .tool-setting-modal {
   .arco-modal-wrapper {
-    text-align: right;
+    @apply text-right;
   }
 }
 
 .tools-modal {
   .arco-modal-wrapper {
-    text-align: right;
+    @apply text-right;
   }
 
   .arco-modal-body {
-    padding: 0;
-    height: 100%;
-    width: 100%;
-    border-radius: 8px;
+    @apply h-full w-full rounded-lg p-0;
   }
 }
 </style>

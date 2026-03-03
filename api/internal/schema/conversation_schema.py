@@ -20,10 +20,12 @@ class GetConversationMessagesWithPageResp(Schema):
     id = fields.UUID(dump_default="")
     conversation_id = fields.UUID(dump_default="")
     query = fields.String(dump_default="")
+    image_urls = fields.List(fields.String, dump_default=[])
     answer = fields.String(dump_default="")
     total_token_count = fields.Integer(dump_default=0)
     latency = fields.Float(dump_default=0)
     agent_thoughts = fields.List(fields.Dict, dump_default=[])
+    suggested_questions = fields.List(fields.String, dump_default=[])
     created_at = fields.Integer(dump_default=0)
 
     @pre_dump
@@ -32,6 +34,7 @@ class GetConversationMessagesWithPageResp(Schema):
             "id": data.id,
             "conversation_id": data.conversation_id,
             "query": data.query,
+            "image_urls": data.image_urls,
             "answer": data.answer,
             "total_token_count": data.total_token_count,
             "latency": data.latency,
@@ -46,6 +49,7 @@ class GetConversationMessagesWithPageResp(Schema):
                 "latency": agent_thought.latency,
                 "created_at": datetime_to_timestamp(agent_thought.created_at),
             } for agent_thought in data.agent_thoughts],
+            "suggested_questions": data.suggested_questions if data.suggested_questions else [],
             "created_at": datetime_to_timestamp(data.created_at),
         }
 
@@ -61,3 +65,24 @@ class UpdateConversationNameReq(FlaskForm):
 class UpdateConversationIsPinnedReq(FlaskForm):
     """更新会话置顶选项请求请求结构体"""
     is_pinned = BooleanField("is_pinned", default=False)
+
+
+class GetRecentConversationsReq(FlaskForm):
+    """获取最近会话列表请求结构体"""
+    limit = IntegerField("limit", default=20, validators=[
+        Optional(),
+        NumberRange(min=1, max=50, message="limit范围必须在1~50之间"),
+    ])
+
+
+class GetRecentConversationsResp(Schema):
+    """获取最近会话列表响应结构体"""
+    id = fields.UUID(dump_default="")
+    name = fields.String(dump_default="")
+    source_type = fields.String(dump_default="")
+    app_id = fields.UUID(dump_default="")
+    app_name = fields.String(dump_default="")
+    message_id = fields.UUID(dump_default="")
+    is_active = fields.Boolean(dump_default=False)
+    latest_message_at = fields.Integer(dump_default=0)
+    created_at = fields.Integer(dump_default=0)

@@ -2,6 +2,7 @@ from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed, FileRequired, FileSize
 from internal.entity.upload_file_entity import ALLOWED_DOCUMENT_EXTENSION, ALLOWED_IMAGE_EXTENSION
 from marshmallow import Schema, fields, pre_dump
+from internal.lib.helper import datetime_to_timestamp
 from internal.model import UploadFile
 
 
@@ -43,5 +44,5 @@ class UploadFileResp(Schema):
             "size": data.size,
             "extension": data.extension,
             "mime_type": data.mime_type,
-            "created_at": int(data.created_at.timestamp()),
+            "created_at": datetime_to_timestamp(data.created_at),
         }

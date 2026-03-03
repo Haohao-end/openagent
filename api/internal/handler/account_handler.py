@@ -15,11 +15,13 @@ from internal.service import AccountService
 class AccountHandler:
     """账号设置处理器"""
     account_service: AccountService
+
     @login_required
     def get_current_user(self):
         """获取当前登陆账号信息"""
         resp = GetCurrentUserResp()
         return success_json(resp.dump(current_user))
+        
     @login_required
     def update_password(self):
         """更新当前登陆账号密码"""

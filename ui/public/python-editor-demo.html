@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Python 代码编辑器测试</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .feature-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .feature-card {
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border-left: 4px solid #1890ff;
+    }
+    .feature-card h3 {
+      margin: 0 0 10px 0;
+      color: #1890ff;
+      font-size: 16px;
+    }
+    .feature-card p {
+      margin: 0;
+      color: #666;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .status.success {
+      background: #f6ffed;
+      color: #52c41a;
+      border: 1px solid #b7eb8f;
+    }
+    .status.error {
+      background: #fff2f0;
+      color: #ff4d4f;
+      border: 1px solid #ffccc7;
+    }
+    .code-example {
+      background: #282c34;
+      color: #abb2bf;
+      padding: 20px;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      overflow-x: auto;
+      margin: 20px 0;
+    }
+    .keyword { color: #c678dd; }
+    .function { color: #61afef; }
+    .string { color: #98c379; }
+    .comment { color: #5c6370; font-style: italic; }
+    .number { color: #d19a66; }
+
+    .info-box {
+      background: #e6f7ff;
+      border: 1px solid #91d5ff;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 20px 0;
+    }
+    .info-box h4 {
+      margin: 0 0 10px 0;
+      color: #0050b3;
+    }
+    .info-box ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    .info-box li {
+      color: #666;
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎉 Python 代码编辑器已成功集成！</h1>
+    <p class="subtitle">工作流 Python 代码节点现在拥有专业的 IDE 级别编辑体验</p>
+
+    <div style="margin-bottom: 30px;">
+      <span class="status success">✓ 编辑器已启用</span>
+      <span class="status success">✓ 语法验证已启用</span>
+      <span class="status success">✓ 错误检测已启用</span>
+    </div>
+
+    <h2>✨ 核心功能</h2>
+    <div class="feature-list">
+      <div class="feature-card">
+        <h3>🎨 语法高亮</h3>
+        <p>完整的 Python 语法高亮支持，深色主题，关键字、字符串、注释等使用不同颜色标识</p>
+      </div>
+      <div class="feature-card">
+        <h3>🔍 实时错误检测</h3>
+        <p>编辑时即时发现语法错误、缩进问题、括号不匹配等问题，并在编辑器中标记</p>
+      </div>
+      <div class="feature-card">
+        <h3>💡 智能提示</h3>
+        <p>代码自动补全、参数提示、括号自动配对、智能缩进等 IDE 级别功能</p>
+      </div>
+      <div class="feature-card">
+        <h3>📊 错误面板</h3>
+        <p>底部显示所有错误和警告，区分错误级别，点击可跳转到对应行</p>
+      </div>
+      <div class="feature-card">
+        <h3>📏 代码规范</h3>
+        <p>PEP 8 规范检查，包括缩进、行长度、命名规范等最佳实践建议</p>
+      </div>
+      <div class="feature-card">
+        <h3>⚡ 快捷键</h3>
+        <p>支持 Ctrl+S 保存、Ctrl+/ 注释、Ctrl+F 查找等常用快捷键</p>
+      </div>
+    </div>
+
+    <h2>📝 代码示例</h2>
+    <div class="code-example">
+<span class="keyword">def</span> <span class="function">main</span>(params):
+    <span class="comment"># 从输入参数中获取变量</span>
+    x = <span class="function">int</span>(params.<span class="function">get</span>(<span class="string">'x'</span>, <span class="number">0</span>))
+    y = <span class="function">int</span>(params.<span class="function">get</span>(<span class="string">'y'</span>, <span class="number">0</span>))
+
+    <span class="comment"># 执行业务逻辑</span>
+    result = x + y
+
+    <span class="comment"># 返回结果（参数名需与输出参数一致）</span>
+    <span class="keyword">return</span> {<span class="string">'output'</span>: result}
+    </div>
+
+    <div class="info-box">
+      <h4>🚀 如何使用</h4>
+      <ul>
+        <li>进入工作流详情页面：<code>/space/workflows/[workflow_id]</code></li>
+        <li>添加或点击 Python 代码节点</li>
+        <li>右侧面板会显示专业的代码编辑器</li>
+        <li>开始编写代码，实时查看语法高亮和错误提示</li>
+        <li>代码会自动保存，无需手动操作</li>
+      </ul>
+    </div>
+
+    <div class="info-box">
+      <h4>⚠️ 验证规则</h4>
+      <ul>
+        <li><strong>必须满足：</strong>定义 <code>def main(params):</code> 函数</li>
+        <li><strong>必须满足：</strong>正确的缩进（4 个空格）</li>
+        <li><strong>必须满足：</strong>括号必须匹配</li>
+        <li><strong>建议遵守：</strong>使用 <code>params.get('key', default)</code> 代替直接访问</li>
+        <li><strong>建议遵守：</strong>添加类型转换和异常处理</li>
+      </ul>
+    </div>
+
+    <h2>📚 技术栈</h2>
+    <div class="feature-list">
+      <div class="feature-card">
+        <h3>Monaco Editor</h3>
+        <p>VS Code 的编辑器核心，提供专业的代码编辑体验</p>
+      </div>
+      <div class="feature-card">
+        <h3>自定义验证器</h3>
+        <p>基于 AST 的 Python 语法分析器，提供实时错误检测</p>
+      </div>
+      <div class="feature-card">
+        <h3>Vue 3 + TypeScript</h3>
+        <p>现代化的前端技术栈，确保代码质量和可维护性</p>
+      </div>
+    </div>
+
+    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e8e8e8; color: #999; text-align: center;">
+      <p>Python 代码编辑器 v1.0 | 基于 Monaco Editor 构建</p>
+      <p>详细文档请查看：<code>PYTHON_EDITOR_GUIDE.md</code></p>
+    </div>
+  </div>
+</body>
+</html>

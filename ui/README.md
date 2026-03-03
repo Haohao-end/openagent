@@ -1,77 +1,49 @@
-# Open-Coze 前端项目 (Vue3 + Vite)
+# llmops-ui
 
-这是一个基于 Vue 3 和 Vite 构建的 LLMOps 平台前端项目模板。
+This template should help get you started developing with Vue 3 in Vite.
 
-## 🛠️ 推荐开发环境
+## Recommended IDE Setup
 
-- 编辑器: [VSCode](https://code.visualstudio.com/)
-- 插件: [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (请禁用 Vetur)
+[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
 
-## ⚙️ TypeScript 支持
+## Type Support for `.vue` Imports in TS
 
-TypeScript 默认无法处理 `.vue` 文件的类型信息，因此我们使用 `vue-tsc` 替代 `tsc` 进行类型检查。在编辑器中，需要安装 [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) 插件来支持 `.vue` 文件的类型提示。
+TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
 
-## 🔧 自定义配置
+## Customize configuration
 
-查看 [Vite 配置文档](https://vitejs.dev/config/) 了解如何自定义项目配置。
+See [Vite Configuration Reference](https://vitejs.dev/config/).
 
-## 🚀 项目初始化
+## Project Setup
+Setup:
 
-```bash
+bash
+cd ui
 npm install
-```
+Development:
 
-### 启动开发服务器 (热更新)
-
-```bash
+bash
+# Start dev server (default port 5173)
 npm run serve
-```
 
-### 类型检查 & 生产环境构建
+# Type checking
+npm run type-check
 
-```bash
-npm run build
-```
-
-### 运行单元测试 (Vitest)
-
-```bash
-npm run test:unit
-```
-
-### 代码检查 (ESLint)
-
-```bash
+# Linting
 npm run lint
-```
 
-### 格式化代码
-
-```bash
+# Format code
 npm run format
-```
+Build:
 
-## 📦 项目结构
+bash
+# Production build
+npm run build
 
-```
-src/
-├── assets/          # 静态资源
-├── components/      # 公共组件
-├── composables/     # 组合式函数
-├── router/          # 路由配置
-├── stores/          # Pinia 状态管理
-├── styles/          # 全局样式
-├── utils/           # 工具函数
-├── views/           # 页面组件
-├── App.vue          # 根组件
-└── main.ts          # 应用入口
-```
+# Preview production build
+npm run preview
+Testing:
 
-## 📌 注意事项
-
-1. 项目使用 Vue 3 的组合式 API (Composition API)
-2. 样式方案采用 TailwindCSS
-3. 状态管理使用 Pinia
-4. 网络请求使用 Axios 封装
-5. 支持 TypeScript 类型检查
-
+bash
+# Run unit tests
+npm run test:unit

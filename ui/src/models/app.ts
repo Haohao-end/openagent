@@ -12,6 +12,8 @@ export type GetAppResponse = BaseResponse<{
   icon: string
   description: string
   status: string
+  is_public: boolean
+  category: string
   draft_updated_at: number
   updated_at: number
   created_at: number
@@ -38,6 +40,7 @@ export type GetAppsWithPageResponse = BasePaginatorResponse<{
     model: string
   }
   status: string
+  draft_updated_at: number
   updated_at: number
   created_at: number
 }>
@@ -120,6 +123,7 @@ export type GetDebugConversationMessagesWithPageResponse = BasePaginatorResponse
     latency: number
     created_at: number
   }[]
+  suggested_questions: string[]
   created_at: number
 }>
 
@@ -133,6 +137,7 @@ export type GetPublishHistoriesWithPageResponse = BasePaginatorResponse<{
 // 获取应用的调试会话消息列表请求结构
 export type GetDebugConversationMessagesWithPageRequest = BasePaginatorRequest & {
   created_at?: number
+  conversation_id?: string
 }
 
 // 获取应用发布配置响应结构

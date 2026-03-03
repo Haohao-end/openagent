@@ -1,11 +1,62 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import storage from '@/utils/storage'
 import { useRoute, useRouter } from 'vue-router'
+import { useCredentialStore } from '@/stores/credential'
+import { AUTH_REQUIRED_EVENT } from '@/utils/request'
 
 const route = useRoute()
 const router = useRouter()
+const credentialStore = useCredentialStore()
+const isLoggedIn = computed(() => {
+  const now = Math.floor(Date.now() / 1000)
+  return Boolean(
+    credentialStore.credential.access_token &&
+    credentialStore.credential.expire_at &&
+    credentialStore.credential.expire_at > now,
+  )
+})
+const unauthDescription = computed(() => {
+  if (route.path.startsWith('/space/apps')) return '请你登录查看你的Agent！'
+  if (route.path.startsWith('/space/tools')) return '请你登录查看你的插件！'
+  if (route.path.startsWith('/space/workflows')) return '请你登录查看你的工作流！'
+  if (route.path.startsWith('/space/datasets')) return '请你登录查看你的知识库！'
+  return '请你登录查看你的个人空间内容！'
+})
 const createType = ref<string>('')
-const searchWord = ref(route.query?.search_word || '')
+const pendingCreateType = ref<string>('')
+const searchWord = ref(String(route.query?.search_word ?? ''))
+const SPACE_APPS_SEARCH_DRAFT_STORAGE_KEY = 'draft:space-apps:search-word'
+
+const openLoginModal = () => {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(
+    new CustomEvent(AUTH_REQUIRED_EVENT, {
+      detail: { redirect: route.fullPath },
+    }),
+  )
+}
+
+const handleCreate = (type: 'app' | 'tool' | 'workflow' | 'dataset') => {
+  if (isLoggedIn.value) {
+    createType.value = type
+    return
+  }
+  pendingCreateType.value = type
+  openLoginModal()
+}
+
+const persistSpaceAppsSearchWord = (value: string) => {
+  if (value.trim() === '') {
+    storage.remove(SPACE_APPS_SEARCH_DRAFT_STORAGE_KEY)
+    return
+  }
+  storage.set(SPACE_APPS_SEARCH_DRAFT_STORAGE_KEY, value)
+}
+
+const getSpaceAppsSearchWordDraft = () => {
+  return String(storage.get(SPACE_APPS_SEARCH_DRAFT_STORAGE_KEY, ''))
+}
 
 // 绑定输入框的搜索事件
 const search = (value: string) => {
@@ -19,10 +70,33 @@ const search = (value: string) => {
 
 // 监听路由里的search_word变化
 watch(
-  () => route.query?.search_word,
-  () => {
-    searchWord.value = route.query?.search_word || ''
+  [() => route.path, () => route.query?.search_word],
+  ([path, routeSearchWord]) => {
+    if (path.startsWith('/space/apps') && !routeSearchWord) {
+      searchWord.value = getSpaceAppsSearchWordDraft()
+      return
+    }
+    searchWord.value = String(routeSearchWord ?? '')
   },
+  { immediate: true },
+)
+
+watch(searchWord, (value) => {
+  if (!route.path.startsWith('/space/apps')) return
+  persistSpaceAppsSearchWord(value)
+})
+
+watch(
+  isLoggedIn,
+  async (loggedIn) => {
+    if (!loggedIn || !pendingCreateType.value) return
+    const targetCreateType = pendingCreateType.value
+    pendingCreateType.value = ''
+    createType.value = ''
+    await nextTick()
+    createType.value = targetCreateType
+  },
+  { immediate: true },
 )
 </script>
 
@@ -44,7 +118,7 @@ watch(
           v-if="route.path.startsWith('/space/apps')"
           type="primary"
           class="rounded-lg"
-          @click="createType = 'app'"
+          @click="handleCreate('app')"
         >
           创建 AI 应用
         </a-button>
@@ -52,7 +126,7 @@ watch(
           v-if="route.path.startsWith('/space/tools')"
           type="primary"
           class="rounded-lg"
-          @click="createType = 'tool'"
+          @click="handleCreate('tool')"
         >
           创建自定义插件
         </a-button>
@@ -60,7 +134,7 @@ watch(
           v-if="route.path.startsWith('/space/workflows')"
           type="primary"
           class="rounded-lg"
-          @click="createType = 'workflow'"
+          @click="handleCreate('workflow')"
         >
           创建工作流
         </a-button>
@@ -68,7 +142,7 @@ watch(
           v-if="route.path.startsWith('/space/datasets')"
           type="primary"
           class="rounded-lg"
-          @click="createType = 'dataset'"
+          @click="handleCreate('dataset')"
         >
           创建知识库
         </a-button>
@@ -109,6 +183,7 @@ watch(
         <!-- 右侧搜索 -->
         <a-input-search
           v-model="searchWord"
+          :disabled="!isLoggedIn"
           placeholder="输入关键词进行搜索"
           class="w-[240px] bg-white rounded-lg border-gray-300"
           @search="search"
@@ -116,7 +191,10 @@ watch(
       </div>
     </div>
     <!-- 中间内容 -->
-    <router-view v-model:create-type="createType" />
+    <router-view v-if="isLoggedIn" v-model:create-type="createType" />
+    <div v-else class="flex-1 flex items-center justify-center">
+      <a-empty :description="unauthDescription" />
+    </div>
   </div>
 </template>
 

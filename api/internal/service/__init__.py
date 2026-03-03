@@ -5,7 +5,6 @@ from .api_tool_service import ApiToolService
 from .app_config_service import AppConfigService
 from .app_service import AppService
 from .base_service import BaseService
-from .builtin_app_service import BuiltinAppService
 from .builtin_tool_service import BuiltinToolService
 from .conversation_service import ConversationService
 from .cos_service import CosService
@@ -29,6 +28,13 @@ from .assistant_agent_service import AssistantAgentService
 from .faiss_service import FaissService
 from .analysis_service import AnalysisService
 from .web_app_service import WebAppService
+from .audio_service import AudioService
+from .platform_service import PlatformService
+from .wechat_service import WechatService
+from .icon_generator_service import IconGeneratorService
+from .public_app_service import PublicAppService
+from .public_workflow_service import PublicWorkflowService
+
 
 __all__ = [
     "BaseService",
@@ -55,11 +61,16 @@ __all__ = [
     "ApiKeyService",
     "AppConfigService",
     "OpenAPIService",
-    "BuiltinAppService",
     "WorkflowService",
     "LanguageModelService",
     "AssistantAgentService",
     "FaissService",
     "AnalysisService",
-    "WebAppService"
+    "WebAppService",
+    "AudioService",
+    "PlatformService",
+    "WechatService",
+    "IconGeneratorService",
+    "PublicAppService",
+    "PublicWorkflowService"
 ]

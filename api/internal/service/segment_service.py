@@ -1,7 +1,7 @@
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from injector import inject
@@ -92,9 +92,9 @@ class SegmentService(BaseService):
                 keywords=req.keywords.data,
                 hash=generate_text_hash(req.content.data),
                 enabled=True,
-                processing_started_at=datetime.now(),
-                indexing_completed_at=datetime.now(),
-                completed_at=datetime.now(),
+                processing_started_at=datetime.now(UTC),
+                indexing_completed_at=datetime.now(UTC),
+                completed_at=datetime.now(UTC),
                 status=SegmentStatus.COMPLETED.value,
             )
 
@@ -140,8 +140,8 @@ class SegmentService(BaseService):
                     error=str(e),
                     status=SegmentStatus.ERROR.value,
                     enabled=False,
-                    disabled_at=datetime.now(),
-                    stopped_at=datetime.now(),
+                    disabled_at=datetime.now(UTC),
+                    stopped_at=datetime.now(UTC),
                 )
             raise FailException("新增文档片段失败，请稍后尝试")
 
@@ -287,7 +287,7 @@ class SegmentService(BaseService):
                 self.update(
                     segment,
                     enabled=enabled,
-                    disabled_at=None if enabled else datetime.now()
+                    disabled_at=None if enabled else datetime.now(UTC)
                 )
 
                 # 7.更新关键词表的对应信息，有可能新增，也有可能删除
@@ -309,8 +309,8 @@ class SegmentService(BaseService):
                     error=str(e),
                     status=SegmentStatus.ERROR.value,
                     enabled=False,
-                    disabled_at=datetime.now(),
-                    stopped_at=datetime.now(),
+                    disabled_at=datetime.now(UTC),
+                    stopped_at=datetime.now(UTC),
                 )
                 raise FailException("更新文档片段启用状态失败，请稍后重试")
 

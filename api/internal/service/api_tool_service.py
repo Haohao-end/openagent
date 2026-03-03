@@ -1,7 +1,9 @@
 import json
+import logging
 from typing import Any
 from uuid import UUID
-from internal.exception import ValidateErrorException, NotFoundException
+from pydantic import ValidationError
+from internal.exception import ValidateErrorException, NotFoundException, FailException
 from injector import inject
 from dataclasses import dataclass
 from internal.core.tools.api_tools.entities import OpenAPISchema
@@ -16,6 +18,7 @@ from pkg.paginator import Paginator
 from sqlalchemy import desc
 from .base_service import BaseService
 from internal.core.tools.api_tools.providers import ApiProviderManager
+from .icon_generator_service import IconGeneratorService
 
 @inject
 @dataclass
@@ -23,6 +26,7 @@ class ApiToolService(BaseService):
     """自定义API插件服务"""
     db: SQLAlchemy
     api_provider_manager: ApiProviderManager
+    icon_generator_service: IconGeneratorService
     def update_api_tool_provider(
             self,
             provider_id:UUID,
@@ -111,7 +115,7 @@ class ApiToolService(BaseService):
             name=tool_name
         ).one_or_none()
 
-        if api_tool is None or str(api_tool.account_id) != account.id:
+        if api_tool is None or str(api_tool.account_id) != str(account.id):
             raise NotFoundException("该工具不存在")
         return api_tool
 
@@ -125,7 +129,7 @@ class ApiToolService(BaseService):
         api_tool_provider = self.get(ApiToolProvider,provider_id)
 
         # 2.检验数据是否为空 并且判断该数据是否属于当前帐号
-        if api_tool_provider is None or str(api_tool_provider.account_id) != account.id:
+        if api_tool_provider is None or str(api_tool_provider.account_id) != str(account.id):
             raise NotFoundException("该工具提供者不存在")
         return api_tool_provider
 
@@ -180,7 +184,7 @@ class ApiToolService(BaseService):
         """根据传递的provider_id删除对应工具提供商+工具的所有信息"""
         # 1.先查找数据 检测下provider_id对应的数据是否存在 权限是否正确
         api_tool_provider = self.get(ApiToolProvider, provider_id)
-        if api_tool_provider is None or str(api_tool_provider.account_id) != account.id:
+        if api_tool_provider is None or str(api_tool_provider.account_id) != str(account.id):
             raise NotFoundException("该工具提供者不存在")
 
         # 2.开启数据库的自动提交
@@ -194,14 +198,66 @@ class ApiToolService(BaseService):
             # 4.删除服务提供者
             self.db.session.delete(api_tool_provider)
 
+    def regenerate_icon(self, provider_id: UUID, account: Account) -> str:
+        """根据传递的provider_id重新生成插件图标"""
+        # 1.获取插件提供者信息并校验权限
+        api_tool_provider = self.get(ApiToolProvider, provider_id)
+        if api_tool_provider is None or str(api_tool_provider.account_id) != str(account.id):
+            raise NotFoundException("该工具提供者不存在")
+
+        # 2.使用图标生成服务生成新图标
+        try:
+            logging.info(f"重新生成插件图标: provider_id={provider_id}, name={api_tool_provider.name}")
+            icon_url = self.icon_generator_service.generate_icon(
+                name=api_tool_provider.name,
+                description=api_tool_provider.description or ""
+            )
+            logging.info(f"重新生成图标成功: {icon_url}")
+        except Exception as e:
+            logging.exception("重新生成图标失败: provider_id=%s", provider_id, exc_info=e)
+            raise FailException("重新生成图标失败，请稍后重试")
+
+        # 3.更新插件提供者图标
+        self.update(api_tool_provider, icon=icon_url)
+
+        return icon_url
+
+    def generate_icon_preview(self, name: str, description: str) -> str:
+        """生成图标预览（不保存到插件）"""
+        try:
+            logging.info(f"生成插件图标预览: name={name}")
+            icon_url = self.icon_generator_service.generate_icon(
+                name=name,
+                description=description or ""
+            )
+            logging.info(f"生成图标预览成功: {icon_url}")
+            return icon_url
+        except Exception as e:
+            logging.exception("生成图标预览失败: name=%s", name, exc_info=e)
+            raise FailException("生成图标预览失败，请稍后重试")
+
     @classmethod
     def parse_openapi_schema(cls, openapi_schema_str: str) -> OpenAPISchema:
         """解析传递的openapi_schema字符串 如果出错则抛出错误"""
         try:
-            data = json.loads(openapi_schema_str.strip())
-            if not isinstance(data,dict):
-                raise
-        except Exception as e:
+            data = json.loads((openapi_schema_str or "").strip())
+        except json.JSONDecodeError as error:
+            logging.debug("OpenAPI schema JSON解析失败: %s", error)
             raise ValidateErrorException("传递的数据必须符合OpenAPI规范的JSON字符串")
 
-        return OpenAPISchema(**data)
+        if not isinstance(data, dict):
+            logging.debug("OpenAPI schema JSON根节点必须是对象，当前类型: %s", type(data).__name__)
+            raise ValidateErrorException("传递的数据必须符合OpenAPI规范的JSON字符串")
+
+        try:
+            return OpenAPISchema(**data)
+        except ValidateErrorException as error:
+            logging.debug("OpenAPI schema字段校验失败: %s", error)
+            raise
+        except ValidationError as error:
+            first_error = error.errors()[0] if error.errors() else {}
+            location = ".".join(str(item) for item in first_error.get("loc", []))
+            message = first_error.get("msg", "字段校验失败")
+            error_summary = f"{location}: {message}" if location else message
+            logging.debug("OpenAPI schema结构校验失败: %s", error_summary)
+            raise ValidateErrorException(f"OpenAPI schema格式错误: {error_summary}")

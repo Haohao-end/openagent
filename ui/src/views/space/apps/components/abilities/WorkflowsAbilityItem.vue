@@ -5,18 +5,18 @@ import { cloneDeep, isEqual } from 'lodash'
 import { Message } from '@arco-design/web-vue'
 import { useGetWorkflowsWithPage } from '@/hooks/use-workflow'
 
+type WorkflowSelection = {
+  id: string
+  name: string
+  icon: string
+  description: string
+}
+
 // 1.定义自定义组件所需数据
 const props = defineProps({
   app_id: { type: String, default: '', required: true },
   workflows: {
-    type: Array as PropType<
-      {
-        id: string
-        name: string
-        icon: string
-        description: string
-      }[]
-    >,
+    type: Array as PropType<WorkflowSelection[]>,
     default: () => [],
     required: true,
   },
@@ -27,8 +27,8 @@ const { loading: updateDraftAppConfigLoading, handleUpdateDraftAppConfig } =
 const { loading, paginator, workflows: apiWorkflows, loadWorkflows } = useGetWorkflowsWithPage()
 const workflowsModalVisible = ref(false)
 const isWorkflowsInit = ref(false)
-const activateWorkflows = ref<Record<string, any>[]>([])
-const originWorkflows = ref<Record<string, any>[]>([])
+const activateWorkflows = ref<WorkflowSelection[]>([])
+const originWorkflows = ref<WorkflowSelection[]>([])
 
 // 2.定义滚动数据分页处理器
 const handleScroll = async (event: UIEvent) => {
@@ -278,7 +278,7 @@ watch(
           <a-row v-if="paginator.total_page >= 2">
             <!-- 加载数据中 -->
             <a-col
-              v-if="paginator.current_page <= paginator.total_page"
+              v-if="loading"
               :span="24"
               class="!text-center"
             >
@@ -288,7 +288,7 @@ watch(
               </a-space>
             </a-col>
             <!-- 数据加载完成 -->
-            <a-col v-else :span="24" class="!text-center">
+            <a-col v-else-if="paginator.current_page > paginator.total_page" :span="24" class="!text-center">
               <div class="text-gray-400 my-4">数据已加载完成</div>
             </a-col>
           </a-row>
@@ -318,7 +318,7 @@ watch(
 <style>
 .workflows-modal {
   .arco-modal-wrapper {
-    text-align: right;
+    @apply text-right;
   }
 }
 </style>

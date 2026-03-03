@@ -13,6 +13,10 @@ class NodeType(str, Enum):
     DATASET_RETRIEVAL = "dataset_retrieval"
     HTTP_REQUEST = "http_request"
     TEMPLATE_TRANSFORM = "template_transform"
+    TEXT_PROCESSOR = "text_processor"
+    VARIABLE_ASSIGNER = "variable_assigner"
+    PARAMETER_EXTRACTOR = "parameter_extractor"
+    IF_ELSE = "if_else"
     END = "end"
 
 

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
 import { useGetDraftAppConfig } from '@/hooks/use-app'
-import PresetPromptTextarea from './components/PresetPromptTextarea.vue'
-import PreviewDebugHeader from './components/PreviewDebugHeader.vue'
-import AgentAppAbility from './components/AgentAppAbility.vue'
-import PreviewDebugChat from './components/PreviewDebugChat.vue'
-import ModelConfig from './components/ModelConfig.vue'
 import { onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import AgentAppAbility from './components/AgentAppAbility.vue'
+import ModelConfig from './components/ModelConfig.vue'
+import PresetPromptTextarea from './components/PresetPromptTextarea.vue'
+import PreviewDebugChat from './components/PreviewDebugChat.vue'
+import PreviewDebugHeader from './components/PreviewDebugHeader.vue'
 
 // 1.页面基础数据定义
 const route = useRoute()
@@ -36,43 +36,34 @@ onMounted(async () => {
         <div class="flex items-center h-16 border-b p-4 gap-4">
           <div class="text-lg text-gray-700">应用编排</div>
           <!-- LLM模型配置 -->
-          <model-config
-            :dialog_round="draftAppConfigForm.dialog_round"
-            v-model:model_config="draftAppConfigForm.model_config"
-            :app_id="String(route.params?.app_id)"
-          />
+          <model-config :dialog_round="draftAppConfigForm.dialog_round"
+            v-model:model_config="draftAppConfigForm.model_config" :app_id="String(route.params?.app_id)" />
         </div>
         <!-- 底部编排区域 -->
         <div class="grid grid-cols-[13fr_13fr] overflow-hidden h-[calc(100vh-141px)]">
           <!-- 左侧人设与回复逻辑 -->
           <div class="border-r py-4">
-            <preset-prompt-textarea
-              v-model:preset_prompt="draftAppConfigForm.preset_prompt"
-              :app_id="String(route.params?.app_id)"
-            />
+            <preset-prompt-textarea v-model:preset_prompt="draftAppConfigForm.preset_prompt"
+              :app_id="String(route.params?.app_id)" />
           </div>
           <!-- 右侧应用能力 -->
-          <agent-app-ability
-            v-model:draft_app_config="draftAppConfigForm"
-            :app_id="String(route.params?.app_id)"
-          />
+          <agent-app-ability v-model:draft_app_config="draftAppConfigForm" :app_id="String(route.params?.app_id)" />
         </div>
       </div>
       <!-- 右侧调试与会话 -->
-      <div class="min-w-[404px]">
+      <div class="min-w-[404px] h-full min-h-0 flex flex-col">
         <!-- 头部信息 -->
-        <preview-debug-header
-          :app_id="String(route.params?.app_id)"
-          :long_term_memory="draftAppConfigForm.long_term_memory"
-        />
+        <preview-debug-header :app_id="String(route.params?.app_id)"
+          :long_term_memory="draftAppConfigForm.long_term_memory" />
         <!-- 对话窗口 -->
         <preview-debug-chat
+          class="flex-1 min-h-0"
           :suggested_after_answer="draftAppConfigForm.suggested_after_answer"
           :opening_questions="draftAppConfigForm.opening_questions"
-          :opening_statement="draftAppConfigForm.opening_statement"
-          :app="props.app"
-          :app_id="props.app?.id"
-        />
+          :opening_statement="draftAppConfigForm.opening_statement" 
+          :text_to_speech="draftAppConfigForm.text_to_speech"
+          :app="props.app" 
+          :app_id="props.app?.id" />
       </div>
     </div>
   </div>

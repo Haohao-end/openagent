@@ -6,6 +6,8 @@ from injector import inject
 from internal.schema.conversation_schema import (
     GetConversationMessagesWithPageReq,
     GetConversationMessagesWithPageResp,
+    GetRecentConversationsReq,
+    GetRecentConversationsResp,
     UpdateConversationNameReq,
     UpdateConversationIsPinnedReq,
 )
@@ -39,6 +41,24 @@ class ConversationHandler:
         resp = GetConversationMessagesWithPageResp(many=True)
 
         return success_json(PageModel(list=resp.dump(messages), paginator=paginator))
+
+    @login_required
+    def get_recent_conversations(self):
+        """获取当前账号最近会话列表"""
+        # 1.提取请求并校验数据
+        req = GetRecentConversationsReq(request.args)
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        # 2.调用服务获取数据
+        conversations = self.conversation_service.get_recent_conversations(
+            current_user,
+            req.limit.data or 20,
+        )
+
+        # 3.构建响应结构并返回
+        resp = GetRecentConversationsResp(many=True)
+        return success_json(resp.dump(conversations))
 
     @login_required
     def delete_conversation(self, conversation_id: UUID):

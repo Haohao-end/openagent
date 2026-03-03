@@ -1,7 +1,10 @@
 import json
+import logging
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass
+from datetime import datetime, UTC
 from typing import Any, Generator
 from uuid import UUID
 from flask import request
@@ -17,10 +20,14 @@ from internal.core.workflow.nodes import (
     DatasetRetrievalNodeData,
     EndNodeData,
     HttpRequestNodeData,
+    IfElseNodeData,
     LLMNodeData,
+    ParameterExtractorNodeData,
     StartNodeData,
     TemplateTransformNodeData,
+    TextProcessorNodeData,
     ToolNodeData,
+    VariableAssignerNodeData,
 )
 from internal.entity.workflow_entity import WorkflowStatus, DEFAULT_WORKFLOW_CONFIG, WorkflowResultStatus
 from internal.exception import ValidateErrorException, NotFoundException, ForbiddenException, FailException
@@ -30,6 +37,10 @@ from internal.schema.workflow_schema import CreateWorkflowReq, GetWorkflowsWithP
 from pkg.paginator import Paginator
 from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
+from .icon_generator_service import IconGeneratorService
+
+
+logger = logging.getLogger(__name__)
 
 
 @inject
@@ -38,6 +49,7 @@ class WorkflowService(BaseService):
     """工作流服务"""
     db: SQLAlchemy
     builtin_provider_manager: BuiltinProviderManager
+    icon_generator_service: IconGeneratorService
 
     def create_workflow(self, req: CreateWorkflowReq, account: Account) -> Workflow:
         """根据传递的请求信息创建工作流"""
@@ -130,7 +142,7 @@ class WorkflowService(BaseService):
         workflow = self.get_workflow(workflow_id, account)
 
         # 2.校验传递的草稿图配置，因为有可能边有可能还未建立，所以需要校验关联的数据
-        validate_draft_graph = self._validate_graph(draft_graph, account)
+        validate_draft_graph = self._validate_graph(draft_graph, account, workflow_id=workflow.id)
 
         # 3.更新工作流草稿图配置，每次修改都将is_debug_passed的值重置为False，该处可以优化对比字典里除position的其他属性
         self.update(workflow, **{
@@ -147,7 +159,7 @@ class WorkflowService(BaseService):
 
         # 2.提取草稿图结构信息并校验(不更新校验后的数据到数据库)
         draft_graph = workflow.draft_graph
-        validate_draft_graph = self._validate_graph(draft_graph, account)
+        validate_draft_graph = self._validate_graph(draft_graph, account, workflow_id=workflow.id)
 
         # 3.循环遍历节点信息，为工具节点/知识库节点附加元数据
         for node in validate_draft_graph["nodes"]:
@@ -182,7 +194,7 @@ class WorkflowService(BaseService):
                             "id": provider_entity.name,
                             "name": provider_entity.name,
                             "label": provider_entity.label,
-                            "icon": f"{request.scheme}://{request.host}/builtin-tools/{provider_entity.name}/icon",
+                            "icon": f"/builtin-tools/{provider_entity.name}/icon",
                             "description": provider_entity.description,
                         },
                         "tool": {
@@ -195,12 +207,53 @@ class WorkflowService(BaseService):
                     }
                 elif node.get("tool_type") == "api_tool":
                     # 9.查询数据库获取对应的工具记录，并检测是否存在
+                    provider_id = node.get("provider_id")
+                    tool_id = node.get("tool_id")
+
+                    # 检查 provider_id 和 tool_id 是否为空，避免 UUID 转换错误
+                    if not provider_id or not tool_id:
+                        node["meta"] = {
+                            "type": "api_tool",
+                            "provider": {
+                                "id": "",
+                                "name": "",
+                                "label": "",
+                                "icon": "",
+                                "description": "",
+                            },
+                            "tool": {
+                                "id": "",
+                                "name": "",
+                                "label": "",
+                                "description": "",
+                                "params": {},
+                            },
+                        }
+                        continue
+
                     tool_record = self.db.session.query(ApiTool).filter(
-                        ApiTool.provider_id == node.get("provider_id"),
-                        ApiTool.name == node.get("tool_id"),
+                        ApiTool.provider_id == provider_id,
+                        ApiTool.name == tool_id,
                         ApiTool.account_id == account.id,
                     ).one_or_none()
                     if not tool_record:
+                        node["meta"] = {
+                            "type": "api_tool",
+                            "provider": {
+                                "id": "",
+                                "name": "",
+                                "label": "",
+                                "icon": "",
+                                "description": "",
+                            },
+                            "tool": {
+                                "id": "",
+                                "name": "",
+                                "label": "",
+                                "description": "",
+                                "params": {},
+                            },
+                        }
                         continue
 
                     # 10.组装api工具展示信息
@@ -261,14 +314,15 @@ class WorkflowService(BaseService):
         """调试指定的工作流API接口，该接口为流式事件输出"""
         # 1.根据传递的id获取工作流并校验权限
         workflow = self.get_workflow(workflow_id, account)
+        executable_graph = self._build_executable_graph(workflow.draft_graph)
 
         # 2.创建工作流工具
         workflow_tool = WorkflowTool(workflow_config=WorkflowConfig(
             account_id=account.id,
             name=workflow.tool_call_name,
             description=workflow.description,
-            nodes=workflow.draft_graph.get("nodes", []),
-            edges=workflow.draft_graph.get("edges", []),
+            nodes=executable_graph.get("nodes", []),
+            edges=executable_graph.get("edges", []),
         ))
 
         def handle_stream() -> Generator:
@@ -288,6 +342,7 @@ class WorkflowService(BaseService):
 
             # 4.调用stream服务获取工具信息
             start_at = time.perf_counter()
+            is_last_node = False
             try:
                 for chunk in workflow_tool.stream(inputs):
                     # 5.chunk的格式为:{"node_name": WorkflowState}，所以需要取出节点响应结构的第1个key
@@ -305,16 +360,40 @@ class WorkflowService(BaseService):
                     }
                     yield f"event: workflow\ndata: {json.dumps(data)}\n\n"
 
-                # 7.流式输出完毕后，将结果存储到数据库中
-                self.update(workflow_result, **{
-                    "status": WorkflowResultStatus.SUCCEEDED.value,
-                    "state": node_results,
-                    "latency": (time.perf_counter() - start_at),
-                })
-                self.update(workflow, **{
-                    "is_debug_passed": True,
-                })
-            except Exception:
+                    # 8.检查是否是最后一个节点（end节点）
+                    node_type = node_result_dict.get("node_data", {}).get("node_type")
+                    logging.info(f"节点类型: {node_type}, 节点数据: {node_result_dict.get('node_data', {})}")
+                    if node_type == "end":
+                        is_last_node = True
+                        logging.info("检测到 end 节点，设置 is_last_node = True")
+
+                # 9.流式输出完毕后，将结果存储到数据库中
+                logging.info(f"for 循环结束，is_last_node = {is_last_node}")
+                if is_last_node:
+                    logging.info("开始更新 workflow_result...")
+                    self.update(workflow_result, **{
+                        "status": WorkflowResultStatus.SUCCEEDED.value,
+                        "state": node_results,
+                        "latency": (time.perf_counter() - start_at),
+                    })
+                    logging.info("workflow_result 更新完成，开始更新 workflow.is_debug_passed...")
+                    logging.info(f"workflow 对象: {workflow}, workflow.id: {workflow.id}")
+
+                    # 手动更新 workflow 的 is_debug_passed 字段
+                    workflow.is_debug_passed = True
+                    self.db.session.add(workflow)
+                    self.db.session.commit()
+
+                    logging.info("workflow.is_debug_passed 更新完成！")
+                else:
+                    # 如果没有end节点，也标记为成功
+                    self.update(workflow_result, **{
+                        "status": WorkflowResultStatus.SUCCEEDED.value,
+                        "state": node_results,
+                        "latency": (time.perf_counter() - start_at),
+                    })
+            except Exception as e:
+                logging.error(f"工作流调试失败: {str(e)}", exc_info=True)
                 self.update(workflow_result, **{
                     "status": WorkflowResultStatus.FAILED.value,
                     "state": node_results,
@@ -328,9 +407,8 @@ class WorkflowService(BaseService):
         # 1.根据传递的id获取工作流并校验权限
         workflow = self.get_workflow(workflow_id, account)
 
-        # 2.校验工作流是否调试通过
-        if workflow.is_debug_passed is False:
-            raise FailException("该工作流未调试通过，请调试通过后发布")
+        # 2.构建可执行图配置
+        executable_graph = self._build_executable_graph(workflow.draft_graph)
 
         # 3.使用WorkflowConfig二次校验，如果校验失败则不发布
         try:
@@ -338,8 +416,8 @@ class WorkflowService(BaseService):
                 account_id=account.id,
                 name=workflow.tool_call_name,
                 description=workflow.description,
-                nodes=workflow.draft_graph.get("nodes", []),
-                edges=workflow.draft_graph.get("edges", []),
+                nodes=executable_graph.get("nodes", []),
+                edges=executable_graph.get("edges", []),
             )
         except Exception:
             self.update(workflow, **{
@@ -349,12 +427,99 @@ class WorkflowService(BaseService):
 
         # 4.更新工作流的发布状态
         self.update(workflow, **{
-            "graph": workflow.draft_graph,
+            "graph": executable_graph,
             "status": WorkflowStatus.PUBLISHED.value,
             "is_debug_passed": False,
+            "published_at": datetime.now(UTC),
         })
 
         return workflow
+
+    @staticmethod
+    def _collect_reachable_node_ids(root_id: str, adjacency: dict[str, set[str]]) -> set[str]:
+        """根据传递的根节点与邻接关系，收集所有可达节点id"""
+        visited = set()
+        queue = deque([root_id])
+
+        while queue:
+            node_id = queue.popleft()
+            if node_id in visited:
+                continue
+
+            visited.add(node_id)
+            for next_node_id in adjacency.get(node_id, set()):
+                if next_node_id not in visited:
+                    queue.append(next_node_id)
+
+        return visited
+
+    def _build_executable_graph(self, graph: dict[str, Any]) -> dict[str, Any]:
+        """构建可执行图：仅保留从start可达且可到达end的节点与边"""
+        nodes = graph.get("nodes", [])
+        edges = graph.get("edges", [])
+        if not isinstance(nodes, list) or not isinstance(edges, list):
+            return graph
+
+        node_map: dict[str, dict[str, Any]] = {}
+        start_node = None
+        end_node = None
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+
+            node_id = str(node.get("id", ""))
+            if not node_id:
+                continue
+
+            node_map[node_id] = node
+            if node.get("node_type") == NodeType.START.value:
+                start_node = node
+            elif node.get("node_type") == NodeType.END.value:
+                end_node = node
+
+        # start/end 缺失时保持原始图结构，交由WorkflowConfig继续做完整校验。
+        if not start_node or not end_node:
+            return graph
+
+        start_node_id = str(start_node.get("id"))
+        end_node_id = str(end_node.get("id"))
+
+        forward_adj = {node_id: set() for node_id in node_map.keys()}
+        reverse_adj = {node_id: set() for node_id in node_map.keys()}
+        valid_edges = []
+        for edge in edges:
+            if not isinstance(edge, dict):
+                continue
+
+            source_id = str(edge.get("source", ""))
+            target_id = str(edge.get("target", ""))
+            if source_id not in node_map or target_id not in node_map:
+                continue
+
+            forward_adj[source_id].add(target_id)
+            reverse_adj[target_id].add(source_id)
+            valid_edges.append(edge)
+
+        reachable_from_start = self._collect_reachable_node_ids(start_node_id, forward_adj)
+        if end_node_id not in reachable_from_start:
+            raise ValidateErrorException("工作流中开始节点无法到达结束节点，请完善连线后重试")
+
+        reachable_to_end = self._collect_reachable_node_ids(end_node_id, reverse_adj)
+        executable_node_ids = reachable_from_start & reachable_to_end
+
+        executable_nodes = [
+            node for node in nodes if isinstance(node, dict) and str(node.get("id", "")) in executable_node_ids
+        ]
+        executable_edges = [
+            edge for edge in valid_edges
+            if str(edge.get("source", "")) in executable_node_ids
+            and str(edge.get("target", "")) in executable_node_ids
+        ]
+
+        return {
+            "nodes": executable_nodes,
+            "edges": executable_edges,
+        }
 
     def cancel_publish_workflow(self, workflow_id: UUID, account: Account) -> Workflow:
         """取消发布指定的工作流"""
@@ -374,7 +539,62 @@ class WorkflowService(BaseService):
 
         return workflow
 
-    def _validate_graph(self, graph: dict[str, Any], account: Account) -> dict[str, Any]:
+    def regenerate_icon(self, workflow_id: UUID, account: Account) -> str:
+        """根据传递的工作流id重新生成工作流图标"""
+        # 1.获取工作流信息并校验权限
+        workflow = self.get_workflow(workflow_id, account)
+
+        # 2.使用图标生成服务生成新图标
+        try:
+            logging.info(f"重新生成工作流图标: workflow_id={workflow_id}, name={workflow.name}")
+            icon_url = self.icon_generator_service.generate_icon(
+                name=workflow.name,
+                description=workflow.description or ""
+            )
+            logging.info(f"重新生成图标成功: {icon_url}")
+        except Exception as e:
+            logging.exception("重新生成图标失败: workflow_id=%s", workflow_id, exc_info=e)
+            raise FailException("重新生成图标失败，请稍后重试")
+
+        # 3.更新工作流图标
+        self.update(workflow, icon=icon_url)
+
+        return icon_url
+
+    def generate_icon_preview(self, name: str, description: str) -> str:
+        """生成图标预览（不保存到工作流）"""
+        try:
+            logging.info(f"生成工作流图标预览: name={name}")
+            icon_url = self.icon_generator_service.generate_icon(
+                name=name,
+                description=description or ""
+            )
+            logging.info(f"生成图标预览成功: {icon_url}")
+            return icon_url
+        except Exception as e:
+            logging.exception("生成图标预览失败: name=%s", name, exc_info=e)
+            raise FailException("生成图标预览失败，请稍后重试")
+
+    def share_workflow_to_public(self, workflow_id: UUID, account: Account, is_public: bool) -> Workflow:
+        """分享或取消分享工作流到广场"""
+        # 1.获取工作流信息并校验权限
+        workflow = self.get_workflow(workflow_id, account)
+
+        # 2.校验工作流是否已发布
+        if is_public and workflow.status != WorkflowStatus.PUBLISHED.value:
+            raise FailException("只有已发布的工作流才能分享到广场")
+
+        # 3.更新工作流的公开状态
+        self.update(workflow, is_public=is_public)
+
+        return workflow
+
+    def _validate_graph(
+            self,
+            graph: dict[str, Any],
+            account: Account,
+            workflow_id: UUID | None = None,
+    ) -> dict[str, Any]:
         """校验工作流图结构，包括节点和边的验证"""
         # 提取节点和边数据
         nodes = graph.get("nodes", [])
@@ -390,6 +610,10 @@ class WorkflowService(BaseService):
             NodeType.CODE.value: CodeNodeData,
             NodeType.TOOL.value: ToolNodeData,
             NodeType.HTTP_REQUEST.value: HttpRequestNodeData,
+            NodeType.TEXT_PROCESSOR.value: TextProcessorNodeData,
+            NodeType.VARIABLE_ASSIGNER.value: VariableAssignerNodeData,
+            NodeType.PARAMETER_EXTRACTOR.value: ParameterExtractorNodeData,
+            NodeType.IF_ELSE.value: IfElseNodeData,
         }
 
         # 校验节点
@@ -398,10 +622,13 @@ class WorkflowService(BaseService):
         end_nodes = 0
 
         for node in nodes:
+            node_type = ""
+            node_id = None
             try:
                 if not isinstance(node, dict):
                     raise ValidateErrorException("节点数据必须是字典类型")
 
+                node_id = node.get("id")
                 node_type = node.get("node_type", "")
                 if not node_type:
                     raise ValidateErrorException("节点缺少类型定义")
@@ -447,16 +674,32 @@ class WorkflowService(BaseService):
                 node_data_dict[node_data.id] = node_data
 
             except Exception as e:
-                print(f"节点验证失败 - ID: {node.get('id')}, 类型: {node_type}, 错误: {str(e)}")
-                continue
+                if node_id is None and isinstance(node, dict):
+                    node_id = node.get("id")
+                if node_id is None:
+                    node_getter = getattr(node, "get", None)
+                    node_id = node_getter("id") if callable(node_getter) else None
+                error_message = str(e) if isinstance(e, ValidateErrorException) else "节点数据格式错误"
+                logger.warning(
+                    "工作流节点校验失败: workflow_id=%s, node_id=%s, node_type=%s, error=%s",
+                    workflow_id,
+                    node_id,
+                    node_type,
+                    error_message,
+                )
+                raise ValidateErrorException(
+                    f"节点验证失败(id={node_id}, node_type={node_type}): {error_message}"
+                )
 
         # 校验边
         edge_data_dict: dict[UUID, BaseEdgeData] = {}
         for edge in edges:
+            edge_id = None
             try:
                 if not isinstance(edge, dict):
                     raise ValidateErrorException("边数据必须是字典类型")
 
+                edge_id = edge.get("id")
                 edge_data = BaseEdgeData(**edge)
 
                 # 检查边ID唯一性
@@ -480,8 +723,21 @@ class WorkflowService(BaseService):
                 edge_data_dict[edge_data.id] = edge_data
 
             except Exception as e:
-                print(f"边验证失败 - ID: {edge.get('id')}, 错误: {str(e)}")
-                continue
+                if edge_id is None and isinstance(edge, dict):
+                    edge_id = edge.get("id")
+                if edge_id is None:
+                    edge_getter = getattr(edge, "get", None)
+                    edge_id = edge_getter("id") if callable(edge_getter) else None
+                error_message = str(e) if isinstance(e, ValidateErrorException) else "边数据格式错误"
+                logger.warning(
+                    "工作流边校验失败: workflow_id=%s, edge_id=%s, error=%s",
+                    workflow_id,
+                    edge_id,
+                    error_message,
+                )
+                raise ValidateErrorException(
+                    f"边验证失败(id={edge_id}): {error_message}"
+                )
 
         return {
             "nodes": [convert_model_to_dict(node) for node in node_data_dict.values()],

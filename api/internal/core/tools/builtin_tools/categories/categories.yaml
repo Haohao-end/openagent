@@ -7,6 +7,18 @@
 - category: weather
   name: 天气
   icon: weather.svg
+- category: news
+  name: 新闻
+  icon: news.svg
+- category: academic
+  name: 学术
+  icon: academic.svg
+- category: code
+  name: 代码
+  icon: code.svg
+- category: compute
+  name: 计算
+  icon: compute.svg
 - category: tool
   name: 工具
   icon: tool.svg

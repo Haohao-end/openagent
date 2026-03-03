@@ -56,6 +56,7 @@ class GetDatasetResp(Schema):
     related_app_count = fields.Integer(dump_default=0)
     character_count = fields.Integer(dump_default=0)
     upload_at = fields.Integer(dump_default=0)
+    updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
 
     @pre_dump
@@ -69,8 +70,9 @@ class GetDatasetResp(Schema):
             "hit_count": data.hit_count,
             "related_app_count": data.related_app_count,
             "character_count": data.character_count,
-            "updated_at": int(data.updated_at.timestamp()),
-            "created_at": int(data.created_at.timestamp()),
+            "upload_at": datetime_to_timestamp(data.updated_at),
+            "updated_at": datetime_to_timestamp(data.updated_at),
+            "created_at": datetime_to_timestamp(data.created_at),
         }
 
 class GetDatasetsWithPageReq(PaginatorReq):
@@ -89,6 +91,7 @@ class GetDatasetsWithPageResp(Schema):
     related_app_count = fields.Integer(dump_default=0)
     character_count = fields.Integer(dump_default=0)
     upload_at = fields.Integer(dump_default=0)
+    updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
 
     @pre_dump
@@ -101,8 +104,9 @@ class GetDatasetsWithPageResp(Schema):
             "document_count": data.document_count,
             "related_app_count": data.related_app_count,
             "character_count": data.character_count,
-            "updated_at": int(data.updated_at.timestamp()),
-            "created_at": int(data.created_at.timestamp()),
+            "upload_at": datetime_to_timestamp(data.updated_at),
+            "updated_at": datetime_to_timestamp(data.updated_at),
+            "created_at": datetime_to_timestamp(data.created_at),
         }
 
 class HitReq(FlaskForm):

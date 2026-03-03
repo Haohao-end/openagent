@@ -1,0 +1,13 @@
+---
+description: Python best practices for LMForge
+globs: "**/*.py"
+alwaysApply: false
+---
+Python Conventions:
+- Use f-strings for formatting.
+- Prefer list/dict comprehensions over loops when readable.
+- Always use context managers (with statements) for resources.
+- Use dataclasses or Pydantic models for data structures.
+- Comprehensive error handling: specific exceptions, meaningful messages.
+- Tests: use pytest with factories, mock external services (LLMs, DBs).
+- Never use bare except: — always specify exception types.

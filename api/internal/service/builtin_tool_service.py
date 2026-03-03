@@ -69,12 +69,17 @@ class BuiltinToolService:
 
         return builtin_tool
 
-    def get_provider_icon(self,provider_name:str) -> tuple[bytes,str]:
+    def get_provider_icon(self,provider_name:str) -> tuple[bytes | None, str | None, str | None]:
         """根据传递的提供者名字获取icon流信息"""
         # 1.获取对应的工具提供者
         provider = self.builtin_provider_manager.get_provider(provider_name)
         if not provider:
             raise NotFoundException(f"该工具提供者{provider_name}不存在")
+
+        icon = provider.provider_entity.icon.strip()
+        if icon.startswith(("http://", "https://")):
+            return None, None, icon
+
         # 2. 获取项目的根路径信息(current_app.root_path路径为app/http/)root_path为llmops-api的路径(root)
         root_path = os.path.dirname(os.path.dirname(current_app.root_path))
 
@@ -84,7 +89,7 @@ class BuiltinToolService:
             "internal","core","tools","builtin_tools","providers",provider_name,
         )
         # 4. 拼接得到icon对应的路径
-        icon_path = os.path.join(provider_path,"_asset",provider.provider_entity.icon)
+        icon_path = os.path.join(provider_path,"_asset",icon)
 
         # 5. 检测icon是否存在
         if not os.path.exists(icon_path):
@@ -97,7 +102,7 @@ class BuiltinToolService:
         # 7.读取icon的字节数据
         with open(icon_path,"rb") as f:
             byte_data = f.read()
-            return byte_data,mimetype
+            return byte_data,mimetype,None
 
     def get_categories(self) -> list[dict[str, Any]]:
         """获取所有的内置分类信息，涵盖了category、name、icon"""

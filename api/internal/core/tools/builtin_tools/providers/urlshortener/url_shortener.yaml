@@ -1,0 +1,4 @@
+name: url_shortener
+label: 短链接生成
+description: 将长URL转换为短链接
+params: []

@@ -1,3 +1,4 @@
+from flask import request
 from flask_wtf import FlaskForm
 from marshmallow import Schema, fields, pre_dump
 from wtforms import StringField, BooleanField
@@ -6,6 +7,21 @@ from internal.lib.helper import datetime_to_timestamp
 from internal.model import Segment
 from pkg.paginator import PaginatorReq
 from .schema import ListField
+
+
+def _get_keywords_from_json() -> list:
+    """
+    从 JSON 请求体中提取 keywords 原始值。
+
+    说明：
+    1. `ListField` 在 Flask-WTF 场景下会把字符串包装成单元素列表，
+       这会导致 `"keywords": "x"` 被误识别为合法列表。
+    2. 这里显式读取原始 JSON，保证仅接受真正的数组类型。
+    """
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return []
+    return payload.get("keywords", [])
 
 class GetSegmentsWithPageReq(PaginatorReq):
     """获取文档片段列表请求"""
@@ -109,22 +125,27 @@ class CreateSegmentReq(FlaskForm):
 
     def validate_keywords(self, field: ListField) -> None:
         """校验关键词列表 涵盖长度不能为空 默认值为空列表"""
-        # 1.校验数据类型 + 非空
-        if field.data is None:
+        # 1.优先读取请求体原始值，避免字符串被 ListField 自动包装后绕过类型校验
+        raw_keywords = _get_keywords_from_json()
+        if raw_keywords is None:
             field.data = []
+        else:
+            field.data = raw_keywords
+
+        # 2.校验数据类型 + 非空
         if not isinstance(field.data, list):
             raise ValidationError("关键词列表格式必须是数组")
 
-        # 2.校验数据的长度 最长不能超过10个关键词
+        # 3.校验数据的长度 最长不能超过10个关键词
         if len(field.data) > 10:
             raise ValidationError("关键词长度范围数量在1~10")
 
-        # 3.循环校验关键词信息 关键词必须是字符串
+        # 4.循环校验关键词信息 关键词必须是字符串
         for keyword in field.data:
             if not isinstance(keyword, str):
                 raise ValidationError("关键词必须是字符串")
 
-        # 4.删除重复的数据并更新
+        # 5.删除重复的数据并更新
         field.data = list(dict.fromkeys(field.data))
 
 class UpdateSegmentReq(FlaskForm):
@@ -136,22 +157,27 @@ class UpdateSegmentReq(FlaskForm):
 
     def validate_keywords(self, field: ListField) -> None:
         """校验关键词列表 涵盖长度不能为空 默认值为空列表"""
-        # 1.校验数据类型 + 非空
-        if field.data is None:
+        # 1.优先读取请求体原始值，避免字符串被 ListField 自动包装后绕过类型校验
+        raw_keywords = _get_keywords_from_json()
+        if raw_keywords is None:
             field.data = []
+        else:
+            field.data = raw_keywords
+
+        # 2.校验数据类型 + 非空
         if not isinstance(field.data, list):
             raise ValidationError("关键词列表格式必须是数组")
 
-        # 2.校验数据的长度，最长不能超过10个关键词
+        # 3.校验数据的长度，最长不能超过10个关键词
         if len(field.data) > 10:
             raise ValidationError("关键词长度范围数量在1-10")
 
-        # 3.循环校验关键词信息，关键词必须是字符串
+        # 4.循环校验关键词信息，关键词必须是字符串
         for keyword in field.data:
             if not isinstance(keyword, str):
                 raise ValidationError("关键词必须是字符串")
 
-        # 4.删除重复数据并更新
+        # 5.删除重复数据并更新
         field.data = list(dict.fromkeys(field.data))
 
 

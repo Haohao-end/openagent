@@ -11,8 +11,9 @@ import type {
 import type { BaseResponse } from '@/models/base'
 
 // 获取工作流分页列表数据
-export const getWorkflowsWithPage = (req: GetWorkflowsWithPageRequest) => {
-  return get<GetWorkflowsWithPageResponse>(`/workflows`, { params: req })
+export const getWorkflowsWithPage = (req: GetWorkflowsWithPageRequest, isPublic: boolean = false) => {
+  const url = isPublic ? `/workflows/public` : `/workflows`
+  return get<GetWorkflowsWithPageResponse>(url, { params: req })
 }
 
 // 在当前账号下新增工作流
@@ -62,4 +63,21 @@ export const debugWorkflow = (
   onData: (event_response: Record<string, any>) => void,
 ) => {
   return ssePost(`/workflows/${workflow_id}/debug`, { body: inputs }, onData)
+}
+
+// 重新生成工作流图标
+export const regenerateIcon = (workflow_id: string) => {
+  return post<BaseResponse<{ icon: string }>>(`/workflows/${workflow_id}/regenerate-icon`)
+}
+
+// 生成工作流图标预览（不保存到工作流）
+export const generateIconPreview = (name: string, description: string) => {
+  return post<BaseResponse<{ icon: string }>>(`/workflows/generate-icon-preview`, {
+    body: { name, description },
+  })
+}
+
+// 分享或取消分享工作流到广场
+export const shareWorkflow = (workflow_id: string, is_public: boolean) => {
+  return post<BaseResponse<any>>(`/workflows/${workflow_id}/share`, { body: { is_public } })
 }

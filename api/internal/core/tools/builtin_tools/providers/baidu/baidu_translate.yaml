@@ -1,0 +1,4 @@
+name: baidu_translate
+label: 百度翻译
+description: 使用百度翻译API进行多语言文本翻译
+params: []

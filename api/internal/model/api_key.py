@@ -24,7 +24,7 @@ class ApiKey(db.Model):
 
     id = Column(UUID, nullable=False, server_default=text("uuid_generate_v4()"))  # 记录id
     account_id = Column(UUID, nullable=False)  # 关联账号id
-    api_key = Column(String(255), nullable=False, server_default=text("''::character varying"))  # 加密后的api秘钥
+    api_key = Column(String(255), nullable=False, server_default=text("''::character varying"))  # API Key 哈希值
     is_active = Column(Boolean, nullable=False, server_default=text('false'))  # 是否激活，为true时可以使用
     remark = Column(String(255), nullable=False, server_default=text("''::character varying"))  # 备注信息
     updated_at = Column(

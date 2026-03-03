@@ -1,0 +1,9 @@
+name: tavily_search
+label: Tavily搜索
+description: 专为AI应用优化的搜索工具，返回高质量的搜索结果和相关内容
+params:
+  - name: max_results
+    label: 最大结果数
+    type: number
+    default: 5
+    required: false

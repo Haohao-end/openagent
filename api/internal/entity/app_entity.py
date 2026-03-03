@@ -46,17 +46,17 @@ DEFAULT_APP_CONFIG = {
         "score": 0.5,
     },
     "long_term_memory": {
-        "enable": False,
+        "enable": True,
     },
     "opening_statement": "",
     "opening_questions": [],
     "speech_to_text": {
-        "enable": False,
+        "enable": True,
     },
     "text_to_speech": {
-        "enable": False,
-        "voice": "echo",
-        "auto_play": False,
+        "enable": True,
+        "voice": "alex",
+        "auto_play": True,
     },
     "suggested_after_answer": {
         "enable": True,

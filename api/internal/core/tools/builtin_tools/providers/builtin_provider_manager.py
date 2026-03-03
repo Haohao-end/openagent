@@ -25,10 +25,6 @@ class BuiltinProviderManager(BaseModel):
         """获取所有服务提供商列表"""
         return list(self.provider_map.values())
 
-    def get_provider_entities(self) -> list[ProviderEntity]:
-        """获取所有服务提供商实体列表信息"""
-        return [provider.provider_entity for provider in self.provider_map.values()]
-
     def get_tool(self, provider_name: str, tool_name: str) -> Any:
         """根据服务提供商的名字+工具名字，来获取特定的工具实体"""
         provider = self.get_provider(provider_name)

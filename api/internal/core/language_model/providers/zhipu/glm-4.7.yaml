@@ -1,0 +1,27 @@
+model: glm-4.7
+label: glm-4.7
+model_type: chat
+features:
+  - tool_call
+  - agent_thought
+context_window: 200000
+max_output_tokens: 96000
+attributes:
+  model: glm-4.7
+parameters:
+  - name: temperature
+    use_template: temperature
+    default: 0.7
+  - name: top_p
+    use_template: top_p
+    default: 0.7
+  - name: max_tokens
+    use_template: max_tokens
+    default: 8192
+    max: 96000
+metadata:
+  pricing:
+    input: 0.0003
+    output: 0.0012
+    unit: 0.001
+    currency: USD

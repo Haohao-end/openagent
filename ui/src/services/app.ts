@@ -69,9 +69,15 @@ export const updateDebugConversationSummary = (app_id: string, summary: string) 
 export const debugChat = (
   app_id: string,
   query: string,
+  image_urls: string[],
+  conversation_id: string = '',
   onData: (event_response: Record<string, any>) => void,
 ) => {
-  return ssePost(`/apps/${app_id}/conversations`, { body: { query } }, onData)
+  return ssePost(
+    `/apps/${app_id}/conversations`,
+    { body: { query, image_urls, conversation_id } },
+    onData,
+  )
 }
 
 // 停止某次应用的调试会话
@@ -96,8 +102,8 @@ export const deleteDebugConversation = (app_id: string) => {
 }
 
 // 更新/发布应用的配置信息
-export const publish = (app_id: string) => {
-  return post<BaseResponse<any>>(`/apps/${app_id}/publish`)
+export const publish = (app_id: string, share_to_square: boolean = true) => {
+  return post<BaseResponse<any>>(`/apps/${app_id}/publish?share_to_square=${share_to_square}`)
 }
 
 // 取消指定应用的发布
@@ -129,4 +135,26 @@ export const regenerateWebAppToken = (app_id: string) => {
   return post<RegenerateWebAppTokenResponse>(
     `/apps/${app_id}/published-config/regenerate-web-app-token`,
   )
+}
+
+// 重新生成应用图标
+export const regenerateIcon = (app_id: string) => {
+  return post<BaseResponse<{ icon: string }>>(`/apps/${app_id}/regenerate-icon`)
+}
+
+// 生成图标预览（不保存到应用）
+export const generateIconPreview = (name: string, description: string) => {
+  return post<BaseResponse<{ icon: string }>>(`/apps/generate-icon-preview`, {
+    body: { name, description },
+  })
+}
+
+// 分享应用到广场
+export const shareAppToSquare = (app_id: string, category: string) => {
+  return post<BaseResponse<any>>(`/apps/${app_id}/share-to-square`, { body: { category } })
+}
+
+// 取消分享应用到广场
+export const unshareAppFromSquare = (app_id: string) => {
+  return post<BaseResponse<any>>(`/apps/${app_id}/unshare-from-square`)
 }

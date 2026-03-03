@@ -10,9 +10,14 @@ class CustomException(Exception):
     data: Any = field(default_factory=dict)
 
     def __init__(self, message: str = None, data: Any = None):
-        super().__init__()
-        self.message = message
+        # 把 message 透传给 Exception，保证 str(exc) 与业务 message 一致。
+        normalized_message = message or ""
+        super().__init__(normalized_message)
+        self.message = normalized_message
         self.data = data
+
+    def __str__(self) -> str:
+        return self.message
 
 
 class FailException(CustomException):

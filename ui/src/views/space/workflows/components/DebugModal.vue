@@ -3,16 +3,28 @@ import { useVueFlow } from '@vue-flow/core'
 import { computed, ref, watch } from 'vue'
 import { useDebugWorkflow } from '@/hooks/use-workflow'
 import type { ValidatedError } from '@arco-design/web-vue'
+import {
+  findWorkflowOutputs,
+  sumWorkflowLatency,
+  sumWorkflowToolLatency,
+  type DebugNodeResult,
+} from '@/views/space/workflows/utils/debug-metrics'
+
+type WorkflowInput = {
+  name: string
+  type: string
+  required?: boolean
+}
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
   visible: { type: Boolean, required: true, default: false },
   workflow_id: { type: String, required: true, default: '' },
 })
-const emits = defineEmits(['update:visible'])
+const emits = defineEmits(['update:visible', 'debug-success'])
 const { nodes } = useVueFlow()
-const form = ref<Record<string, any>>({})
-const nodeResults = ref<Record<string, any>[]>([])
+const form = ref<Record<string, string | number | boolean>>({})
+const nodeResults = ref<DebugNodeResult[]>([])
 const activatedTab = ref('input')
 const {
   error: debugWorkflowError,
@@ -21,39 +33,27 @@ const {
 } = useDebugWorkflow()
 
 // 2.输入变量列表动态计算函数
-const inputs = computed(() => {
+const inputs = computed<WorkflowInput[]>(() => {
   // 2.1 获取节点数据中的开始节点
   const startNode = nodes.value.find((item) => item.type === 'start')
 
   // 2.2 检查节点数据并返回
-  return startNode?.data?.inputs ?? []
+  return (startNode?.data?.inputs ?? []) as WorkflowInput[]
 })
 
 // 3.定义输出结果动态计算函数
 const outputs = computed(() => {
-  // 3.1 获取结束节点数据
-  const endNodeResult = nodeResults.value.find((item) => item.node_data.node_type === 'end')
-
-  // 3.2 如果存在则表示运行成功
-  if (endNodeResult) return endNodeResult.outputs
-
-  // 3.3 否则返回空
-  return null
+  return findWorkflowOutputs(nodeResults.value)
 })
 
 // 4.定义整个工作流的响应耗时
 const latency = computed(() => {
-  return nodeResults.value.reduce((total, item) => total + item.latency, 0)
+  return sumWorkflowLatency(nodeResults.value)
 })
 
 // 5.定义工具/插件响应耗时
 const toolLatency = computed(() => {
-  return nodeResults.value.reduce((total, item) => {
-    if (item.node_data.type === 'tool') {
-      total += item.latency
-    }
-    return total
-  }, 0)
+  return sumWorkflowToolLatency(nodeResults.value)
 })
 
 // 6.定义表单提交函数
@@ -69,9 +69,20 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   activatedTab.value = 'output'
 
   // 6.4 调用hooks发起请求
-  await handleDebugWorkflow(props.workflow_id, form.value, (event_response) => {
-    nodeResults.value.push(event_response?.data)
-  })
+  await handleDebugWorkflow(
+    props.workflow_id,
+    form.value,
+    (event_response: { data?: DebugNodeResult }) => {
+      if (event_response?.data) {
+        nodeResults.value.push(event_response.data)
+      }
+    },
+  )
+
+  // 6.5 如果调试成功（没有错误且有输出结果），触发 debug-success 事件
+  if (!debugWorkflowError.value && outputs.value) {
+    emits('debug-success')
+  }
 }
 
 // 7.监听调试模态窗的显示或隐藏

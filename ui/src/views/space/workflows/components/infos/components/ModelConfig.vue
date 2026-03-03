@@ -3,6 +3,13 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { apiPrefix } from '@/config'
 import { useGetLanguageModel, useGetLanguageModels } from '@/hooks/use-language-model'
 
+type ModelForm = {
+  selectValue: string
+  provider: string
+  model: string
+  parameters: Record<string, unknown>
+}
+
 // 1.定义自定义组件所需数据
 const props = defineProps({
   model_config: {
@@ -14,7 +21,12 @@ const props = defineProps({
   },
 })
 const emits = defineEmits(['update:model_config'])
-const form = ref<any>({})
+const form = ref<ModelForm>({
+  selectValue: '',
+  provider: '',
+  model: '',
+  parameters: {},
+})
 const {
   loading: getLanguageModelLoading,
   language_model,
@@ -37,7 +49,7 @@ const modelOptions = computed(() => {
 })
 
 // 2.定义选择模型处理器
-const changeModel = (value: any): any => {
+const changeModel = (value: string) => {
   // 2.1 使用/拆分出提供商+模型名字
   const [provider_name, model_name] = value.split('/')
 
@@ -45,11 +57,11 @@ const changeModel = (value: any): any => {
   loadLanguageModel(provider_name, model_name).then(() => {
     // 2.3 重新赋值parameters
     form.value.parameters = language_model.value.parameters.reduce(
-      (acc: Record<string, any>, parameter: Record<string, any>) => {
+      (acc: Record<string, unknown>, parameter: { name: string; default?: unknown }) => {
         acc[parameter.name] = parameter.default ?? null
         return acc
       },
-      {} as Record<string, any>,
+      {} as Record<string, unknown>,
     )
   })
 }
@@ -74,10 +86,10 @@ watch(
   () => props.model_config,
   (newValue) => {
     // 1.完成表单数据初始化
-    form.value['selectValue'] = `${newValue?.provider}/${newValue.model}`
-    form.value['provider'] = newValue?.provider
-    form.value['model'] = newValue?.model
-    form.value['parameters'] = newValue?.parameters
+    form.value.selectValue = `${newValue?.provider}/${newValue.model}`
+    form.value.provider = String(newValue?.provider || '')
+    form.value.model = String(newValue?.model || '')
+    form.value.parameters = (newValue?.parameters || {}) as Record<string, unknown>
 
     // 2.请求语言模型详情API接口
     newValue?.provider && loadLanguageModel(String(newValue?.provider), String(newValue?.model))
@@ -206,5 +218,3 @@ onMounted(() => {
     </template>
   </a-trigger>
 </template>
-
-<style scoped></style>

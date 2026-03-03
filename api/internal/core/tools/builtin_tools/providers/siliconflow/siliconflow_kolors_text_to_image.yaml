@@ -1,0 +1,39 @@
+name: siliconflow_kolors_text_to_image
+label: Kolors文生图
+description: 快手Kolors大模型，支持中英文文本生成高质量图像，擅长中文理解和字符渲染
+params:
+  - name: image_size
+    label: 图片尺寸
+    type: select
+    default: "1024x1024"
+    required: false
+    options:
+      - value: "1024x1024"
+        label: "1024x1024 (1:1 正方形)"
+      - value: "960x1280"
+        label: "960x1280 (3:4 竖屏)"
+      - value: "768x1024"
+        label: "768x1024 (3:4 竖屏)"
+      - value: "720x1440"
+        label: "720x1440 (1:2 超长竖屏)"
+      - value: "720x1280"
+        label: "720x1280 (9:16 手机竖屏)"
+      - value: "1280x720"
+        label: "1280x720 (16:9 横屏)"
+      - value: "1440x720"
+        label: "1440x720 (2:1 超宽横屏)"
+  - name: batch_size
+    label: 生成数量
+    type: number
+    default: 1
+    required: false
+  - name: num_inference_steps
+    label: 推理步数
+    type: number
+    default: 20
+    required: false
+  - name: guidance_scale
+    label: 引导系数
+    type: number
+    default: 7.5
+    required: false

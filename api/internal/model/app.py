@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 import uuid
 from sqlalchemy import (
     Column,
@@ -7,6 +7,7 @@ from sqlalchemy import (
     Text,
     Integer,
     DateTime,
+    Boolean,
     PrimaryKeyConstraint,
     text,
     Index
@@ -16,7 +17,14 @@ from internal.extension.database_extension import db
 from internal.entity.app_entity import AppConfigType, DEFAULT_APP_CONFIG, AppStatus
 from .conversation import Conversation
 from internal.entity.conversation_entity import InvokeFrom
-from ..lib.helper import generate_random_string
+from internal.entity.platform_entity import WechatConfigStatus
+from internal.lib.helper import generate_random_string
+from .platform import WechatConfig
+
+
+def _utcnow_naive() -> datetime:
+    """返回无时区的 UTC 时间，兼容数据库 DateTime 列且避免 utcnow 退化警告。"""
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class App(db.Model):
@@ -24,7 +32,10 @@ class App(db.Model):
     __tablename__ = "app"
     __table_args__ = (
         PrimaryKeyConstraint("id", name="pk_app_id"),
-        Index("app_account_id_idx", "account_id")
+        Index("app_account_id_idx", "account_id"),
+        Index("app_is_public_idx", "is_public"),
+        Index("app_category_idx", "category"),
+        Index("app_like_count_idx", "like_count")
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
@@ -37,14 +48,21 @@ class App(db.Model):
     description = Column(Text, nullable=False, server_default=text("''::text"))  # 应用描述
     token = Column(String(255), nullable=True, server_default=text("''::character varying"))  # 应用凭证
     status = Column(String(255), nullable=False, server_default=text("''::character varying"))  # 应用状态
+    is_public = Column(Boolean, nullable=False, server_default=text("false"))  # 是否公开到广场
+    category = Column(String(100), nullable=False, server_default=text("'general'::character varying"))  # 应用分类
+    published_at = Column(DateTime, nullable=True)  # 发布到广场的时间
+    view_count = Column(Integer, nullable=False, server_default=text("0"))  # 浏览次数
+    like_count = Column(Integer, nullable=False, server_default=text("0"))  # 点赞数
+    fork_count = Column(Integer, nullable=False, server_default=text("0"))  # 被复制次数
+    original_app_id = Column(UUID, nullable=True)  # 原始应用ID(用于Fork追踪)
     updated_at = Column(
         DateTime,
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP(0)"),
         server_onupdate=text("CURRENT_TIMESTAMP(0)"),
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default=text("CURRENT_TIMESTAMP(0)"))
+    created_at = Column(DateTime, nullable=False, default=_utcnow_naive, server_default=text("CURRENT_TIMESTAMP(0)"))
 
     @property
     def app_config(self) -> "AppConfig":
@@ -82,7 +100,8 @@ class App(db.Model):
         if self.debug_conversation_id is not None:
             debug_conversation = db.session.query(Conversation).filter(
                 Conversation.id == self.debug_conversation_id,
-                Conversation.invoke_from == InvokeFrom.DEBUGGER.value
+                Conversation.invoke_from == InvokeFrom.DEBUGGER.value,
+                Conversation.is_deleted == False,
             ).one_or_none()
 
         # 2.检测数据是否存在 如果不存在则创建
@@ -110,7 +129,7 @@ class App(db.Model):
         # 1.判断状态是否为已发布
         if self.status != AppStatus.PUBLISHED.value:
             # 2.非发布的情况下需要清空数据 并提交更新
-            if self.token is not None or self.token != "":
+            if self.token is not None and self.token != "":
                 self.token = None
                 db.session.commit()
             return ""
@@ -121,6 +140,41 @@ class App(db.Model):
             db.session.commit()
 
         return self.token
+
+    @property
+    def wechat_config(self) -> "WechatConfig":
+        """获取应用的微信发布配置信息"""
+        # 1.获取当前应用的微信配置信息
+        config = db.session.query(WechatConfig).filter(
+            WechatConfig.app_id == self.id,
+        ).one_or_none()
+
+        # 2.检测配置是否存在，不存在则创建
+        if not config:
+            config = WechatConfig(app_id=self.id, status=WechatConfigStatus.UNCONFIGURED)
+            db.session.add(config)
+            db.session.commit()
+
+        # 3.检查wechat_config只要app_id、app_secret和token有一个没填写则更新配置状态
+        if config.status == WechatConfigStatus.CONFIGURED:
+            if not config.wechat_app_id or not config.wechat_app_secret or not config.wechat_token:
+                config.status = WechatConfigStatus.UNCONFIGURED
+                db.session.commit()
+
+        # 4.检测应用发布状态与配置信息是否匹配，不匹配则更新
+        if self.status == AppStatus.DRAFT:
+            # 5.草稿配置，检查WechatConfig是否设置为已发布，是的话则更新
+            if config.status == WechatConfigStatus.CONFIGURED:
+                config.status = WechatConfigStatus.UNCONFIGURED
+                db.session.commit()
+        elif self.status == AppStatus.PUBLISHED:
+            # 6.已发布配置，检测WechatConfig如果填写了app_id、app_secret与token，则更新配置信息
+            if config.status == WechatConfigStatus.UNCONFIGURED:
+                if config.wechat_app_id and config.wechat_app_secret and config.wechat_token:
+                    config.status = WechatConfigStatus.CONFIGURED
+                    db.session.commit()
+
+        return config
 
 
 class AppConfig(db.Model):
@@ -155,9 +209,9 @@ class AppConfig(db.Model):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP(0)"),
         server_onupdate=text("CURRENT_TIMESTAMP(0)"),
-        default=datetime.utcnow,
+        default=_utcnow_naive,
     )
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, server_default=text("CURRENT_TIMESTAMP(0)"))
+    created_at = Column(DateTime, nullable=False, default=_utcnow_naive, server_default=text("CURRENT_TIMESTAMP(0)"))
 
 
     @property
@@ -227,4 +281,34 @@ class AppDatasetJoin(db.Model):
         server_default=text("CURRENT_TIMESTAMP(0)"),
         server_onupdate=text("CURRENT_TIMESTAMP(0)"),
     )
+    created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
+
+
+class AppLike(db.Model):
+    """用户点赞应用关联表"""
+    __tablename__ = "app_like"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="pk_app_like_id"),
+        Index("app_like_app_id_idx", "app_id"),
+        Index("app_like_account_id_idx", "account_id"),
+    )
+
+    id = Column(UUID, nullable=False, server_default=text("uuid_generate_v4()"))
+    app_id = Column(UUID, nullable=False)
+    account_id = Column(UUID, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
+
+
+class AppFavorite(db.Model):
+    """用户收藏应用关联表"""
+    __tablename__ = "app_favorite"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="pk_app_favorite_id"),
+        Index("app_favorite_app_id_idx", "app_id"),
+        Index("app_favorite_account_id_idx", "account_id"),
+    )
+
+    id = Column(UUID, nullable=False, server_default=text("uuid_generate_v4()"))
+    app_id = Column(UUID, nullable=False)
+    account_id = Column(UUID, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))

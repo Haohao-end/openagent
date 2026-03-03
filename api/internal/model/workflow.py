@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Float,
+    Integer,
     text,
     PrimaryKeyConstraint,
     Index
@@ -21,7 +22,9 @@ class Workflow(db.Model):
     __table_args__ = (
         PrimaryKeyConstraint("id", name="pk_workflow_id"),
         Index("workflow_account_id_idx", "account_id"),
-        Index("workflow_tool_call_name_idx", "tool_call_name")
+        Index("workflow_tool_call_name_idx", "tool_call_name"),
+        Index("workflow_is_public_idx", "is_public"),
+        Index("workflow_category_idx", "category"),
     )
 
     id = Column(UUID, nullable=False, server_default=text("uuid_generate_v4()"))
@@ -34,6 +37,12 @@ class Workflow(db.Model):
     draft_graph = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))  # 草稿图配置
     is_debug_passed = Column(Boolean, nullable=False, server_default=text("false"))  # 是否调试通过
     status = Column(String(255), nullable=False, server_default=text("''::character varying"))  # 工作流状态
+    is_public = Column(Boolean, nullable=False, server_default=text("false"))  # 是否公开到广场
+    category = Column(String(100), nullable=False, server_default=text("'general'::character varying"))  # 工作流分类
+    view_count = Column(Integer, nullable=False, server_default=text("0"))  # 浏览次数
+    like_count = Column(Integer, nullable=False, server_default=text("0"))  # 点赞数
+    fork_count = Column(Integer, nullable=False, server_default=text("0"))  # 被Fork次数
+    original_workflow_id = Column(UUID, nullable=True)  # 原始工作流ID（用于Fork追踪）
     published_at = Column(DateTime, nullable=True)  # 发布时间
     updated_at = Column(
         DateTime,
@@ -68,4 +77,34 @@ class WorkflowResult(db.Model):
         server_default=text("CURRENT_TIMESTAMP(0)"),
         server_onupdate=text("CURRENT_TIMESTAMP(0)"),
     )
+    created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
+
+
+class WorkflowLike(db.Model):
+    """用户点赞工作流关联表"""
+    __tablename__ = "workflow_like"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="pk_workflow_like_id"),
+        Index("workflow_like_workflow_id_idx", "workflow_id"),
+        Index("workflow_like_account_id_idx", "account_id"),
+    )
+
+    id = Column(UUID, nullable=False, server_default=text("uuid_generate_v4()"))
+    workflow_id = Column(UUID, nullable=False)
+    account_id = Column(UUID, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
+
+
+class WorkflowFavorite(db.Model):
+    """用户收藏工作流关联表"""
+    __tablename__ = "workflow_favorite"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="pk_workflow_favorite_id"),
+        Index("workflow_favorite_workflow_id_idx", "workflow_id"),
+        Index("workflow_favorite_account_id_idx", "account_id"),
+    )
+
+    id = Column(UUID, nullable=False, server_default=text("uuid_generate_v4()"))
+    workflow_id = Column(UUID, nullable=False)
+    account_id = Column(UUID, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))

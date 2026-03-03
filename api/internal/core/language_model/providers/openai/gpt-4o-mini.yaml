@@ -23,7 +23,12 @@ parameters:
     default: 4096
 metadata:
   pricing:
-    input: 0.0011
-    output: 0.0044
+    input: 0.00015
+    output: 0.0006
     unit: 0.001
-    currency: RMB
+    currency: USD
+  pricing_cache_hit:
+    input: 0.000075
+    output: 0.0006
+    unit: 0.001
+    currency: USD

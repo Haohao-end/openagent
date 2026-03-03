@@ -129,12 +129,14 @@ watch(
       <!-- 数据加载状态 -->
       <div v-if="paginator.total_page >= 2" class="flex items-center justify-center">
         <!-- 数据加载中 -->
-        <a-space v-if="paginator.current_page <= paginator.total_page" class="my-4">
+        <a-space v-if="loading" class="my-4">
           <a-spin />
           <div class="text-gray-400">加载中</div>
         </a-space>
         <!-- 数据加载完成 -->
-        <div v-else class="text-gray-400 my-4">数据已加载完成</div>
+        <div v-else-if="paginator.current_page > paginator.total_page" class="text-gray-400 my-4">
+          数据已加载完成
+        </div>
       </div>
     </a-spin>
   </a-drawer>

@@ -33,13 +33,19 @@ class DatasetRetrievalNode(BaseNode):
         from internal.service import RetrievalService
 
         retrieval_service = injector.get(RetrievalService)
+        retrieval_config = self.node_data.retrieval_config
+        retrieval_config_payload = (
+            retrieval_config.model_dump()
+            if hasattr(retrieval_config, "model_dump")
+            else retrieval_config.dict()
+        )
 
         # 3.构建检索服务工具
         self._retrieval_tool = retrieval_service.create_langchain_tool_from_search(
             flask_app=flask_app,
             dataset_ids=self.node_data.dataset_ids,
             account_id=account_id,
-            **self.node_data.retrieval_config.dict(),
+            **retrieval_config_payload,
         )
 
     def invoke(self, state: WorkflowState, config: Optional[RunnableConfig] = None) -> WorkflowState:

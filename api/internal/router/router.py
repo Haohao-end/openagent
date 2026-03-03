@@ -16,13 +16,18 @@ from internal.handler import (
     AIHandler,
     ApiKeyHandler,
     OpenAPIHandler,
-    BuiltinAppHandler,
     WorkflowHandler,
     LanguageModelHandler,
     AssistantAgentHandler,
     AnalysisHandler,
     WebAppHandler,
     ConversationHandler,
+    AudioHandler,
+    PlatformHandler,
+    WechatHandler,
+    PublicAppHandler,
+    PublicWorkflowHandler
+
 )
 
 
@@ -43,13 +48,17 @@ class Router:
     ai_handler: AIHandler
     api_key_handler: ApiKeyHandler
     openapi_handler: OpenAPIHandler
-    builtin_app_handler: BuiltinAppHandler
     workflow_handler: WorkflowHandler
     language_model_handler: LanguageModelHandler
     assistant_agent_handler: AssistantAgentHandler
     analysis_handler: AnalysisHandler
     web_app_handler: WebAppHandler
     conversation_handler: ConversationHandler
+    audio_handler: AudioHandler
+    platform_handler: PlatformHandler
+    wechat_handler: WechatHandler
+    public_app_handler: PublicAppHandler
+    public_workflow_handler: PublicWorkflowHandler
 
     def register_router(self, app: Flask):
         """注册路由"""
@@ -58,6 +67,7 @@ class Router:
         openapi_bp = Blueprint("openapi", __name__, url_prefix="")
 
         # 2.将url与对应的控制器方法做绑定
+        bp.add_url_rule("/health", view_func=self.app_handler.health)
         bp.add_url_rule("/ping", view_func=self.app_handler.ping)
         bp.add_url_rule("/apps", view_func=self.app_handler.get_apps_with_page)
         bp.add_url_rule("/apps", methods=["POST"], view_func=self.app_handler.create_app)
@@ -127,6 +137,18 @@ class Router:
             methods=["POST"],
             view_func=self.app_handler.regenerate_web_app_token,
         )
+        bp.add_url_rule(
+            "/apps/<uuid:app_id>/regenerate-icon",
+            methods=["POST"],
+            view_func=self.app_handler.regenerate_icon,
+            endpoint="app_regenerate_icon",
+        )
+        bp.add_url_rule(
+            "/apps/generate-icon-preview",
+            methods=["POST"],
+            view_func=self.app_handler.generate_icon_preview,
+            endpoint="app_generate_icon_preview",
+        )
 
         # 3.内置插件广场模块
         bp.add_url_rule("/builtin-tools", view_func=self.builtin_tool_handler.get_builtin_tools)
@@ -175,6 +197,18 @@ class Router:
             "/api-tools/<uuid:provider_id>/delete",
             methods=["POST"],
             view_func=self.api_tool_handler.delete_api_tool_provider,
+        )
+        bp.add_url_rule(
+            "/api-tools/<uuid:provider_id>/regenerate-icon",
+            methods=["POST"],
+            view_func=self.api_tool_handler.regenerate_icon,
+            endpoint="api_tool_regenerate_icon",
+        )
+        bp.add_url_rule(
+            "/api-tools/generate-icon-preview",
+            methods=["POST"],
+            view_func=self.api_tool_handler.generate_icon_preview,
+            endpoint="api_tool_generate_icon_preview",
         )
 
         # 4.上传文件模块
@@ -257,6 +291,18 @@ class Router:
             methods=["POST"],
             view_func=self.dataset_handler.hit,
         )
+        bp.add_url_rule(
+            "/datasets/<uuid:dataset_id>/regenerate-icon",
+            methods=["POST"],
+            view_func=self.dataset_handler.regenerate_icon,
+            endpoint="dataset_regenerate_icon",
+        )
+        bp.add_url_rule(
+            "/datasets/generate-icon-preview",
+            methods=["POST"],
+            view_func=self.dataset_handler.generate_icon_preview,
+            endpoint="dataset_generate_icon_preview",
+        )
 
         # 6.授权认证模块
         bp.add_url_rule(
@@ -278,6 +324,16 @@ class Router:
             methods=["POST"],
             view_func=self.auth_handler.logout,
         )
+        bp.add_url_rule(
+            "/auth/send-reset-code",
+            methods=["POST"],
+            view_func=self.auth_handler.send_reset_code,
+        )
+        bp.add_url_rule(
+            "/auth/reset-password",
+            methods=["POST"],
+            view_func=self.auth_handler.reset_password,
+        )
 
         # 7.账号设置模块
         bp.add_url_rule("/account", view_func=self.account_handler.get_current_user)
@@ -290,7 +346,13 @@ class Router:
         bp.add_url_rule(
             "/ai/suggested-questions",
             methods=["POST"],
-            view_func=self.ai_handler.generate_suggested_questions,
+            view_func=self.ai_handler.generate_suggested_questions
+        )
+        bp.add_url_rule("/ai/chat", methods=["POST"], view_func=self.ai_handler.code_assistant_chat)
+        bp.add_url_rule(
+            "/ai/openapi-schema-chat",
+            methods=["POST"],
+            view_func=self.ai_handler.openapi_schema_assistant_chat,
         )
 
         # 9.API秘钥模块
@@ -321,16 +383,7 @@ class Router:
             view_func=self.openapi_handler.chat,
         )
 
-        # 10.内置应用模块
-        bp.add_url_rule("/builtin-apps/categories", view_func=self.builtin_app_handler.get_builtin_app_categories)
-        bp.add_url_rule("/builtin-apps", view_func=self.builtin_app_handler.get_builtin_apps)
-        bp.add_url_rule(
-            "/builtin-apps/add-builtin-app-to-space",
-            methods=["POST"],
-            view_func=self.builtin_app_handler.add_builtin_app_to_space,
-        )
-
-        # 11.工作流模块
+        # 10.工作流模块
         bp.add_url_rule("/workflows", view_func=self.workflow_handler.get_workflows_with_page)
         bp.add_url_rule("/workflows", methods=["POST"], view_func=self.workflow_handler.create_workflow)
         bp.add_url_rule("/workflows/<uuid:workflow_id>", view_func=self.workflow_handler.get_workflow)
@@ -368,6 +421,23 @@ class Router:
             methods=["POST"],
             view_func=self.workflow_handler.cancel_publish_workflow,
         )
+        bp.add_url_rule(
+            "/workflows/<uuid:workflow_id>/regenerate-icon",
+            methods=["POST"],
+            view_func=self.workflow_handler.regenerate_icon,
+            endpoint="workflow_regenerate_icon",
+        )
+        bp.add_url_rule(
+            "/workflows/generate-icon-preview",
+            methods=["POST"],
+            view_func=self.workflow_handler.generate_icon_preview,
+            endpoint="workflow_generate_icon_preview",
+        )
+        bp.add_url_rule(
+            "/workflows/<uuid:workflow_id>/share",
+            methods=["POST"],
+            view_func=self.workflow_handler.share_workflow_to_public,
+        )
 
         # 12.语言模型模块
         bp.add_url_rule("/language-models", view_func=self.language_model_handler.get_language_models)
@@ -387,6 +457,11 @@ class Router:
             view_func=self.assistant_agent_handler.assistant_agent_chat,
         )
         bp.add_url_rule(
+            "/assistant-agent/introduction",
+            methods=["POST"],
+            view_func=self.assistant_agent_handler.generate_assistant_agent_introduction,
+        )
+        bp.add_url_rule(
             "/assistant-agent/chat/<uuid:task_id>/stop",
             methods=["POST"],
             view_func=self.assistant_agent_handler.stop_assistant_agent_chat,
@@ -394,6 +469,10 @@ class Router:
         bp.add_url_rule(
             "/assistant-agent/messages",
             view_func=self.assistant_agent_handler.get_assistant_agent_messages_with_page,
+        )
+        bp.add_url_rule(
+            "/assistant-agent/conversations",
+            view_func=self.assistant_agent_handler.get_assistant_agent_conversations,
         )
         bp.add_url_rule(
             "/assistant-agent/delete-conversation",
@@ -423,6 +502,10 @@ class Router:
 
         # 16.会话模块
         bp.add_url_rule(
+            "/conversations/recent",
+            view_func=self.conversation_handler.get_recent_conversations,
+        )
+        bp.add_url_rule(
             "/conversations/<uuid:conversation_id>/messages",
             view_func=self.conversation_handler.get_conversation_messages_with_page,
         )
@@ -433,6 +516,12 @@ class Router:
         )
         bp.add_url_rule(
             "/conversations/<uuid:conversation_id>/messages/<uuid:message_id>/delete",
+            methods=["POST"],
+            view_func=self.conversation_handler.delete_message,
+        )
+        # 兼容历史客户端：保留无 /delete 后缀的删除消息路由。
+        bp.add_url_rule(
+            "/conversations/<uuid:conversation_id>/messages/<uuid:message_id>",
             methods=["POST"],
             view_func=self.conversation_handler.delete_message,
         )
@@ -451,6 +540,125 @@ class Router:
             view_func=self.conversation_handler.update_conversation_is_pinned,
         )
 
-        # 17.在应用上注册蓝图
+        # 17.语音转换模块
+        bp.add_url_rule(
+            "/audio/audio-to-text",
+            methods=["POST"],
+            view_func=self.audio_handler.audio_to_text,
+        )
+        bp.add_url_rule(
+            "/audio/message-to-audio",
+            methods=["POST"],
+            view_func=self.audio_handler.message_to_audio,
+        )
+        bp.add_url_rule(
+            "/audio/text-to-audio",
+            methods=["POST"],
+            view_func=self.audio_handler.text_to_audio,
+        )
+        # 18.第三方平台配置模块
+        bp.add_url_rule(
+            "/platform/<uuid:app_id>/wechat-config",
+            view_func=self.platform_handler.get_wechat_config,
+        )
+        bp.add_url_rule(
+            "/platform/<uuid:app_id>/wechat-config",
+            methods=["POST"],
+            view_func=self.platform_handler.update_wechat_config,
+        )
+        bp.add_url_rule(
+            "/wechat/<uuid:app_id>",
+            methods=["GET", "POST"],
+            view_func=self.wechat_handler.wechat,
+        )
+
+        # 19.公共应用广场模块
+        bp.add_url_rule(
+            "/public/apps",
+            view_func=self.public_app_handler.get_public_apps_with_page,
+        )
+        bp.add_url_rule(
+            "/public/apps/<string:app_id>",
+            view_func=self.public_app_handler.get_public_app_detail,
+        )
+        bp.add_url_rule(
+            "/public/apps/<string:app_id>/analysis",
+            view_func=self.public_app_handler.get_public_app_analysis,
+        )
+        bp.add_url_rule(
+            "/public/apps/categories",
+            view_func=self.public_app_handler.get_app_categories,
+        )
+        bp.add_url_rule(
+            "/apps/<uuid:app_id>/share-to-square",
+            methods=["POST"],
+            view_func=self.public_app_handler.share_app_to_square,
+        )
+        bp.add_url_rule(
+            "/apps/<uuid:app_id>/unshare-from-square",
+            methods=["POST"],
+            view_func=self.public_app_handler.unshare_app_from_square,
+        )
+        bp.add_url_rule(
+            "/public/apps/<string:app_id>/fork",
+            methods=["POST"],
+            view_func=self.public_app_handler.fork_public_app,
+        )
+        bp.add_url_rule(
+            "/public/apps/<uuid:app_id>/like",
+            methods=["POST"],
+            view_func=self.public_app_handler.like_app,
+        )
+        bp.add_url_rule(
+            "/public/apps/<uuid:app_id>/favorite",
+            methods=["POST"],
+            view_func=self.public_app_handler.favorite_app,
+        )
+        bp.add_url_rule(
+            "/public/apps/my-favorites",
+            view_func=self.public_app_handler.get_my_favorites,
+        )
+
+        # 20.公共工作流广场模块
+        bp.add_url_rule(
+            "/public/workflows",
+            view_func=self.public_workflow_handler.get_public_workflows_with_page,
+        )
+        bp.add_url_rule(
+            "/public/workflows/<uuid:workflow_id>",
+            view_func=self.public_workflow_handler.get_public_workflow_detail,
+        )
+        bp.add_url_rule(
+            "/public/workflows/<uuid:workflow_id>/draft-graph",
+            view_func=self.public_workflow_handler.get_public_workflow_draft_graph,
+        )
+        bp.add_url_rule(
+            "/workflows/<uuid:workflow_id>/share-to-square",
+            methods=["POST"],
+            view_func=self.public_workflow_handler.share_workflow_to_square,
+        )
+        bp.add_url_rule(
+            "/workflows/<uuid:workflow_id>/unshare-from-square",
+            methods=["POST"],
+            view_func=self.public_workflow_handler.unshare_workflow_from_square,
+        )
+        bp.add_url_rule(
+            "/public/workflows/<uuid:workflow_id>/fork",
+            methods=["POST"],
+            view_func=self.public_workflow_handler.fork_public_workflow,
+        )
+        bp.add_url_rule(
+            "/public/workflows/<uuid:workflow_id>/like",
+            methods=["POST"],
+            view_func=self.public_workflow_handler.like_workflow,
+        )
+        bp.add_url_rule(
+            "/public/workflows/<uuid:workflow_id>/favorite",
+            methods=["POST"],
+            view_func=self.public_workflow_handler.favorite_workflow,
+        )
+
+        # 21.在应用上注册蓝图
         app.register_blueprint(bp)
         app.register_blueprint(openapi_bp)
+

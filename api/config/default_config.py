@@ -1,7 +1,15 @@
 # 应用默认配置项
 DEFAULT_CONFIG = {
     # wft配置
-    "WTF_CSRF_ENABLED": "False",
+    "WTF_CSRF_ENABLED": "True",
+    # CORS 配置
+    "CORS_ALLOW_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
+    "CORS_SUPPORTS_CREDENTIALS": "True",
+    # OAuth 回调来源白名单（逗号分隔）
+    "OAUTH_ALLOWED_ORIGINS": "",
+    # WebApp 访客 Cookie 配置
+    "WEB_APP_VISITOR_COOKIE_SECURE": "False",
+    "WEB_APP_VISITOR_COOKIE_SECRET": "",
     
     # SQLAlchemy数据库配置
     "SQLALCHEMY_DATABASE_URI": "",
@@ -14,7 +22,6 @@ DEFAULT_CONFIG = {
     "WEAVIATE_HTTP_PORT": 8080,
     "WEAVIATE_GRPC_HOST": "localhost",
     "WEAVIATE_GRPC_PORT": 50051,
-    "WEAVIATE_API_KEY": "ftBC9hKkjfdbdi0W3T6kEtMh5BZFpGa1DF8",
 
     # Redis数据库配置
     "REDIS_HOST": "localhost",
@@ -31,6 +38,15 @@ DEFAULT_CONFIG = {
     "CELERY_RESULT_EXPIRES": 3600,
     "CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP": "True",
 
-# 辅助Agent智能体应用id
+    # 辅助Agent智能体应用id
     "ASSISTANT_AGENT_ID": "6774fcef-b594-8008-b30c-a05b8190afe6",
+
+    # Flask-Mail 邮件服务默认配置
+    "MAIL_SERVER": "smtp.gmail.com",
+    "MAIL_PORT": 587,
+    "MAIL_USE_TLS": "True",
+    "MAIL_USE_SSL": "False",
+    "MAIL_USERNAME": "",
+    "MAIL_PASSWORD": "",
+    "MAIL_DEFAULT_SENDER": "",
 }

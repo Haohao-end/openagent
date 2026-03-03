@@ -1,11 +1,18 @@
 - name: openai
   label: OpenAI
-  description: OpenAI提供的模型，例如GPT-4o-mini和GPT-4o。
+  description: OpenAI提供的模型，例如gpt-5.2、gpt-5.2-pro、gpt-4o等。
   icon: icon.svg
   background: "#E5E7EB"
   supported_model_types:
     - chat
     - completion
+- name: claude
+  label: Claude
+  description: Claude中转模型，例如claude-opus-4-5-20251101、claude-3-7-sonnet-20250219等。
+  icon: icon.png
+  background: "#FFFFFF"
+  supported_model_types:
+    - chat
 - name: moonshot
   label: 月之暗面
   description: Moonshot提供的模型，例如moonshot-v1-8k、moonshot-v1-32k和moonshot-v1-128k。
@@ -38,6 +45,27 @@
   label: Ollama
   description: Ollama提供的本地离线大语言模型，例如deepseek-r1-8b等。
   icon: icon.svg
+  background: "#FFFFFF"
+  supported_model_types:
+    - chat
+- name: google
+  label: Google
+  description: Google Gemini提供的模型，例如gemini-2.5-pro、gemini-2.5-flash、gemini-2.5-flash-lite。
+  icon: icon.svg
+  background: "#FFFFFF"
+  supported_model_types:
+    - chat
+- name: zhipu
+  label: 智谱AI
+  description: 智谱提供的模型，例如glm-5、glm-4.7、glm-4.7-flash。
+  icon: icon.png
+  background: "#FFFFFF"
+  supported_model_types:
+    - chat
+- name: grok
+  label: xAI Grok
+  description: xAI Grok模型，例如grok-4
+  icon: icon.ico
   background: "#FFFFFF"
   supported_model_types:
     - chat

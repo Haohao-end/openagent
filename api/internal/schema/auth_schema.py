@@ -20,3 +20,26 @@ class PasswordLoginResp(Schema):
     """账号密码授权认证响应结构"""
     access_token = fields.String()
     expire_at = fields.Integer()
+
+class SendResetCodeReq(FlaskForm):
+    """发送重置验证码请求结构"""
+    email = StringField('email', validators=[
+        DataRequired("邮箱不能为空"),
+        Email("邮箱格式错误"),
+        Length(min=3, max=254, message="邮箱长度在3~254之间")
+    ])
+
+class ResetPasswordReq(FlaskForm):
+    """重置密码请求结构"""
+    email = StringField('email', validators=[
+        DataRequired("邮箱不能为空"),
+        Email("邮箱格式错误"),
+    ])
+    code = StringField('code', validators=[
+        DataRequired("验证码不能为空"),
+        Length(min=6, max=6, message="验证码必须是6位数字")
+    ])
+    new_password = StringField('new_password', validators=[
+        DataRequired("新密码不能为空"),
+        regexp(regex=password_pattern, message="密码最少包含一个字母,一个数字,并且长度在8~16")
+    ])

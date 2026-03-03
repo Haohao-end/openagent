@@ -10,15 +10,19 @@ import {
   createWorkflow,
   debugWorkflow,
   deleteWorkflow,
+  generateIconPreview,
   getDraftGraph,
   getWorkflow,
   getWorkflowsWithPage,
   publishWorkflow,
+  regenerateIcon,
+  shareWorkflow,
   updateDraftGraph,
   updateWorkflow,
 } from '@/services/workflow'
 import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
+import { getErrorMessage } from '@/utils/error'
 
 export const useGetWorkflowsWithPage = () => {
   // 1.定义hooks所需数据
@@ -191,8 +195,27 @@ export const useGetDraftGraph = () => {
 
       // 6.处理边数据
       edges.value = data.edges.map((edge) => {
-        // 7.添加动画，并设置边的粗细+颜色
-        return { ...edge, animated: true, style: { strokeWidth: 2, stroke: '#9ca3af' } }
+        // 7.将后端的字段名转换为 Vue Flow 的字段名
+        const { source_handle, target_handle, ...rest } = edge
+
+        // 对于 if_else 节点，如果 source_handle 是 null，默认设置为 "true"
+        const finalSourceHandle = edge.source_type === 'if_else'
+          ? (source_handle || 'true')
+          : (source_handle || undefined)
+
+        // 为 if_else 节点的边添加标签
+        const label = edge.source_type === 'if_else'
+          ? (finalSourceHandle === 'true' ? 'True' : 'False')
+          : undefined
+
+        return {
+          ...rest,
+          sourceHandle: finalSourceHandle,
+          targetHandle: target_handle || undefined,
+          label,
+          animated: true,
+          style: { strokeWidth: 2, stroke: '#9ca3af' },
+        }
       })
     } finally {
       loading.value = false
@@ -243,6 +266,10 @@ export const useUpdateDraftGraph = () => {
           source_type: edge.source_type,
           target: edge.target,
           target_type: edge.target_type,
+          // 对于 if_else 节点，source_handle 必须是 "true" 或 "false"
+          // 保持原值，不做默认值处理（避免将 "false" 误改为 "true"）
+          source_handle: edge.source_handle || null,
+          target_handle: edge.target_handle || null,
         }
       }),
     }
@@ -297,16 +324,17 @@ export const useDebugWorkflow = () => {
   // 2.定义调试会话处理器
   const handleDebugWorkflow = async (
     workflow_id: string,
-    inputs: Record<string, any>,
-    onData: (event_response: Record<string, any>) => void,
+    inputs: Record<string, unknown>,
+    onData: (event_response: Record<string, unknown>) => void,
   ) => {
     try {
       loading.value = true
       const resp = await debugWorkflow(workflow_id, inputs, onData)
 
       // 2.1 判断响应内容是否存在，如果存在则表示该接口为非流式输出，意味着接口出错
-      if (resp !== undefined) {
-        error.value = resp['message']
+      if (typeof resp === 'object' && resp !== null && 'message' in resp) {
+        const message = resp.message
+        error.value = typeof message === 'string' ? message : '工作流调试失败'
       }
     } finally {
       loading.value = false
@@ -314,4 +342,98 @@ export const useDebugWorkflow = () => {
   }
 
   return { loading, error, handleDebugWorkflow }
+}
+
+export const useRegenerateIcon = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+  const icon = ref<string>('')
+
+  // 2.定义重新生成图标函数
+  const handleRegenerateIcon = async (workflow_id: string) => {
+    try {
+      loading.value = true
+      const resp = await regenerateIcon(workflow_id)
+      icon.value = resp.data.icon
+      return resp.data.icon
+    } catch (error: unknown) {
+      let errorMessage = '重新生成图标失败，请稍后重试'
+      const normalizedMessage = getErrorMessage(error, '')
+      if (normalizedMessage.includes('API_KEY')) {
+        errorMessage = '图标生成服务暂时不可用，请联系管理员配置 API Key'
+      }
+      Message.error(errorMessage)
+      throw error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, icon, handleRegenerateIcon }
+}
+
+export const useGenerateIconPreview = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+  const icon = ref<string>('')
+
+  // 2.定义生成图标预览函数
+  const handleGenerateIconPreview = async (name: string, description: string) => {
+    try {
+      loading.value = true
+      const resp = await generateIconPreview(name, description)
+      icon.value = resp.data.icon
+      return resp.data.icon
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error, '生成图标失败，请稍后重试或手动上传图标'))
+      throw error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, icon, handleGenerateIconPreview }
+}
+
+export const useGetPublicWorkflows = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+  const workflows = ref<GetWorkflowsWithPageResponse['data']['list']>([])
+
+  // 2.定义加载数据函数
+  const loadPublicWorkflows = async (search_word: string = '') => {
+    try {
+      // 3.调用接口获取响应数据
+      loading.value = true
+      const resp = await getWorkflowsWithPage({
+        current_page: 1,
+        page_size: 100,
+        search_word,
+        status: '',
+      }, true)
+      workflows.value = resp.data.list
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, workflows, loadPublicWorkflows }
+}
+
+export const useShareWorkflow = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+
+  // 2.定义分享工作流处理器
+  const handleShareWorkflow = async (workflow_id: string, is_public: boolean) => {
+    try {
+      loading.value = true
+      const resp = await shareWorkflow(workflow_id, is_public)
+      Message.success(resp.message)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, handleShareWorkflow }
 }

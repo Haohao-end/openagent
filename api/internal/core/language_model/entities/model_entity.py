@@ -1,6 +1,7 @@
 from abc import ABC
 from enum import Enum
 from typing import Any, Optional
+from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
 from langchain_core.language_models import BaseLanguageModel as LCBaseLanguageModel
 
@@ -85,4 +86,17 @@ class BaseLanguageModel(LCBaseLanguageModel, ABC):
         unit = self.metadata.get("pricing", {}).get("unit", 0.0)
 
         return input_price, output_price, unit
+
+    def convert_to_human_message(self, query: str, image_urls: list[str] = None) -> HumanMessage:
+        """将传递的query+image_url转换成人类消息HumanMessage，如果没有传递image_url或者该LLM不支持image_input，则直接返回普通人类消息"""
+        # 1.判断图片url是否为空，或者该LLM不支持图片输入，则直接返回普通消息
+        if image_urls is None or len(image_urls) == 0 or ModelFeature.IMAGE_INPUT.value not in self.features:
+            return HumanMessage(content=query)
+
+        # 2.存在图片输入并且支持多模态输入，则按照OpenAI规则转换成人类消息，如果模型有差异则直接继承重写
+        #   链接: https://python.langchain.com/docs/how_to/multimodal_inputs/
+        return HumanMessage(content=[
+            {"type": "text", "text": query},
+            *[{"type": "image_url", "image_url": {"url": image_url}} for image_url in image_urls],
+        ])
 

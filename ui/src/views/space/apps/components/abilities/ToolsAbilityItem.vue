@@ -7,6 +7,78 @@ import { useGetBuiltinTool, useGetBuiltinTools, useGetCategories } from '@/hooks
 import { apiPrefix, typeMap } from '@/config'
 import { Message } from '@arco-design/web-vue'
 
+type ToolProvider = {
+  id: string
+  name: string
+  label: string
+  icon: string
+  description: string
+}
+
+type ToolMeta = {
+  id: string
+  name: string
+  label: string
+  description: string
+  params: Record<string, unknown>
+}
+
+type ToolSelection = {
+  type: string
+  provider: ToolProvider
+  tool: ToolMeta
+}
+
+type ToolInputItem = {
+  name: string
+  type: string
+  required?: boolean
+  description?: string
+}
+
+type ToolParamItem = {
+  name: string
+  label?: string
+  required?: boolean
+  type: string
+  default?: unknown
+  options?: Array<{ label: string; value: string | number | boolean }>
+  min?: number
+  max?: number
+}
+
+type ToolInfoState = {
+  type: string
+  provider: ToolProvider
+  tool: {
+    id: string
+    name: string
+    label: string
+    description: string
+    inputs: ToolInputItem[]
+    params: ToolParamItem[]
+  }
+}
+
+const defaultToolInfo: ToolInfoState = {
+  type: '',
+  provider: {
+    id: '',
+    name: '',
+    label: '',
+    icon: '',
+    description: '',
+  },
+  tool: {
+    id: '',
+    name: '',
+    label: '',
+    description: '',
+    inputs: [],
+    params: [],
+  },
+}
+
 // 1.定义自定义组件所需数据
 const props = defineProps({
   app_id: { type: String, default: '', required: true },
@@ -31,16 +103,42 @@ const { categories, loadCategories } = useGetCategories()
 const { builtin_tools, loadBuiltinTools } = useGetBuiltinTools()
 const toolInfoModalVisible = ref(false)
 const toolInfoNavType = ref('info')
-const toolInfo = ref<Record<string, any>>({})
+const toolInfo = ref<ToolInfoState>(defaultToolInfo)
 const toolInfoIdx = ref(-1)
-const toolInfoSettingForm = ref<Record<string, any>>({})
+const toolInfoSettingForm = ref<Record<string, unknown>>({})
 const toolsModalVisible = ref(false)
 const toolsActivateType = ref('api_tool')
 const toolsActivateCategory = ref('all')
 const computedBuiltinTools = computed(() => {
   if (toolsActivateCategory.value === 'all') return builtin_tools.value
-  return builtin_tools.value.filter((item: any) => item.category === toolsActivateCategory.value)
+  return builtin_tools.value.filter(
+    (item: { category: string }) => item.category === toolsActivateCategory.value,
+  )
 })
+
+// 统一处理图标地址，兼容绝对地址、相对地址以及 /api 路径
+const normalizeIconUrl = (icon: string = '') => {
+  if (!icon) return ''
+  if (icon.startsWith('data:') || /^https?:\/\//.test(icon)) return icon
+  const fallbackOrigin = globalThis.location?.origin ?? 'http://localhost'
+  const apiUrl = new URL(apiPrefix, fallbackOrigin)
+  const basePath = apiUrl.pathname.replace(/\/+$/, '')
+  let path = icon.startsWith('/') ? icon : `/${icon}`
+
+  // 本地开发常见：后端实际无 /api 前缀，但返回了 /api/xxx
+  if (path.startsWith('/api/') && !basePath.startsWith('/api')) {
+    path = path.replace(/^\/api/, '')
+  }
+
+  if (basePath && basePath !== '/' && !path.startsWith(`${basePath}/`)) {
+    if (path.startsWith('/api/')) {
+      path = path.replace(/^\/api/, '')
+    }
+    return `${apiUrl.origin}${basePath}${path}`
+  }
+
+  return `${apiUrl.origin}${path}`
+}
 
 // 2.定义显示工具设置模态窗
 const handleShowToolInfoModal = async (idx: number) => {
@@ -86,7 +184,7 @@ const handleShowToolInfoModal = async (idx: number) => {
         name: api_tool.value.name,
         label: api_tool.value.name,
         description: api_tool.value.description,
-        inputs: builtin_tool.value.inputs,
+        inputs: api_tool.value.inputs,
         params: [],
       },
     }
@@ -94,7 +192,7 @@ const handleShowToolInfoModal = async (idx: number) => {
 
   // 2.3 更新工具设置表单，从草稿中获取配置，如果没有则设置默认值
   const params = tool.tool.params
-  toolInfo.value.tool.params.forEach((param: any) => {
+  toolInfo.value.tool.params.forEach((param: { name: string; default?: unknown }) => {
     toolInfoSettingForm.value[param.name] = params[param.name] ?? param.default
   })
 
@@ -191,7 +289,7 @@ const handleScroll = async (event: UIEvent) => {
 // 8.定义添加关联扩展处理器
 const handleSelectTool = async (provider_idx: number, tool_idx: number) => {
   // 8.1 根据不同的类型获取特定的工具信息
-  let selectTool: any = {}
+  let selectTool: ToolSelection
   if (toolsActivateType.value === 'api_tool') {
     const apiToolProvider = api_tool_providers.value[provider_idx]
     const apiTool = apiToolProvider['tools'][tool_idx]
@@ -230,10 +328,10 @@ const handleSelectTool = async (provider_idx: number, tool_idx: number) => {
         name: builtinTool.name,
         label: builtinTool.label,
         description: builtinTool.description,
-        params: params.reduce((newObj: any, item: any) => {
+        params: params.reduce((newObj: Record<string, unknown>, item: { name: string; default: unknown }) => {
           newObj[item.name] = item.default
           return newObj
-        }, {}),
+        }, {} as Record<string, unknown>),
       },
     }
   }
@@ -289,7 +387,10 @@ const handleSelectTool = async (provider_idx: number, tool_idx: number) => {
 }
 
 // 9.定义是否关联工具判断函数
-const isToolSelected = (provider: Record<string, any>, tool: Record<string, any>) => {
+const isToolSelected = (
+  provider: { name: string },
+  tool: { name: string },
+) => {
   return props.tools.some(
     (item) => item.provider.name === provider.name && item.tool.name === tool.name,
   )
@@ -328,7 +429,7 @@ onMounted(() => {
               :size="36"
               shape="square"
               class="rounded flex-shrink-0"
-              :image-url="tool.provider.icon"
+              :image-url="normalizeIconUrl(tool.provider.icon)"
             />
             <!-- 名称与描述信息 -->
             <div class="flex flex-col gap-1 h-9">
@@ -378,7 +479,7 @@ onMounted(() => {
       hide-title
       :footer="false"
       class="tool-setting-modal"
-      modal-class="h-[calc(100vh-32px)] right-4"
+      modal-class="right-4 app-side-modal-shell"
       @cancel="handleCancelToolInfoModal"
     >
       <!-- 顶部标题&关闭按钮 -->
@@ -387,8 +488,8 @@ onMounted(() => {
         <div class="flex items-center">
           <!-- 工具信息 -->
           <div class="flex items-center gap-2">
-            <a-avatar :size="24" shape="circle" :image-url="toolInfo?.provider?.icon" />
-            <div class="text-gray-700 font-bold max-w-[200px] line-clamp-1 break-all">
+            <a-avatar :size="24" shape="circle" :image-url="normalizeIconUrl(toolInfo?.provider?.icon)" />
+            <div class="text-gray-700 font-bold max-w-[140px] sm:max-w-[200px] line-clamp-1 break-all">
               {{ toolInfo?.tool?.label }}
             </div>
           </div>
@@ -423,7 +524,7 @@ onMounted(() => {
       <!-- 信息容器 -->
       <div
         v-if="toolInfoNavType === 'info'"
-        class="h-[calc(100vh-170px)] pb-4 overflow-scroll scrollbar-w-none"
+        class="app-modal-section-scroll pb-4"
       >
         <!-- 工具描述 -->
         <div class="text-gray-70 font-bold mb-1">工具描述</div>
@@ -457,7 +558,7 @@ onMounted(() => {
       <!-- 设置容器 -->
       <div
         v-if="toolInfoNavType === 'setting'"
-        class="h-[calc(100vh-170px)] pb-4 overflow-scroll scrollbar-w-none"
+        class="app-modal-section-scroll pb-4"
       >
         <a-form v-model:model="toolInfoSettingForm" layout="vertical" class="">
           <a-form-item
@@ -528,12 +629,12 @@ onMounted(() => {
       hide-title
       :footer="false"
       class="tools-modal"
-      modal-class="right-4 h-[calc(100vh-32px)]"
+      modal-class="right-4 app-tools-modal-shell"
     >
-      <div class="flex w-full h-full">
+      <div class="flex w-full h-full flex-col md:flex-row">
         <!-- 左侧导航菜单 -->
         <div
-          class="flex flex-col flex-shrink-0 bg-gray-50 w-[200px] h-full px-3 py-4 overflow-scroll scrollbar-w-none"
+          class="flex flex-col flex-shrink-0 bg-gray-50 w-full md:w-56 lg:w-64 h-full px-3 py-4 overflow-auto scrollbar-w-none"
         >
           <!-- 标题 -->
           <div class="text-gray-900 font-bold text-lg mb-4">关联插件</div>
@@ -578,7 +679,7 @@ onMounted(() => {
                 :class="`rounded-lg h-8 leading-8 px-3 flex items-center gap-2 cursor-pointer hover:bg-white hover:text-blue-700 ${toolsActivateCategory === category.category ? 'text-blue-700 bg-white' : ' text-gray-700'}`"
                 @click="toolsActivateCategory = category.category"
               >
-                <span v-html="category.icon"></span>
+                <icon-apps />
                 {{ category.name }}
               </div>
             </div>
@@ -600,7 +701,7 @@ onMounted(() => {
           <!-- 内置工具列表 -->
           <div
             v-if="toolsActivateType === 'builtin_tool'"
-            class="h-[calc(100vh-130px)] overflow-scroll scrollbar-w-none"
+            class="app-modal-list-scroll"
           >
             <div
               v-for="(builtin_tool, builtin_tool_idx) in computedBuiltinTools"
@@ -650,7 +751,7 @@ onMounted(() => {
           <div v-if="toolsActivateType === 'api_tool'">
             <a-spin
               :loading="getApiToolProvidersLoading"
-              class="block h-[calc(100vh-130px)] overflow-scroll scrollbar-w-none"
+              class="block app-modal-list-scroll"
               @scroll="handleScroll"
             >
               <div
@@ -669,7 +770,11 @@ onMounted(() => {
                   >
                     <!-- 工具信息 -->
                     <div class="flex items-center gap-2">
-                      <a-avatar :size="20" shape="circle" :image-url="api_tool_provider.icon" />
+                      <a-avatar
+                        :size="20"
+                        shape="circle"
+                        :image-url="normalizeIconUrl(api_tool_provider.icon)"
+                      />
                       <div class="text-gray-900">{{ tool.name }}</div>
                     </div>
                     <!-- 添加按钮 -->
@@ -698,7 +803,7 @@ onMounted(() => {
               <a-row v-if="paginator.total_page >= 2">
                 <!-- 加载数据中 -->
                 <a-col
-                  v-if="paginator.current_page <= paginator.total_page"
+                  v-if="getApiToolProvidersLoading"
                   :span="24"
                   class="!text-center"
                 >
@@ -708,7 +813,7 @@ onMounted(() => {
                   </a-space>
                 </a-col>
                 <!-- 数据加载完成 -->
-                <a-col v-else :span="24" class="!text-center">
+                <a-col v-else-if="paginator.current_page > paginator.total_page" :span="24" class="!text-center">
                   <div class="text-gray-400 my-4">数据已加载完成</div>
                 </a-col>
               </a-row>
@@ -721,22 +826,65 @@ onMounted(() => {
 </template>
 
 <style>
+.app-side-modal-shell {
+  height: calc(100dvh - 32px);
+  max-height: calc(100dvh - 32px);
+  width: min(96vw, 640px);
+}
+
+.app-tools-modal-shell {
+  height: calc(100dvh - 32px);
+  max-height: calc(100dvh - 32px);
+  width: min(96vw, 980px);
+}
+
+.app-modal-section-scroll {
+  max-height: calc(100dvh - 170px);
+  overflow: auto;
+}
+
+.app-modal-list-scroll {
+  height: calc(100dvh - 130px);
+  overflow: auto;
+}
+
 .tool-setting-modal {
   .arco-modal-wrapper {
-    text-align: right;
+    @apply text-right;
+  }
+
+  .arco-modal-body {
+    @apply h-full w-full rounded-lg;
   }
 }
 
 .tools-modal {
   .arco-modal-wrapper {
-    text-align: right;
+    @apply text-right;
   }
 
   .arco-modal-body {
-    padding: 0;
-    height: 100%;
-    width: 100%;
-    border-radius: 8px;
+    @apply h-full w-full rounded-lg p-0;
+  }
+}
+
+@supports not (height: 100dvh) {
+  .app-side-modal-shell {
+    height: calc(100vh - 32px);
+    max-height: calc(100vh - 32px);
+  }
+
+  .app-tools-modal-shell {
+    height: calc(100vh - 32px);
+    max-height: calc(100vh - 32px);
+  }
+
+  .app-modal-section-scroll {
+    max-height: calc(100vh - 170px);
+  }
+
+  .app-modal-list-scroll {
+    height: calc(100vh - 130px);
   }
 }
 </style>

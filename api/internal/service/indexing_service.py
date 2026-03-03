@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 import re
 import logging
 from sqlalchemy import func
@@ -24,6 +24,7 @@ from internal.entity.cache_entity import (
 from internal.exception import NotFoundException
 from redis import Redis
 from weaviate.classes.query import Filter
+
 
 @inject
 @dataclass
@@ -52,7 +53,7 @@ class IndexingService(BaseService):
                 self.update(
                     document,
                     status=DocumentStatus.PARSING.value,
-                    processing_started_at=datetime.now()
+                    processing_started_at=datetime.now(UTC)
                 )
 
                 # 4.执行为文档加载步骤 并更新文档的状态与时间
@@ -82,7 +83,7 @@ class IndexingService(BaseService):
                     document,
                     status=DocumentStatus.ERROR.value,
                     error=str(e),
-                    stopped_at=datetime.now()
+                    stopped_at=datetime.now(UTC)
                 )
 
     def update_document_enabled(self, document_id: UUID) -> None:
@@ -122,8 +123,8 @@ class IndexingService(BaseService):
                             "error": str(e),
                             "status": SegmentStatus.ERROR.value,
                             "enabled": False,
-                            "disabled_at": datetime.now(),
-                            "stopped_at": datetime.now(),
+                            "disabled_at": datetime.now(UTC),
+                            "stopped_at": datetime.now(UTC),
                         })
 
             # 5.更新关键词表对应的数据（enabled为false表示从关键词表中删除数据，enabled为true表示在关键词表中新增数据）
@@ -141,7 +142,7 @@ class IndexingService(BaseService):
             self.update(
                 document,
                 enabled=origin_enabled,
-                disabled_at=None if origin_enabled else datetime.now(),
+                disabled_at=None if origin_enabled else datetime.now(UTC),
             )
         finally:
             # 6.清空缓存键表示异步操作已经执行完成，无论失败还是成功都全部清除
@@ -201,7 +202,6 @@ class IndexingService(BaseService):
         except Exception as e:
             logging.exception(f"异步删除知识库关联内容出错 dataset_id: {dataset_id}, 错误信息: {str(e)}")
 
-
     def _parsing(self, document: Document) -> list[LCDocument]:
         """解析传递的文档为LangChain文档列表"""
         # 1.获取upload_file并加载LangChain文档
@@ -217,7 +217,7 @@ class IndexingService(BaseService):
             document,
             character_count=sum([len(lc_document.page_content) for lc_document in lc_documents]),
             status=DocumentStatus.SPLITTING.value,
-            parsing_completed_at=datetime.now()
+            parsing_completed_at=datetime.now(UTC)
         )
 
         return lc_documents
@@ -280,7 +280,7 @@ class IndexingService(BaseService):
             document,
             token_count=sum([segment.token_count for segment in segments]),
             status=DocumentStatus.INDEXING.value,
-            splitting_completed_at=datetime.now(),
+            splitting_completed_at=datetime.now(UTC),
         )
         return lc_segments
 
@@ -296,13 +296,13 @@ class IndexingService(BaseService):
             ).update({
                 "keywords": keywords,
                 "status": SegmentStatus.INDEXING.value,
-                "indexing_completed_at": datetime.now()
+                "indexing_completed_at": datetime.now(UTC)
             })
 
             # 3.获取当前知识库的关键词表
             keyword_table_record = self.keyword_table_service.get_keyword_table_from_dataset_id(document.dataset_id)
             keyword_table = {
-               field: set(value) for field, value in keyword_table_record.keyword_table.items()
+                field: set(value) for field, value in keyword_table_record.keyword_table.items()
             }
 
             # 4.循环将新片段关键词添加到关键词表中
@@ -324,7 +324,7 @@ class IndexingService(BaseService):
         # 6.更新文档的状态
         self.update(
             document,
-            indexing_completed_at=datetime.now(),
+            indexing_completed_at=datetime.now(UTC),
         )
 
     def _completed(self, document: Document, lc_segments: list[LCDocument]) -> None:
@@ -343,14 +343,14 @@ class IndexingService(BaseService):
                 logging.warning(f"处理批次 {i // 10} (片段 {i} 到 {i + 10})，节点IDs: {ids}")
 
                 try:
-                    # 向量数据库写入
+                    # 向量数据库写入 - 修复：传递当前批次的文档和ID
                     try:
-                        logging.info(f"开始写入向量数据库，共 {len(lc_segments)} 个片段")
-                        self.vector_database_service.vector_store.add_documents(documents=lc_segments, ids=ids)
-                        logging.info("向量数据库写入成功")
+                        logging.info(f"开始写入向量数据库，批次 {i // 10}，共 {len(chunks)} 个片段")
+                        self.vector_database_service.vector_store.add_documents(documents=chunks, ids=ids)
+                        logging.info(f"批次 {i // 10} 向量数据库写入成功")
                     except Exception as e:
                         logging.exception(f"向量数据库写入失败: {str(e)}")
-                        raise  # 重新抛出异常，触发外层的事务回滚
+                        raise
 
                     # 更新 Segment 表状态
                     logging.warning("开始更新segment表状态")
@@ -359,7 +359,7 @@ class IndexingService(BaseService):
                             Segment.node_id.in_(ids)
                         ).update({
                             "status": SegmentStatus.COMPLETED.value,
-                            "completed_at": datetime.now(),
+                            "completed_at": datetime.now(UTC),
                             "enabled": True
                         })
                         logging.warning(f"成功更新 {updated} 条segment记录")
@@ -371,38 +371,39 @@ class IndexingService(BaseService):
                         ).update({
                             "status": SegmentStatus.ERROR.value,
                             "completed_at": None,
-                            "stopped_at": datetime.now(),
+                            "stopped_at": datetime.now(UTC),
                             "enabled": False
                         })
-                    raise  # 重新抛出异常，让外层捕获
+                    raise
 
             # 3. 更新文档状态
             logging.warning("所有片段处理完成，开始更新文档状态")
             self.update(
                 document,
                 status=DocumentStatus.COMPLETED.value,
-                completed_at=datetime.now(),
+                completed_at=datetime.now(UTC),
                 enabled=True
             )
             logging.warning(f"文档 {document.id} 状态已更新为 COMPLETED")
+
         except Exception as e:
             logging.exception(f"完成文档处理时出错: {str(e)}")
             self.update(
                 document,
                 status=DocumentStatus.ERROR.value,
                 error=str(e),
-                stopped_at=datetime.now()
+                stopped_at=datetime.now(UTC)
             )
             raise
 
-    @classmethod
-    def _clean_extra_text(cls, text: str) -> str:
+    def _clean_extra_text(self, text: str) -> str:
         """清除过滤传递的多余空白字符串"""
         text = re.sub(r'<\|', '<', text)
         text = re.sub(r'\|>', '>', text)
         text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\xEF\xBF\xBE]', '', text)
-        text = re.sub('\uFFFE', '', text)  # 删除零宽非标记字符
+        text = re.sub('\uFFFE', '', text)
         return text
+
 
 
 

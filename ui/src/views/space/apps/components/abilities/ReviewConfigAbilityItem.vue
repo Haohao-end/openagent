@@ -3,6 +3,30 @@ import { cloneDeep, isEqual } from 'lodash'
 import { nextTick, ref, watch } from 'vue'
 import { useUpdateDraftAppConfig } from '@/hooks/use-app'
 
+type ReviewConfig = {
+  enable: boolean
+  keywords: string[]
+  inputs_config: {
+    enable: boolean
+    preset_response: string
+  }
+  outputs_config: {
+    enable: boolean
+  }
+}
+
+type ReviewConfigForm = {
+  enable: boolean
+  keywords: string
+  inputs_config: {
+    enable: boolean
+    preset_response: string
+  }
+  outputs_config: {
+    enable: boolean
+  }
+}
+
 // 1.定义自定义组件所需数据
 const props = defineProps({
   app_id: { type: String, default: '', required: true },
@@ -17,15 +41,15 @@ const props = defineProps({
 const { loading, handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
 const isInit = ref(false)
 const reviewConfigModalVisible = ref(false)
-const reviewConfigForm = ref({
-  enable: props.review_config?.enable,
-  keywords: props.review_config?.keywords?.join('\n'),
+const reviewConfigForm = ref<ReviewConfigForm>({
+  enable: Boolean(props.review_config?.enable),
+  keywords: String(props.review_config?.keywords?.join('\n') || ''),
   inputs_config: {
-    enable: props.review_config?.inputs_config?.enable,
-    preset_response: props.review_config?.inputs_config?.preset_response,
+    enable: Boolean(props.review_config?.inputs_config?.enable),
+    preset_response: String(props.review_config?.inputs_config?.preset_response || ''),
   },
   outputs_config: {
-    enable: props.review_config?.outputs_config?.enable,
+    enable: Boolean(props.review_config?.outputs_config?.enable),
   },
 })
 const originReviewConfigForm = ref({ ...cloneDeep(reviewConfigForm.value) })
@@ -69,16 +93,24 @@ const handleSubmitReviewConfig = async () => {
 // 5.监听review_config变化并同步到表单
 watch(
   () => props.review_config,
-  (newValue: any) => {
+  (newValue: unknown) => {
+    const currentConfig = newValue as ReviewConfig
     // 5.1 检测数据是否更新并且未初始化
     if (!isInit.value || !isFormModified()) {
-      if (newValue && Object.keys(newValue).length > 0) {
+      if (currentConfig && Object.keys(currentConfig).length > 0) {
         // 5.2 更新表单数据和备份数据，使用深拷贝
-        reviewConfigForm.value = cloneDeep({ ...newValue, keywords: newValue?.keywords.join('\n') })
-        originReviewConfigForm.value = cloneDeep({
-          ...newValue,
-          keywords: newValue?.keywords.join('\n'),
+        reviewConfigForm.value = cloneDeep({
+          enable: Boolean(currentConfig.enable),
+          keywords: (currentConfig.keywords || []).join('\n'),
+          inputs_config: {
+            enable: Boolean(currentConfig.inputs_config?.enable),
+            preset_response: String(currentConfig.inputs_config?.preset_response || ''),
+          },
+          outputs_config: {
+            enable: Boolean(currentConfig.outputs_config?.enable),
+          },
         })
+        originReviewConfigForm.value = cloneDeep(reviewConfigForm.value)
 
         // 5.3 标记为已初始化
         isInit.value = true
@@ -98,8 +130,9 @@ watch(
       <template #extra>
         <a-dropdown
           @select="
-            async (value: any) => {
+            async (value: string | number | boolean) => {
               if (Boolean(value) !== reviewConfigForm.enable) {
+                const previousEnable = reviewConfigForm.enable
                 try {
                   // 1.表盖表单数据并确保数据同步
                   reviewConfigForm.enable = Boolean(value)
@@ -107,7 +140,9 @@ watch(
 
                   // 2.提交表单更新数据
                   await handleSubmitReviewConfig()
-                } catch (e) {}
+                } catch (_error: unknown) {
+                  reviewConfigForm.enable = previousEnable
+                }
               }
             }
           "
@@ -253,7 +288,7 @@ watch(
 <style>
 .review-config-ability-item {
   .arco-collapse-item-content-box {
-    padding: 0;
+    @apply p-0;
   }
 }
 </style>

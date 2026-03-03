@@ -1,0 +1,26 @@
+model: kimi-k2-0905-preview
+label: kimi-k2-0905-preview
+model_type: chat
+features:
+  - tool_call
+  - agent_thought
+context_window: 262144
+max_output_tokens: 32768
+attributes:
+  model: kimi-k2-0905-preview
+parameters:
+  - name: temperature
+    use_template: temperature
+    max: 1
+    default: 0.6
+  - name: max_tokens
+    use_template: max_tokens
+    default: 8192
+    max: 32768
+metadata:
+  pricing:
+    input: 0.0
+    output: 0.0
+    unit: 0.001
+    currency: RMB
+  pricing_note: 官方文档未公开该模型精确API单价，待官方发布后更新。

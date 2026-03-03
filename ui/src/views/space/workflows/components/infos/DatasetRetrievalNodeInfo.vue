@@ -1,16 +1,63 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, inject } from 'vue'
 import { useVueFlow } from '@vue-flow/core'
-import { cloneDeep } from 'lodash'
+import { cloneDeep, debounce } from 'lodash'
 import { getReferencedVariables } from '@/utils/helper'
 import { useGetDatasetsWithPage } from '@/hooks/use-dataset'
 import { Message, type ValidatedError } from '@arco-design/web-vue'
+
+type DatasetItem = {
+  id: string
+  name: string
+  icon: string
+  description: string
+}
+
+type NodeInputField = {
+  name: string
+  type: string
+  value: {
+    type: string
+    content: {
+      ref_node_id: string
+      ref_var_name: string
+    }
+  }
+}
+
+type FormInputField = {
+  name: string
+  type: string
+  value: {
+    type: string
+    content: unknown
+  }
+  ref: string
+  content?: unknown
+}
+
+type RetrievalConfig = {
+  retrieval_strategy: string
+  k: number
+  score: number
+}
+
+type DatasetRetrievalNodeForm = {
+  id: string
+  type: string
+  title: string
+  description: string
+  datasets: DatasetItem[]
+  retrieval_config: RetrievalConfig
+  inputs: FormInputField[]
+  outputs: Array<Record<string, unknown>>
+}
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
   visible: { type: Boolean, required: true, default: false },
   node: {
-    type: Object as any,
+    type: Object,
     required: true,
     default: () => {
       return {}
@@ -20,7 +67,29 @@ const props = defineProps({
 })
 const emits = defineEmits(['update:visible', 'updateNode'])
 const datasetsModalVisible = ref(false)
-const form = ref<Record<string, any>>({})
+const form = ref<DatasetRetrievalNodeForm>({
+  id: '',
+  type: '',
+  title: '',
+  description: '',
+  datasets: [],
+  retrieval_config: {
+    retrieval_strategy: 'semantic',
+    k: 4,
+    score: 0,
+  },
+  inputs: [],
+  outputs: [],
+})
+const isSyncingForm = ref(false)
+
+// 注入只读状态
+const isReadonly = inject<boolean>('isReadonly', false)
+const debounceAutoSave = debounce(() => {
+  // 只读模式下不自动保存
+  if (isReadonly) return
+  void onSubmit({ errors: undefined })
+}, 800)
 const { nodes, edges } = useVueFlow()
 const {
   loading: getDatasetsWithPageLoading,
@@ -57,9 +126,9 @@ const handleSelectDataset = (idx: number) => {
   const dataset = datasets.value[idx]
 
   // 5.2 检测id是否选中，如果是选中则删除
-  if (form.value.datasets.some((activateDataset: any) => activateDataset.id === dataset.id)) {
+  if (form.value.datasets.some((activateDataset: DatasetItem) => activateDataset.id === dataset.id)) {
     form.value.datasets = form.value.datasets.filter(
-      (activateDataset: any) => activateDataset.id !== dataset.id,
+      (activateDataset: DatasetItem) => activateDataset.id !== dataset.id,
     )
   } else {
     // 5.3 检测已关联的知识库数量
@@ -91,12 +160,12 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
     id: props.node.id,
     title: form.value.title,
     description: form.value.description,
-    dataset_ids: cloneDatasets.map((dataset: any) => {
+    dataset_ids: cloneDatasets.map((dataset: DatasetItem) => {
       return dataset.id
     }),
     meta: { datasets: cloneDatasets },
     retrieval_config: cloneDeep(form.value.retrieval_config),
-    inputs: cloneInputs.map((input: any) => {
+    inputs: cloneInputs.map((input: FormInputField) => {
       return {
         name: input.name,
         description: '',
@@ -121,21 +190,26 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
 
 // 7.监听数据，将数据映射到表单模型上
 watch(
-  () => props.node,
-  (newNode) => {
+  () => props.node?.id,
+  () => {
+    const newNode = props.node
+    if (!newNode?.id) return
+    isSyncingForm.value = true
+    debounceAutoSave.flush()
+    debounceAutoSave.cancel()
     const cloneInputs = cloneDeep(newNode.data.inputs)
     form.value = {
       id: newNode.id,
       type: newNode.type,
       title: newNode.data.title,
       description: newNode.data.description,
-      datasets: cloneDeep(newNode.data.meta.datasets) ?? [],
+      datasets: cloneDeep(newNode.data.meta?.datasets) ?? [],
       retrieval_config: cloneDeep(newNode.data.retrieval_config) ?? {
         k: 4,
         retrieval_strategy: 'semantic',
         score: 0,
       },
-      inputs: cloneInputs.map((input: any) => {
+      inputs: cloneInputs.map((input: NodeInputField) => {
         // 7.1 计算引用的变量值信息
         const ref =
           input.value.type === 'ref'
@@ -165,9 +239,26 @@ watch(
         { name: 'combine_documents', type: 'string', value: { type: 'generated', content: '' } },
       ],
     }
+    nextTick(() => {
+      isSyncingForm.value = false
+    })
   },
   { immediate: true },
 )
+
+watch(
+  form,
+  () => {
+    if (isSyncingForm.value) return
+    debounceAutoSave()
+  },
+  { deep: true },
+)
+
+onBeforeUnmount(() => {
+  debounceAutoSave.flush()
+  debounceAutoSave.cancel()
+})
 
 onMounted(() => {
   loadDatasets(true)
@@ -176,10 +267,17 @@ onMounted(() => {
 
 <template>
   <div
-    v-if="props.visible"
-    id="llm-node-info"
+    id="dataset-retrieval-node-info"
     class="absolute top-0 right-0 bottom-0 w-[400px] border-l z-50 bg-white overflow-scroll scrollbar-w-none p-3"
-  >
+  >    <!-- 只读模式提示横幅 -->
+    <div v-if="isReadonly" class="mb-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+      <div class="flex items-center gap-2 text-orange-700">
+        <icon-lock class="flex-shrink-0" />
+        <span class="text-sm font-medium">预览模式：所有配置仅供查看，无法修改</span>
+      </div>
+    </div>
+
+
     <!-- 顶部标题信息 -->
     <div class="flex items-center justify-between gap-3 mb-2">
       <!-- 左侧标题 -->
@@ -189,6 +287,7 @@ onMounted(() => {
         </a-avatar>
         <a-input
           v-model:model-value="form.title"
+          :disabled="isReadonly"
           placeholder="请输入标题"
           class="!bg-white text-gray-700 font-semibold px-2"
         />
@@ -209,13 +308,14 @@ onMounted(() => {
     <a-textarea
       :auto-size="{ minRows: 3, maxRows: 5 }"
       v-model="form.description"
+      :disabled="isReadonly"
       class="rounded-lg text-gray-700 !text-xs"
       placeholder="输入描述..."
     />
     <!-- 分隔符 -->
     <a-divider class="my-2" />
     <!-- 表单信息 -->
-    <a-form size="mini" :model="form" layout="vertical" @submit="onSubmit">
+    <a-form size="mini" :model="form" :disabled="isReadonly" layout="vertical">
       <!-- 输入参数 -->
       <div class="flex flex-col gap-2">
         <!-- 标题&操作按钮 -->
@@ -397,6 +497,7 @@ onMounted(() => {
             </div>
             <!-- 右侧删除按钮 -->
             <a-button
+              v-if="!isReadonly"
               size="mini"
               type="text"
               class="hidden group-hover:block flex-shrink-0 ml-2 !text-red-700 rounded"
@@ -427,18 +528,6 @@ onMounted(() => {
           </div>
         </div>
       </div>
-      <a-divider class="my-4" />
-      <!-- 保存按钮 -->
-      <a-button
-        :loading="props.loading"
-        type="primary"
-        size="small"
-        html-type="submit"
-        long
-        class="rounded-lg"
-      >
-        保存
-      </a-button>
     </a-form>
     <!-- 关联知识库 -->
     <a-modal
@@ -476,7 +565,7 @@ onMounted(() => {
             <div
               v-for="(dataset, idx) in datasets"
               :key="dataset.id"
-              :class="`flex items-center gap-2 border px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-700 ${form.datasets.some((activateDataset: any) => activateDataset.id === dataset.id) ? 'bg-blue-50 border-blue-700' : ''}`"
+              :class="`flex items-center gap-2 border px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-700 ${form.datasets.some((activateDataset: DatasetItem) => activateDataset.id === dataset.id) ? 'bg-blue-50 border-blue-700' : ''}`"
               @click="() => handleSelectDataset(idx)"
             >
               <a-avatar
@@ -498,7 +587,7 @@ onMounted(() => {
           <a-row v-if="paginator.total_page >= 2">
             <!-- 加载数据中 -->
             <a-col
-              v-if="paginator.current_page <= paginator.total_page"
+              v-if="getDatasetsWithPageLoading"
               :span="24"
               class="!text-center"
             >
@@ -508,7 +597,7 @@ onMounted(() => {
               </a-space>
             </a-col>
             <!-- 数据加载完成 -->
-            <a-col v-else :span="24" class="!text-center">
+            <a-col v-else-if="paginator.current_page > paginator.total_page" :span="24" class="!text-center">
               <div class="text-gray-400 my-4">数据已加载完成</div>
             </a-col>
           </a-row>
@@ -528,5 +617,3 @@ onMounted(() => {
     </a-modal>
   </div>
 </template>
-
-<style scoped></style>

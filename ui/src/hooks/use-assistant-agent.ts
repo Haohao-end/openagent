@@ -1,11 +1,16 @@
 import { ref } from 'vue'
 import {
   assistantAgentChat,
+  assistantAgentGenerateIntroduction,
   deleteAssistantAgentConversation,
+  getAssistantAgentConversations,
   getAssistantAgentMessagesWithPage,
   stopAssistantAgentChat,
 } from '@/services/assistant-agent'
-import type { GetAssistantAgentMessagesWithPageResponse } from '@/models/assistant-agent'
+import type {
+  GetAssistantAgentConversationsResponse,
+  GetAssistantAgentMessagesWithPageResponse,
+} from '@/models/assistant-agent'
 import { Message } from '@arco-design/web-vue'
 
 export const useAssistantAgentChat = () => {
@@ -15,17 +20,39 @@ export const useAssistantAgentChat = () => {
   // 2.定义辅助Agent会话处理器
   const handleAssistantAgentChat = async (
     query: string,
+    image_urls: string[] = [],
+    conversation_id: string = '',
     onData: (event_response: Record<string, any>) => void,
   ) => {
     try {
       loading.value = true
-      await assistantAgentChat(query, onData)
+      await assistantAgentChat(query, image_urls, conversation_id, onData)
     } finally {
       loading.value = false
     }
   }
 
   return { loading, handleAssistantAgentChat }
+}
+
+export const useGenerateAssistantAgentIntroduction = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+
+  // 2.定义个性化介绍生成处理器
+  const handleGenerateAssistantAgentIntroduction = async (
+    onData: (event_response: Record<string, any>) => void,
+    signal?: AbortSignal,
+  ) => {
+    try {
+      loading.value = true
+      await assistantAgentGenerateIntroduction(onData, signal)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, handleGenerateAssistantAgentIntroduction }
 }
 
 export const useStopAssistantAgentChat = () => {
@@ -59,7 +86,10 @@ export const useGetAssistantAgentMessagesWithPage = () => {
   const paginator = ref({ ...defaultPaginator })
 
   // 2.定义加载数据函数
-  const loadAssistantAgentMessages = async (init: boolean = false) => {
+  const loadAssistantAgentMessages = async (
+    init: boolean = false,
+    conversation_id: string = '',
+  ) => {
     // 2.1 判断是否是初始化，如果是则先初始化分页器
     if (init) {
       paginator.value = { ...defaultPaginator }
@@ -75,6 +105,7 @@ export const useGetAssistantAgentMessagesWithPage = () => {
         current_page: paginator.value.current_page,
         page_size: paginator.value.page_size,
         created_at: created_at.value,
+        conversation_id,
       })
       const data = resp.data
 
@@ -99,6 +130,25 @@ export const useGetAssistantAgentMessagesWithPage = () => {
   }
 
   return { loading, messages, paginator, loadAssistantAgentMessages }
+}
+
+export const useGetAssistantAgentConversations = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+  const conversations = ref<GetAssistantAgentConversationsResponse['data']>([])
+
+  // 2.定义加载辅助Agent最近会话列表函数
+  const loadAssistantAgentConversations = async (limit: number = 20) => {
+    try {
+      loading.value = true
+      const resp = await getAssistantAgentConversations(limit)
+      conversations.value = resp.data || []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, conversations, loadAssistantAgentConversations }
 }
 
 export const useDeleteAssistantAgentConversation = () => {

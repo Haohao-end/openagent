@@ -3,14 +3,26 @@
     <div class="flex items-center">
       <div class="relative w-1/2">
         <img class="w-full" src="@/assets/images/404.png" alt="404" />
-        <img class="absolute w-20 left-cloud animate-cloudLeft" src="@/assets/images/404_cloud.png" alt="cloud" />
-        <img class="absolute w-12 mid-cloud animate-cloudMid" src="@/assets/images/404_cloud.png" alt="cloud" />
-        <img class="absolute w-16 right-cloud animate-cloudRight" src="@/assets/images/404_cloud.png" alt="cloud" />
+        <img
+          class="absolute left-[220px] top-[17px] w-20 animate-[cloudLeft_2s_linear_forwards] [animation-delay:1s]"
+          src="@/assets/images/404_cloud.png"
+          alt="cloud"
+        />
+        <img
+          class="absolute left-[420px] top-[10px] w-12 animate-[cloudMid_2s_linear_forwards] [animation-delay:1.2s]"
+          src="@/assets/images/404_cloud.png"
+          alt="cloud"
+        />
+        <img
+          class="absolute left-[500px] top-[100px] w-16 animate-[cloudRight_2s_linear_forwards] [animation-delay:1s]"
+          src="@/assets/images/404_cloud.png"
+          alt="cloud"
+        />
       </div>
 
       <div class="w-1/2 pl-8 space-y-4">
-        <div class="text-3xl font-bold text-blue-500 opacity-0 animate-slideUp">OOPS!</div>
-        <div class="text-sm text-blue-400 opacity-0 animate-slideUp delay-100">
+        <div class="animate-[slideUp_0.5s_ease-out_forwards] text-3xl font-bold text-blue-500 opacity-0">OOPS!</div>
+        <div class="animate-[slideUp_0.5s_ease-out_forwards] [animation-delay:0.1s] text-sm text-blue-400 opacity-0">
           前往
           <a
             class="text-blue-500  cursor-pointer"
@@ -19,17 +31,17 @@
             AI Agent首页
           </a>
         </div>
-        <div class="text-xl font-bold text-gray-400 opacity-0 animate-slideUp delay-200">
+        <div class="animate-[slideUp_0.5s_ease-out_forwards] [animation-delay:0.2s] text-xl font-bold text-gray-400 opacity-0">
           {{ message }}
         </div>
-        <div class="text-sm text-gray-400 opacity-0 animate-slideUp delay-300">
+        <div class="animate-[slideUp_0.5s_ease-out_forwards] [animation-delay:0.3s] text-sm text-gray-400 opacity-0">
           请检查您的地址是否正确，或者返回主页
         </div>
         <button
-          class="mt-4 bg-blue-500 text-white rounded-full px-6 py-2 opacity-0 animate-slideUp delay-500"
+          class="mt-4 animate-[slideUp_0.5s_ease-out_forwards] [animation-delay:0.5s] rounded-full bg-blue-500 px-6 py-2 text-white opacity-0"
           @click="goHome"
         >
-          Back to home
+          返回首页
         </button>
       </div>
     </div>
@@ -126,44 +138,5 @@ function goHome() {
     transform: translateY(0);
     opacity: 1;
   }
-}
-
-.animate-cloudLeft {
-  animation: cloudLeft 2s linear forwards 1s;
-}
-.animate-cloudMid {
-  animation: cloudMid 2s linear forwards 1.2s;
-}
-.animate-cloudRight {
-  animation: cloudRight 2s linear forwards 1s;
-}
-.animate-slideUp {
-  animation: slideUp 0.5s ease-out forwards;
-}
-.delay-100 {
-  animation-delay: 0.1s;
-}
-.delay-200 {
-  animation-delay: 0.2s;
-}
-.delay-300 {
-  animation-delay: 0.3s;
-}
-.delay-500 {
-  animation-delay: 0.5s;
-}
-
-/* Position clouds initially */
-.left-cloud {
-  top: 17px;
-  left: 220px;
-}
-.mid-cloud {
-  top: 10px;
-  left: 420px;
-}
-.right-cloud {
-  top: 100px;
-  left: 500px;
 }
 </style>

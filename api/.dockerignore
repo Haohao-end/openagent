@@ -52,8 +52,15 @@
 **/*.rst
 **/docs
 **/CHANGELOG*
+**/.env
+!**/.env.example
 
 # 数据文件
 **/storage/log/*
 **/storage/memory/*
 **/storage/vector_store/*
+
+# 忽略生成的 Markdown 文档，保留 README
+**/*.md
+!README.md
+!**/README.md

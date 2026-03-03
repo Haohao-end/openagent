@@ -1,5 +1,7 @@
 import uuid
+from .schema import ListField
 from flask_wtf import FlaskForm
+from urllib.parse import urlparse
 from wtforms import StringField, BooleanField
 from wtforms.validators import DataRequired, UUID, Optional, ValidationError
 
@@ -17,6 +19,7 @@ class OpenAPIChatReq(FlaskForm):
     query = StringField("query", default="", validators=[
         DataRequired("用户提问query不能为空"),
     ])
+    image_urls = ListField("image_urls", default=[])
     stream = BooleanField("stream", default=True)
 
     def validate_conversation_id(self, field: StringField) -> None:
@@ -31,3 +34,19 @@ class OpenAPIChatReq(FlaskForm):
             # 2.终端用户id是不是为空
             if not self.end_user_id.data:
                 raise ValidationError("传递会话id则终端用户id不能为空")
+
+    def validate_image_urls(self, field: ListField) -> None:
+        """校验传递的图片URL链接列表"""
+        # 1.校验数据类型如果为None则设置默认值空列表
+        if not isinstance(field.data, list):
+            return []
+
+        # 2.校验数据的长度，最多不能超过5条URL记录
+        if len(field.data) > 5:
+            raise ValidationError("上传的图片数量不能超过5，请核实后重试")
+
+        # 3.循环校验image_url是否为URL
+        for image_url in field.data:
+            result = urlparse(image_url)
+            if not all([result.scheme, result.netloc]):
+                raise ValidationError("上传的图片URL地址格式错误，请核实后重试")

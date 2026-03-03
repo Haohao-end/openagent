@@ -8,6 +8,9 @@ import {
   useUpdatePassword,
 } from '@/hooks/use-account'
 import { useUploadImage } from '@/hooks/use-upload-file'
+import { DEFAULT_AVATAR_URL } from '@/utils/constants'
+
+const DEFAULT_AVATAR = DEFAULT_AVATAR_URL
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
@@ -22,13 +25,21 @@ const { handleUpdateAvatar } = useUpdateAvatar()
 const { handleUpdateName } = useUpdateName()
 const { handleUpdatePassword } = useUpdatePassword()
 const { image_url, handleUploadImage } = useUploadImage()
-const accountForm = ref({
-  fileList: [{ uid: '1', name: '账号头像', url: accountStore.account.avatar }],
-  name: accountStore.account.name,
-  avatar: accountStore.account.avatar,
-  password: '',
-  email: accountStore.account.email,
-})
+
+const resolveAvatar = (avatar?: string) => avatar || DEFAULT_AVATAR
+const createAccountForm = () => {
+  const avatar = resolveAvatar(accountStore.account.avatar)
+
+  return {
+    fileList: [{ uid: '1', name: '账号头像', url: avatar }],
+    name: accountStore.account.name,
+    avatar,
+    password: '',
+    email: accountStore.account.email,
+  }
+}
+
+const accountForm = ref(createAccountForm())
 
 // 2.更新当前账号信息
 const updateAccount = async () => {
@@ -50,13 +61,7 @@ watch(
     }
 
     // 无论是开启还是关闭模态窗，均赋初始值，可以确保首次加载的时候数据正确展示
-    accountForm.value = {
-      fileList: [{ uid: '1', name: '账号头像', url: accountStore.account.avatar }],
-      name: accountStore.account.name,
-      avatar: accountStore.account.avatar,
-      password: '',
-      email: accountStore.account.email,
-    }
+    accountForm.value = createAccountForm()
   },
 )
 </script>

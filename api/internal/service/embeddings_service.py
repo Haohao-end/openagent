@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import tiktoken
 from injector import inject
-from langchain.embeddings import CacheBackedEmbeddings
+from langchain_classic.embeddings import CacheBackedEmbeddings
 from langchain_community.storage import RedisStore
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
@@ -24,6 +24,7 @@ class EmbeddingsService:
             self._embeddings,
             self._store,
             namespace="embeddings",
+            key_encoder="sha256",
         )
 
     @classmethod
@@ -31,10 +32,6 @@ class EmbeddingsService:
         """计算传入文本的token数"""
         encoding = tiktoken.encoding_for_model("gpt-3.5")
         return len(encoding.encode(query))
-
-    @property
-    def store(self) -> RedisStore:
-        return self._store
 
     @property
     def embeddings(self) -> Embeddings:

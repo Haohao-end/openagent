@@ -8,6 +8,7 @@ export type GetApiToolProvidersWithPageResponse = BasePaginatorResponse<{
   description: string
   headers: Array<any>
   tools: Array<any>
+  updated_at: number
   created_at: number
 }>
 
@@ -34,6 +35,7 @@ export type GetApiToolProviderResponse = BaseResponse<{
   icon: string
   openapi_schema: string
   headers: Array<any>
+  updated_at: number
   created_at: number
 }>
 

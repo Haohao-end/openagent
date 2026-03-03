@@ -1,8 +1,12 @@
 import { ref } from 'vue'
-import type { GetConversationMessagesWithPageResponse } from '@/models/conversation'
+import type {
+  GetConversationMessagesWithPageResponse,
+  GetRecentConversationsResponse,
+} from '@/models/conversation'
 import {
   deleteConversation,
   deleteMessage,
+  getRecentConversations,
   getConversationMessages,
   getConversationName,
   updateConversationIsPinned,
@@ -164,4 +168,23 @@ export const useUpdateConversationIsPinned = () => {
   }
 
   return { loading, handleUpdateConversationIsPinned }
+}
+
+export const useGetRecentConversations = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+  const conversations = ref<GetRecentConversationsResponse['data']>([])
+
+  // 2.定义加载最近会话列表处理器
+  const loadRecentConversations = async (limit: number = 20) => {
+    try {
+      loading.value = true
+      const resp = await getRecentConversations(limit)
+      conversations.value = resp.data || []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, conversations, loadRecentConversations }
 }

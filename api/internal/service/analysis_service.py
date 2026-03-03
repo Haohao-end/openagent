@@ -1,10 +1,8 @@
-import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 from injector import inject
-from redis import Redis
 from internal.model import Account, App, Message
 from pkg.sqlalchemy import SQLAlchemy
 from .app_service import AppService
@@ -16,54 +14,40 @@ from .base_service import BaseService
 class AnalysisService(BaseService):
     """统计分析服务"""
     db: SQLAlchemy
-    redis_client: Redis
     app_service: AppService
 
     def get_app_analysis(self, app_id: UUID, account: Account) -> dict[str, Any]:
-        """根据传递的应用id+账号获取指定应用的分析信息"""
+        """根据传递的应用id+账号获取指定应用的分析信息(实时查询,不使用缓存)"""
         # 1.根据传递的应用id获取应用信息并校验权限
         app = self.app_service.get_app(app_id, account)
 
         # 2.获取当前时间、午夜时间、7天前时间、14天前的时间
-        today = datetime.now()
-        today_midnight = datetime.combine(today, datetime.min.time())
+        now = datetime.now()
+        today_midnight = datetime.combine(now, datetime.min.time())
         seven_days_ago = today_midnight - timedelta(days=7)
         fourteen_days_ago = today_midnight - timedelta(days=14)
 
-        # 3.计算统计分析数据的缓存键
-        cache_key = f"{today.strftime('%Y_%m_%d')}:{str(app.id)}"
-
-        # 4.从缓存中获取指定的结果，如果存在则直接返回
-        try:
-            if self.redis_client.exists(cache_key):
-                # 5.解析数据并将数据返回
-                app_analysis = self.redis_client.get(cache_key)
-                return json.loads(app_analysis)
-        except Exception:
-            # 6.如果出错则什么都不处理，重新计算数据并更新缓存
-            pass
-
-        # 7.查询消息表最近7天，以及最近14-7天的数据（数据要求答案非空、并且只要需要计算的数据）
-        seven_days_messages = self.get_messages_by_time_range(app, seven_days_ago, today_midnight)
+        # 3.查询消息表最近7天(到当前时间)，以及最近14-7天的数据（数据要求答案非空、并且只要需要计算的数据）
+        seven_days_messages = self.get_messages_by_time_range(app, seven_days_ago, now)
         fourteen_days_messages = self.get_messages_by_time_range(app, fourteen_days_ago, seven_days_ago)
 
-        # 8.计算5个概念指标，涵盖：全部会话数、激活用户数、平均会话互动数、Token输出速度、费用消耗
+        # 4.计算5个概念指标，涵盖：全部会话数、激活用户数、平均会话互动数、Token输出速度、费用消耗
         seven_overview_indicators = self.calculate_overview_indicators_by_messages(seven_days_messages)
         fourteen_overview_indicators = self.calculate_overview_indicators_by_messages(fourteen_days_messages)
 
-        # 9.统计环比数据
+        # 5.统计环比数据
         pop = self.calculate_pop_by_overview_indicators(seven_overview_indicators, fourteen_overview_indicators)
 
-        # 10.计算4个指标对应的趋势
+        # 6.计算4个指标对应的趋势
         trend = self.calculate_trend_by_messages(today_midnight, 7, seven_days_messages)
 
-        # 11.定义5个指标字段名称
+        # 7.定义5个指标字段名称
         fields = [
             "total_messages", "active_accounts", "avg_of_conversation_messages",
             "token_output_rate", "cost_consumption",
         ]
 
-        # 12.构建应用分析字典
+        # 8.构建应用分析字典
         app_analysis = {
             **trend,
             **{
@@ -73,9 +57,6 @@ class AnalysisService(BaseService):
                 } for field in fields
             }
         }
-
-        # 13.将数据存储到redis缓存中，并设置过期时间为1天
-        self.redis_client.setex(cache_key, 24 * 60 * 60, json.dumps(app_analysis))
 
         return app_analysis
 
@@ -158,22 +139,28 @@ class AnalysisService(BaseService):
             cls, end_at: datetime, days_ago: int, messages: list[Message],
     ) -> dict[str, Any]:
         """根据传递的结束时间、回退天数、消息列表计算对应指标的趋势数据"""
-        # 1.重新计算end_at为午夜时间
-        end_at = datetime.combine(end_at, datetime.min.time())
+        # 1.获取当前时间(用于今天的数据截止点)
+        now = datetime.now()
+        # 2.重新计算end_at为午夜时间
+        end_at_midnight = datetime.combine(end_at, datetime.min.time())
 
-        # 2.定义初始数据
+        # 3.定义初始数据
         total_messages_trend = {"x_axis": [], "y_axis": []}
         active_accounts_trend = {"x_axis": [], "y_axis": []}
         avg_of_conversation_messages_trend = {"x_axis": [], "y_axis": []}
         cost_consumption_trend = {"x_axis": [], "y_axis": []}
 
-        # 3.循环遍历计算并提取数据
+        # 4.循环遍历计算并提取数据 (包括今天)
         for day in range(days_ago):
-            # 4.计算起点和终点时间
-            trend_start_at = end_at - timedelta(days_ago - day)
-            trend_end_at = end_at - timedelta(days_ago - day - 1)
+            # 5.计算起点和终点时间
+            trend_start_at = end_at_midnight - timedelta(days=days_ago - day - 1)
+            # 如果是今天,结束时间为当前时间;否则为第二天午夜
+            if trend_start_at.date() == now.date():
+                trend_end_at = now
+            else:
+                trend_end_at = trend_start_at + timedelta(days=1)
 
-            # 5.计算全部会话趋势
+            # 6.计算全部会话趋势
             total_messages_trend_y_axis = len([
                 message for message in messages
                 if trend_start_at <= message.created_at < trend_end_at
@@ -181,7 +168,7 @@ class AnalysisService(BaseService):
             total_messages_trend["x_axis"].append(int(trend_start_at.timestamp()))
             total_messages_trend["y_axis"].append(total_messages_trend_y_axis)
 
-            # 6.计算激活用户趋势数据
+            # 7.计算激活用户趋势数据
             active_accounts_trend_y_axis = len({
                 message.created_by for message in messages
                 if trend_start_at <= message.created_at < trend_end_at
@@ -189,7 +176,7 @@ class AnalysisService(BaseService):
             active_accounts_trend["x_axis"].append(int(trend_start_at.timestamp()))
             active_accounts_trend["y_axis"].append(active_accounts_trend_y_axis)
 
-            # 7.计算平均会话互动趋势
+            # 8.计算平均会话互动趋势
             avg_of_conversation_messages_trend_y_axis = 0
             conversation_count = len({
                 message.conversation_id for message in messages
@@ -200,7 +187,7 @@ class AnalysisService(BaseService):
             avg_of_conversation_messages_trend["x_axis"].append(int(trend_start_at.timestamp()))
             avg_of_conversation_messages_trend["y_axis"].append(float(avg_of_conversation_messages_trend_y_axis))
 
-            # 8.计算费用消耗趋势
+            # 9.计算费用消耗趋势
             cost_consumption_trend_y_axis = sum(
                 message.total_price for message in messages
                 if trend_start_at <= message.created_at < trend_end_at
@@ -208,7 +195,7 @@ class AnalysisService(BaseService):
             cost_consumption_trend["x_axis"].append(int(trend_start_at.timestamp()))
             cost_consumption_trend["y_axis"].append(float(cost_consumption_trend_y_axis))
 
-        # 9.返回数据
+        # 10.返回数据
         return {
             "total_messages_trend": total_messages_trend,
             "active_accounts_trend": active_accounts_trend,

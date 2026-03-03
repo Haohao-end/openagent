@@ -3,13 +3,13 @@ from uuid import UUID
 
 from flask import Flask
 from injector import inject
-from langchain.retrievers import EnsembleRetriever
+from langchain_classic.retrievers.ensemble import EnsembleRetriever
 from langchain_core.documents import Document as LCDocument
 from sqlalchemy import update
 from langchain_core.tools import BaseTool, tool
 from internal.entity.dataset_entity import RetrievalStrategy, RetrievalSource
 from internal.exception import NotFoundException
-from internal.model import Dataset, DatasetQuery, Segment, Account
+from internal.model import Dataset, DatasetQuery, Segment
 from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
 from .jieba_service import JiebaService

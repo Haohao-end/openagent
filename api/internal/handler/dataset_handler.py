@@ -113,3 +113,26 @@ class DatasetHandler:
         resp = GetDatasetsWithPageResp(many=True)
 
         return success_json(PageModel(list=resp.dump(datasets), paginator=paginator))
+
+    @login_required
+    def regenerate_icon(self, dataset_id: UUID):
+        """根据传递的知识库id重新生成知识库图标"""
+        icon_url = self.dataset_service.regenerate_icon(dataset_id, current_user)
+        return success_json({"icon": icon_url})
+
+    @login_required
+    def generate_icon_preview(self):
+        """根据传递的名称和描述生成图标预览（不保存到知识库）"""
+        # 1.获取请求数据
+        data = request.get_json(force=True, silent=True) or {}
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+
+        # 2.校验名称不能为空
+        if not name:
+            return validate_error_json({'name': ['知识库名称不能为空']})
+
+        # 3.调用服务生成图标
+        icon_url = self.dataset_service.generate_icon_preview(name, description)
+
+        return success_json({"icon": icon_url})

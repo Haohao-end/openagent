@@ -20,6 +20,7 @@ from pkg.paginator import Paginator
 from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
 from .retrieval_service import RetrievalService
+from .icon_generator_service import IconGeneratorService
 
 
 @inject
@@ -28,6 +29,7 @@ class DatasetService(BaseService):
     """知识库服务"""
     db: SQLAlchemy
     retrieval_service: RetrievalService
+    icon_generator_service: IconGeneratorService
 
     def create_dataset(self, req: CreateDatasetReq, account: Account) -> Dataset:
         """根据传递的请求信息创建知识库"""
@@ -200,3 +202,41 @@ class DatasetService(BaseService):
         except Exception as e:
             logging.exception(f"删除知识库失败, dataset_id: {dataset_id}, 错误信息: {str(e)}")
             raise FailException("删除知识库失败，请稍后重试")
+
+        return dataset
+
+    def regenerate_icon(self, dataset_id: UUID, account: Account) -> str:
+        """根据传递的知识库id重新生成知识库图标"""
+        # 1.获取知识库信息并校验权限
+        dataset = self.get_dataset(dataset_id, account)
+
+        # 2.使用图标生成服务生成新图标
+        try:
+            logging.info(f"重新生成知识库图标: dataset_id={dataset_id}, name={dataset.name}")
+            icon_url = self.icon_generator_service.generate_icon(
+                name=dataset.name,
+                description=dataset.description or ""
+            )
+            logging.info(f"重新生成图标成功: {icon_url}")
+        except Exception as e:
+            logging.exception("重新生成图标失败: dataset_id=%s", dataset_id, exc_info=e)
+            raise FailException("重新生成图标失败，请稍后重试")
+
+        # 3.更新知识库图标
+        self.update(dataset, icon=icon_url)
+
+        return icon_url
+
+    def generate_icon_preview(self, name: str, description: str) -> str:
+        """生成图标预览（不保存到知识库）"""
+        try:
+            logging.info(f"生成知识库图标预览: name={name}")
+            icon_url = self.icon_generator_service.generate_icon(
+                name=name,
+                description=description or ""
+            )
+            logging.info(f"生成图标预览成功: {icon_url}")
+            return icon_url
+        except Exception as e:
+            logging.exception("生成图标预览失败: name=%s", name, exc_info=e)
+            raise FailException("生成图标预览失败，请稍后重试")

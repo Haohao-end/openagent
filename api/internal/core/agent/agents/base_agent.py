@@ -4,7 +4,7 @@ from threading import Thread
 from typing import Optional, Any, Iterator
 from internal.core.language_model.entities.model_entity import BaseLanguageModel
 from langchain_core.load import Serializable
-from pydantic import PrivateAttr
+from pydantic import ConfigDict, PrivateAttr
 from langchain_core.runnables import Runnable, RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
 from internal.core.agent.entities.agent_entity import AgentConfig, AgentState
@@ -21,9 +21,7 @@ class BaseAgent(Serializable, Runnable):
     _agent: CompiledStateGraph = PrivateAttr(None)
     _agent_queue_manager: AgentQueueManager = PrivateAttr(None)
 
-    class Config:
-        # 字段允许接收任意类型，且不需要校验器
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(
             self,
@@ -48,16 +46,24 @@ class BaseAgent(Serializable, Runnable):
     def invoke(self, input: AgentState, config: Optional[RunnableConfig] = None) -> AgentResult:
         """块内容响应，一次性生成完整内容后返回"""
         # 1.调用stream方法获取流式事件输出数据
-        agent_result = AgentResult(query=input["messages"][0].content)
+        content = input["messages"][0].content
+        query = ""
+        image_urls = []
+        if isinstance(content, str):
+            query = content
+        elif isinstance(content, list):
+            query = content[0]["text"]
+            image_urls = [chunk["image_url"]["url"] for chunk in content if chunk.get("type") == "image_url"]
+        agent_result = AgentResult(query=query, image_urls=image_urls)
         agent_thoughts = {}
         for agent_thought in self.stream(input, config):
             # 2.提取事件id并转换成字符串
             event_id = str(agent_thought.id)
 
             # 3.除了ping事件，其他事件全部记录
-            if agent_thought.event != QueueEvent.PING.value:
+            if agent_thought.event != QueueEvent.PING:
                 # 4.单独处理agent_message事件，因为该事件为数据叠加
-                if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
+                if agent_thought.event == QueueEvent.AGENT_MESSAGE:
                     # 5.检测是否已存储了事件
                     if event_id not in agent_thoughts:
                         # 6.初始化智能体消息事件
@@ -76,9 +82,9 @@ class BaseAgent(Serializable, Runnable):
                     agent_thoughts[event_id] = agent_thought
 
                     # 10.单独判断是否为异常消息类型，如果是则修改状态并记录错误
-                    if agent_thought.event in [QueueEvent.STOP.value, QueueEvent.TIMEOUT.value, QueueEvent.ERROR.value]:
+                    if agent_thought.event in [QueueEvent.STOP, QueueEvent.TIMEOUT, QueueEvent.ERROR]:
                         agent_result.status = agent_thought.event
-                        agent_result.error = agent_thought.observation if agent_thought.event == QueueEvent.ERROR.value else ""
+                        agent_result.error = agent_thought.observation if agent_thought.event == QueueEvent.ERROR else ""
 
         # 11.将推理字典转换成列表并存储
         agent_result.agent_thoughts = [agent_thought for agent_thought in agent_thoughts.values()]
@@ -86,7 +92,7 @@ class BaseAgent(Serializable, Runnable):
         # 12.完善message
         agent_result.message = next(
             (agent_thought.message for agent_thought in agent_thoughts.values()
-             if agent_thought.event == QueueEvent.AGENT_MESSAGE.value),
+             if agent_thought.event == QueueEvent.AGENT_MESSAGE),
             []
         )
 

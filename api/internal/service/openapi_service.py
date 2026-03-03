@@ -86,10 +86,11 @@ class OpenAPIService(BaseService):
         message = self.create(Message, **{
             "app_id": app.id,
             "conversation_id": conversation.id,
-            "invoke_from": InvokeFrom.SERVICE_API.value,
+            "invoke_from": InvokeFrom.SERVICE_API,
             "created_by": end_user.id,
             "query": req.query.data,
-            "status": MessageStatus.NORMAL.value,
+            "image_urls": req.image_urls.data,
+            "status": MessageStatus.NORMAL,
         })
 
         # 9.从语言模型中根据模型配置获取模型实例
@@ -143,7 +144,7 @@ class OpenAPIService(BaseService):
 
         # 15.定义智能体状态基础数据
         agent_state = {
-            "messages": [HumanMessage(req.query.data)],
+            "messages": [llm.convert_to_human_message(req.query.data, req.image_urls.data)],
             "history": history,
             "long_term_memory": conversation.summary,
         }
@@ -151,6 +152,13 @@ class OpenAPIService(BaseService):
         # 16.根据stream类型差异执行不同的代码
         if req.stream.data is True:
             agent_thoughts_dict = {}
+
+            # 在进入生成器之前提取所有需要的 ID，避免 DetachedInstanceError
+            end_user_id = str(end_user.id)
+            conversation_id = str(conversation.id)
+            message_id = str(message.id)
+            account_id = account.id
+            app_id = app.id
 
             def handle_stream() -> Generator:
                 """流式事件处理器，在Python只要在函数内部使用了yield关键字，那么这个函数的返回值类型肯定是生成器"""
@@ -180,20 +188,20 @@ class OpenAPIService(BaseService):
                             "event", "thought", "observation", "tool", "tool_input", "answer", "latency",
                         }),
                         "id": event_id,
-                        "end_user_id": str(end_user.id),
-                        "conversation_id": str(conversation.id),
-                        "message_id": str(message.id),
+                        "end_user_id": end_user_id,
+                        "conversation_id": conversation_id,
+                        "message_id": message_id,
                         "task_id": str(agent_thought.task_id),
                     }
                     yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
 
                 # 22.将消息以及推理过程添加到数据库
                 self.conversation_service.save_agent_thoughts(
-                    account_id=account.id,
-                    app_id=app.id,
+                    account_id=account_id,
+                    app_id=app_id,
                     app_config=app_config,
-                    conversation_id=conversation.id,
-                    message_id=message.id,
+                    conversation_id=conversation_id,
+                    message_id=message_id,
                     agent_thoughts=[agent_thought for agent_thought in agent_thoughts_dict.values()],
                 )
 
@@ -217,6 +225,7 @@ class OpenAPIService(BaseService):
             "end_user_id": str(end_user.id),
             "conversation_id": str(conversation.id),
             "query": req.query.data,
+            "image_urls": req.image_urls.data,
             "answer": agent_result.answer,
             "total_token_count": 0,
             "latency": agent_result.latency,

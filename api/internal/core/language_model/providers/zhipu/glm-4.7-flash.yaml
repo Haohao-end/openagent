@@ -1,0 +1,28 @@
+model: glm-4.7-flash
+label: glm-4.7-flash
+model_type: chat
+features:
+  - tool_call
+  - agent_thought
+context_window: 8000
+max_output_tokens: 16000
+attributes:
+  model: glm-4.7-flash
+parameters:
+  - name: temperature
+    use_template: temperature
+    default: 0.7
+  - name: top_p
+    use_template: top_p
+    default: 0.7
+  - name: max_tokens
+    use_template: max_tokens
+    default: 4096
+    max: 16000
+metadata:
+  pricing:
+    input: 0.0
+    output: 0.0
+    unit: 0.001
+    currency: USD
+  pricing_note: 官方价格页标注该模型为免费模型。

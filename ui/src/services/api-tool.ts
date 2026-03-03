@@ -54,3 +54,15 @@ export const getApiToolProvider = (provider_id: string) => {
 export const getApiTool = (provider_id: string, tool_name: string) => {
   return get<GetApiToolResponse>(`/api-tools/${provider_id}/tools/${tool_name}`)
 }
+
+// 重新生成插件图标
+export const regenerateIcon = (provider_id: string) => {
+  return post<BaseResponse<{ icon: string }>>(`/api-tools/${provider_id}/regenerate-icon`)
+}
+
+// 生成插件图标预览（不保存到插件）
+export const generateIconPreview = (name: string, description: string) => {
+  return post<BaseResponse<{ icon: string }>>(`/api-tools/generate-icon-preview`, {
+    body: { name, description },
+  })
+}

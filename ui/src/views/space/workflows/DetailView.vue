@@ -1,19 +1,17 @@
 <script setup lang="ts">
-import { v4 } from 'uuid'
-import { markRaw, onMounted, ref } from 'vue'
-import moment from 'moment/moment'
-import { useRoute } from 'vue-router'
+import { markRaw, onBeforeUnmount, onMounted, ref, computed, defineAsyncComponent } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ConnectionMode, Panel, useVueFlow, VueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { MiniMap } from '@vue-flow/minimap'
-import dagre from 'dagre'
-import { cloneDeep } from 'lodash'
+import { debounce } from 'lodash'
 import {
   useCancelPublishWorkflow,
   useGetDraftGraph,
   useGetWorkflow,
   usePublishWorkflow,
   useUpdateDraftGraph,
+  useShareWorkflow,
 } from '@/hooks/use-workflow'
 import StartNode from './components/nodes/StartNode.vue'
 import LlmNode from './components/nodes/LLMNode.vue'
@@ -23,6 +21,10 @@ import HttpRequestNode from './components/nodes/HttpRequestNode.vue'
 import ToolNode from './components/nodes/ToolNode.vue'
 import TemplateTransformNode from './components/nodes/TemplateTransformNode.vue'
 import EndNode from './components/nodes/EndNode.vue'
+import TextProcessorNode from './components/nodes/TextProcessorNode.vue'
+import VariableAssignerNode from './components/nodes/VariableAssignerNode.vue'
+import ParameterExtractorNode from './components/nodes/ParameterExtractorNode.vue'
+import IfElseNode from './components/nodes/IfElseNode.vue'
 import DebugModal from './components/DebugModal.vue'
 import StartNodeInfo from './components/infos/StartNodeInfo.vue'
 import LlmNodeInfo from './components/infos/LLMNodeInfo.vue'
@@ -30,25 +32,30 @@ import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/minimap/dist/style.css'
 import { Message } from '@arco-design/web-vue'
-import { generateRandomString } from '@/utils/helper'
 import TemplateTransformNodeInfo from '@/views/space/workflows/components/infos/TemplateTransformNodeInfo.vue'
-import CodeNodeInfo from '@/views/space/workflows/components/infos/CodeNodeInfo.vue'
 import HttpRequestNodeInfo from '@/views/space/workflows/components/infos/HttpRequestNodeInfo.vue'
 import DatasetRetrievalNodeInfo from '@/views/space/workflows/components/infos/DatasetRetrievalNodeInfo.vue'
 import ToolNodeInfo from '@/views/space/workflows/components/infos/ToolNodeInfo.vue'
 import EndNodeInfo from '@/views/space/workflows/components/infos/EndNodeInfo.vue'
+import TextProcessorNodeInfo from '@/views/space/workflows/components/infos/TextProcessorNodeInfo.vue'
+import VariableAssignerNodeInfo from '@/views/space/workflows/components/infos/VariableAssignerNodeInfo.vue'
+import ParameterExtractorNodeInfo from '@/views/space/workflows/components/infos/ParameterExtractorNodeInfo.vue'
+import IfElseNodeInfo from '@/views/space/workflows/components/infos/IfElseNodeInfo.vue'
+import { useWorkflowCanvasInteraction } from '@/views/space/workflows/use-workflow-canvas-interaction'
+import { loadWorkflowDetailByMode } from '@/views/space/workflows/use-workflow-detail-loader'
+import { useWorkflowHeader } from '@/views/space/workflows/use-workflow-header'
+import { useWorkflowNodeSidebar } from '@/views/space/workflows/use-workflow-node-sidebar'
+import { useWorkflowPublishActions } from '@/views/space/workflows/use-workflow-publish-actions'
+
+const CodeNodeInfo = defineAsyncComponent(
+  () => import('@/views/space/workflows/components/infos/CodeNodeInfo.vue'),
+)
 
 // 1.定义页面所需数据
 const route = useRoute()
-const instance = ref<any>(null)
-const zoomLevel = ref<number>(1)
-const zoomOptions = [
-  { label: '200%', value: 2 },
-  { label: '100%', value: 1 },
-  { label: '75%', value: 0.75 },
-  { label: '50%', value: 0.5 },
-  { label: '25%', value: 0.25 },
-]
+const router = useRouter()
+const workflowId = ref<string>(String(route.params?.workflow_id ?? '')) // 缓存 workflow_id，避免路由切换时丢失
+const isPreviewMode = computed(() => route.name === 'store-workflows-preview') // 判断是否为预览模式
 const NOTE_TYPES = {
   start: markRaw(StartNode),
   llm: markRaw(LlmNode),
@@ -57,9 +64,13 @@ const NOTE_TYPES = {
   template_transform: markRaw(TemplateTransformNode),
   http_request: markRaw(HttpRequestNode),
   code: markRaw(CodeNode),
+  text_processor: markRaw(TextProcessorNode),
+  variable_assigner: markRaw(VariableAssignerNode),
+  parameter_extractor: markRaw(ParameterExtractorNode),
+  if_else: markRaw(IfElseNode),
   end: markRaw(EndNode),
 }
-const NODE_DATA_MAP: Record<string, any> = {
+const NODE_DATA_MAP: Record<string, Record<string, unknown>> = {
   start: {
     title: '开始节点',
     description: '工作流的起点节点，支持定义工作流的起点输入等信息',
@@ -144,16 +155,44 @@ const NODE_DATA_MAP: Record<string, any> = {
     inputs: [],
     outputs: [],
   },
+  text_processor: {
+    title: '文本处理',
+    description: '对输入文本执行去空格、大小写等常见处理',
+    mode: 'trim',
+    inputs: [{ name: 'text', type: 'string', value: { type: 'literal', content: '' } }],
+    outputs: [
+      { name: 'output', type: 'string', value: { type: 'generated', content: '' } },
+      { name: 'length', type: 'int', value: { type: 'generated', content: 0 } },
+    ],
+  },
+  variable_assigner: {
+    title: '变量赋值',
+    description: '设置变量值，可直接填写字面量或引用上游节点变量',
+    inputs: [{ name: 'value', type: 'string', value: { type: 'literal', content: '' } }],
+    outputs: [{ name: 'value', type: 'string', value: { type: 'generated', content: '' } }],
+  },
+  parameter_extractor: {
+    title: '参数提取',
+    description: '从文本中提取结构化字段，支持 JSON 和 key=value 格式',
+    mode: 'auto',
+    inputs: [{ name: 'text', type: 'string', value: { type: 'literal', content: '' } }],
+    outputs: [{ name: 'param', type: 'string', required: true, value: { type: 'generated', content: '' } }],
+  },
+  if_else: {
+    title: '条件分支',
+    description: '根据条件判断结果选择不同的执行路径',
+    logical_operator: 'and',
+    conditions: [],
+    inputs: [],
+    outputs: [{ name: 'result', type: 'boolean', value: { type: 'generated', content: false } }],
+  },
   end: {
     title: '结束节点',
     description: '工作流的结束节点，支持定义工作流最终输出的变量等信息',
     outputs: [],
   },
 }
-const selectedNode = ref<any>(null) // 选择的节点
 const isInitializing = ref(true) // 数据是否初始化
-const isDebug = ref(false) // 是否处于调试状态
-const nodeInfoVisible = ref(false) // 节点信息是否显示
 const {
   onPaneReady, // 面板加载完毕事件
   onViewportChange, // 视口变化回调函数
@@ -174,216 +213,195 @@ const {
 const { nodes, edges, loadDraftGraph } = useGetDraftGraph()
 const { loading: publishWorkflowLoading, handlePublishWorkflow } = usePublishWorkflow()
 const { handleCancelPublish } = useCancelPublishWorkflow()
+const { loading: shareWorkflowLoading, handleShareWorkflow } = useShareWorkflow()
+const {
+  forkLoading,
+  headerBackRoute,
+  workflowStatusText,
+  showPreviewReadonlyTag,
+  showDebugPassedTag,
+  showDebugPendingTag,
+  autoSavedTimeText,
+  handleAddToMySpace,
+} = useWorkflowHeader({
+  isPreviewMode,
+  workflowId,
+  workflow,
+  router,
+})
+const {
+  shareActionLabel,
+  canOperatePublishedActions,
+  handleUpdatePublish,
+  handleUpdateConfig,
+  handleToggleShare,
+  handleCancelPublishAction,
+} = useWorkflowPublishActions({
+  workflow,
+  handlePublishWorkflow,
+  handleShareWorkflow,
+  loadWorkflow,
+  handleCancelPublish,
+})
 
-// 2.定义自适应布局处理器
-const autoLayout = () => {
-  // 2.1 创建dagre图结构
-  const dagreGraph = new dagre.graphlib.Graph()
-
-  // 2.2 设置布局参数
-  dagreGraph.setDefaultEdgeLabel(() => ({}))
-  dagreGraph.setGraph({
-    rankdir: 'LR', // 纵向布局
-    align: 'UL', // 左上对齐
-    nodesep: 80, // 节点间距
-    ranksep: 60, // 层次间距
-    edgesep: 10, // 边间距
-  })
-
-  // 2.3 深度拷贝nodes和edges对应的数据，避免影响元数据
-  const cloneNodes = cloneDeep(nodes.value)
-  const cloneEdges = cloneDeep(edges.value)
-
-  // 2.4 将节点添加到图中
-  cloneNodes.forEach((node: any) => {
-    dagreGraph.setNode(node.id, { width: node.dimensions.width, height: node.dimensions.height })
-  })
-
-  // 2.5 将边添加到图中
-  cloneEdges.forEach((edge: any) => {
-    dagreGraph.setEdge(edge.source, edge.target)
-  })
-
-  // 2.6 运行布局算法
-  dagre.layout(dagreGraph)
-
-  // 2.7 根据布局结果更新工作流的图结构布局
-  nodes.value = cloneNodes.map((node: any) => {
-    const { x, y } = dagreGraph.node(node.id)
-    return {
-      ...node,
-      position: { x, y },
-    }
-  })
+// 定义调试成功后的处理函数
+const handleDebugSuccess = async () => {
+  // 延迟重新加载 workflow 数据，确保后端已更新 is_debug_passed 状态
+  setTimeout(async () => {
+    await loadWorkflow(workflowId.value)
+  }, 500)
 }
 
-// 3.定义添加节点处理器
-const addNode = (node_type: string) => {
-  // 3.1 检测点击的类型是否为start/end，一个工作流中只允许有一个start和一个node
-  if (node_type === 'start') {
-    // 3.2 判断在图中是否存在开始节点
-    if (allNodes.value.some((node) => node.type === 'start')) {
-      Message.error('工作流中只允许有一个开始节点')
-      return
-    }
-  } else if (node_type === 'end') {
-    // 3.3 判断在图中是否存在结束节点
-    if (allNodes.value.some((node) => node.type === 'end')) {
-      Message.error('工作流中只允许有一个结束节点')
-      return
-    }
+const VARIABLE_NAME_REGEXP = /^[A-Za-z_][A-Za-z0-9_]*$/
+const hasInvalidVariableNames = (variables: Array<Record<string, unknown>> = []) => {
+  return variables.some((variable) => !VARIABLE_NAME_REGEXP.test(String(variable?.name ?? '')))
+}
+const isValidHttpUrl = (url: string) => {
+  if (!url) return true
+  try {
+    const parsedUrl = new URL(url)
+    return ['http:', 'https:'].includes(parsedUrl.protocol)
+  } catch {
+    return false
   }
-
-  // 3.4 计算所有节点的平均位置
-  const node_count = allNodes.value.length
-  const total = allNodes.value.reduce(
-    (acc, item) => {
-      acc.xSum += item.position.x
-      acc.ySum += item.position.y
-      return acc
-    },
-    { xSum: 0, ySum: 0 },
-  )
-  const xAverage = node_count > 0 ? total.xSum / node_count : 0
-  const yAverage = node_count > 0 ? total.ySum / node_count : 0
-
-  // 3.5 提取节点数据的默认值
-  const node_data = NODE_DATA_MAP[node_type]
-
-  // 3.6 添加节点数据
-  nodes.value.push({
-    id: v4(),
-    type: node_type,
-    position: { x: xAverage, y: yAverage },
-    data: {
-      ...node_data,
-      title: `${node_data.title}_${generateRandomString(5)}`,
-    },
+}
+const canSaveDraftGraph = () => {
+  return nodes.value.every((node) => {
+    const data = node.data ?? {}
+    if (node.type === 'start') return !hasInvalidVariableNames(data.inputs)
+    if (node.type === 'llm') return !hasInvalidVariableNames(data.inputs)
+    if (node.type === 'template_transform') return !hasInvalidVariableNames(data.inputs)
+    if (node.type === 'code') {
+      return !hasInvalidVariableNames(data.inputs) && !hasInvalidVariableNames(data.outputs)
+    }
+    if (node.type === 'text_processor') return !hasInvalidVariableNames(data.inputs)
+    if (node.type === 'variable_assigner') return !hasInvalidVariableNames(data.inputs)
+    if (node.type === 'parameter_extractor') {
+      return !hasInvalidVariableNames(data.inputs) && !hasInvalidVariableNames(data.outputs)
+    }
+    if (node.type === 'if_else') return !hasInvalidVariableNames(data.inputs)
+    if (node.type === 'http_request') {
+      return isValidHttpUrl(String(data.url ?? '')) && !hasInvalidVariableNames(data.inputs)
+    }
+    if (node.type === 'tool') return !hasInvalidVariableNames(data.inputs)
+    if (node.type === 'end') return !hasInvalidVariableNames(data.outputs)
+    return true
   })
 }
 
-// 定义监听工作流变化事件（涵盖节点+边）
-const onChange = () => {
-  // 检测是否初始化，如果是则直接中断程序
+// 草稿图自动保存（防抖）
+const saveDraftGraph = async (is_notify: boolean = false) => {
+  if (isInitializing.value || isPreviewMode.value) return // 预览模式下不保存
+  if (!canSaveDraftGraph()) return
+  await handleUpdateDraftGraph(
+    workflowId.value,
+    convertGraphToReq(nodes.value, edges.value),
+    is_notify,
+  )
+  workflow.value.updated_at = Math.floor(Date.now() / 1000)
+}
+const debounceSaveDraftGraph = debounce(() => {
+  void saveDraftGraph(false)
+}, 800)
+const triggerDraftGraphSave = (immediate: boolean = false, is_notify: boolean = false) => {
   if (isInitializing.value) return
-
-  // 如果不是则发起更新图草稿配置
-  handleUpdateDraftGraph(
-    String(route.params?.workflow_id ?? ''),
-    convertGraphToReq(nodes.value, edges.value),
-  )
-}
-
-// 定义节点更新事件
-const onUpdateNode = (node_data: Record<string, any>) => {
-  // 获取该节点对应的索引
-  const idx = nodes.value.findIndex((item: any) => item.id === node_data.id)
-
-  // 检测是否存在数据，如果存在则更新
-  if (idx !== -1) {
-    nodes.value[idx].data = {
-      ...nodes.value[idx].data,
-      ...node_data,
-    }
+  if (immediate) {
+    debounceSaveDraftGraph.cancel()
+    void saveDraftGraph(is_notify)
+    return
   }
-
-  // 调用API发起更新请求，由于字典嵌套比较深@update有可能无法主动监听
-  handleUpdateDraftGraph(
-    String(route.params?.workflow_id ?? ''),
-    convertGraphToReq(nodes.value, edges.value),
-    true,
-  )
+  debounceSaveDraftGraph()
 }
 
-// 节点链接hooks
+const {
+  selectedNode,
+  nodeInfoVisible,
+  isDebug,
+  clearCanvasSelection,
+  openNodePanel,
+  enterDebugMode,
+  onUpdateNode,
+} = useWorkflowNodeSidebar({
+  nodes,
+  triggerDraftGraphSave: () => triggerDraftGraphSave(),
+})
+
+const {
+  zoomLevel,
+  zoomOptions,
+  autoLayout,
+  addNode,
+  onChange,
+  handleConnect,
+  handlePaneClick,
+  handleEdgeClick,
+  handleNodeClick,
+  handleNodeDragStop,
+  handlePaneReady,
+  handleViewportChange,
+  handleZoomSelect,
+} = useWorkflowCanvasInteraction({
+  nodes,
+  edges,
+  allNodes,
+  findNode: (id) => (id ? findNode(id) : undefined),
+  isPreviewMode,
+  isInitializing,
+  nodeDataMap: NODE_DATA_MAP,
+  triggerDraftGraphSave: () => triggerDraftGraphSave(),
+  onPreviewEditBlocked: () => Message.info('预览模式下无法编辑节点配置'),
+  onCanvasSelectionClear: clearCanvasSelection,
+  onNodeSelected: openNodePanel,
+})
+
 onConnect((connection) => {
-  // 获取节点和目标的节点id
-  const { source, target } = connection
-
-  // 检查是否连接统一节点
-  if (source === target) {
-    Message.error('不能将节点连接到本身')
-    return
-  }
-
-  // 检查节点和目标节点是否已经存在链接
-  const isAlreadyConnected = edges.value.some((edge: any) => {
-    return (
-      (edge.source === source && edge.target === target) ||
-      (edge.source === target && edge.target === source)
-    )
-  })
-
-  // 如果已经连接，则提示用户并阻止连接
-  if (isAlreadyConnected) {
-    Message.error('这两个节点已有连接，无需重复添加')
-    return
-  }
-
-  // 获取边的起点和终点类型
-  const source_node = findNode(source)
-  const target_node = findNode(target)
-
-  // 将数据添加到edges
-  edges.value.push({
-    ...connection,
-    id: v4(),
-    source_type: source_node?.type,
-    target_type: target_node?.type,
-    animated: true,
-    style: { strokeWidth: 2, stroke: '#9ca3af' },
-  })
+  handleConnect(connection)
 })
 
-// 工作流面板点击hooks
 onPaneClick(() => {
-  isDebug.value = false
-  selectedNode.value = null
+  handlePaneClick()
 })
 
-// 工作流Edge边点击hooks
 onEdgeClick(() => {
-  isDebug.value = false
-  selectedNode.value = null
+  handleEdgeClick()
 })
 
-// 工作流Node点击hooks
 onNodeClick((nodeMouseEvent) => {
-  // 限制每个节点只能点击一次，点击的时候将节点的数据赋值给selectedNode
-  if (!selectedNode.value || selectedNode.value?.id !== nodeMouseEvent.node.id) {
-    selectedNode.value = nodeMouseEvent.node
-    nodeInfoVisible.value = true
-  }
-
-  isDebug.value = false
+  handleNodeClick(nodeMouseEvent)
 })
 
-// 工作流节点拖动停止hooks
 onNodeDragStop(() => {
-  handleUpdateDraftGraph(
-    String(route.params?.workflow_id ?? ''),
-    convertGraphToReq(nodes.value, edges.value),
-    false,
-  )
+  handleNodeDragStop()
 })
 
-// 工作流面板加载完毕后的回调函数
 onPaneReady((vueFlowInstance) => {
-  vueFlowInstance.fitView()
-  instance.value = vueFlowInstance
+  handlePaneReady(vueFlowInstance)
 })
 
-// 定义视口变化回调函数
 onViewportChange((viewportTransform) => {
-  zoomLevel.value = viewportTransform.zoom
+  handleViewportChange(viewportTransform)
 })
 
 // 页面DOM挂载完毕后加载数据
 onMounted(async () => {
-  const workflow_id = String(route.params?.workflow_id ?? '')
-  await loadWorkflow(workflow_id)
-  await loadDraftGraph(workflow_id)
+  workflowId.value = String(route.params?.workflow_id ?? '')
+  await loadWorkflowDetailByMode({
+    workflowId: workflowId.value,
+    isPreviewMode: isPreviewMode.value,
+    workflow: workflow,
+    nodes: nodes,
+    edges: edges,
+    loadWorkflow,
+    loadDraftGraph,
+    onError: (message: string) => Message.error(message),
+  })
+
   isInitializing.value = false
+})
+
+onBeforeUnmount(() => {
+  debounceSaveDraftGraph.flush()
+  debounceSaveDraftGraph.cancel()
 })
 </script>
 
@@ -397,7 +415,7 @@ onMounted(async () => {
       <!-- 左侧工作流信息 -->
       <div class="flex items-center gap-2">
         <!-- 回退按钮 -->
-        <router-link :to="{ name: 'space-workflows-list' }">
+        <router-link :to="headerBackRoute">
           <a-button size="mini">
             <template #icon>
               <icon-left />
@@ -421,12 +439,36 @@ onMounted(async () => {
               <div class="max-w-[160px] line-clamp-1 text-xs text-gray-500">
                 {{ workflow.description }}
               </div>
-              <div class="flex items-center h-[18px] text-xs text-gray-500">
+              <div v-if="!isPreviewMode" class="flex items-center h-[18px] text-xs text-gray-500">
                 <icon-schedule />
-                {{ workflow.status === 'draft' ? '草稿' : '已发布' }}
+                {{ workflowStatusText }}
               </div>
-              <a-tag size="small" class="rounded h-[18px] leading-[18px] bg-gray-200 text-gray-500">
-                已自动保存 {{ moment(workflow.updated_at * 1000).format('HH:mm:ss') }}
+              <a-tag
+                v-if="showPreviewReadonlyTag"
+                size="small"
+                class="rounded h-[18px] leading-[18px] bg-blue-100 text-blue-700"
+              >
+                <icon-eye />
+                预览模式（只读）
+              </a-tag>
+              <a-tag
+                v-if="showDebugPassedTag"
+                size="small"
+                class="rounded h-[18px] leading-[18px] bg-green-100 text-green-700"
+              >
+                <icon-check-circle />
+                已调试通过
+              </a-tag>
+              <a-tag
+                v-if="showDebugPendingTag"
+                size="small"
+                class="rounded h-[18px] leading-[18px] bg-orange-100 text-orange-700"
+              >
+                <icon-exclamation-circle />
+                未调试
+              </a-tag>
+              <a-tag v-if="!isPreviewMode" size="small" class="rounded h-[18px] leading-[18px] bg-gray-200 text-gray-500">
+                已自动保存 {{ autoSavedTimeText }}
               </a-tag>
             </div>
           </div>
@@ -435,19 +477,29 @@ onMounted(async () => {
       <!-- 右侧操作按钮 -->
       <div class="">
         <a-space :size="12">
-          <a-button-group>
+          <!-- 预览模式：显示"添加到我的个人空间"按钮 -->
+          <a-button
+            v-if="isPreviewMode"
+            type="primary"
+            :loading="forkLoading"
+            @click="handleAddToMySpace"
+          >
+            <template #icon><icon-plus /></template>
+            添加到我的个人空间
+          </a-button>
+
+          <!-- 编辑模式：发布按钮组 -->
+          <a-button-group v-else>
             <a-button
-              :disabled="!workflow.is_debug_passed"
-              :loading="publishWorkflowLoading"
+              :loading="publishWorkflowLoading || shareWorkflowLoading"
               type="primary"
               class="!rounded-tl-lg !rounded-bl-lg"
-              @click="() => handlePublishWorkflow(String(workflow.id))"
+              @click="handleUpdatePublish"
             >
               更新发布
             </a-button>
             <a-dropdown position="br">
               <a-button
-                :disabled="workflow.status !== 'published'"
                 type="primary"
                 class="!rounded-tr-lg !rounded-br-lg !w-5"
               >
@@ -457,9 +509,20 @@ onMounted(async () => {
               </a-button>
               <template #content>
                 <a-doption
-                  :disabled="workflow.status !== 'published'"
+                  @click="handleUpdateConfig"
+                >
+                  更新配置
+                </a-doption>
+                <a-doption
+                  :disabled="!canOperatePublishedActions"
+                  @click="handleToggleShare"
+                >
+                  {{ shareActionLabel }}
+                </a-doption>
+                <a-doption
+                  :disabled="!canOperatePublishedActions"
                   class="!text-red-700"
-                  @click="() => handleCancelPublish(String(workflow.id))"
+                  @click="handleCancelPublishAction"
                 >
                   取消发布
                 </a-doption>
@@ -474,7 +537,7 @@ onMounted(async () => {
       <vue-flow
         :min-zoom="0.25"
         :max-zoom="2"
-        :nodes-connectable="true"
+        :nodes-connectable="!isPreviewMode"
         :connection-mode="ConnectionMode.Strict"
         :connection-line-options="{ style: { strokeWidth: 2, stroke: '#9ca3af' } }"
         :node-types="NOTE_TYPES"
@@ -501,8 +564,17 @@ onMounted(async () => {
                 <a-divider direction="vertical" class="m-0" />
               </template>
               <!-- 添加节点 -->
-              <a-trigger position="top" :popup-translate="[0, -16]">
-                <a-button type="primary" size="small" class="rounded-lg px-2">
+              <a-trigger
+                position="top"
+                :popup-translate="[0, -16]"
+                :disabled="isPreviewMode"
+              >
+                <a-button
+                  type="primary"
+                  size="small"
+                  class="rounded-lg px-2"
+                  :disabled="isPreviewMode"
+                >
                   <template #icon>
                     <icon-plus-circle-fill />
                   </template>
@@ -510,138 +582,200 @@ onMounted(async () => {
                 </a-button>
                 <template #content>
                   <div
-                    class="bg-white borer border-gray-200 w-[240px] shadow rounded-xl overflow-hidden py-2"
+                    class="bg-white border border-gray-200 w-[520px] shadow rounded-xl overflow-hidden p-3 max-h-[600px] overflow-y-auto"
                   >
-                    <!-- 开始节点 -->
-                    <div
-                      class="flex flex-col px-3 py-2 gap-2 cursor-pointer hover:bg-gray-50"
-                      @click="() => addNode('start')"
-                    >
-                      <!-- 节点名称 -->
-                      <div class="flex items-center gap-2">
-                        <a-avatar shape="square" :size="24" class="bg-blue-700 rounded-lg">
-                          <icon-home />
-                        </a-avatar>
-                        <div class="text-gray-700 font-semibold">开始节点</div>
+                    <!-- 网格布局：2列 -->
+                    <div class="grid grid-cols-2 gap-2">
+                      <!-- 开始节点 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('start')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-blue-700 rounded-lg flex-shrink-0">
+                            <icon-home />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">开始节点</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          工作流的起始节点，支持定义工作流的起点输入等信息。
+                        </div>
                       </div>
-                      <!-- 节点描述 -->
-                      <div class="text-gray-500 text-xs">
-                        工作流的起始节点，支持定义工作流的起点输入等信息。
+
+                      <!-- 大语言模型节点 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('llm')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-sky-500 rounded-lg flex-shrink-0">
+                            <icon-language />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">大语言模型</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          调用大语言模型，根据输入参数和提示词生成回复
+                        </div>
                       </div>
-                    </div>
-                    <!-- 大语言模型节点 -->
-                    <div
-                      class="flex flex-col px-3 py-2 gap-2 cursor-pointer hover:bg-gray-50"
-                      @click="() => addNode('llm')"
-                    >
-                      <!-- 节点名称 -->
-                      <div class="flex items-center gap-2">
-                        <a-avatar shape="square" :size="24" class="bg-sky-500 rounded-lg">
-                          <icon-language />
-                        </a-avatar>
-                        <div class="text-gray-700 font-semibold">大语言模型</div>
+
+                      <!-- 扩展插件 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('tool')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-orange-500 rounded-lg flex-shrink-0">
+                            <icon-tool />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">扩展插件</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          添加插件广场内或自定义API插件，支持能力扩展和复用。
+                        </div>
                       </div>
-                      <!-- 节点描述 -->
-                      <div class="text-gray-500 text-xs">
-                        调用大语言模型，根据输入参数和提示词生成回复
+
+                      <!-- 知识库检索 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('dataset_retrieval')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-violet-500 rounded-lg flex-shrink-0">
+                            <icon-storage />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">知识库检索</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          根据输入的参数，在选定的知识库中检索相关片段并召回，返回切片列表。
+                        </div>
                       </div>
-                    </div>
-                    <!-- 扩展插件 -->
-                    <div
-                      class="flex flex-col px-3 py-2 gap-2 cursor-pointer hover:bg-gray-50"
-                      @click="() => addNode('tool')"
-                    >
-                      <!-- 节点名称 -->
-                      <div class="flex items-center gap-2">
-                        <a-avatar shape="square" :size="24" class="bg-orange-500 rounded-lg">
-                          <icon-tool />
-                        </a-avatar>
-                        <div class="text-gray-700 font-semibold">扩展插件</div>
+
+                      <!-- 模板转换 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('template_transform')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-emerald-400 rounded-lg flex-shrink-0">
+                            <icon-branch />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">模板转换</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          对多个字符串变量的格式进行处理。
+                        </div>
                       </div>
-                      <!-- 节点描述 -->
-                      <div class="text-gray-500 text-xs">
-                        添加插件广场内或自定义API插件，支持能力扩展和复用。
+
+                      <!-- HTTP请求 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('http_request')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-rose-500 rounded-lg flex-shrink-0">
+                            <icon-link />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">HTTP请求</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          配置外部API服务，并发起请求。
+                        </div>
                       </div>
-                    </div>
-                    <!-- 知识库检索 -->
-                    <div
-                      class="flex flex-col px-3 py-2 gap-2 cursor-pointer hover:bg-gray-50"
-                      @click="() => addNode('dataset_retrieval')"
-                    >
-                      <!-- 节点名称 -->
-                      <div class="flex items-center gap-2">
-                        <a-avatar shape="square" :size="24" class="bg-violet-500 rounded-lg">
-                          <icon-storage />
-                        </a-avatar>
-                        <div class="text-gray-700 font-semibold">知识库检索</div>
+
+                      <!-- Python代码执行 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('code')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-cyan-500 rounded-lg flex-shrink-0">
+                            <icon-code />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">Python代码</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          编写代码处理输入输出变量来生成返回值。
+                        </div>
                       </div>
-                      <!-- 节点描述 -->
-                      <div class="text-gray-500 text-xs">
-                        根据输入的参数，在选定的知识库中检索相关片段并召回，返回切片列表。
+
+                      <!-- 文本处理 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('text_processor')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-teal-500 rounded-lg flex-shrink-0">
+                            <icon-branch />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">文本处理</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          对输入文本执行去首尾空格、大小写转换等格式处理。
+                        </div>
                       </div>
-                    </div>
-                    <!-- 模板转换 -->
-                    <div
-                      class="flex flex-col px-3 py-2 gap-2 cursor-pointer hover:bg-gray-50"
-                      @click="() => addNode('template_transform')"
-                    >
-                      <!-- 节点名称 -->
-                      <div class="flex items-center gap-2">
-                        <a-avatar shape="square" :size="24" class="bg-emerald-400 rounded-lg">
-                          <icon-branch />
-                        </a-avatar>
-                        <div class="text-gray-700 font-semibold">模板转换</div>
+
+                      <!-- 变量赋值 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('variable_assigner')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-lime-600 rounded-lg flex-shrink-0">
+                            <icon-branch />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">变量赋值</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          设置变量值，支持直接输入或引用上游节点变量。
+                        </div>
                       </div>
-                      <!-- 节点描述 -->
-                      <div class="text-gray-500 text-xs">对多个字符串变量的格式进行处理。</div>
-                    </div>
-                    <!-- HTTP请求 -->
-                    <div
-                      class="flex flex-col px-3 py-2 gap-2 cursor-pointer hover:bg-gray-50"
-                      @click="() => addNode('http_request')"
-                    >
-                      <!-- 节点名称 -->
-                      <div class="flex items-center gap-2">
-                        <a-avatar shape="square" :size="24" class="bg-rose-500 rounded-lg">
-                          <icon-link />
-                        </a-avatar>
-                        <div class="text-gray-700 font-semibold">HTTP请求</div>
+
+                      <!-- 参数提取 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('parameter_extractor')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-indigo-500 rounded-lg flex-shrink-0">
+                            <icon-branch />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">参数提取</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          从文本中提取结构化字段，支持 JSON 或 key=value 格式。
+                        </div>
                       </div>
-                      <!-- 节点描述 -->
-                      <div class="text-gray-500 text-xs">配置外部API服务，并发起请求。</div>
-                    </div>
-                    <!-- Python代码执行 -->
-                    <div
-                      class="flex flex-col px-3 py-2 gap-2 cursor-pointer hover:bg-gray-50"
-                      @click="() => addNode('code')"
-                    >
-                      <!-- 节点名称 -->
-                      <div class="flex items-center gap-2">
-                        <a-avatar shape="square" :size="24" class="bg-cyan-500 rounded-lg">
-                          <icon-code />
-                        </a-avatar>
-                        <div class="text-gray-700 font-semibold">Python代码执行</div>
+
+                      <!-- 条件分支 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('if_else')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-amber-500 rounded-lg flex-shrink-0">
+                            <icon-branch />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">条件分支</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          根据条件判断结果选择不同的执行路径（True/False）。
+                        </div>
                       </div>
-                      <!-- 节点描述 -->
-                      <div class="text-gray-500 text-xs">
-                        编写代码处理输入输出变量来生成返回值。
-                      </div>
-                    </div>
-                    <!-- 结束节点 -->
-                    <div
-                      class="flex flex-col px-3 py-2 gap-2 cursor-pointer hover:bg-gray-50"
-                      @click="() => addNode('end')"
-                    >
-                      <!-- 节点名称 -->
-                      <div class="flex items-center gap-2">
-                        <a-avatar shape="square" :size="24" class="bg-red-700 rounded-lg">
-                          <icon-filter />
-                        </a-avatar>
-                        <div class="text-gray-700 font-semibold">结束节点</div>
-                      </div>
-                      <!-- 节点描述 -->
-                      <div class="text-gray-500 text-xs">
-                        工作流的结束节点，支持定义工作流最终输出的变量等信息。
+
+                      <!-- 结束节点 -->
+                      <div
+                        class="flex flex-col p-3 gap-2 cursor-pointer hover:bg-gray-50 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                        @click="() => addNode('end')"
+                      >
+                        <div class="flex items-center gap-2">
+                          <a-avatar shape="square" :size="24" class="bg-red-700 rounded-lg flex-shrink-0">
+                            <icon-filter />
+                          </a-avatar>
+                          <div class="text-gray-700 font-semibold text-sm">结束节点</div>
+                        </div>
+                        <div class="text-gray-500 text-xs line-clamp-2">
+                          工作流的结束节点，支持定义工作流最终输出的变量等信息。
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -663,13 +797,7 @@ onMounted(async () => {
                 </a-tooltip>
                 <a-dropdown
                   trigger="hover"
-                  @select="
-                    (value: any) => {
-                      // 调整视口大小并更新视口等级
-                      zoomLevel = Number(value)
-                      instance.zoomTo(value)
-                    }
-                  "
+                  @select="handleZoomSelect"
                 >
                   <a-button size="small" class="!text-gray-700 px-2 rounded-lg gap-1 w-[80px]">
                     {{ (zoomLevel * 100).toFixed(0) }}%
@@ -687,13 +815,8 @@ onMounted(async () => {
                 type="text"
                 size="small"
                 class="px-2 rounded-lg"
-                @click="
-                  () => {
-                    // 清空当前选中节点并设置调试模式
-                    selectedNode = null
-                    isDebug = true
-                  }
-                "
+                :disabled="isPreviewMode"
+                @click="enterDebugMode"
               >
                 <template #icon>
                   <icon-play-arrow />
@@ -705,8 +828,9 @@ onMounted(async () => {
         </panel>
         <!-- 调试与预览窗口 -->
         <debug-modal
-          :workflow_id="String(route.params?.workflow_id ?? '')"
+          :workflow_id="workflowId"
           v-model:visible="isDebug"
+          @debug-success="handleDebugSuccess"
         />
         <!-- 节点信息容器 -->
         <start-node-info
@@ -732,6 +856,34 @@ onMounted(async () => {
         />
         <code-node-info
           v-if="selectedNode && selectedNode?.type === 'code'"
+          :loading="updateDraftGraphLoading"
+          :node="selectedNode"
+          v-model:visible="nodeInfoVisible"
+          @update-node="onUpdateNode"
+        />
+        <text-processor-node-info
+          v-if="selectedNode && selectedNode?.type === 'text_processor'"
+          :loading="updateDraftGraphLoading"
+          :node="selectedNode"
+          v-model:visible="nodeInfoVisible"
+          @update-node="onUpdateNode"
+        />
+        <variable-assigner-node-info
+          v-if="selectedNode && selectedNode?.type === 'variable_assigner'"
+          :loading="updateDraftGraphLoading"
+          :node="selectedNode"
+          v-model:visible="nodeInfoVisible"
+          @update-node="onUpdateNode"
+        />
+        <parameter-extractor-node-info
+          v-if="selectedNode && selectedNode?.type === 'parameter_extractor'"
+          :loading="updateDraftGraphLoading"
+          :node="selectedNode"
+          v-model:visible="nodeInfoVisible"
+          @update-node="onUpdateNode"
+        />
+        <if-else-node-info
+          v-if="selectedNode && selectedNode?.type === 'if_else'"
           :loading="updateDraftGraphLoading"
           :node="selectedNode"
           v-model:visible="nodeInfoVisible"

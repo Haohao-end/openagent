@@ -15,6 +15,6 @@
 
   html,
   body {
-    @apply min-h-[600px] min-w-[1200px] h-full w-full;
+    @apply h-full w-full;
   }
 }

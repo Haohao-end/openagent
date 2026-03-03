@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#2932E1" rx="20"/>
+  <circle cx="100" cy="80" r="40" fill="white"/>
+  <path d="M100 80 Q120 60 140 80" stroke="#2932E1" stroke-width="4" fill="none"/>
+  <circle cx="90" cy="75" r="5" fill="#2932E1"/>
+  <circle cx="110" cy="75" r="5" fill="#2932E1"/>
+  <rect x="60" y="130" width="80" height="30" fill="white" rx="15"/>
+  <text x="100" y="150" font-family="Arial" font-size="16" font-weight="bold" fill="#2932E1" text-anchor="middle">百度</text>
+</svg>

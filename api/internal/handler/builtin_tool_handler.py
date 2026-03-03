@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from injector import inject
 from internal.service import BuiltinToolService
 from pkg.response import success_json
-from flask import send_file
+from flask import redirect, send_file
 
 @inject
 @dataclass
@@ -22,7 +22,13 @@ class BuiltinToolHandler:
 
     def get_provider_icon(self,provider_name:str):
         """根据传递的提供商获取icon图标流信息"""
-        icon, mimetype = self.builtin_tool_service.get_provider_icon(provider_name)
+        icon, mimetype, icon_url = self.builtin_tool_service.get_provider_icon(provider_name)
+        if icon_url:
+            return redirect(icon_url)
+
+        if icon is None:
+            icon = b""
+
         return send_file(io.BytesIO(icon),mimetype)
 
     def get_categories(self):

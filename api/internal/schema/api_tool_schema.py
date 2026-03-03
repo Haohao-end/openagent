@@ -4,6 +4,7 @@ from wtforms.validators import DataRequired,Length,URL, Optional
 from .schema import ListField
 from marshmallow import Schema,fields,pre_dump
 from internal.model import ApiToolProvider,ApiTool
+from internal.lib.helper import datetime_to_timestamp
 from pkg.paginator import PaginatorReq
 
 class ValidateOpenAPISchemaReq(FlaskForm):
@@ -77,6 +78,7 @@ class GetApiToolProviderResp(Schema):
     icon = fields.String()
     openapi_schema = fields.String()
     headers = fields.List(fields.Dict,dump_default=[])
+    updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
 
     @pre_dump
@@ -87,7 +89,8 @@ class GetApiToolProviderResp(Schema):
             "icon":data.icon,
             "openapi_schema":data.openapi_schema,
             "headers":data.headers,
-            "created_at": int(data.created_at.timestamp())
+            "updated_at": datetime_to_timestamp(data.updated_at),
+            "created_at": datetime_to_timestamp(data.created_at)
         }
 
 class GetApiToolResp(Schema):
@@ -123,6 +126,7 @@ class GetApiToolProvidersWithPageResp(Schema):
     description = fields.String()
     headers = fields.List(fields.Dict,dump_default=[])
     tools = fields.List(fields.Dict,dump_default=[])
+    updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
 
     @pre_dump
@@ -140,5 +144,6 @@ class GetApiToolProvidersWithPageResp(Schema):
                 "name": tool.name,
                 "inputs": [{k: v for k,  v in parameter.items() if k != "in"} for parameter in tool.parameters]
             } for tool in tools],
-            "created_at": int(data.created_at.timestamp())
+            "updated_at": datetime_to_timestamp(data.updated_at),
+            "created_at": datetime_to_timestamp(data.created_at)
         }

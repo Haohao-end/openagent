@@ -1,6 +1,7 @@
 import { get, post, ssePost } from '@/utils/request'
 import type { BaseResponse } from '@/models/base'
 import type {
+  GetAssistantAgentConversationsResponse,
   GetAssistantAgentMessagesWithPageRequest,
   GetAssistantAgentMessagesWithPageResponse,
 } from '@/models/assistant-agent'
@@ -8,9 +9,19 @@ import type {
 // 与辅助Agent进行对话
 export const assistantAgentChat = (
   query: string,
+  image_urls: string[] = [],
+  conversation_id: string = '',
   onData: (event_response: Record<string, any>) => void,
 ) => {
-  return ssePost(`/assistant-agent/chat`, { body: { query } }, onData)
+  return ssePost(`/assistant-agent/chat`, { body: { query, image_urls, conversation_id } }, onData)
+}
+
+// 生成辅助Agent首页个性化介绍
+export const assistantAgentGenerateIntroduction = (
+  onData: (event_response: Record<string, any>) => void,
+  signal?: AbortSignal,
+) => {
+  return ssePost(`/assistant-agent/introduction`, { body: {}, signal }, onData)
 }
 
 // 停止与辅助Agent进行对话
@@ -24,6 +35,13 @@ export const getAssistantAgentMessagesWithPage = (
 ) => {
   return get<GetAssistantAgentMessagesWithPageResponse>(`/assistant-agent/messages`, {
     params: req,
+  })
+}
+
+// 获取当前登录账号的辅助 Agent 最近会话列表
+export const getAssistantAgentConversations = (limit: number = 20) => {
+  return get<GetAssistantAgentConversationsResponse>(`/assistant-agent/conversations`, {
+    params: { limit },
   })
 }
 

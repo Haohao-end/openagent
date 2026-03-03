@@ -6,6 +6,10 @@ export type CreateApiKeyRequest = {
   remark?: string
 }
 
+export type CreateApiKeyResponse = {
+  api_key: string
+}
+
 // 修改API秘钥请求
 export type UpdateApiKeyRequest = {
   is_active?: boolean

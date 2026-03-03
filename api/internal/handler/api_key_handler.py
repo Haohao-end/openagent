@@ -27,9 +27,14 @@ class ApiKeyHandler:
             return validate_error_json(req.errors)
 
         # 2.调用服务创建密钥
-        self.api_key_service.create_api_key(req, current_user)
+        created_api_key = self.api_key_service.create_api_key(req, current_user)
+        api_key_value = (
+            created_api_key.get("api_key")
+            if isinstance(created_api_key, dict)
+            else getattr(created_api_key, "api_key", "")
+        )
 
-        return success_message("创建API密钥成功")
+        return success_json({"api_key": api_key_value})
 
     @login_required
     def delete_api_key(self, api_key_id: UUID):
@@ -76,6 +81,5 @@ class ApiKeyHandler:
 
         # 3.构建响应结构并返回
         resp = GetApiKeysWithPageResp(many=True)
-
 
         return success_json(PageModel(list=resp.dump(api_keys), paginator=paginator))

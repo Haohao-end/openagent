@@ -28,6 +28,6 @@ class JwtService:
             raise UnauthorizedException('授权认证凭证已过期,请重新登陆')
         except jwt.InvalidTokenError:
             raise UnauthorizedException('解析token出错 请重新登录')
-        except Exception as e:
-            raise UnauthorizedException(str(e))
+        except Exception:
+            raise UnauthorizedException("授权认证失败,请重新登录")
 

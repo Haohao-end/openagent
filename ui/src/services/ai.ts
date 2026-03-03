@@ -13,3 +13,19 @@ export const optimizePrompt = (
 export const generateSuggestedQuestions = (message_id: string) => {
   return post<BaseResponse<string[]>>(`/ai/suggested-questions`, { body: { message_id } })
 }
+
+// Python 代码助手流式对话接口
+export const codeAssistantChat = (
+  question: string,
+  onData: (event_response: Record<string, any>) => void,
+) => {
+  return ssePost(`/ai/chat`, { body: { question } }, onData)
+}
+
+// OpenAPI Schema 助手流式对话接口
+export const openapiSchemaAssistantChat = (
+  question: string,
+  onData: (event_response: Record<string, any>) => void,
+) => {
+  return ssePost(`/ai/openapi-schema-chat`, { body: { question } }, onData)
+}

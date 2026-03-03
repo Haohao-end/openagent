@@ -1,13 +1,28 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch, inject } from 'vue'
 import { Message, type ValidatedError } from '@arco-design/web-vue'
-import { cloneDeep } from 'lodash'
+import { cloneDeep, debounce } from 'lodash'
+
+type StartInputField = {
+  name: string
+  type: string
+  description: string
+  required: boolean
+}
+
+type StartNodeForm = {
+  id: string
+  type: string
+  title: string
+  description: string
+  inputs: StartInputField[]
+}
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
   visible: { type: Boolean, required: true, default: false },
   node: {
-    type: Object as any,
+    type: Object,
     required: true,
     default: () => {
       return {}
@@ -15,8 +30,24 @@ const props = defineProps({
   },
   loading: { type: Boolean, required: true, default: false },
 })
-const emits = defineEmits(['updateNode'])
-const form = ref<Record<string, any>>({})
+const emits = defineEmits(['update:visible', 'updateNode'])
+const form = ref<StartNodeForm>({
+  id: '',
+  type: '',
+  title: '',
+  description: '',
+  inputs: [],
+})
+const isSyncingForm = ref(false)
+
+// 注入只读状态
+const isReadonly = inject<boolean>('isReadonly', false)
+
+const debounceAutoSave = debounce(() => {
+  // 只读模式下不自动保存
+  if (isReadonly) return
+  void onSubmit({ errors: undefined })
+}, 800)
 
 // 2.定义添加字段函数
 const addFormInputField = () => {
@@ -48,8 +79,13 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
 
 // 5.监听数据，将数据映射到表单模型上
 watch(
-  () => props.node,
-  (newNode) => {
+  () => props.node?.id,
+  () => {
+    const newNode = props.node
+    if (!newNode?.id) return
+    isSyncingForm.value = true
+    debounceAutoSave.flush()
+    debounceAutoSave.cancel()
     form.value = {
       id: newNode.id,
       type: newNode.type,
@@ -57,9 +93,26 @@ watch(
       description: newNode.data.description,
       inputs: [...cloneDeep(newNode.data.inputs)],
     }
+    nextTick(() => {
+      isSyncingForm.value = false
+    })
   },
   { immediate: true },
 )
+
+watch(
+  form,
+  () => {
+    if (isSyncingForm.value) return
+    debounceAutoSave()
+  },
+  { deep: true },
+)
+
+onBeforeUnmount(() => {
+  debounceAutoSave.flush()
+  debounceAutoSave.cancel()
+})
 </script>
 
 <template>
@@ -68,6 +121,14 @@ watch(
     id="start-node-info"
     class="absolute top-0 right-0 bottom-0 w-[400px] border-l z-50 bg-white overflow-scroll scrollbar-w-none p-3"
   >
+    <!-- 只读模式提示横幅 -->
+    <div v-if="isReadonly" class="mb-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+      <div class="flex items-center gap-2 text-orange-700">
+        <icon-lock class="flex-shrink-0" />
+        <span class="text-sm font-medium">预览模式：所有配置仅供查看，无法修改</span>
+      </div>
+    </div>
+
     <!-- 顶部标题信息 -->
     <div class="flex items-center justify-between gap-3 mb-2">
       <!-- 左侧标题 -->
@@ -77,12 +138,18 @@ watch(
         </a-avatar>
         <a-input
           v-model:model-value="form.title"
+          :disabled="isReadonly"
           placeholder="请输入标题"
           class="!bg-white text-gray-700 font-semibold px-2"
         />
       </div>
       <!-- 右侧关闭按钮 -->
-      <a-button type="text" size="mini" class="!text-gray700 flex-shrink-0">
+      <a-button
+        type="text"
+        size="mini"
+        class="!text-gray700 flex-shrink-0"
+        @click="() => emits('update:visible', false)"
+      >
         <template #icon>
           <icon-close />
         </template>
@@ -92,6 +159,7 @@ watch(
     <a-textarea
       :auto-size="{ minRows: 3, maxRows: 5 }"
       v-model="form.description"
+      :disabled="isReadonly"
       class="rounded-lg text-gray-700 !text-xs"
       placeholder="输入描述..."
     />
@@ -111,7 +179,13 @@ watch(
           </a-tooltip>
         </div>
         <!-- 右侧新增字段按钮 -->
-        <a-button type="text" size="mini" class="!text-gray-700" @click="() => addFormInputField()">
+        <a-button
+          v-if="!isReadonly"
+          type="text"
+          size="mini"
+          class="!text-gray-700"
+          @click="() => addFormInputField()"
+        >
           <template #icon>
             <icon-plus />
           </template>
@@ -120,7 +194,7 @@ watch(
       <!-- 输入数据列表容器 -->
       <div class="flex flex-col gap-2">
         <!-- 输入数据表单 -->
-        <a-form :model="form" size="mini" auto-label-width @submit="onSubmit">
+        <a-form :model="form" :disabled="isReadonly" size="mini" auto-label-width>
           <div class="flex flex-col gap-2">
             <!-- 有数据UI -->
             <div v-for="(input, idx) in form.inputs" :key="idx" class="bg-gray-50 rounded-lg p-3">
@@ -135,6 +209,7 @@ watch(
                 </div>
                 <!-- 删除按钮 -->
                 <a-button
+                  v-if="!isReadonly"
                   size="mini"
                   type="text"
                   class="!text-gray-700 flex-shrink-0"
@@ -191,17 +266,6 @@ watch(
             </div>
             <!-- 没数据UI -->
             <a-empty v-if="form?.inputs.length <= 0" class="my-4">该节点暂无输入数据</a-empty>
-            <!-- 保存按钮 -->
-            <a-button
-              :loading="props.loading"
-              type="primary"
-              size="small"
-              html-type="submit"
-              long
-              class="rounded-lg"
-            >
-              保存
-            </a-button>
           </div>
         </a-form>
       </div>

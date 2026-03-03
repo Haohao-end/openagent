@@ -1,0 +1,4 @@
+name: gaode_regeo
+label: 高德逆地理编码
+description: 将经纬度坐标转换为地址信息
+params: []

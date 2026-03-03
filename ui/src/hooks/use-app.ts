@@ -16,10 +16,14 @@ import {
   getPublishHistoriesWithPage,
   publish,
   regenerateWebAppToken,
+  regenerateIcon,
+  generateIconPreview,
   stopDebugChat,
   updateApp,
   updateDebugConversationSummary,
   updateDraftAppConfig,
+  shareAppToSquare,
+  unshareAppFromSquare,
 } from '@/services/app'
 import { Message, Modal } from '@arco-design/web-vue'
 import type {
@@ -30,6 +34,7 @@ import type {
   UpdateDraftAppConfigRequest,
 } from '@/models/app'
 import { useRouter } from 'vue-router'
+import { getErrorMessage } from '@/utils/error'
 
 export const useGetApp = () => {
   // 1.定义hooks所需的基础数据
@@ -196,11 +201,15 @@ export const usePublish = () => {
   const loading = ref(false)
 
   // 2.定义更新发布处理器
-  const handlePublish = async (app_id: string) => {
+  const handlePublish = async (app_id: string, share_to_square: boolean = true) => {
     try {
       loading.value = true
-      const resp = await publish(app_id)
-      Message.success(resp.message)
+      await publish(app_id, share_to_square)
+      if (share_to_square) {
+        Message.success('应用已发布并共享到应用广场！')
+      } else {
+        Message.success('应用配置已更新！')
+      }
     } finally {
       loading.value = false
     }
@@ -219,14 +228,14 @@ export const useCancelPublish = () => {
     Modal.warning({
       title: '要取消发布该Agent应用吗?',
       content:
-        '取消发布后，WebApp以及发布的社交平台均无法使用该Agent，如需更新WebApp地址，请使用地址重新生成功能',
+        '取消发布后，应用将从应用广场移除，WebApp以及发布的社交平台均无法使用该Agent',
       hideCancel: false,
       onOk: async () => {
         try {
           // 2.2 点击确定后向API接口发起请求
           loading.value = true
-          const resp = await cancelPublish(app_id)
-          Message.success(resp.message)
+          await cancelPublish(app_id)
+          Message.success('应用已取消发布并从应用广场移除')
         } finally {
           // 2.3 调用callback函数指定回调功能
           loading.value = false
@@ -341,6 +350,8 @@ export const useGetDraftAppConfig = () => {
         retrieval_config: data.retrieval_config,
         tools: data.tools,
         workflows: data.workflows,
+        speech_to_text: data.speech_to_text,
+        text_to_speech: data.text_to_speech,
       }
     } finally {
       loading.value = false
@@ -443,7 +454,11 @@ export const useGetDebugConversationMessagesWithPage = () => {
   const paginator = ref({ ...defaultPaginator })
 
   // 2.定义加载数据函数
-  const loadDebugConversationMessages = async (app_id: string, init: boolean = false) => {
+  const loadDebugConversationMessages = async (
+    app_id: string,
+    init: boolean = false,
+    conversation_id: string = '',
+  ) => {
     // 2.1 判断是否是初始化，如果是则先初始化分页器
     if (init) {
       paginator.value = { ...defaultPaginator }
@@ -459,6 +474,7 @@ export const useGetDebugConversationMessagesWithPage = () => {
         current_page: paginator.value.current_page,
         page_size: paginator.value.page_size,
         created_at: created_at.value,
+        conversation_id,
       })
       const data = resp.data
 
@@ -493,11 +509,13 @@ export const useDebugChat = () => {
   const handleDebugChat = async (
     app_id: string,
     query: string,
+    image_urls: string[] = [],
+    conversation_id: string = '',
     onData: (event_response: Record<string, any>) => void,
   ) => {
     try {
       loading.value = true
-      await debugChat(app_id, query, onData)
+      await debugChat(app_id, query, image_urls, conversation_id, onData)
     } finally {
       loading.value = false
     }
@@ -560,4 +578,127 @@ export const useRegenerateWebAppToken = () => {
   }
 
   return { loading, token, handleRegenerateWebAppToken }
+}
+
+export const useRegenerateIcon = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+  const icon = ref<string>('')
+
+  // 2.定义重新生成图标函数
+  const handleRegenerateIcon = async (app_id: string) => {
+    try {
+      loading.value = true
+      const resp = await regenerateIcon(app_id)
+      icon.value = resp.data.icon
+      return resp.data.icon
+    } catch (error: unknown) {
+      // 提取错误信息
+      let errorMessage = '重新生成图标失败，请稍后重试'
+
+      const msg = getErrorMessage(error, '')
+      if (msg) {
+        if (msg.includes('API_KEY')) {
+          errorMessage = '图标生成服务暂时不可用，请联系管理员配置 API Key'
+        } else if (msg.includes('所有服务均不可用')) {
+          errorMessage = '图标生成服务暂时不可用，请稍后重试'
+        } else {
+          errorMessage = msg
+        }
+      }
+
+      Message.error(errorMessage)
+      throw error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, icon, handleRegenerateIcon }
+}
+
+export const useGenerateIconPreview = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+  const icon = ref<string>('')
+
+  // 2.定义生成图标预览函数
+  const handleGenerateIconPreview = async (name: string, description: string) => {
+    try {
+      loading.value = true
+      const resp = await generateIconPreview(name, description)
+      icon.value = resp.data.icon
+      return resp.data.icon
+    } catch (error: unknown) {
+      // 提取错误信息
+      let errorMessage = '生成图标失败，请稍后重试'
+
+      const msg = getErrorMessage(error, '')
+      if (msg) {
+        if (msg.includes('SILICONFLOW_API_KEY')) {
+          errorMessage = '图标生成服务暂时不可用，请联系管理员配置 API Key'
+        } else if (msg.includes('DASHSCOPE_API_KEY')) {
+          errorMessage = '图标生成服务暂时不可用，请联系管理员配置 API Key'
+        } else if (msg.includes('OPENAI_API_KEY')) {
+          errorMessage = '图标生成服务暂时不可用，请联系管理员配置 API Key'
+        } else if (msg.includes('所有服务均不可用')) {
+          errorMessage = '图标生成服务暂时不可用，请稍后重试或手动上传图标'
+        } else {
+          errorMessage = msg
+        }
+      }
+
+      Message.error(errorMessage)
+      throw error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, icon, handleGenerateIconPreview }
+}
+
+export const useShareAppToSquare = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+
+  // 2.定义分享应用到广场处理器
+  const handleShareAppToSquare = async (app_id: string, category: string, callback?: () => void) => {
+    try {
+      loading.value = true
+      await shareAppToSquare(app_id, category)
+      Message.success('应用已分享到应用广场')
+    } finally {
+      loading.value = false
+      callback && callback()
+    }
+  }
+
+  return { loading, handleShareAppToSquare }
+}
+
+export const useUnshareAppFromSquare = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+
+  // 2.定义取消分享应用到广场处理器
+  const handleUnshareAppFromSquare = async (app_id: string, callback?: () => void) => {
+    Modal.warning({
+      title: '要取消分享到广场吗?',
+      content: '取消分享后，应用将从应用广场移除，但不会影响已发布的 WebApp 和 API',
+      hideCancel: false,
+      onOk: async () => {
+        try {
+          loading.value = true
+          await unshareAppFromSquare(app_id)
+          Message.success('应用已从应用广场移除')
+        } finally {
+          loading.value = false
+          callback && callback()
+        }
+      },
+    })
+  }
+
+  return { loading, handleUnshareAppFromSquare }
 }

@@ -1,0 +1,9 @@
+name: newsapi_top_headlines
+label: 头条新闻
+description: 获取指定国家的最新头条新闻
+params:
+  - name: page_size
+    label: 结果数量
+    type: number
+    default: 10
+    required: false

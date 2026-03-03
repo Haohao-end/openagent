@@ -2,13 +2,14 @@ import { get, post } from '@/utils/request'
 import { type BasePaginatorRequest, type BaseResponse } from '@/models/base'
 import {
   type CreateApiKeyRequest,
+  type CreateApiKeyResponse,
   type GetApiKeysWithPageResponse,
   type UpdateApiKeyRequest,
 } from '@/models/api-key'
 
 // 创建API秘钥请求
 export const createApiKey = (req: CreateApiKeyRequest) => {
-  return post<BaseResponse<any>>(`/openapi/api-keys`, { body: req })
+  return post<BaseResponse<CreateApiKeyResponse>>(`/openapi/api-keys`, { body: req })
 }
 
 // 删除API秘钥请求

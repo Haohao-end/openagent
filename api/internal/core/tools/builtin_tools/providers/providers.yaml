@@ -1,7 +1,7 @@
 - name: google
   label: Google
   description: 谷歌服务提供商，涵盖了谷歌搜索等工具。
-  icon: icon.svg
+  icon: "https://www.google.com/favicon.ico"
   background: "#E5E7EB"
   category: search
   created_at: 1722498386
@@ -9,13 +9,13 @@
   label: 时间
   description: 一个用于获取当前时间的工具
   icon: icon.svg
-  background: "#E5E7EB"
+  background: "#F3F4F6"
   category: tool
   created_at: 1722498386
 - name: duckduckgo
   label: DuckDuckGo
   description: 一个注重隐私的搜索引擎
-  icon: icon.svg
+  icon: "https://duckduckgo.com/favicon.ico"
   background: "#FFFFFF"
   category: search
   created_at: 1722498386
@@ -28,15 +28,120 @@
   created_at: 1722498386
 - name: gaode
   label: 高德工具包
-  description: 内置了高德天气预报和IP查询功能
-  icon: icon.png
+  description: 内置了高德天气预报、路径规划、POI搜索、地理编码等功能
+  icon: "https://www.amap.com/favicon.ico"
   background: "#E5E7EB"
   category: tool
   created_at: 1722498386
 - name: wikipedia
   label: 维基百科
   description: 维基百科是一个由全世界的志愿者创建和编辑的免费在线百科全书
-  icon: icon.svg
+  icon: "https://www.wikipedia.org/static/favicon/wikipedia.ico"
   background: "#FFFFFF"
   category: other
   created_at: 1722498386
+- name: serpapi
+  label: SerpAPI
+  description: 提供Google、Bing、Yahoo等多个搜索引擎的API接口
+  icon: "https://serpapi.com/favicon.ico"
+  background: "#4285F4"
+  category: search
+  created_at: 1740700000
+- name: tavily
+  label: Tavily
+  description: 专为AI应用设计的搜索API，提供高质量的搜索结果
+  icon: "https://mintlify.s3.us-west-1.amazonaws.com/tavilyai/logo/dark.svg"
+  background: "#F3F4F6"
+  category: search
+  created_at: 1740700000
+- name: stability
+  label: Stability AI
+  description: Stable Diffusion图像生成工具
+  icon: "https://stability.ai/favicon.ico"
+  background: "#F3F4F6"
+  category: image
+  created_at: 1740700000
+- name: arxiv
+  label: Arxiv
+  description: 学术论文搜索和获取工具
+  icon: icon.svg
+  background: "#F3F4F6"
+  category: academic
+  created_at: 1740700000
+- name: openweathermap
+  label: OpenWeatherMap
+  description: 全球天气查询服务
+  icon: "https://openweathermap.org/_next/image?q=75&url=%2Fpayload%2Fapi%2Fmedia%2Ffile%2Flogo_white.png&w=256"
+  background: "#E2E8F0"
+  category: weather
+  created_at: 1740700000
+- name: newsapi
+  label: News API
+  description: 全球新闻搜索和获取服务
+  icon: "https://newsapi.org/favicon.ico"
+  background: "#FF6B6B"
+  category: news
+  created_at: 1740700000
+- name: wolframalpha
+  label: Wolfram Alpha
+  description: 数学计算、科学计算和知识查询工具
+  icon: "https://www.wolframalpha.com/_next/static/images/running-man_d23cee5b24bc562c49a0355e9408ad8c.png"
+  background: "#F3F4F6"
+  category: compute
+  created_at: 1740700000
+- name: github
+  label: GitHub
+  description: GitHub仓库搜索、Issue查询、用户信息查询等功能
+  icon: "https://github.githubassets.com/favicons/favicon.svg"
+  background: "#24292E"
+  category: code
+  created_at: 1740700000
+- name: siliconflow
+  label: 硅基流动
+  description: 硅基流动AI平台，提供快手Kolors文生图等AI服务
+  icon: "https://siliconflow.cn/logo-new.svg"
+  background: "#F3F4F6"
+  category: image
+  created_at: 1740800000
+- name: qwen
+  label: 千问图像
+  description: 阿里千问图像生成和编辑模型，支持文生图和图像编辑
+  icon: "https://img.alicdn.com/imgextra/i1/O1CN01cOgO0228KfUaIUM9k_!!6000000007914-54-tps-150-150.apng"
+  background: "#F3F4F6"
+  category: image
+  created_at: 1740800000
+- name: baidu
+  label: 百度翻译
+  description: 百度翻译API，支持多语言互译
+  icon: icon.svg
+  background: "#F3F4F6"
+  category: tool
+  created_at: 1740800000
+- name: exchangerate
+  label: 汇率查询
+  description: 实时汇率查询和货币转换工具
+  icon: "https://www.exchangerate-api.com/favicon.ico"
+  background: "#10B981"
+  category: tool
+  created_at: 1740800000
+- name: ipinfo
+  label: IP查询
+  description: 查询IP地址的地理位置、运营商等信息
+  icon: "https://ip-api.com/docs/static/logo.png"
+  background: "#F3F4F6"
+  category: tool
+  created_at: 1740800000
+- name: qrcode
+  label: 二维码
+  description: 二维码生成工具
+  icon: icon.svg
+  background: "#F3F4F6"
+  category: tool
+  created_at: 1740800000
+- name: urlshortener
+  label: 短链接
+  description: URL短链接生成工具
+  icon: icon.svg
+  background: "#F3F4F6"
+  category: tool
+  created_at: 1740800000

@@ -2,14 +2,17 @@ import { ref } from 'vue'
 import {
   createApiToolProvider,
   deleteApiToolProvider,
+  generateIconPreview,
   getApiTool,
   getApiToolProvider,
   getApiToolProvidersWithPage,
+  regenerateIcon,
   updateApiToolProvider,
   validateOpenAPISchema,
 } from '@/services/api-tool'
 import { Message, Modal } from '@arco-design/web-vue'
 import type { CreateApiToolProviderRequest, UpdateApiToolProviderRequest } from '@/models/api-tool'
+import { getErrorMessage } from '@/utils/error'
 
 export const useGetApiToolProvider = () => {
   // 1.定义hooks所需数据
@@ -179,4 +182,55 @@ export const useValidateOpenAPISchema = () => {
   }
 
   return { loading, handleValidateOpenAPISchema }
+}
+
+export const useRegenerateIcon = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+  const icon = ref<string>('')
+
+  // 2.定义重新生成图标函数
+  const handleRegenerateIcon = async (provider_id: string) => {
+    try {
+      loading.value = true
+      const resp = await regenerateIcon(provider_id)
+      icon.value = resp.data.icon
+      return resp.data.icon
+    } catch (error: unknown) {
+      let errorMessage = '重新生成图标失败，请稍后重试'
+      const normalizedMessage = getErrorMessage(error, '')
+      if (normalizedMessage.includes('API_KEY')) {
+        errorMessage = '图标生成服务暂时不可用，请联系管理员配置 API Key'
+      }
+      Message.error(errorMessage)
+      throw error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, icon, handleRegenerateIcon }
+}
+
+export const useGenerateIconPreview = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+  const icon = ref<string>('')
+
+  // 2.定义生成图标预览函数
+  const handleGenerateIconPreview = async (name: string, description: string) => {
+    try {
+      loading.value = true
+      const resp = await generateIconPreview(name, description)
+      icon.value = resp.data.icon
+      return resp.data.icon
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error, '生成图标失败，请稍后重试或手动上传图标'))
+      throw error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, icon, handleGenerateIconPreview }
 }

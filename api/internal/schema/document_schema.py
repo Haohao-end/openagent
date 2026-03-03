@@ -132,7 +132,7 @@ class CreateDocumentsResp(Schema):
                 "id": document.id,
                 "name": document.name,
                 "status": document.status,
-                "created_at": int(document.created_at.timestamp())
+                "created_at": datetime_to_timestamp(document.created_at)
             } for document in data[0]],
             "batch": data[1],
         }

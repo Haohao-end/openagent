@@ -13,3 +13,17 @@ export const passwordLogin = (email: string, password: string) => {
 export const logout = () => {
   return post<BaseResponse<any>>(`/auth/logout`)
 }
+
+// 发送密码重置验证码
+export const sendResetCode = (email: string) => {
+  return post<BaseResponse<any>>(`/auth/send-reset-code`, {
+    body: { email },
+  })
+}
+
+// 重置密码
+export const resetPassword = (email: string, code: string, new_password: string) => {
+  return post<BaseResponse<any>>(`/auth/reset-password`, {
+    body: { email, code, new_password },
+  })
+}

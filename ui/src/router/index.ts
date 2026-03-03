@@ -61,14 +61,40 @@ const router = createRouter({
           component: () => import('@/views/space/datasets/documents/segments/ListView.vue'),
         },
         {
-          path: 'store/apps',
-          name: 'store-apps-list',
-          component: () => import('@/views/store/apps/ListView.vue'),
+          path: 'store/public-apps',
+          name: 'store-public-apps-list',
+          component: () => import('@/views/store/public-apps/ListView.vue'),
+        },
+        {
+          path: 'store/public-apps/:app_id',
+          component: () => import('@/views/store/public-apps/AppPreviewLayoutView.vue'),
+          children: [
+            {
+              path: 'preview',
+              name: 'store-public-apps-preview',
+              component: () => import('@/views/store/public-apps/AppPreviewDetailView.vue'),
+            },
+            {
+              path: 'analysis',
+              name: 'store-public-apps-analysis',
+              component: () => import('@/views/store/public-apps/AppPreviewAnalysisView.vue'),
+            },
+          ],
         },
         {
           path: 'store/tools',
           name: 'store-tools-list',
           component: () => import('@/views/store/tools/ListView.vue'),
+        },
+        {
+          path: 'store/workflows',
+          name: 'store-workflows-list',
+          component: () => import('@/views/store/workflows/ListView.vue'),
+        },
+        {
+          path: 'store/workflows/:workflow_id/preview',
+          name: 'store-workflows-preview',
+          component: () => import('@/views/store/workflows/PreviewView.vue'),
         },
         {
           path: 'openapi',
@@ -95,7 +121,12 @@ const router = createRouter({
         {
           path: 'auth/login',
           name: 'auth-login',
-          component: () => import('@/views/auth/LoginView.vue'),
+          redirect: { path: '/home', query: { login: '1' } },
+        },
+        {
+          path: 'auth/forgot-password',
+          name: 'auth-forgot-password',
+          redirect: '/home',
         },
         {
           path: 'auth/authorize/:provider_name',
@@ -152,9 +183,29 @@ const router = createRouter({
   ],
 })
 
+const publicRouteNames = new Set([
+  'pages-home',
+  'web-apps-index',
+  'store-public-apps-list',
+  'store-public-apps-preview',
+  'store-public-apps-analysis',
+  'store-tools-list',
+  'store-workflows-list',
+  'store-workflows-preview',
+  'auth-login',
+  'auth-authorize',
+  'auth-forgot-password',
+  'openapi-index',
+  'errors-not-found',
+  'errors-forbidden',
+])
+
 router.beforeEach(async (to) => {
-  if (!auth.isLogin() && !['auth-login', 'auth-authorize'].includes(to.name as string)) {
-    return { path: '/auth/login' }
+  const routeName = String(to.name || '')
+  const isPublicPathPrefix = to.path.startsWith('/space')
+
+  if (!auth.isLogin() && !isPublicPathPrefix && !publicRouteNames.has(routeName)) {
+    return { path: '/home' }
   }
 })
 export default router

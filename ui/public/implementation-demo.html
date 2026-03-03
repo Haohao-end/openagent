@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Python 代码编辑器 - 最终实现</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 40px;
+    }
+    .header h1 {
+      font-size: 48px;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    }
+    .header p {
+      font-size: 20px;
+      opacity: 0.9;
+    }
+    .status-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+    .status-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: transform 0.2s;
+    }
+    .status-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+    }
+    .status-card h3 {
+      color: #333;
+      margin-bottom: 12px;
+      font-size: 18px;
+    }
+    .status-card p {
+      color: #666;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 12px;
+    }
+    .status-badge.success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .demo-section {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .demo-section h2 {
+      color: #333;
+      margin-bottom: 20px;
+      font-size: 28px;
+    }
+    .workflow-layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .canvas-area {
+      background: #f5f5f5;
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      color: #666;
+      min-height: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .canvas-area h3 {
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .config-panel {
+      background: #fff;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 20px;
+      min-height: 400px;
+    }
+    .config-panel h4 {
+      color: #333;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .expand-btn {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .expand-btn:hover {
+      background: #2563eb;
+    }
+    .code-preview {
+      background: #282c34;
+      color: #abb2bf;
+      padding: 16px;
+      border-radius: 6px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+    .code-preview:hover {
+      box-shadow: 0 0 0 2px #3b82f6;
+    }
+    .code-preview::after {
+      content: '点击打开全屏编辑器';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .code-preview:hover::after {
+      opacity: 1;
+    }
+    .fullscreen-editor {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      margin-top: 20px;
+    }
+    .editor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .editor-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+    .editor-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-tag {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status-tag.success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .editor-content {
+      background: #282c34;
+      color: #abb2bf;
+      padding: 20px;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 14px;
+      line-height: 1.8;
+      min-height: 400px;
+    }
+    .editor-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .editor-hint {
+      color: #666;
+      font-size: 13px;
+    }
+    .editor-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-cancel {
+      background: #f3f4f6;
+      color: #374151;
+    }
+    .btn-cancel:hover {
+      background: #e5e7eb;
+    }
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .feature-item {
+      padding: 20px;
+      background: #f9fafb;
+      border-radius: 8px;
+      border-left: 4px solid #3b82f6;
+    }
+    .feature-item h4 {
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+    .feature-item p {
+      color: #666;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .keyword { color: #c678dd; }
+    .function { color: #61afef; }
+    .string { color: #98c379; }
+    .comment { color: #5c6370; }
+    .number { color: #d19a66; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🎉 Python 代码编辑器</h1>
+      <p>全新的编辑体验 - 所有功能已完成</p>
+    </div>
+
+    <!-- Status Cards -->
+    <div class="status-cards">
+      <div class="status-card">
+        <h3>✅ 节点数显示</h3>
+        <p>修复了工作流列表页面节点数显示为 0 的问题</p>
+        <span class="status-badge success">已修复</span>
+      </div>
+      <div class="status-card">
+        <h3>🎨 编辑器布局</h3>
+        <p>重新设计：右侧预览 + 全屏编辑器</p>
+        <span class="status-badge success">已完成</span>
+      </div>
+      <div class="status-card">
+        <h3>📏 滚动条优化</h3>
+        <p>美化错误面板滚动条，更细更美观</p>
+        <span class="status-badge success">已优化</span>
+      </div>
+      <div class="status-card">
+        <h3>🚀 全屏编辑</h3>
+        <p>90vw 宽度，覆盖左侧画布，提供充足空间</p>
+        <span class="status-badge success">已实现</span>
+      </div>
+    </div>
+
+    <!-- Demo Section: Workflow Layout -->
+    <div class="demo-section">
+      <h2>📐 新的布局设计</h2>
+      <div class="workflow-layout">
+        <div class="canvas-area">
+          <h3>左侧：工作流编排画布</h3>
+          <p>节点拖拽、连线、配置等操作</p>
+          <p style="margin-top: 20px; color: #999;">（全屏编辑器打开时会覆盖此区域）</p>
+        </div>
+        <div class="config-panel">
+          <h4>
+            右侧：配置面板
+            <button class="expand-btn">
+              <span>🔍</span>
+              全屏编辑
+            </button>
+          </h4>
+          <div class="code-preview">
+<span class="keyword">def</span> <span class="function">main</span>(params):
+    <span class="comment"># 获取输入参数</span>
+    x = <span class="function">int</span>(params.<span class="function">get</span>(<span class="string">'x'</span>, <span class="number">0</span>))
+    y = <span class="function">int</span>(params.<span class="function">get</span>(<span class="string">'y'</span>, <span class="number">0</span>))
+
+    <span class="comment"># 执行计算</span>
+    result = x + y
+
+    <span class="comment"># 返回结果</span>
+    <span class="keyword">return</span> {<span class="string">'output'</span>: result}
+...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demo Section: Fullscreen Editor -->
+    <div class="demo-section">
+      <h2>🖥️ 全屏编辑器</h2>
+      <div class="fullscreen-editor">
+        <div class="editor-header">
+          <div class="editor-title">
+            <span>🐍</span>
+            <span>编辑代码 - Python代码执行_abc123</span>
+          </div>
+          <div class="editor-status">
+            <span class="status-tag success">✓ 代码正常</span>
+          </div>
+        </div>
+        <div class="editor-content">
+<span class="number"> 1</span>  <span class="keyword">def</span> <span class="function">main</span>(params):
+<span class="number"> 2</span>      <span class="comment"># 从输入参数中获取变量</span>
+<span class="number"> 3</span>      x = <span class="function">int</span>(params.<span class="function">get</span>(<span class="string">'x'</span>, <span class="number">0</span>))
+<span class="number"> 4</span>      y = <span class="function">int</span>(params.<span class="function">get</span>(<span class="string">'y'</span>, <span class="number">0</span>))
+<span class="number"> 5</span>
+<span class="number"> 6</span>      <span class="comment"># 执行业务逻辑</span>
+<span class="number"> 7</span>      result = x + y
+<span class="number"> 8</span>
+<span class="number"> 9</span>      <span class="comment"># 返回结果（参数名需与输出参数一致）</span>
+<span class="number">10</span>      <span class="keyword">return</span> {
+<span class="number">11</span>          <span class="string">'output'</span>: result
+<span class="number">12</span>      }
+        </div>
+        <div class="editor-footer">
+          <div class="editor-hint">
+            💡 代码会自动保存，点击"保存并关闭"或按 Esc 键退出编辑器
+          </div>
+          <div class="editor-actions">
+            <button class="btn btn-cancel">取消</button>
+            <button class="btn btn-primary">💾 保存并关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Features -->
+    <div class="demo-section">
+      <h2>✨ 核心功能</h2>
+      <div class="features-grid">
+        <div class="feature-item">
+          <h4>🎨 代码预览</h4>
+          <p>右侧面板显示前 10 行代码，深色主题，悬停显示提示</p>
+        </div>
+        <div class="feature-item">
+          <h4>🖥️ 全屏编辑</h4>
+          <p>90vw 宽度，Monaco Editor，覆盖左侧画布，提供充足编辑空间</p>
+        </div>
+        <div class="feature-item">
+          <h4>🔍 实时检测</h4>
+          <p>编辑时即时检测语法错误、缩进问题、代码规范</p>
+        </div>
+        <div class="feature-item">
+          <h4>⌨️ 快捷键</h4>
+          <p>Ctrl+S 保存、Ctrl+/ 注释、Esc 关闭、Ctrl+F 查找</p>
+        </div>
+        <div class="feature-item">
+          <h4>📊 错误统计</h4>
+          <p>顶部显示错误和警告数量，底部显示详细错误列表</p>
+        </div>
+        <div class="feature-item">
+          <h4>🎯 一键打开</h4>
+          <p>点击预览区域或"全屏编辑"按钮即可打开编辑器</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="demo-section" style="text-align: center;">
+      <h2>🚀 立即体验</h2>
+      <p style="color: #666; margin: 20px 0;">所有功能已完成并测试通过，可以正常使用！</p>
+      <div style="display: flex; gap: 12px; justify-content: center; margin-top: 24px;">
+        <button class="btn btn-primary" style="padding: 12px 24px; font-size: 16px;">
+          启动开发服务器
+        </button>
+        <button class="btn btn-cancel" style="padding: 12px 24px; font-size: 16px;">
+          查看文档
+        </button>
+      </div>
+      <p style="color: #999; margin-top: 24px; font-size: 14px;">
+        详细文档：FINAL_IMPLEMENTATION_REPORT.md | QUICK_REFERENCE.md
+      </p>
+    </div>
+  </div>
+</body>
+</html>

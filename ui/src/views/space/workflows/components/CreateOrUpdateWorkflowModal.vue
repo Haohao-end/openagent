@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { type Form, type ValidatedError } from '@arco-design/web-vue'
-import { useCreateWorkflow, useGetWorkflow, useUpdateWorkflow } from '@/hooks/use-workflow'
+import { type Form, type ValidatedError, Message } from '@arco-design/web-vue'
+import {
+  useCreateWorkflow,
+  useGenerateIconPreview,
+  useGetWorkflow,
+  useRegenerateIcon,
+  useUpdateWorkflow,
+} from '@/hooks/use-workflow'
 import { useUploadImage } from '@/hooks/use-upload-file'
+import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
+import { getErrorMessage } from '@/utils/error'
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
@@ -15,8 +23,11 @@ const { loading: createWorkflowLoading, handleCreateWorkflow } = useCreateWorkfl
 const { loading: updateWorkflowLoading, handleUpdateWorkflow } = useUpdateWorkflow()
 const { workflow, loadWorkflow } = useGetWorkflow()
 const { image_url, handleUploadImage } = useUploadImage()
+const { loading: regenerateIconLoading, handleRegenerateIcon } = useRegenerateIcon()
+const { loading: generateIconPreviewLoading, handleGenerateIconPreview } = useGenerateIconPreview()
+type IconFileItem = { uid: string; name: string; url: string }
 const defaultForm = {
-  fileList: [] as any,
+  fileList: [] as IconFileItem[],
   icon: '',
   name: '',
   tool_call_name: '',
@@ -25,10 +36,49 @@ const defaultForm = {
 const form = ref({ ...defaultForm })
 const formRef = ref<InstanceType<typeof Form>>()
 
-// 2.定义隐藏模态窗函数
+// 2.定义上传图标处理器
+const handleUploadIcon = async (file: File) => {
+  await handleUploadImage(file)
+  form.value.icon = image_url.value
+  form.value.fileList = [{ uid: '1', name: '工作流图标', url: image_url.value }]
+  Message.success('图标上传成功')
+}
+
+// 3.定义生成图标处理器
+const handleGenerateIcon = async () => {
+  if (!form.value.name || form.value.name.trim() === '') {
+    Message.warning('请先输入工作流名称')
+    return
+  }
+
+  try {
+    // 更新模式：调用 regenerateIcon
+    if (props.workflow_id) {
+      const iconUrl = await handleRegenerateIcon(props.workflow_id)
+      if (iconUrl) {
+        form.value.icon = iconUrl
+        form.value.fileList = [{ uid: '1', name: '工作流图标', url: iconUrl }]
+        Message.success('图标生成成功')
+      }
+    }
+    // 创建模式：调用 generateIconPreview
+    else {
+      const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description)
+      if (iconUrl) {
+        form.value.icon = iconUrl
+        form.value.fileList = [{ uid: '1', name: '工作流图标', url: iconUrl }]
+        Message.success('图标生成成功')
+      }
+    }
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, '图标生成失败'))
+  }
+}
+
+// 4.定义隐藏模态窗函数
 const hideModal = () => emits('update:visible', false)
 
-// 3.定义表单提交函数
+// 5.定义表单提交函数
 const saveWorkflow = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断表单是否出错
   if (errors) return
@@ -45,7 +95,7 @@ const saveWorkflow = async ({ errors }: { errors: Record<string, ValidatedError>
   props.callback && props.callback()
 }
 
-// 4.监听模态窗显示状态变化
+// 6.监听模态窗显示状态变化
 watch(
   () => props.visible,
   async (newValue) => {
@@ -106,39 +156,17 @@ watch(
           hide-label
           :rules="[{ required: true, message: '工作流图标不能为空' }]"
         >
-          <a-upload
-            :limit="1"
-            list-type="picture-card"
-            accept="image/png, image/jpeg"
-            class="!w-auto mx-auto"
-            v-model:file-list="form.fileList"
-            image-preview
-            :custom-request="
-              (option: any) => {
-                // 1.从option中提取数据
-                const { fileItem, onSuccess, onError } = option
-
-                // 2.使用普通异步函数完成上传
-                const uploadTask = async () => {
-                  try {
-                    await handleUploadImage(fileItem.file as File)
-                    form.icon = image_url
-                    onSuccess(image_url)
-                  } catch (error) {
-                    onError(error)
-                  }
-                }
-                uploadTask()
-
-                return { abort: () => {} }
-              }
-            "
-            :on-before-remove="
-              async () => {
-                form.icon = ''
-                return true
-              }
-            "
+          <IconUploadGenerator
+            :name="form.name"
+            :description="form.description"
+            :icon="form.icon"
+            :file-list="form.fileList"
+            :loading="regenerateIconLoading || generateIconPreviewLoading"
+            placeholder="工作流"
+            :on-upload="handleUploadIcon"
+            :on-generate="handleGenerateIcon"
+            @update:icon="(val) => (form.icon = val)"
+            @update:fileList="(val) => (form.fileList = val)"
           />
         </a-form-item>
         <a-form-item

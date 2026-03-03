@@ -4,16 +4,41 @@ import { useRoute } from 'vue-router'
 import {
   useCreateApiToolProvider,
   useDeleteApiToolProvider,
+  useGenerateIconPreview,
   useGetApiToolProvider,
   useGetApiToolProvidersWithPage,
+  useRegenerateIcon,
   useUpdateApiToolProvider,
   useValidateOpenAPISchema,
 } from '@/hooks/use-tool'
 import { useUploadImage } from '@/hooks/use-upload-file'
 import { type CreateApiToolProviderRequest } from '@/models/api-tool'
+import { useAccountStore } from '@/stores/account'
+import { openapiSchemaAssistantChat } from '@/services/ai'
 import moment from 'moment/moment'
 import { typeMap } from '@/config'
-import { type FileItem, Form, type ValidatedError } from '@arco-design/web-vue'
+import { Message, type FileItem, Form, type ValidatedError } from '@arco-design/web-vue'
+import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
+
+type HeaderItem = {
+  key: string
+  value: string
+}
+
+type ApiToolProviderFormValues = {
+  fileList: FileItem[]
+  icon: string
+  name: string
+  openapi_schema: string
+  headers: HeaderItem[]
+}
+
+type OpenapiToolPreview = {
+  name: string
+  description: string
+  method: string
+  path: string
+}
 
 // 1.定义额面所需数据
 const route = useRoute()
@@ -21,12 +46,13 @@ const props = defineProps({
   createType: { type: String, required: true },
 })
 const emits = defineEmits(['update:create-type'])
+const accountStore = useAccountStore()
 const form = ref<{
   fileList: FileItem[]
   icon: string
   name: string
   openapi_schema: string
-  headers: Record<string, any>[]
+  headers: HeaderItem[]
 }>({
   fileList: [],
   icon: '',
@@ -56,14 +82,183 @@ const {
   handleCreateApiToolProvider, //
 } = useCreateApiToolProvider()
 const { handleValidateOpenAPISchema } = useValidateOpenAPISchema()
+const { loading: regenerateIconLoading, handleRegenerateIcon } = useRegenerateIcon()
+const { loading: generateIconPreviewLoading, handleGenerateIconPreview } = useGenerateIconPreview()
 const formRef = ref<InstanceType<typeof Form>>()
 const showIdx = ref<number>(-1)
 const loading = ref<boolean>(false)
 const showUpdateModal = ref<boolean>(false)
+const showOpenapiSchemaExampleModal = ref<boolean>(false)
+const openapiAssistantQuestion = ref<string>('')
+const openapiAssistantContent = ref<string>('')
+const openapiAssistantLoading = ref<boolean>(false)
+
+// 定义上传图标处理器
+const handleUploadIcon = async (file: File) => {
+  await handleUploadImage(file)
+  form.value.icon = image_url.value
+  form.value.fileList = [{ uid: '1', name: '插件图标', url: image_url.value }]
+  Message.success('图标上传成功')
+}
+
+// 定义生成图标处理器
+const handleGenerateIcon = async () => {
+  if (!form.value.name || form.value.name.trim() === '') {
+    Message.warning('请先输入插件名称')
+    return
+  }
+
+  try {
+    // 更新模式：调用 regenerateIcon
+    if (showUpdateModal.value) {
+      const provider_id = api_tool_providers.value[showIdx.value]['id']
+      const iconUrl = await handleRegenerateIcon(provider_id)
+      if (iconUrl) {
+        form.value.icon = iconUrl
+        form.value.fileList = [{ uid: '1', name: '插件图标', url: iconUrl }]
+        Message.success('图标生成成功')
+      }
+    }
+    // 创建模式：调用 generateIconPreview
+    else {
+      const iconUrl = await handleGenerateIconPreview(form.value.name, '')
+      if (iconUrl) {
+        form.value.icon = iconUrl
+        form.value.fileList = [{ uid: '1', name: '插件图标', url: iconUrl }]
+        Message.success('图标生成成功')
+      }
+    }
+  } catch (_error: unknown) {
+    // 错误已在 hooks 中处理
+  }
+}
+
+const openapiSchemaInputExample = `{
+  "server": "https://api.weather-service.com/v1",
+  "description": "提供全球实时天气和预报信息的API服务",
+  "paths": {
+    "/current": {
+      "get": {
+        "description": "获取指定城市的当前天气信息",
+        "operationId": "getCurrentWeather",
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "description": "城市名称，例如：Beijing",
+            "required": true,
+            "type": "str"
+          },
+          {
+            "name": "units",
+            "in": "query",
+            "description": "温度单位 (metric/imperial)，默认为metric",
+            "required": false,
+            "type": "str"
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "description": "返回语言 (zh/en)，默认为en",
+            "required": false,
+            "type": "str"
+          }
+        ]
+      }
+    },
+    "/forecast": {
+      "get": {
+        "description": "获取指定城市未来7天的天气预报",
+        "operationId": "getWeatherForecast",
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "description": "城市名称，例如：Shanghai",
+            "required": true,
+            "type": "str"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "description": "预报天数 (1-14)，默认为7",
+            "required": false,
+            "type": "int"
+          },
+          {
+            "name": "units",
+            "in": "query",
+            "description": "温度单位 (metric/imperial)，默认为metric",
+            "required": false,
+            "type": "str"
+          }
+        ]
+      }
+    }
+  }
+}`
+
+const extractOpenapiSchemaJson = (content: string): string => {
+  const fenceResult = content.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  const normalized = (fenceResult?.[1] ?? content).trim()
+  const firstBrace = normalized.indexOf('{')
+  const lastBrace = normalized.lastIndexOf('}')
+
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    return normalized.slice(firstBrace, lastBrace + 1)
+  }
+
+  return normalized
+}
+
+const handleUseOpenapiSchemaExample = async () => {
+  form.value.openapi_schema = openapiSchemaInputExample
+  await handleValidateOpenAPISchema(form.value.openapi_schema)
+  showOpenapiSchemaExampleModal.value = false
+  Message.success('已填充 OpenAPI Schema 示例')
+}
+
+const toggleOpenapiSchemaExampleModal = () => {
+  showOpenapiSchemaExampleModal.value = !showOpenapiSchemaExampleModal.value
+}
+
+const handleGenerateOpenapiSchemaByAI = async () => {
+  const question = openapiAssistantQuestion.value.trim()
+  if (!question) {
+    Message.warning('请先输入插件能力描述，再执行AI补齐')
+    return
+  }
+
+  openapiAssistantLoading.value = true
+  openapiAssistantContent.value = ''
+
+  try {
+    const response = await openapiSchemaAssistantChat(question, (eventResponse) => {
+      const content = String(eventResponse?.data?.content ?? '')
+      if (!content) return
+      openapiAssistantContent.value += content
+    })
+
+    if (response && typeof response === 'object' && 'code' in response) {
+      throw new Error(String((response as { message?: string }).message || 'AI 请求失败'))
+    }
+
+    const schemaText = extractOpenapiSchemaJson(openapiAssistantContent.value)
+    const schemaObject = JSON.parse(schemaText)
+    form.value.openapi_schema = JSON.stringify(schemaObject, null, 2)
+
+    await handleValidateOpenAPISchema(form.value.openapi_schema)
+    Message.success('AI 已补齐 OpenAPI Schema')
+  } catch (_error: unknown) {
+    Message.error('AI补齐失败，请调整描述后重试')
+  } finally {
+    openapiAssistantLoading.value = false
+  }
+}
 const tools = computed(() => {
   try {
     // 1.解析openapi_schema数据
-    const available_tools = []
+    const available_tools: OpenapiToolPreview[] = []
     const openapi_schema = JSON.parse(form.value.openapi_schema)
 
     // 2.检测是否存在paths路径
@@ -88,7 +283,7 @@ const tools = computed(() => {
       }
     }
     return available_tools
-  } catch (e) {
+  } catch (_error: unknown) {
     return []
   }
 })
@@ -145,7 +340,7 @@ const handleSubmit = async ({
   values,
   errors,
 }: {
-  values: Record<string, any>
+  values: ApiToolProviderFormValues
   errors: Record<string, ValidatedError> | undefined
 }) => {
   // 1.如果存在错误则直接结束
@@ -175,6 +370,9 @@ const handleSubmit = async ({
 const handleCancel = () => {
   // 1.重置整个表单的数据
   formRef.value?.resetFields()
+  openapiAssistantQuestion.value = ''
+  openapiAssistantContent.value = ''
+  showOpenapiSchemaExampleModal.value = false
 
   // 2.隐藏表单模态窗
   emits('update:create-type', '')
@@ -235,8 +433,8 @@ watch(
               <icon-user />
             </a-avatar>
             <div class="text-xs text-gray-400">
-              编辑时间
-              {{ moment(provider.created_at * 1000).format('MM-DD HH:mm') }}
+              {{ accountStore.account.name }} · 最近编辑
+              {{ moment((provider.updated_at || provider.created_at) * 1000).format('MM-DD HH:mm') }}
             </div>
           </div>
         </a-card>
@@ -252,14 +450,14 @@ watch(
     <!-- 加载器 -->
     <a-row v-if="paginator.total_page >= 2">
       <!-- 加载数据中 -->
-      <a-col v-if="paginator.current_page <= paginator.total_page" :span="24" align="center">
+      <a-col v-if="getApiToolProvidersLoading" :span="24" align="center">
         <a-space class="my-4">
           <a-spin />
           <div class="text-gray-400">加载中</div>
         </a-space>
       </a-col>
       <!-- 数据加载完成 -->
-      <a-col v-else :span="24" align="center">
+      <a-col v-else-if="paginator.current_page > paginator.total_page" :span="24" align="center">
         <div class="text-gray-400 my-4">数据已加载完成</div>
       </a-col>
     </a-row>
@@ -348,6 +546,27 @@ watch(
         </div>
       </div>
     </a-drawer>
+    <a-modal
+      :visible="showOpenapiSchemaExampleModal"
+      :width="760"
+      title="OpenAPI Schema 示例"
+      :footer="false"
+      :mask-closable="true"
+      @cancel="showOpenapiSchemaExampleModal = false"
+    >
+      <div class="flex flex-col gap-3">
+        <pre
+          class="w-full max-h-[460px] overflow-auto rounded border border-gray-200 bg-white p-3 text-[12px] leading-[18px] text-gray-700"
+        >{{ openapiSchemaInputExample }}</pre>
+        <div class="flex justify-end gap-2">
+          <a-button class="rounded-lg" @click="showOpenapiSchemaExampleModal = false">关闭</a-button>
+          <a-button type="primary" class="rounded-lg" @click="handleUseOpenapiSchemaExample">
+            使用示例
+          </a-button>
+        </div>
+      </div>
+    </a-modal>
+
     <!-- 新建/修改模态窗 -->
     <a-modal
       :width="630"
@@ -376,33 +595,17 @@ watch(
             hide-label
             :rules="[{ required: true, message: '插件图标不能为空' }]"
           >
-            <a-upload
-              :limit="1"
-              list-type="picture-card"
-              accept="image/png, image/jpeg"
-              class="!w-auto mx-auto"
-              v-model:file-list="form.fileList"
-              image-preview
-              :custom-request="
-                (option: any) => {
-                  const uploadTask = async () => {
-                    const { fileItem, onSuccess, onError } = option
-                    await handleUploadImage(fileItem.file as File)
-                    form.icon = image_url
-                    onSuccess(image_url)
-                  }
-
-                  uploadTask()
-
-                  return {}
-                }
-              "
-              :on-before-remove="
-                async (fileItem: any) => {
-                  form.icon = ''
-                  return true
-                }
-              "
+            <IconUploadGenerator
+              :name="form.name"
+              description=""
+              :icon="form.icon"
+              :file-list="form.fileList"
+              :loading="regenerateIconLoading || generateIconPreviewLoading"
+              placeholder="插件"
+              :on-upload="handleUploadIcon"
+              :on-generate="handleGenerateIcon"
+              @update:icon="(val) => (form.icon = val)"
+              @update:fileList="(val) => (form.fileList = val)"
             />
           </a-form-item>
           <a-form-item
@@ -424,19 +627,56 @@ watch(
             asterisk-position="end"
             :rules="[{ required: true, message: 'OpenAPI Schema不能为空' }]"
           >
-            <a-textarea
-              v-model="form.openapi_schema"
-              :auto-size="{ minRows: 4, maxRows: 6 }"
-              placeholder="在此处输入您的 OpenAPI Schema"
-              @blur="
-                () => {
-                  if (form.openapi_schema.trim() !== '') {
-                    // 调用验证openapi_schema接口
-                    handleValidateOpenAPISchema(form.openapi_schema)
-                  }
-                }
-              "
-            />
+            <div class="w-full flex flex-col gap-3">
+              <div class="rounded-lg border border-gray-200 p-3 bg-gray-50">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                  <div class="text-xs text-gray-600">支持直接粘贴 JSON 格式 Schema，也可通过 AI 自动补齐</div>
+                  <a-button
+                    size="mini"
+                    type="text"
+                    class="!text-gray-700"
+                    @click="toggleOpenapiSchemaExampleModal"
+                  >
+                    {{ showOpenapiSchemaExampleModal ? '隐藏示例' : '查看示例' }}
+                  </a-button>
+                </div>
+
+                <div class="text-xs text-gray-600 mb-2">AI需求描述（支持多行输入）</div>
+                <a-textarea
+                  v-model="openapiAssistantQuestion"
+                  :auto-size="{ minRows: 4, maxRows: 10 }"
+                  placeholder="输入你的需求，例如：\n1. 做一个电影搜索插件\n2. 支持按关键词搜索电影\n3. 支持按ID获取电影详情"
+                />
+                <div class="mt-2">
+                  <a-button
+                    type="secondary"
+                    long
+                    class="rounded-lg !text-gray-700"
+                    :loading="openapiAssistantLoading"
+                    @click="handleGenerateOpenapiSchemaByAI"
+                  >
+                    AI补齐 OpenAPI Schema
+                  </a-button>
+                </div>
+              </div>
+
+              <div class="rounded-lg border border-gray-200 p-3">
+                <div class="text-xs text-gray-600 mb-2">OpenAPI Schema(JSON)</div>
+                <a-textarea
+                  v-model="form.openapi_schema"
+                  :auto-size="{ minRows: 12, maxRows: 24 }"
+                  placeholder="在此处输入或粘贴 OpenAPI Schema(JSON)"
+                  @blur="
+                    () => {
+                      if (form.openapi_schema.trim() !== '') {
+                        // 调用验证openapi_schema接口
+                        handleValidateOpenAPISchema(form.openapi_schema)
+                      }
+                    }
+                  "
+                />
+              </div>
+            </div>
           </a-form-item>
           <a-form-item label="可用工具">
             <!-- 可用工具表格 -->

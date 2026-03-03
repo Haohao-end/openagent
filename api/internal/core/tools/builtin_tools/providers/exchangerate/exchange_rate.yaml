@@ -1,0 +1,4 @@
+name: exchange_rate
+label: 汇率查询
+description: 查询实时汇率并进行货币转换
+params: []

@@ -3,7 +3,12 @@ import moment from 'moment'
 import { ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { useGetDatasetQueries, useHit } from '@/hooks/use-dataset'
-import type { HitRequest } from '@/models/dataset'
+import type { GetDatasetQueriesResponse, HitRequest, HitResponse } from '@/models/dataset'
+
+type RetrievalSetting = Pick<HitRequest, 'retrieval_strategy' | 'k' | 'score'>
+type HitTestingForm = RetrievalSetting & { query: string }
+type DatasetQueryItem = GetDatasetQueriesResponse['data'][number]
+type HitTestingSegment = HitResponse['data'][number] & { content?: string }
 
 // 1.定义组件接收数据以及事件
 const props = defineProps({
@@ -12,10 +17,10 @@ const props = defineProps({
 })
 const emits = defineEmits(['update:visible'])
 const retrievalSettingModalVisible = ref(false)
-const defaultRetrievalSetting = { retrieval_strategy: 'semantic', k: 5, score: 0.5 }
-const retrievalSettingForm = ref<Record<string, any>>(defaultRetrievalSetting)
-const hitTestingSegments = ref<any[]>([])
-const hitTestingForm = ref<Record<string, any>>({ query: '', ...defaultRetrievalSetting })
+const defaultRetrievalSetting: RetrievalSetting = { retrieval_strategy: 'semantic', k: 5, score: 0.5 }
+const retrievalSettingForm = ref<RetrievalSetting>({ ...defaultRetrievalSetting })
+const hitTestingSegments = ref<HitTestingSegment[]>([])
+const hitTestingForm = ref<HitTestingForm>({ query: '', ...defaultRetrievalSetting })
 const { loading: getDatasetQueriesLoading, queries, loadDatasetQueries } = useGetDatasetQueries()
 const { loading: hitLoading, hits, handleHit } = useHit()
 
@@ -34,7 +39,7 @@ const saveRetrievalSetting = () => {
   hitTestingSegments.value = []
 
   // 3.2 更新检索策略
-  hitTestingForm.value = { query: hitTestingForm.value.query, ...retrievalSettingForm }
+  hitTestingForm.value = { query: hitTestingForm.value.query, ...retrievalSettingForm.value }
 
   // 3.3 隐藏模态窗
   retrievalSettingModalVisible.value = false
@@ -53,7 +58,7 @@ const handleHitTesting = async () => {
 
   // 5.2 调用处理器执行召回测试
   await handleHit(props.dataset_id, hitTestingForm.value as HitRequest)
-  hitTestingSegments.value = hits.value
+  hitTestingSegments.value = hits.value as unknown as HitTestingSegment[]
 
   // 5.3 重新更新知识库最近查询
   await loadDatasetQueries(props.dataset_id)
@@ -162,7 +167,7 @@ watch(
                 size="small"
                 :bordered="{ wrapper: false }"
                 :data="queries"
-                @row-click="(record: any) => (hitTestingForm.query = record.query)"
+                @row-click="(record: DatasetQueryItem) => (hitTestingForm.query = record.query)"
               >
                 <template #columns>
                   <a-table-column

@@ -1,0 +1,9 @@
+name: github_repo_search
+label: GitHub仓库搜索
+description: 搜索GitHub上的开源仓库，按Star数排序
+params:
+  - name: per_page
+    label: 结果数量
+    type: number
+    default: 5
+    required: false

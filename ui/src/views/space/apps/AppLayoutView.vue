@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import moment from 'moment'
 import { useRoute } from 'vue-router'
-import { useCancelPublish, useGetApp, usePublish } from '@/hooks/use-app'
+import { useCancelPublish, useGetApp, usePublish, useShareAppToSquare, useUnshareAppFromSquare } from '@/hooks/use-app'
 import { onMounted, ref } from 'vue'
 import PublishHistoryDrawer from '@/views/space/apps/components/PublishHistoryDrawer.vue'
 
@@ -10,6 +10,8 @@ const publishHistoryDrawerVisible = ref(false)
 const { loading, app, loadApp } = useGetApp()
 const { loading: publishLoading, handlePublish } = usePublish()
 const { handleCancelPublish } = useCancelPublish()
+const { loading: shareLoading, handleShareAppToSquare } = useShareAppToSquare()
+const { handleUnshareAppFromSquare } = useUnshareAppFromSquare()
 
 onMounted(async () => await loadApp(String(route.params?.app_id)))
 </script>
@@ -101,13 +103,13 @@ onMounted(async () => await loadApp(String(route.params?.app_id)))
           <a-button-group>
             <a-button
               :disabled="loading"
-              :loading="publishLoading"
+              :loading="publishLoading || shareLoading"
               type="primary"
               class="!rounded-tl-lg !rounded-bl-lg"
               @click="
                 async () => {
                   const app_id = String(route.params?.app_id)
-                  await handlePublish(app_id)
+                  await handlePublish(app_id, true)
                   await loadApp(app_id)
                 }
               "
@@ -125,6 +127,32 @@ onMounted(async () => await loadApp(String(route.params?.app_id)))
                 </template>
               </a-button>
               <template #content>
+                <a-doption
+                  @click="
+                    async () => {
+                      const app_id = String(route.params?.app_id)
+                      await handlePublish(app_id, false)
+                      await loadApp(app_id)
+                    }
+                  "
+                >
+                  更新配置
+                </a-doption>
+                <a-doption
+                  :disabled="app.status !== 'published'"
+                  @click="
+                    async () => {
+                      const app_id = String(route.params?.app_id)
+                      if (app.is_public) {
+                        await handleUnshareAppFromSquare(app_id, async () => await loadApp(app_id))
+                      } else {
+                        await handleShareAppToSquare(app_id, app.category || 'general', async () => await loadApp(app_id))
+                      }
+                    }
+                  "
+                >
+                  {{ app.is_public ? '取消分享到广场' : '分享到广场' }}
+                </a-doption>
                 <a-doption
                   :disabled="app.status === 'draft'"
                   class="!text-red-700"

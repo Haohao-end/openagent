@@ -2,8 +2,6 @@
 logs
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
@@ -28,3 +26,8 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+# Ignore generated markdown docs, keep README
+**/*.md
+!README.md
+!**/README.md

@@ -2,6 +2,7 @@ import { get, post } from '@/utils/request'
 import type {
   GetConversationMessagesWithPageRequest,
   GetConversationMessagesWithPageResponse,
+  GetRecentConversationsResponse,
 } from '@/models/conversation'
 import type { BaseResponse } from '@/models/base'
 
@@ -23,7 +24,7 @@ export const deleteConversation = (conversation_id: string) => {
 
 // 删除特定会话下的指定消息
 export const deleteMessage = (conversation_id: string, message_id: string) => {
-  return post<BaseResponse<any>>(`/conversations/${conversation_id}/messages/${message_id}`)
+  return post<BaseResponse<any>>(`/conversations/${conversation_id}/messages/${message_id}/delete`)
 }
 
 // 获取指定会话的名称
@@ -40,5 +41,12 @@ export const updateConversationName = (conversation_id: string, name: string) =>
 export const updateConversationIsPinned = (conversation_id: string, is_pinned: boolean) => {
   return post<BaseResponse<any>>(`/conversations/${conversation_id}/is-pinned`, {
     body: { is_pinned },
+  })
+}
+
+// 获取最近会话列表（主页助手+应用调试）
+export const getRecentConversations = (limit: number = 20) => {
+  return get<GetRecentConversationsResponse>(`/conversations/recent`, {
+    params: { limit },
   })
 }

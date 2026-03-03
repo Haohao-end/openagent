@@ -1,0 +1,15 @@
+---
+description: LangChain/LangGraph rules for LMForge agents and workflows
+globs: "api/**"
+alwaysApply: false
+---
+LangChain/LangGraph Rules:
+- ALWAYS use LCEL (LangChain Expression Language) for simple chains.
+- Use LangGraph for ANY multi-step agent or stateful workflow.
+- NEVER call LLM providers directly — ALWAYS route through the unified provider system (see api/providers/).
+- Structured output: use Pydantic with .with_structured_output() whenever possible.
+- RAG: use configured vector stores (Weaviate) via config.
+- Memory: use Redis-based session or LangGraph checkpointer.
+- Tools: define with @tool decorator and bind to agents properly.
+- Testing: mock LLM calls with fake providers or langchain_core.runnables.
+- Prompt engineering: use PromptTemplate with input_variables explicitly.

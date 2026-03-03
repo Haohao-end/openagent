@@ -3,6 +3,7 @@ import { useUpdateDraftAppConfig } from '@/hooks/use-app'
 import { useOptimizePrompt } from '@/hooks/use-ai'
 import { ref } from 'vue'
 import { Message } from '@arco-design/web-vue'
+import MarkdownEditor from '@/components/MarkdownEditor.vue'
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
@@ -43,6 +44,18 @@ const handleSubmit = async () => {
 
   // 3.2 发起请求获取数据
   await handleOptimizePrompt(origin_prompt.value)
+}
+
+// 4.处理编辑器更新
+const handleEditorUpdate = (value: string) => {
+  emits('update:preset_prompt', value)
+}
+
+// 5.处理编辑器失焦
+const handleEditorBlur = async () => {
+  await handleUpdateDraftAppConfig(props.app_id, {
+    preset_prompt: props.preset_prompt,
+  })
 }
 </script>
 
@@ -110,31 +123,30 @@ const handleSubmit = async () => {
         </template>
       </a-trigger>
     </div>
-    <!-- 输入框容器 -->
-    <div class="flex-1">
-      <a-textarea
-        class="h-full resize-none !bg-transparent !border-0 text-gray-700 px-1 preset-prompt-textarea"
-        placeholder="请在这里输入Agent的人设与回复逻辑(预设prompt)"
-        :max-length="2000"
-        show-word-limit
+    <!-- Markdown 编辑器容器 -->
+    <div class="flex-1 px-4 min-h-0">
+      <markdown-editor
         :model-value="props.preset_prompt"
-        @update:model-value="(value) => emits('update:preset_prompt', value)"
-        @blur="
-          async () => {
-            await handleUpdateDraftAppConfig(props.app_id, {
-              preset_prompt: props.preset_prompt,
-            })
-          }
-        "
+        placeholder="请在这里输入Agent的人设与回复逻辑，支持 Markdown 格式
+
+示例：
+# 角色定位
+你是一个专业的AI助手...
+
+## 回复风格
+- 友好且专业
+- 简洁明了
+- 富有同理心
+
+## 核心能力
+1. 理解用户意图
+2. 提供准确信息
+3. 持续学习优化"
+        :max-length="5000"
+        default-mode="split"
+        @update:model-value="handleEditorUpdate"
+        @blur="handleEditorBlur"
       />
     </div>
   </div>
 </template>
-
-<style>
-.preset-prompt-textarea {
-  textarea {
-    scrollbar-width: none;
-  }
-}
-</style>

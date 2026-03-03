@@ -82,9 +82,9 @@ const handleUpdateOpeningQuestions = async () => {
               <a-input
                 :model-value="opening_question"
                 @update:model-value="
-                  (value: any) => {
+                  (value: string | number) => {
                     const newQuestions = [...computed_opening_questions]
-                    newQuestions[idx] = value
+                    newQuestions[idx] = String(value ?? '')
                     computed_opening_questions = newQuestions
                   }
                 "
@@ -120,5 +120,3 @@ const handleUpdateOpeningQuestions = async () => {
     </a-collapse-item>
   </div>
 </template>
-
-<style scoped></style>

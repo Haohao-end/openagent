@@ -1,4 +1,4 @@
-from pydantic import BaseModel,Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any
 from .tool_entity import ToolEntity
 import os.path
@@ -30,8 +30,7 @@ class Provider(BaseModel):
         super().__init__(**kwargs)
         self._provider_init()
 
-    class Config:
-        protected_namespaces = ()
+    model_config = ConfigDict(protected_namespaces=())
 
     def get_tool(self, tool_name: str) -> Any:
         """根据工具的名字 来获取该服务提供商下的指定工具"""

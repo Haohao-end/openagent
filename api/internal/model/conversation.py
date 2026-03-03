@@ -79,6 +79,7 @@ class Message(db.Model):
 
     # 消息关联的原始问题
     query = Column(Text, nullable=False, server_default=text("''::text"))  # 用户提问的原始query
+    image_urls = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))  # 用户提问的图片URL列表信息
     message = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))  # 产生answer的消息列表
     message_token_count = Column(Integer, nullable=False, server_default=text("0"))  # 消息列表的token总数
     message_unit_price = Column(Numeric(10, 7), nullable=False, server_default=text("0.0"))  # 消息的单价
@@ -97,6 +98,7 @@ class Message(db.Model):
     error = Column(Text, nullable=False, server_default=text("''::text"))  # 发生错误时记录的信息
     total_token_count = Column(Integer, nullable=False, server_default=text("0"))  # 消耗的总token数，计算步骤的消耗
     total_price = Column(Numeric(10, 7), nullable=False, server_default=text("0.0"))  # 消耗的总价格，计算步骤的总消耗
+    suggested_questions = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))  # AI生成的建议问题列表
 
     # 消息时间相关信息
     updated_at = Column(
@@ -117,6 +119,11 @@ class Message(db.Model):
         foreign_keys=[id],
         primaryjoin="MessageAgentThought.message_id == Message.id",
     )
+
+    @property
+    def conversation(self) -> Conversation:
+        """只读属性，返回该消息对应的会话记录"""
+        return db.session.query(Conversation).get(self.conversation_id)
 
 
 class MessageAgentThought(db.Model):

@@ -1,0 +1,4 @@
+name: newsapi_sources
+label: 新闻源列表
+description: 获取可用的新闻源列表
+params: []

@@ -26,9 +26,9 @@ class ParameterIn(str, Enum):
 
 class OpenAPISchema(BaseModel):
     """OpenAPI规范的数据结构"""
-    server: str = Field(default="",validate_dafault=True,description="工具提供者的服务基础地址")
-    description: str = Field(default="",validate_dafault=True,description="工具提供者的描述信息")
-    paths: dict[str,dict] = Field(default=dict,validate_dafault=True,description="工具提供者的路径参数字典")
+    server: str = Field(default="", description="工具提供者的服务基础地址")
+    description: str = Field(default="", description="工具提供者的描述信息")
+    paths: dict[str, dict] = Field(default_factory=dict, description="工具提供者的路径参数字典")
 
     @field_validator("server",mode="before")
     def validate_server(cls,server:str) -> str:
@@ -79,6 +79,7 @@ class OpenAPISchema(BaseModel):
             # 检测operationId是否是唯一的
             if interface["operation"]["operationId"] in operation_ids:
                 raise ValidateErrorException(f"operationId必须唯一,{interface['operation']['operationId']}出现重复")
+            operation_ids.append(interface["operation"]["operationId"])
 
             # 校验parameters参数格式是否正确
             for parameter in interface["operation"].get("parameters",[]):

@@ -6,10 +6,15 @@ import type { ValidatedError } from '@arco-design/web-vue'
 import {
   useCreateOrUpdateDataset,
   useDeleteDataset,
+  useGenerateIconPreview,
   useGetDataset,
   useGetDatasetsWithPage,
+  useRegenerateIcon,
 } from '@/hooks/use-dataset'
 import { useUploadImage } from '@/hooks/use-upload-file'
+import { useAccountStore } from '@/stores/account'
+import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
+import { Message } from '@arco-design/web-vue'
 
 // 1.定义页面所需数据
 const route = useRoute()
@@ -17,6 +22,7 @@ const props = defineProps({
   createType: { type: String, required: true },
 })
 const emits = defineEmits(['update:create-type'])
+const accountStore = useAccountStore()
 let updateDatasetID = ''
 const { dataset, loadDataset } = useGetDataset()
 const { loading, datasets, paginator, loadDatasets } = useGetDatasetsWithPage()
@@ -30,11 +36,52 @@ const {
   updateShowUpdateModal,
 } = useCreateOrUpdateDataset()
 const { handleDelete } = useDeleteDataset()
+const { loading: regenerateIconLoading, handleRegenerateIcon } = useRegenerateIcon()
+const { loading: generateIconPreviewLoading, handleGenerateIconPreview } = useGenerateIconPreview()
 const search_word = computed(() => {
   return String(route.query?.search_word ?? '')
 })
 
-// 2.定义滚动数据分页处理器
+// 2.定义上传图标处理器
+const handleUploadIcon = async (file: File) => {
+  await handleUploadImage(file)
+  form.value.icon = image_url.value
+  form.value.fileList = [{ uid: '1', name: '知识库图标', url: image_url.value }]
+  Message.success('图标上传成功')
+}
+
+// 3.定义生成图标处理器
+const handleGenerateIcon = async () => {
+  if (!form.value.name || form.value.name.trim() === '') {
+    Message.warning('请先输入知识库名称')
+    return
+  }
+
+  try {
+    // 更新模式：调用 regenerateIcon
+    if (updateDatasetID) {
+      const iconUrl = await handleRegenerateIcon(updateDatasetID)
+      if (iconUrl) {
+        form.value.icon = iconUrl
+        form.value.fileList = [{ uid: '1', name: '知识库图标', url: iconUrl }]
+        Message.success('图标生成成功')
+      }
+    }
+    // 创建模式：调用 generateIconPreview
+    else {
+      const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description)
+      if (iconUrl) {
+        form.value.icon = iconUrl
+        form.value.fileList = [{ uid: '1', name: '知识库图标', url: iconUrl }]
+        Message.success('图标生成成功')
+      }
+    }
+  } catch (_error: unknown) {
+    // 错误已在 hooks 中处理
+  }
+}
+
+// 4.定义滚动数据分页处理器
 const handleScroll = async (event: UIEvent) => {
   // 2.1 获取滚动距离、可滚动的最大距离、客户端/浏览器窗口的高度
   const { scrollTop, scrollHeight, clientHeight } = event.target as HTMLElement
@@ -46,7 +93,7 @@ const handleScroll = async (event: UIEvent) => {
   }
 }
 
-// 3.定义编辑知识库处理器
+// 5.定义编辑知识库处理器
 const handleUpdate = (dataset_id: string) => {
   updateShowUpdateModal(true, async () => {
     // 1.调用api获取知识库详情
@@ -62,7 +109,7 @@ const handleUpdate = (dataset_id: string) => {
   })
 }
 
-// 4.定义取消显示模态窗
+// 6.定义取消显示模态窗
 const handleCancel = () => {
   updateShowUpdateModal(false, async () => {
     // 1.重置整个表单数据
@@ -74,7 +121,7 @@ const handleCancel = () => {
   })
 }
 
-// 5.定义提交模态窗处理器
+// 7.定义提交模态窗处理器
 const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 1.如果出错则直接抛出
   if (errors) return
@@ -87,13 +134,13 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
   await loadDatasets(true)
 }
 
-// 6.监听路由query的变化
+// 8.监听路由query的变化
 watch(
   () => route.query?.search_word,
   (newValue) => loadDatasets(true, String(newValue)),
 )
 
-// 7.页面DOM加载后加载数据
+// 9.页面DOM加载后加载数据
 onMounted(() => {
   loadDatasets(true, search_word.value)
 })
@@ -160,8 +207,8 @@ onMounted(() => {
               <icon-user />
             </a-avatar>
             <div class="text-xs text-gray-400">
-              最近编辑
-              {{ moment(dataset.created_at * 1000).format('MM-DD HH:mm') }}
+              {{ accountStore.account.name }} · 最近编辑
+              {{ moment((dataset.updated_at || dataset.created_at) * 1000).format('MM-DD HH:mm') }}
             </div>
           </div>
         </a-card>
@@ -177,14 +224,14 @@ onMounted(() => {
     <!-- 加载器 -->
     <a-row v-if="paginator.total_page >= 2">
       <!-- 加载数据中 -->
-      <a-col v-if="paginator.current_page <= paginator.total_page" :span="24" align="center">
+      <a-col v-if="loading" :span="24" align="center">
         <a-space class="my-4">
           <a-spin />
           <div class="text-gray-400">加载中</div>
         </a-space>
       </a-col>
       <!-- 数据加载完成 -->
-      <a-col v-else :span="24" align="center">
+      <a-col v-else-if="paginator.current_page > paginator.total_page" :span="24" align="center">
         <div class="text-gray-400 my-4">数据已加载完成</div>
       </a-col>
     </a-row>
@@ -216,39 +263,17 @@ onMounted(() => {
             hide-label
             :rules="[{ required: true, message: '知识库图标不能为空' }]"
           >
-            <a-upload
-              :limit="1"
-              list-type="picture-card"
-              accept="image/png, image/jpeg"
-              class="!w-auto mx-auto"
-              v-model:file-list="form.fileList"
-              image-preview
-              :custom-request="
-                (option: any) => {
-                  // 1.从option中获取数据
-                  const { fileItem, onSuccess, onError } = option
-
-                  // 2.使用普通异步函数完成上传
-                  const uploadTask = async () => {
-                    try {
-                      await handleUploadImage(fileItem.file as File)
-                      form.icon = image_url
-                      onSuccess(image_url)
-                    } catch (error) {
-                      onError(error)
-                    }
-                  }
-                  uploadTask()
-
-                  return { abort: () => {} }
-                }
-              "
-              :on-before-remove="
-                async () => {
-                  form.icon = ''
-                  return true
-                }
-              "
+            <IconUploadGenerator
+              :name="form.name"
+              :description="form.description"
+              :icon="form.icon"
+              :file-list="form.fileList"
+              :loading="regenerateIconLoading || generateIconPreviewLoading"
+              placeholder="知识库"
+              :on-upload="handleUploadIcon"
+              :on-generate="handleGenerateIcon"
+              @update:icon="(val) => (form.icon = val)"
+              @update:fileList="(val) => (form.fileList = val)"
             />
           </a-form-item>
           <a-form-item

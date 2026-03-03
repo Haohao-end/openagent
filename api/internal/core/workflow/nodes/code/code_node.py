@@ -1,7 +1,8 @@
-
-import ast
+import os
 import time
-from typing import Optional
+import json
+import requests
+from typing import Optional, ClassVar
 from langchain_core.runnables import RunnableConfig
 from internal.core.workflow.entities.node_entity import NodeResult, NodeStatus
 from internal.core.workflow.entities.variable_entity import VARIABLE_TYPE_DEFAULT_VALUE_MAP
@@ -15,14 +16,17 @@ from .code_entity import CodeNodeData
 class CodeNode(BaseNode):
     """Python代码运行节点"""
     node_data: CodeNodeData
+    
+    # 腾讯云函数沙箱地址
+    Sandbox_URL: ClassVar[str] = os.getenv("SANDBOX_URL").rstrip("/")
 
     def invoke(self, state: WorkflowState, config: Optional[RunnableConfig] = None) -> WorkflowState:
-        """Python代码运行节点，执行的代码函数名字必须为main，并且参数名为params，有且只有一个参数，不允许有额外的其他语句"""
+        """Python代码运行节点，执行的代码函数名字必须为main，并且参数名为params，有且只有一个参数，通过腾讯云函数沙箱执行"""
         # 1.从状态中提取输入数据
         start_at = time.perf_counter()
         inputs_dict = extract_variables_from_state(self.node_data.inputs, state)
 
-        # todo:2.执行Python代码，该方法目前可以执行任意的Python代码，所以非常危险，后期需要单独将这部分功能迁移到沙箱中或者指定容器中运行和项目分离
+        # 2.通过腾讯云函数沙箱执行Python代码
         result = self._execute_function(self.node_data.code, params=inputs_dict)
 
         # 3.检测函数的返回值是否为字典
@@ -54,47 +58,80 @@ class CodeNode(BaseNode):
 
     @classmethod
     def _execute_function(cls, code: str, *args, **kwargs):
-        """执行Python函数代码"""
+        """通过腾讯云函数沙箱执行Python代码"""
         try:
-            # 1.解析代码为AST(抽象语法树)
-            tree = ast.parse(code)
+            # 1.检查沙箱URL是否配置
+            if not cls.Sandbox_URL:
+                raise FailException("SANDBOX_URL环境变量未配置")
 
-            # 2.定义变量用于检查是否找到main函数
-            main_func = None
+            # 2.构建请求参数
+            # 优先支持传入 params=... 的场景（你的 invoke 会传 params=inputs_dict）
+            payload_args = []
+            payload_kwargs = {}
 
-            # 3.循环遍历语法树
-            for node in tree.body:
-                # 4.判断节点类型是否为函数
-                if isinstance(node, ast.FunctionDef):
-                    # 5.检查函数名称是否为main
-                    if node.name == "main":
-                        if main_func:
-                            raise FailException("代码中只能有一个main函数")
-
-                        # 6.检测main函数的参数是否为params，如果不是则抛出错误
-                        if len(node.args.args) != 1 or node.args.args[0].arg != "params":
-                            raise FailException("main函数必须只有一个参数，且参数为params")
-
-                        main_func = node
-                    else:
-                        # 7.其他函数的情况，直接抛出错误
-                        raise FailException("代码中不能包含其他函数，只能有main函数")
-                else:
-                    # 8.非函数的情况，直接抛出错误
-                    raise FailException("代码中只能包含函数定义，不允许其他语句存在")
-
-            # 9.判断下是否找到main函数
-            if not main_func:
-                raise FailException("代码中必须包含名为main的函数")
-
-            # 10.代码通过AST校验，执行代码
-            local_vars = {}
-            exec(code, {}, local_vars)
-
-            # 11.调用并执行main函数
-            if "main" in local_vars and callable(local_vars["main"]):
-                return local_vars["main"](*args, **kwargs)
+            # 如果调用时显式传入 params（常用约定），把它作为第一个位置参数传递
+            if "params" in kwargs:
+                payload_args = [kwargs.pop("params")]
             else:
-                raise FailException("main函数必须是一个可调用的函数")
+                # 如果调用时传了位置参数，就直接传这些位置参数
+                if args:
+                    # args 可能是元组，转换为 list
+                    payload_args = list(args)
+
+            # 其余剩下的 kwargs 一并透传（若为空，则传空对象）
+            payload_kwargs = kwargs or {}
+
+            payload = {
+                "code": code,
+                "func_name": "main",   # 强制要求 main
+                "args": payload_args,
+                "kwargs": payload_kwargs,
+            }
+
+            # 3.发送POST请求到腾讯云函数
+            response = requests.post(
+                cls.Sandbox_URL.rstrip("/"),
+                data=json.dumps(payload),
+                headers={"Content-Type": "application/json"},
+                timeout=30
+            )
+
+            # 4.检查HTTP响应状态
+            # 若非 200，尝试解析 body 中的错误信息并返回更友好的异常
+            if response.status_code != 200:
+                # 尝试解析 json body（若能解析）
+                try:
+                    resp_json = response.json()
+                except Exception:
+                    resp_json = {"raw_text": response.text}
+                raise FailException(f"云函数执行失败，状态码: {response.status_code}，响应: {resp_json}")
+
+            # 5.解析响应结果
+            try:
+                response_data = response.json()
+            except Exception as e:
+                raise FailException(f"云函数返回非JSON内容: {str(e)}，原文: {response.text}")
+
+            # 6.检查是否有错误信息
+            if "error" in response_data:
+                # 如果 trace 可用也带上
+                tb = response_data.get("traceback")
+                if tb:
+                    raise FailException(f"代码执行出错: {response_data['error']}\n{tb}")
+                else:
+                    raise FailException(f"代码执行出错: {response_data['error']}")
+
+            # 7.返回执行结果（期望 cloud 返回 {"result": ...}）
+            if "result" in response_data:
+                return response_data["result"]
+            else:
+                raise FailException(f"云函数返回数据格式错误: {response_data}")
+
+        except FailException:
+            raise
+        except requests.exceptions.Timeout:
+            raise FailException("云函数执行超时")
+        except requests.exceptions.RequestException as e:
+            raise FailException(f"网络请求失败: {str(e)}")
         except Exception as e:
-            raise FailException("Python代码执行出错")
+            raise FailException(f"Python代码执行出错: {str(e)}")

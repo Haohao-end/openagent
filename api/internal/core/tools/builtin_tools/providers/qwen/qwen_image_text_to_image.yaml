@@ -1,0 +1,34 @@
+name: qwen_image_text_to_image
+label: 千问文生图
+description: 阿里千问图像生成模型，支持多种尺寸和高质量图像生成
+params:
+  - name: image_size
+    label: 图片尺寸
+    type: select
+    default: "1328x1328"
+    required: false
+    options:
+      - value: "1328x1328"
+        label: "1328x1328 (1:1 正方形)"
+      - value: "1664x928"
+        label: "1664x928 (16:9 横屏)"
+      - value: "928x1664"
+        label: "928x1664 (9:16 竖屏)"
+      - value: "1472x1140"
+        label: "1472x1140 (4:3 横屏)"
+      - value: "1140x1472"
+        label: "1140x1472 (3:4 竖屏)"
+      - value: "1584x1056"
+        label: "1584x1056 (3:2 横屏)"
+      - value: "1056x1584"
+        label: "1056x1584 (2:3 竖屏)"
+  - name: num_inference_steps
+    label: 推理步数
+    type: number
+    default: 50
+    required: false
+  - name: cfg
+    label: CFG引导系数
+    type: number
+    default: 4.0
+    required: false

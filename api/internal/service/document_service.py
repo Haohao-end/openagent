@@ -2,7 +2,7 @@ import logging
 import random
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 from injector import inject
 from redis import Redis
@@ -196,7 +196,7 @@ class DocumentService(BaseService):
         self.update(
             document,
             enabled=enabled,
-            disabled_at=None if enabled else datetime.now(),
+            disabled_at=None if enabled else datetime.now(UTC),
         )
         self.redis_client.setex(cache_key, LOCK_EXPIRE_TIME, 1)
 

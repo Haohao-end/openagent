@@ -54,6 +54,14 @@ class Account(UserMixin, db.Model):
             self.assistant_agent_conversation_id
         ) if self.assistant_agent_conversation_id else None
 
+        # 1.1 如果会话已删除/归属异常/来源异常，则视为无效会话
+        if conversation and (
+            conversation.is_deleted
+            or conversation.created_by != self.id
+            or conversation.invoke_from != InvokeFrom.ASSISTANT_AGENT.value
+        ):
+            conversation = None
+
         # 2.判断会话信息是否存在，如果不存在则创建一个空会话
         if not self.assistant_agent_conversation_id or not conversation:
             # 3.开启自动提交上下文

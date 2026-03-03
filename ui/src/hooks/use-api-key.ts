@@ -14,6 +14,12 @@ import {
 } from '@/services/api-key'
 import { Message, Modal } from '@arco-design/web-vue'
 
+const parsePositiveIntegerQuery = (value: unknown, fallbackValue: number): number => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallbackValue
+  return Math.floor(parsed)
+}
+
 export const useGetApiKeysWithPage = () => {
   // 1.定义hooks所需数据
   const route = useRoute()
@@ -28,29 +34,25 @@ export const useGetApiKeysWithPage = () => {
   const paginator = ref({ ...defaultPaginator })
 
   // 2.定义加载数据函数
-  // In useGetApiKeysWithPage hook, update the loadApiKeys function:
-const loadApiKeys = async (init: boolean = false) => {
-  if (!init && paginator.value.current_page > paginator.value.total_page) {
-    return
-  }
+  const loadApiKeys = async (init: boolean = false) => {
+    if (!init && paginator.value.current_page > paginator.value.total_page) {
+      return
+    }
 
-  try {
-    loading.value = true
-    const resp = await getApiKeysWithPage({
-      current_page: (route.query?.current_page || 1) as number,
-      page_size: (route.query?.page_size || 20) as number,
-    })
-    const data = resp.data
+    try {
+      loading.value = true
+      const resp = await getApiKeysWithPage({
+        current_page: parsePositiveIntegerQuery(route.query?.current_page, 1),
+        page_size: parsePositiveIntegerQuery(route.query?.page_size, 20),
+      })
+      const data = resp.data
 
-    // Parse the list string into an array
-    const parsedList = JSON.parse(data.list as unknown as string)
-    
-    paginator.value = data.paginator
-    api_keys.value = parsedList // Use the parsed array
-  } finally {
-    loading.value = false
+      paginator.value = data.paginator
+      api_keys.value = data.list
+    } finally {
+      loading.value = false
+    }
   }
-}
 
   return { loading, api_keys, paginator, loadApiKeys }
 }
@@ -128,7 +130,8 @@ export const useCreateApiKey = () => {
     try {
       loading.value = true
       const resp = await createApiKey(req)
-      Message.success(resp.message)
+      Message.success(resp.message || '创建API密钥成功')
+      return String(resp.data?.api_key || '')
     } finally {
       loading.value = false
     }

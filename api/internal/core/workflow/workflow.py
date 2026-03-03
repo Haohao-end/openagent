@@ -14,11 +14,15 @@ from .entities.workflow_entity import WorkflowConfig, WorkflowState
 from .nodes import (
     StartNode,
     LLMNode,
+    ParameterExtractorNode,
     TemplateTransformNode,
     DatasetRetrievalNode,
     CodeNode,
     ToolNode,
     HttpRequestNode,
+    TextProcessorNode,
+    VariableAssignerNode,
+    IfElseNode,
     EndNode,
 )
 # 节点类映射
@@ -31,6 +35,10 @@ NodeClasses = {
     NodeType.CODE.value: CodeNode,
     NodeType.TOOL.value: ToolNode,
     NodeType.HTTP_REQUEST.value: HttpRequestNode,
+    NodeType.TEXT_PROCESSOR.value: TextProcessorNode,
+    NodeType.VARIABLE_ASSIGNER.value: VariableAssignerNode,
+    NodeType.PARAMETER_EXTRACTOR.value: ParameterExtractorNode,
+    NodeType.IF_ELSE.value: IfElseNode,
 }
 
 
@@ -132,6 +140,26 @@ class Workflow(BaseTool):
                     node_flag,
                     NodeClasses[NodeType.HTTP_REQUEST.value](node_data=node),
                 )
+            elif node.node_type == NodeType.TEXT_PROCESSOR.value:
+                graph.add_node(
+                    node_flag,
+                    NodeClasses[NodeType.TEXT_PROCESSOR.value](node_data=node),
+                )
+            elif node.node_type == NodeType.VARIABLE_ASSIGNER.value:
+                graph.add_node(
+                    node_flag,
+                    NodeClasses[NodeType.VARIABLE_ASSIGNER.value](node_data=node),
+                )
+            elif node.node_type == NodeType.PARAMETER_EXTRACTOR.value:
+                graph.add_node(
+                    node_flag,
+                    NodeClasses[NodeType.PARAMETER_EXTRACTOR.value](node_data=node),
+                )
+            elif node.node_type == NodeType.IF_ELSE.value:
+                graph.add_node(
+                    node_flag,
+                    NodeClasses[NodeType.IF_ELSE.value](node_data=node),
+                )
             elif node.node_type == NodeType.END.value:
                 graph.add_node(
                     node_flag,
@@ -140,34 +168,65 @@ class Workflow(BaseTool):
             else:
                 raise ValidateErrorException("工作流节点类型错误，请核实后重试")
 
-        # 4.循环遍历edges信息添加边
-        parallel_edges = {}  # key:终点，value:起点列表
+        # 4.循环遍历edges信息，区分普通边和条件边
+        parallel_edges = {}  # key:终点，value:起点列表（普通边）
+        conditional_edges = {}  # key:if_else节点，value:条件边配置
         start_node = ""
         end_node = ""
+
         for edge in edges:
-            # 5.计算并获取并行边
             source_node = f"{edge.source_type.value}_{edge.source}"
             target_node = f"{edge.target_type.value}_{edge.target}"
-            if target_node not in parallel_edges:
-                parallel_edges[target_node] = [source_node]
+
+            # 检测是否为条件边（从 if_else 节点出发的边）
+            if edge.source_type == NodeType.IF_ELSE.value:
+                if source_node not in conditional_edges:
+                    conditional_edges[source_node] = {}
+                # source_handle 为 "true" 或 "false"，如果为 None 则默认为 "true"
+                branch = edge.source_handle if edge.source_handle is not None else "true"
+                conditional_edges[source_node][branch] = target_node
             else:
+                # 普通边处理（包括指向 if_else 的边）
+                # 注意：不要将多个入边作为并行边，而是单独添加
+                if target_node not in parallel_edges:
+                    parallel_edges[target_node] = []
                 parallel_edges[target_node].append(source_node)
 
-            # 6.检测特殊节点（开始节点、结束节点），需要写成两个if的格式，避免只有一条边的情况识别失败
+            # 检测特殊节点（开始节点、结束节点）
             if edge.source_type == NodeType.START.value:
-                start_node = f"{edge.source_type.value}_{edge.source}"
+                start_node = source_node
             if edge.target_type == NodeType.END.value:
-                end_node = f"{edge.target_type.value}_{edge.target}"
+                end_node = target_node
 
-        # 7.设置开始和终点
+        # 5.设置开始和终点
         graph.set_entry_point(start_node)
         graph.set_finish_point(end_node)
 
-        # 8.循环遍历合并边
+        # 6.添加普通边（单独添加每条边，而不是作为并行边）
         for target_node, source_nodes in parallel_edges.items():
-            graph.add_edge(source_nodes, target_node)
+            for source_node in source_nodes:
+                graph.add_edge(source_node, target_node)
 
-        # 7.构建图程序并编译
+        # 7.添加条件边
+        for if_else_node, branches in conditional_edges.items():
+            # 创建条件函数，根据节点输出的 result 决定路径
+            def create_condition_func(node_id):
+                def condition_func(state: WorkflowState):
+                    # 从最新的节点结果中获取条件判断结果
+                    for node_result in reversed(state.get("node_results", [])):
+                        if f"{node_result.node_data.node_type}_{node_result.node_data.id}" == node_id:
+                            result = node_result.outputs.get("result", True)
+                            return "true" if result else "false"
+                    return "true"
+                return condition_func
+
+            graph.add_conditional_edges(
+                if_else_node,
+                create_condition_func(if_else_node),
+                branches
+            )
+
+        # 8.构建图程序并编译
         return graph.compile()
 
     def _run(self, *args: Any, **kwargs: Any) -> Any:

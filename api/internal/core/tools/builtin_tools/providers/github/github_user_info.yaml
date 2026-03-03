@@ -1,0 +1,4 @@
+name: github_user_info
+label: GitHub用户信息查询
+description: 查询GitHub用户的详细信息
+params: []

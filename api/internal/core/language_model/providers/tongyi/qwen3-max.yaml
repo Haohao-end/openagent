@@ -1,0 +1,39 @@
+model: qwen3-max
+label: qwen3-max
+model_type: chat
+features:
+  - tool_call
+  - agent_thought
+context_window: 262144
+max_output_tokens: 65536
+attributes:
+  model: qwen3-max
+parameters:
+  - name: temperature
+    use_template: temperature
+    default: 0.7
+  - name: top_p
+    use_template: top_p
+    min: 0
+    default: 0.8
+  - name: presence_penalty
+    use_template: presence_penalty
+  - name: frequency_penalty
+    use_template: frequency_penalty
+  - name: max_tokens
+    use_template: max_tokens
+    default: 8192
+    max: 65536
+  - name: enable_search
+    label: 启用联网搜索
+    type: boolean
+    help: 是否允许模型联网搜索增强回答。
+    required: false
+    default: false
+metadata:
+  pricing:
+    input: 0.0
+    output: 0.0
+    unit: 0.001
+    currency: RMB
+  pricing_note: 官方文档未公开该模型精确API单价，待官方发布后更新。

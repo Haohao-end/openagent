@@ -96,3 +96,26 @@ class ApiToolHandler:
         self.api_tool_service.parse_openapi_schema(req.openapi_schema.data)
 
         return success_message("数据校验成功")
+
+    @login_required
+    def regenerate_icon(self, provider_id: UUID):
+        """根据传递的provider_id重新生成插件图标"""
+        icon_url = self.api_tool_service.regenerate_icon(provider_id, current_user)
+        return success_json({"icon": icon_url})
+
+    @login_required
+    def generate_icon_preview(self):
+        """根据传递的名称和描述生成图标预览（不保存到插件）"""
+        # 1.获取请求数据
+        data = request.get_json(force=True, silent=True) or {}
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+
+        # 2.校验名称不能为空
+        if not name:
+            return validate_error_json({'name': ['插件名称不能为空']})
+
+        # 3.调用服务生成图标
+        icon_url = self.api_tool_service.generate_icon_preview(name, description)
+
+        return success_json({"icon": icon_url})

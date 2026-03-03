@@ -1,0 +1,4 @@
+name: google_translate
+label: 谷歌翻译
+description: 使用Google翻译API进行文本翻译
+params: []

@@ -1,12 +1,12 @@
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
-from flask import request
+from flask import request, has_request_context, current_app
 from injector import inject
 from internal.exception import NotFoundException
 from internal.model import AccountOAuth
-from pkg.oauth import OAuth, GithubOAuth
+from pkg.oauth import OAuth, GithubOAuth, GoogleOAuth
 from pkg.sqlalchemy import SQLAlchemy
 from .account_service import AccountService
 from .base_service import BaseService
@@ -22,18 +22,56 @@ class OAuthService(BaseService):
     account_service: AccountService
 
     @classmethod
+    def _allowed_origins(cls) -> set[str]:
+        if has_request_context():
+            configured = current_app.config.get("OAUTH_ALLOWED_ORIGINS")
+            if isinstance(configured, (list, tuple, set)):
+                return {str(item).strip().rstrip("/") for item in configured if str(item).strip()}
+            if isinstance(configured, str) and configured.strip():
+                return {item.strip().rstrip("/") for item in configured.split(",") if item.strip()}
+
+        raw = (os.getenv("OAUTH_ALLOWED_ORIGINS") or "").strip()
+        if not raw:
+            return set()
+        return {item.strip().rstrip("/") for item in raw.split(",") if item.strip()}
+
+    @classmethod
+    def _resolve_redirect_uri(cls, provider_name: str, env_key: str) -> str:
+        """优先使用固定回调地址，仅当 Origin 在白名单中时允许动态拼接。"""
+        configured_redirect_uri = (os.getenv(env_key) or "").strip()
+
+        if not has_request_context():
+            return configured_redirect_uri
+
+        origin = (request.headers.get("Origin") or "").strip().rstrip("/")
+        if not origin:
+            return configured_redirect_uri
+
+        allowed_origins = cls._allowed_origins()
+        if origin in allowed_origins:
+            return f"{origin}/auth/authorize/{provider_name}"
+
+        return configured_redirect_uri
+
+    @classmethod
     def get_all_oauth(cls) -> dict[str, OAuth]:
         """获取LLMOps集成的所有第三方授权认证方式"""
         # 1.实例化集成的第三方授权认证OAuth
         github = GithubOAuth(
             client_id=os.getenv("GITHUB_CLIENT_ID"),
             client_secret=os.getenv("GITHUB_CLIENT_SECRET"),
-            redirect_uri=os.getenv("GITHUB_REDIRECT_URI"),
+            redirect_uri=cls._resolve_redirect_uri("github", "GITHUB_REDIRECT_URI"),
+        )
+        google = GoogleOAuth(
+            client_id=os.getenv("GOOGLE_CLIENT_ID"),
+            client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+            redirect_uri=cls._resolve_redirect_uri("google", "GOOGLE_REDIRECT_URI"),
         )
 
         # 2.构建字典并返回
         return {
             "github": github,
+            "google": google,
         }
 
     @classmethod
@@ -87,7 +125,7 @@ class OAuthService(BaseService):
         # 9.更新账号信息，涵盖最后一次登录时间，以及ip地址
         self.update(
             account,
-            last_login_at=datetime.now(),
+            last_login_at=datetime.now(UTC),
             last_login_ip=request.remote_addr,
         )
         self.update(

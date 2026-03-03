@@ -1,14 +1,45 @@
 <script setup lang="ts">
 import { onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { type Form, Message } from '@arco-design/web-vue'
+import { type FileItem, type Form, Message } from '@arco-design/web-vue'
 import { useCreateDocuments, useGetDocumentsStatus } from '@/hooks/use-dataset'
 import { useUploadFile } from '@/hooks/use-upload-file'
 import { unescapeString } from '@/utils/helper'
-import type { CreateDocumentsRequest } from '@/models/dataset'
+import type { CreateDocumentsRequest, GetDocumentsStatusResponse } from '@/models/dataset'
+
+type DocumentProcessType = 'automatic' | 'custom'
+
+type CustomRuleForm = {
+  separators: string[]
+  chunk_size: number
+  chunk_overlap: number
+  pre_process_rules: string[]
+}
+
+type CreateDocumentsForm = {
+  file_list: FileItem[]
+  process_type: DocumentProcessType
+  rule: CustomRuleForm
+}
+
+type CreateDocumentsPayload = {
+  upload_file_ids: string[]
+  process_type: DocumentProcessType
+  rule?: CreateDocumentsRequest['rule']
+}
+
+type UploadCustomRequestOption = {
+  fileItem: FileItem
+  onSuccess: (response?: unknown) => void
+  onError: (error?: Error) => void
+}
+
+type UploadFileResponsePayload = {
+  id?: string
+}
 
 // 1.定义页面逻辑基础数据，涵盖定时器、路由、当前步骤书、表单信息等
-let timer: any = 0
+let timer: ReturnType<typeof setInterval> | null = null
 let batch = ''
 let fetchCount = 0
 const route = useRoute()
@@ -20,7 +51,7 @@ const {
 const { upload_file, handleUploadFile } = useUploadFile()
 const { documents_status_result, loadDocumentsStatus } = useGetDocumentsStatus()
 const currentStep = ref(1)
-const createDocumentsForm = ref<Record<string, any>>({
+const createDocumentsForm = ref<CreateDocumentsForm>({
   file_list: [],
   process_type: 'automatic',
   rule: {
@@ -31,7 +62,12 @@ const createDocumentsForm = ref<Record<string, any>>({
   },
 })
 const customRuleFormRef = ref<InstanceType<typeof Form>>()
-const documents = ref<Array<any>>([])
+const documents = ref<GetDocumentsStatusResponse['data']>([])
+
+const getUploadFileId = (fileItem: FileItem): string => {
+  const response = fileItem.response as UploadFileResponsePayload | undefined
+  return String(response?.id || '')
+}
 
 // 2.定义下一步处理函数
 const nextStep = async () => {
@@ -45,7 +81,7 @@ const nextStep = async () => {
 
     // 2.3 检查所有文件是否全部上传完成
     const isUploaded = createDocumentsForm.value.file_list.every(
-      (fileItem: any) => fileItem.response?.id,
+      (fileItem) => getUploadFileId(fileItem) !== '',
     )
     if (!isUploaded) {
       Message.warning('文件正在上传中，请稍等')
@@ -65,9 +101,9 @@ const nextStep = async () => {
     // 2.7 如果校验成功或者是自动规则，则执行下一步
     try {
       // 2.8 将加载状态设置为true，并将表单数据转换成api接口数据
-      const req: Record<string, any> = {
+      const req: CreateDocumentsPayload = {
         upload_file_ids: createDocumentsForm.value.file_list.map(
-          (fileItem: any) => fileItem?.response?.id,
+          (fileItem) => getUploadFileId(fileItem),
         ),
         process_type: createDocumentsForm.value.process_type,
       }
@@ -88,7 +124,7 @@ const nextStep = async () => {
             },
           ],
           segment: {
-            separators: createDocumentsForm.value.rule.separators.map((separator: any) =>
+            separators: createDocumentsForm.value.rule.separators.map((separator) =>
               unescapeString(separator),
             ),
             chunk_size: createDocumentsForm.value.rule.chunk_size,
@@ -120,7 +156,7 @@ const fetchDocumentsStatus = async () => {
   await loadDocumentsStatus(String(route.params?.dataset_id), batch)
 
   // 3.2 同步文档状态信息
-  documents.value = documents_status_result.value
+  documents.value = documents_status_result.value as unknown as GetDocumentsStatusResponse['data']
 
   // 3.3 如果请求次数超过限制，则停止
   if (fetchCount >= 30) stopTimer()
@@ -133,13 +169,16 @@ const fetchDocumentsStatus = async () => {
 }
 
 // 4.定义开始定时器函数
-const startTimer = () => (timer = setInterval(fetchDocumentsStatus, 5000))
+const startTimer = () => {
+  stopTimer()
+  timer = setInterval(fetchDocumentsStatus, 5000)
+}
 
 // 5.停止定时器函数
 const stopTimer = () => {
-  if (timer) {
+  if (timer !== null) {
     clearInterval(timer)
-    timer = 0
+    timer = null
   }
 }
 
@@ -187,16 +226,20 @@ onUnmounted(() => stopTimer())
           multiple
           tip="支持PDF、TXT、DOC、DOCX、MD，最多可上传10个文件，每个文件的大小不超过10MB"
           :custom-request="
-            (option: any) => {
+            (option: UploadCustomRequestOption) => {
               // 1.提取选项中的文件选项以及成功回调
               const { fileItem, onSuccess, onError } = option
 
               const uploadTask = async () => {
                 try {
+                  if (!fileItem.file) {
+                    onError(new Error('无效文件'))
+                    return
+                  }
                   await handleUploadFile(fileItem.file as File)
-                  onSuccess(upload_file)
-                } catch (error) {
-                  onError(error)
+                  onSuccess(upload_file.value)
+                } catch (error: unknown) {
+                  onError(error instanceof Error ? error : new Error('上传失败'))
                 }
               }
 

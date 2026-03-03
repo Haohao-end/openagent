@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Zhipu">
+  <rect width="64" height="64" rx="12" fill="#0F172A"/>
+  <path d="M14 18h36v8H27L50 46v8H14v-8h23L14 26z" fill="#22D3EE"/>
+</svg>

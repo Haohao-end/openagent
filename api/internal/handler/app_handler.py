@@ -1,9 +1,13 @@
+import os
 import uuid
+import logging
+import time
 from dataclasses import dataclass
 from uuid import UUID
-from flask import request
+from flask import request, current_app, has_app_context
 from flask_login import login_required, current_user
 from injector import inject
+from sqlalchemy import text
 from internal.schema.app_schema import (
     CreateAppReq,
     UpdateAppReq,
@@ -22,6 +26,8 @@ from internal.service import AppService, RetrievalService
 from pkg.paginator import PageModel
 from pkg.response import validate_error_json, success_json, success_message, compact_generate_response
 from internal.core.language_model import LanguageModelManager
+
+logger = logging.getLogger(__name__)
 
 @inject
 @dataclass
@@ -58,7 +64,7 @@ class AppHandler:
         # 1.提取数据并校验
         req = UpdateAppReq()
         if not req.validate():
-            raise validate_error_json(req.errors)
+            return validate_error_json(req.errors)
 
         # 2.调用服务更新数据
         self.app_service.update_app(app_id, current_user, **req.data)
@@ -116,7 +122,9 @@ class AppHandler:
     @login_required
     def publish(self, app_id: UUID):
         """根据传递的应用id发布/更新特定的草稿配置信息"""
-        self.app_service.publish_draft_app_config(app_id, current_user)
+        # 从请求参数中获取是否分享到广场的标志，默认为False
+        share_to_square = request.args.get('share_to_square', 'false').lower() == 'true'
+        self.app_service.publish_draft_app_config(app_id, current_user, share_to_square=share_to_square)
         return success_message("发布/更新应用配置成功")
 
     @login_required
@@ -131,7 +139,7 @@ class AppHandler:
         # 1.获取请求数据并校验
         req = GetPublishHistoriesWithPageReq(request.args)
         if not req.validate():
-            raise validate_error_json(req.errors)
+            return validate_error_json(req.errors)
 
         # 2.调用服务获取分页列表数据
         app_config_versions, paginator = self.app_service.get_publish_histories_with_page(app_id, req, current_user)
@@ -166,7 +174,7 @@ class AppHandler:
         # 1.提取数据并校验
         req = UpdateDebugConversationSummaryReq()
         if not req.validate():
-            raise validate_error_json(req.errors)
+            return validate_error_json(req.errors)
 
         # 2.调用服务更新调试会话长期记忆
         self.app_service.update_debug_conversation_summary(app_id, req.summary.data, current_user)
@@ -186,10 +194,10 @@ class AppHandler:
         # 1.提取数据并校验数据
         req = DebugChatReq()
         if not req.validate():
-            raise validate_error_json(req.errors)
+            return validate_error_json(req.errors)
 
         # 2.调试服务发起会话调试
-        response = self.app_service.debug_chat(app_id, req.query.data, current_user)
+        response = self.app_service.debug_chat(app_id, req, current_user)
 
         return compact_generate_response(response)
 
@@ -212,12 +220,35 @@ class AppHandler:
         return success_json({"token": token})
 
     @login_required
+    def regenerate_icon(self, app_id: UUID):
+        """根据传递的应用id重新生成应用图标"""
+        icon_url = self.app_service.regenerate_icon(app_id, current_user)
+        return success_json({"icon": icon_url})
+
+    @login_required
+    def generate_icon_preview(self):
+        """根据传递的名称和描述生成图标预览（不保存到应用）"""
+        # 1.获取请求数据
+        data = request.get_json(force=True, silent=True) or {}
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+
+        # 2.校验名称不能为空
+        if not name:
+            return validate_error_json({'name': ['应用名称不能为空']})
+
+        # 3.调用服务生成图标
+        icon_url = self.app_service.generate_icon_preview(name, description)
+
+        return success_json({"icon": icon_url})
+
+    @login_required
     def get_debug_conversation_messages_with_page(self, app_id: UUID):
         """根据传递的应用id 获取该应用的调试会话分页列表记录"""
         # 1.提取请求并校验数据
         req = GetDebugConversationMessagesWithPageReq(request.args)
         if not req.validate():
-            raise validate_error_json(req.errors)
+            return validate_error_json(req.errors)
 
         # 2.调用服务获取数据
         messages, paginator = self.app_service.get_debug_conversation_messages_with_page(app_id, req, current_user)
@@ -227,18 +258,141 @@ class AppHandler:
 
         return success_json(PageModel(list=resp.dump(messages), paginator=paginator))
 
+    def health(self):
+        """健康检查接口(无需认证)"""
+        components = {
+            "database": self._probe_database(),
+            "redis": self._probe_redis(),
+            "weaviate": self._probe_weaviate(),
+            "celery": self._probe_celery(),
+        }
+
+        status = "healthy"
+        if components["database"]["status"] != "healthy":
+            status = "unhealthy"
+        elif any(
+                component["status"] == "unhealthy"
+                for name, component in components.items()
+                if name != "database"
+        ):
+            status = "degraded"
+        metrics = self._build_health_metrics(components, status)
+        self._emit_health_alert(status, components, metrics)
+
+        return success_json({
+            "status": status,
+            "service": "llmops-api",
+            "components": components,
+            "metrics": metrics,
+        })
+
+    @classmethod
+    def _build_health_metrics(cls, components: dict[str, dict[str, str]], status: str) -> dict[str, int]:
+        return {
+            "status_code": {
+                "healthy": 1,
+                "degraded": 0,
+                "unhealthy": -1,
+            }.get(status, -1),
+            "total_components": len(components),
+            "healthy_components": sum(1 for component in components.values() if component["status"] == "healthy"),
+            "unhealthy_components": sum(1 for component in components.values() if component["status"] == "unhealthy"),
+            "skipped_components": sum(1 for component in components.values() if component["status"] == "skipped"),
+            "checked_at": int(time.time()),
+        }
+
+    @classmethod
+    def _emit_health_alert(
+            cls,
+            status: str,
+            components: dict[str, dict[str, str]],
+            metrics: dict[str, int],
+    ) -> None:
+        if status == "healthy":
+            return
+
+        unhealthy_component_names = [
+            name for name, component in components.items()
+            if component["status"] == "unhealthy"
+        ]
+        logger.warning(
+            "健康检查告警: status=%s, unhealthy_components=%s, metrics=%s",
+            status,
+            unhealthy_component_names,
+            metrics,
+        )
+
+    def _probe_database(self) -> dict[str, str]:
+        try:
+            self.app_service.db.session.execute(text("SELECT 1"))
+            return {"status": "healthy", "detail": ""}
+        except Exception as error:
+            return {"status": "unhealthy", "detail": self._build_probe_error_detail(error)}
+
+    def _probe_redis(self) -> dict[str, str]:
+        try:
+            self.app_service.redis_client.ping()
+            return {"status": "healthy", "detail": ""}
+        except Exception as error:
+            return {"status": "unhealthy", "detail": self._build_probe_error_detail(error)}
+
+    @classmethod
+    def _probe_weaviate(cls) -> dict[str, str]:
+        weaviate_extension = current_app.extensions.get("weaviate")
+        if weaviate_extension is None:
+            return {"status": "skipped", "detail": "Weaviate未初始化"}
+
+        try:
+            weaviate_client = weaviate_extension.client
+        except Exception as error:
+            return {"status": "unhealthy", "detail": cls._build_probe_error_detail(error)}
+
+        if weaviate_client is None:
+            return {"status": "skipped", "detail": "Weaviate未初始化"}
+
+        try:
+            is_ready = bool(weaviate_client.is_ready())
+            if is_ready:
+                return {"status": "healthy", "detail": ""}
+            return {"status": "unhealthy", "detail": "Weaviate未就绪"}
+        except Exception as error:
+            return {"status": "unhealthy", "detail": cls._build_probe_error_detail(error)}
+
+    @classmethod
+    def _probe_celery(cls) -> dict[str, str]:
+        celery_app = current_app.extensions.get("celery")
+        if celery_app is None:
+            return {"status": "skipped", "detail": "Celery未初始化"}
+
+        try:
+            inspector = celery_app.control.inspect(timeout=1)
+            ping_result = inspector.ping() if inspector else None
+            if ping_result:
+                return {"status": "healthy", "detail": ""}
+            return {"status": "skipped", "detail": "未检测到活跃Celery Worker"}
+        except Exception as error:
+            return {"status": "unhealthy", "detail": cls._build_probe_error_detail(error)}
+
+    @classmethod
+    def _should_expose_probe_error_detail(cls) -> bool:
+        """仅在开发/测试阶段暴露探针异常细节，生产环境默认脱敏。"""
+        if not has_app_context():
+            return True
+
+        if current_app.debug or current_app.testing:
+            return True
+
+        flask_env = str(current_app.config.get("FLASK_ENV") or os.getenv("FLASK_ENV") or "").lower()
+        return flask_env == "development"
+
+    @classmethod
+    def _build_probe_error_detail(cls, error: Exception) -> str:
+        if cls._should_expose_probe_error_detail():
+            return str(error)
+        return "internal error"
+
     @login_required
     def ping(self):
-        provider = self.language_model_manager.get_provider("openai")
-        model_entity = provider.get_model_entity("gpt-4o-mini")
-        model_class = provider.get_model_class(model_entity.model_type)
-        llm = model_class(**{
-            **model_entity.attributes,
-            "features": model_entity.features,
-            "metadata": model_entity.metadata,
-        })
         return success_json({
-            "content": llm.invoke("你好").content,
-            "features": llm.features,
-            "metadata": llm.metadata,
+            "pong": "success",
         })

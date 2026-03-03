@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#10B981" rx="20"/>
+  <circle cx="70" cy="100" r="35" fill="white"/>
+  <circle cx="130" cy="100" r="35" fill="white"/>
+  <text x="70" y="115" font-family="Arial" font-size="40" font-weight="bold" fill="#10B981" text-anchor="middle">$</text>
+  <text x="130" y="115" font-family="Arial" font-size="40" font-weight="bold" fill="#10B981" text-anchor="middle">€</text>
+  <path d="M90 100 L110 100" stroke="white" stroke-width="6" marker-end="url(#arrow)"/>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="white"/>
+    </marker>
+  </defs>
+</svg>

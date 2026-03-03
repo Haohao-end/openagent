@@ -1,0 +1,43 @@
+model: qwen3:235b-a22b
+label: qwen3:235b-a22b
+model_type: chat
+features:
+  - tool_call
+  - agent_thought
+context_window: 40960
+max_output_tokens: 8192
+attributes:
+  model: "qwen3:235b-a22b"
+parameters:
+  - name: temperature
+    use_template: temperature
+    default: 0.7
+  - name: top_p
+    use_template: top_p
+    default: 0.8
+  - name: num_ctx
+    label: 上下文窗口
+    type: int
+    help: Ollama推理上下文窗口大小。
+    required: false
+    default: 32768
+    min: 1024
+    max: 40960
+    precision: 0
+    options: []
+  - name: num_predict
+    label: 最大生成Token
+    type: int
+    help: Ollama接口中的最大输出token数量（num_predict）。
+    required: false
+    default: 4096
+    min: 1
+    max: 8192
+    precision: 0
+    options: []
+metadata:
+  pricing:
+    input: 0.0
+    output: 0.0
+    unit: 0.001
+    currency: RMB

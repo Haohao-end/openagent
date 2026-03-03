@@ -1,18 +1,18 @@
 import io
 import json
+import logging
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Generator
+from datetime import UTC, datetime
+from typing import Any, Generator, TYPE_CHECKING
 from uuid import UUID
-from threading import Thread
 import requests
 from flask import current_app
 from injector import inject
 from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
-from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel
+from internal.entity.audio_entity import ALLOWED_AUDIO_VOICES
 from redis import Redis
 from sqlalchemy import func, desc
 from sqlalchemy.orm import joinedload, selectinload
@@ -44,6 +44,7 @@ from internal.model import (
 )
 from internal.schema.app_schema import (
     CreateAppReq,
+    DebugChatReq,
     GetAppsWithPageReq,
     GetPublishHistoriesWithPageReq,
     GetDebugConversationMessagesWithPageReq,
@@ -56,6 +57,7 @@ from .conversation_service import ConversationService
 from .cos_service import CosService
 from .language_model_service import LanguageModelService
 from .retrieval_service import RetrievalService
+from .icon_generator_service import IconGeneratorService
 from ..core.language_model.entities.model_entity import ModelParameterType, ModelFeature
 from ..core.language_model.providers.deepseek.chat import Chat
 from ..entity.workflow_entity import WorkflowStatus
@@ -75,9 +77,69 @@ class AppService(BaseService):
     language_model_manager: LanguageModelManager
     language_model_service: LanguageModelService
     builtin_provider_manager: BuiltinProviderManager
+    icon_generator_service: IconGeneratorService
+    AUTO_CREATE_DEFAULT_TOOLS = [
+        {
+            "type": "builtin_tool",
+            "provider_id": "google",
+            "tool_id": "google_serper",
+            "params": {},
+        },
+        {
+            "type": "builtin_tool",
+            "provider_id": "gaode",
+            "tool_id": "gaode_weather",
+            "params": {},
+        },
+        {
+            "type": "builtin_tool",
+            "provider_id": "dalle",
+            "tool_id": "dalle3",
+            "params": {
+                "size": "1024X1024",
+                "style": "vivid",
+            },
+        },
+    ]
+
+    @classmethod
+    def _normalize_opening_questions(cls, questions: list[Any]) -> list[str]:
+        """规范化开场建议问题并确保最多返回3条有效内容"""
+        normalized_questions = []
+
+        # 1.清理无效问题并去重
+        for question in questions:
+            if not isinstance(question, str):
+                continue
+            question = question.strip()
+            if not question:
+                continue
+            if question in normalized_questions:
+                continue
+            normalized_questions.append(question)
+            if len(normalized_questions) >= 3:
+                break
+
+        # 2.不足3条时补充兜底问题，保证首屏体验完整
+        fallback_questions = [
+            "这个Agent可以帮我做什么？",
+            "我先提供哪些信息会更高效？",
+            "可以先给我一个示例任务吗？",
+        ]
+        for fallback_question in fallback_questions:
+            if len(normalized_questions) >= 3:
+                break
+            if fallback_question in normalized_questions:
+                continue
+            normalized_questions.append(fallback_question)
+
+        return normalized_questions
 
     def auto_create_app(self, name: str, description: str, account_id: UUID) -> None:
         """根据传递的应用名称、描述、账号id利用AI创建一个Agent智能体"""
+        name = (name or "").strip()
+        description = (description or "").strip()
+
         # 1.创建LLM，用于生成icon提示与预设提示词
         llm = Chat(
             model="deepseek-chat",
@@ -106,6 +168,38 @@ class AppService(BaseService):
             "preset_prompt": generate_preset_prompt_chain,
         })
         app_config = generate_app_config_chain.invoke({"name": name, "description": description})
+
+        # 5.1 自动生成对话开场白与开场建议问题
+        opening_statement = (description or "").strip()
+        if not opening_statement:
+            opening_statement = f"你好，我是{name}，很高兴为你服务。"
+        if len(opening_statement) > 2000:
+            opening_statement = opening_statement[:2000]
+
+        opening_questions = []
+        try:
+            # 使用统一的建议问题能力生成开场建议问题，避免额外维护提示词模板
+            histories = (
+                f"Human: 我想创建一个名为{name}的Agent，功能描述是：{description}\n"
+                f"AI: Agent已创建完成，请开始与我对话。"
+            )
+            opening_questions = self.conversation_service.generate_suggested_questions(histories)
+        except Exception as e:
+            logging.exception(
+                f"自动创建Agent时生成开场建议问题失败, name: {name}, 错误信息: {str(e)}"
+            )
+        opening_questions = self._normalize_opening_questions(
+            opening_questions if isinstance(opening_questions, list) else []
+        )
+        default_tools = [
+            {
+                "type": tool["type"],
+                "provider_id": tool["provider_id"],
+                "tool_id": tool["tool_id"],
+                "params": dict(tool["params"]),
+            }
+            for tool in self.AUTO_CREATE_DEFAULT_TOOLS
+        ]
 
         # 6.将图片下载到本地后上传到腾讯云cos中
         icon_response = requests.get(app_config.get("icon"))
@@ -142,6 +236,12 @@ class AppService(BaseService):
                 **{
                     **DEFAULT_APP_CONFIG,
                     "preset_prompt": app_config.get("preset_prompt", ""),
+                    "tools": default_tools,
+                    "opening_statement": opening_statement,
+                    "opening_questions": opening_questions,
+                    # 显式覆盖，确保辅助Agent自动创建场景始终开启语音体验
+                    "speech_to_text": {"enable": True},
+                    "text_to_speech": {"enable": True, "voice": "alex", "auto_play": True},
                 }
             )
             self.db.session.add(app_config_version)
@@ -152,20 +252,35 @@ class AppService(BaseService):
 
     def create_app(self, req: CreateAppReq, account: Account) -> App:
         """创建Agent应用服务"""
-        # 1.开启数据库自动提交上下文
+        # 1. 如果用户未提供图标，自动生成图标
+        icon_url = req.icon.data
+        if not icon_url:
+            try:
+                logging.info(f"用户未提供图标，自动生成图标: name={req.name.data}")
+                icon_url = self.icon_generator_service.generate_icon(
+                    name=req.name.data,
+                    description=req.description.data or ""
+                )
+                logging.info(f"自动生成图标成功: {icon_url}")
+            except Exception as e:
+                logging.error(f"自动生成图标失败: {str(e)}")
+                # 如果生成失败，使用默认图标
+                icon_url = "https://picsum.photos/400"
+
+        # 2.开启数据库自动提交上下文
         with self.db.auto_commit():
-            # 2.创建应用记录，并刷新数据，从而可以拿到应用id
+            # 3.创建应用记录，并刷新数据，从而可以拿到应用id
             app = App(
                 account_id=account.id,
                 name=req.name.data,
-                icon=req.icon.data,
+                icon=icon_url,
                 description=req.description.data,
                 status=AppStatus.DRAFT.value,
             )
             self.db.session.add(app)
             self.db.session.flush()
 
-            # 3.添加草稿记录
+            # 4.添加草稿记录
             app_config_version = AppConfigVersion(
                 app_id=app.id,
                 version=0,
@@ -175,10 +290,10 @@ class AppService(BaseService):
             self.db.session.add(app_config_version)
             self.db.session.flush()
 
-            # 4.为应用添加草稿配置id
+            # 5.为应用添加草稿配置id
             app.draft_app_config_id = app_config_version.id
 
-        # 5.返回创建的应用记录
+        # 6.返回创建的应用记录
         return app
 
     def get_app(self, app_id: UUID, account: Account) -> App:
@@ -290,14 +405,20 @@ class AppService(BaseService):
         self.update(
             draft_app_config_record,
             # todo:由于目前使用server_onupdate，所以该字段暂时需要手动传递
-            updated_at=datetime.now(),
+            updated_at=datetime.now(UTC),
             **draft_app_config,
         )
 
         return draft_app_config_record
 
-    def publish_draft_app_config(self, app_id: UUID, account: Account) -> App:
-        """根据传递的应用id+账号，发布/更新指定的应用草稿配置为运行时配置"""
+    def publish_draft_app_config(self, app_id: UUID, account: Account, share_to_square: bool = True) -> App:
+        """根据传递的应用id+账号，发布/更新指定的应用草稿配置为运行时配置
+
+        Args:
+            app_id: 应用ID
+            account: 账号信息
+            share_to_square: 是否同时分享到应用广场，默认为True（保持向后兼容）
+        """
         # 1.获取应用的信息以及草稿信息
         app = self.get_app(app_id, account)
         draft_app_config = self.get_draft_app_config(app_id, account)
@@ -329,8 +450,21 @@ class AppService(BaseService):
             review_config=draft_app_config["review_config"],
         )
 
-        # 3.更新应用关联的运行时配置以及状态
-        self.update(app, app_config_id=app_config.id, status=AppStatus.PUBLISHED.value)
+        # 3.更新应用关联的运行时配置、状态
+        update_data = {
+            "app_config_id": app_config.id,
+            "status": AppStatus.PUBLISHED.value,
+        }
+
+        # 如果指定分享到广场，则设置 is_public
+        if share_to_square:
+            update_data["is_public"] = True
+
+        # 如果是首次发布，设置发布时间
+        if not app.published_at:
+            update_data["published_at"] = datetime.now(UTC).replace(tzinfo=None)
+
+        self.update(app, **update_data)
 
         # 4.先删除原有的知识库关联记录
         with self.db.auto_commit():
@@ -363,10 +497,11 @@ class AppService(BaseService):
             **draft_app_config_copy,
         )
 
+        logging.info(f"应用已发布: app_id={app_id}, share_to_square={share_to_square}")
         return app
 
     def cancel_publish_app_config(self, app_id: UUID, account: Account) -> App:
-        """根据传递的应用id+账号，取消发布指定的应用配置"""
+        """根据传递的应用id+账号，取消发布指定的应用配置，并从应用广场移除"""
         # 1.获取应用信息并校验权限
         app = self.get_app(app_id, account)
 
@@ -374,8 +509,17 @@ class AppService(BaseService):
         if app.status != AppStatus.PUBLISHED.value:
             raise FailException("当前应用未发布，请核实后重试")
 
-        # 3.修改账号的发布状态，并清空关联配置id
-        self.update(app, status=AppStatus.DRAFT.value, app_config_id=None)
+        # 3.修改账号的发布状态，清空关联配置id，并从应用广场移除
+        self.update(
+            app,
+            status=AppStatus.DRAFT.value,
+            app_config_id=None,
+            is_public=False,  # 从应用广场移除
+            published_at=None,  # 清空发布时间
+        )
+
+        logging.info(f"应用已取消发布并从应用广场移除: app_id={app_id}")
+        return app
 
         # 4.删除应用关联的知识库信息
         with self.db.auto_commit():
@@ -438,7 +582,7 @@ class AppService(BaseService):
         self.update(
             draft_app_config_record,
             # todo:更新时间补丁信息
-            updated_at=datetime.now(),
+            updated_at=datetime.now(UTC),
             **draft_app_config_dict,
         )
 
@@ -486,8 +630,34 @@ class AppService(BaseService):
 
         return app
 
+    def _resolve_debug_conversation(
+        self,
+        app: App,
+        account: Account,
+        conversation_id: UUID | None = None,
+        sync_active: bool = False,
+    ) -> Conversation:
+        """解析并返回应用调试会话，必要时同步应用当前调试会话指针"""
+        if conversation_id is None:
+            return app.debug_conversation
 
-    def debug_chat(self, app_id: UUID, query: str, account: Account) -> Generator:
+        conversation = self.get(Conversation, conversation_id)
+        if (
+            not conversation
+            or conversation.app_id != app.id
+            or conversation.created_by != account.id
+            or conversation.is_deleted
+            or conversation.invoke_from != InvokeFrom.DEBUGGER.value
+        ):
+            raise NotFoundException("该应用调试会话不存在或已被删除，请核实后重试")
+
+        if sync_active and app.debug_conversation_id != conversation.id:
+            self.update(app, debug_conversation_id=conversation.id)
+
+        return conversation
+
+
+    def debug_chat(self, app_id: UUID, req: DebugChatReq, account: Account) -> Generator:
         """根据传递的应用id+提问query向特定的应用发起会话调试"""
         # 1.获取应用信息并校验权限
         app = self.get_app(app_id, account)
@@ -495,8 +665,14 @@ class AppService(BaseService):
         # 2.获取应用的最新草稿配置信息
         draft_app_config = self.get_draft_app_config(app_id, account)
 
-        # 3.获取当前应用的调试会话信息
-        debug_conversation = app.debug_conversation
+        # 3.获取当前应用的调试会话信息（支持按conversation_id切换）
+        debug_conversation_id = UUID(req.conversation_id.data) if req.conversation_id.data else None
+        debug_conversation = self._resolve_debug_conversation(
+            app=app,
+            account=account,
+            conversation_id=debug_conversation_id,
+            sync_active=True,
+        )
 
         # 4.新建一条消息记录
         message = self.create(
@@ -505,7 +681,8 @@ class AppService(BaseService):
             conversation_id=debug_conversation.id,
             invoke_from=InvokeFrom.DEBUGGER.value,
             created_by=account.id,
-            query=query,
+            query=req.query.data,
+            image_urls=req.image_urls.data,
             status=MessageStatus.NORMAL.value,
         )
 
@@ -516,6 +693,7 @@ class AppService(BaseService):
         token_buffer_memory = TokenBufferMemory(
             db=self.db,
             conversation=debug_conversation,
+            model_instance=llm,
         )
         history = token_buffer_memory.get_history_prompt_messages(
             message_limit=draft_app_config["dialog_round"],
@@ -559,7 +737,7 @@ class AppService(BaseService):
 
         agent_thoughts = {}
         for agent_thought in agent.stream({
-            "messages": [HumanMessage(query)],
+            "messages": [llm.convert_to_human_message(req.query.data, req.image_urls.data)],
             "history": history,
             "long_term_memory": debug_conversation.summary,
         }):
@@ -636,8 +814,14 @@ class AppService(BaseService):
         # 1. 获取应用信息并校验权限
         app = self.get_app(app_id, account)
 
-        # 2. 获取应用的调试会话
-        debug_conversation = app.debug_conversation
+        # 2. 获取应用的调试会话（支持按conversation_id切换）
+        debug_conversation_id = UUID(req.conversation_id.data) if req.conversation_id.data else None
+        debug_conversation = self._resolve_debug_conversation(
+            app=app,
+            account=account,
+            conversation_id=debug_conversation_id,
+            sync_active=False,
+        )
 
         # 3. 构建分页器并构建过滤条件
         paginator = Paginator(db=self.db, req=req)
@@ -650,7 +834,7 @@ class AppService(BaseService):
 
         if req.created_at.data:
             # 4. 将时间戳转换成 DateTime
-            created_at_datetime = datetime.fromtimestamp(req.created_at.data)
+            created_at_datetime = datetime.fromtimestamp(req.created_at.data, UTC)
             filters.append(Message.created_at <= created_at_datetime)
 
         # 5. 先分页查询 ID 列表
@@ -681,7 +865,9 @@ class AppService(BaseService):
             "web_app": {
                 "token": app.token_with_default,
                 "status": app.status
-            }
+            },
+            "is_public": app.is_public,
+            "category": app.category,
         }
 
     def regenerate_web_app_token(self, app_id: UUID, account: Account) -> str:
@@ -698,6 +884,44 @@ class AppService(BaseService):
         self.update(app, token=token)
 
         return token
+
+    def regenerate_icon(self, app_id: UUID, account: Account) -> str:
+        """根据传递的应用id重新生成应用图标"""
+        # 1.获取应用信息并校验权限
+        app = self.get_app(app_id, account)
+
+        # 2.使用图标生成服务生成新图标
+        try:
+            logging.info(f"重新生成应用图标: app_id={app_id}, name={app.name}")
+            icon_url = self.icon_generator_service.generate_icon(
+                name=app.name,
+                description=app.description or ""
+            )
+            logging.info(f"重新生成图标成功: {icon_url}")
+        except Exception as e:
+            logging.error(f"重新生成图标失败: {str(e)}")
+            # 直接抛出原始异常，保留错误信息
+            raise
+
+        # 3.更新应用图标
+        self.update(app, icon=icon_url)
+
+        return icon_url
+
+    def generate_icon_preview(self, name: str, description: str) -> str:
+        """生成图标预览（不保存到应用）"""
+        try:
+            logging.info(f"生成图标预览: name={name}")
+            icon_url = self.icon_generator_service.generate_icon(
+                name=name,
+                description=description or ""
+            )
+            logging.info(f"生成图标预览成功: {icon_url}")
+            return icon_url
+        except Exception as e:
+            logging.error(f"生成图标预览失败: {str(e)}")
+            # 直接抛出原始异常，保留错误信息
+            raise
 
 
     def _validate_draft_app_config(self, draft_app_config: dict[str, Any], account: Account) -> dict[str, Any]:
@@ -992,8 +1216,7 @@ class AppService(BaseService):
             if (
                     set(text_to_speech.keys()) != {"enable", "voice", "auto_play"}
                     or not isinstance(text_to_speech["enable"], bool)
-                    # todo:等待多模态Agent实现时添加音色
-                    or text_to_speech["voice"] not in ["echo"]
+                    or text_to_speech["voice"] not in ALLOWED_AUDIO_VOICES
                     or not isinstance(text_to_speech["auto_play"], bool)
             ):
                 raise ValidateErrorException("文本转语音设置格式错误")

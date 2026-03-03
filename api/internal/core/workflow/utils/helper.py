@@ -23,6 +23,7 @@ def extract_variables_from_state(variables: list[VariableEntity], state: Workflo
             variables_dict[variable.name] = variable_type_cls(variable.value.content)
         else:
             # 5.引用or生成数据类型，遍历节点获取数据
+            node_found = False
             for node_result in state["node_results"]:
                 if node_result.node_data.id == variable.value.content.ref_node_id:
                     # 6.提取数据并完成数据强制转换
@@ -30,4 +31,10 @@ def extract_variables_from_state(variables: list[VariableEntity], state: Workflo
                         variable.value.content.ref_var_name,
                         VARIABLE_TYPE_DEFAULT_VALUE_MAP.get(variable.type)
                     ))
+                    node_found = True
+                    break
+
+            # 7.如果引用的节点未执行（条件分支未激活），使用默认值
+            if not node_found:
+                variables_dict[variable.name] = VARIABLE_TYPE_DEFAULT_VALUE_MAP.get(variable.type)
     return variables_dict

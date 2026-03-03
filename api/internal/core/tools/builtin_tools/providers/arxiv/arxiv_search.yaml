@@ -1,0 +1,9 @@
+name: arxiv_search
+label: Arxiv论文搜索
+description: 搜索Arxiv学术论文数据库，获取最新的科研论文和技术文献
+params:
+  - name: max_results
+    label: 最大结果数
+    type: number
+    default: 5
+    required: false

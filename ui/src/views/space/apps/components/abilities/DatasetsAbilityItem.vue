@@ -5,25 +5,33 @@ import { useGetDatasetsWithPage } from '@/hooks/use-dataset'
 import { cloneDeep, isEqual } from 'lodash'
 import { Message } from '@arco-design/web-vue'
 
+type DatasetSelection = {
+  id: string
+  name: string
+  icon: string
+  description: string
+}
+
+type RetrievalConfigForm = {
+  retrieval_strategy: string
+  k: number
+  score: number
+}
+
 // 1.定义自定义组件所需数据
 const props = defineProps({
   app_id: { type: String, default: '', required: true },
   retrieval_config: {
-    type: Object,
-    default: () => {
-      return {}
-    },
+    type: Object as PropType<RetrievalConfigForm>,
+    default: () => ({
+      retrieval_strategy: 'semantic',
+      k: 4,
+      score: 0,
+    }),
     required: true,
   },
   datasets: {
-    type: Array as PropType<
-      {
-        id: string
-        name: string
-        icon: string
-        description: string
-      }[]
-    >,
+    type: Array as PropType<DatasetSelection[]>,
     default: () => [],
     required: true,
   },
@@ -35,10 +43,18 @@ const { loading, paginator, datasets: apiDatasets, loadDatasets } = useGetDatase
 const datasetsModalVisible = ref(false)
 const retrievalConfigModalVisible = ref(false)
 const isDatasetsInit = ref(false)
-const activateDatasets = ref<Record<string, any>[]>([])
-const originDatasets = ref<Record<string, any>[]>([])
-const retrievalConfigForm = ref<Record<string, any>>({})
-const originRetrievalConfigForm = ref<Record<string, any>>({})
+const activateDatasets = ref<DatasetSelection[]>([])
+const originDatasets = ref<DatasetSelection[]>([])
+const retrievalConfigForm = ref<RetrievalConfigForm>({
+  retrieval_strategy: 'semantic',
+  k: 4,
+  score: 0,
+})
+const originRetrievalConfigForm = ref<RetrievalConfigForm>({
+  retrieval_strategy: 'semantic',
+  k: 4,
+  score: 0,
+})
 const isRetrievalConfigInit = ref(false)
 
 // 2.定义滚动数据分页处理器
@@ -129,16 +145,22 @@ const handleSubmitDatasets = async () => {
 
 // 9.提交更新检索配置
 const handleSubmitRetrievalConfig = async () => {
+  const retrievalConfig = {
+    retrieval_strategy: String(retrievalConfigForm.value.retrieval_strategy || 'semantic'),
+    k: Number(retrievalConfigForm.value.k ?? 4),
+    score: Number(retrievalConfigForm.value.score ?? 0),
+  }
+
   // 9.1 处理数据并完成API接口提交
   await handleUpdateDraftAppConfig(props.app_id, {
-    retrieval_config: retrievalConfigForm.value as any,
+    retrieval_config: retrievalConfig,
   })
 
   // 9.2 接口更新更新成功，同步表单信息
-  originRetrievalConfigForm.value = retrievalConfigForm.value
+  originRetrievalConfigForm.value = retrievalConfig
 
   // 9.3 双向同步更新props中的数据
-  emits('update:retrieval_config', retrievalConfigForm.value)
+  emits('update:retrieval_config', retrievalConfig)
 
   // 9.4 隐藏模态窗
   handleCancelRetrievalConfigModal()
@@ -362,7 +384,7 @@ onMounted(() => {
           <a-row v-if="paginator.total_page >= 2">
             <!-- 加载数据中 -->
             <a-col
-              v-if="paginator.current_page <= paginator.total_page"
+              v-if="loading"
               :span="24"
               class="!text-center"
             >
@@ -372,7 +394,7 @@ onMounted(() => {
               </a-space>
             </a-col>
             <!-- 数据加载完成 -->
-            <a-col v-else :span="24" class="!text-center">
+            <a-col v-else-if="paginator.current_page > paginator.total_page" :span="24" class="!text-center">
               <div class="text-gray-400 my-4">数据已加载完成</div>
             </a-col>
           </a-row>
@@ -483,7 +505,7 @@ onMounted(() => {
 <style>
 .datasets-modal {
   .arco-modal-wrapper {
-    text-align: right;
+    @apply text-right;
   }
 }
 </style>

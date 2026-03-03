@@ -83,11 +83,13 @@ onMounted(() => {
               <a-avatar
                 :size="40"
                 shape="square"
+                class="shrink-0"
                 :style="{ backgroundColor: builtinTool.background }"
               >
                 <img
                   :src="`${apiPrefix}/builtin-tools/${builtinTool.name}/icon`"
                   :alt="builtinTool.name"
+                  class="w-full h-full object-contain"
                 />
               </a-avatar>
               <!-- 右侧工具信息 -->
@@ -139,11 +141,13 @@ onMounted(() => {
             <a-avatar
               :size="40"
               shape="square"
+              class="shrink-0"
               :style="{ backgroundColor: filterBuiltinTools[showIdx].background }"
             >
               <img
                 :src="`${apiPrefix}/builtin-tools/${filterBuiltinTools[showIdx].name}/icon`"
                 :alt="filterBuiltinTools[showIdx].name"
+                class="w-full h-full object-contain"
               />
             </a-avatar>
             <!-- 右侧工具信息 -->

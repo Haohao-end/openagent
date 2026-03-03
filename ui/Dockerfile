@@ -14,7 +14,7 @@ RUN npm install
 COPY . .
 
 # 配置环境变量
-ENV VITE_API_PREFIX=http://localhost:5001
+ENV VITE_API_PREFIX=http://127.0.0.1:5001
 
 # 构建/编译项目
 RUN npm run build

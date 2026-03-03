@@ -1,9 +1,37 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useCredentialStore } from '@/stores/credential'
+import { AUTH_REQUIRED_EVENT } from '@/utils/request'
 
 const route = useRoute()
+const credentialStore = useCredentialStore()
 const create_api_key = ref(false)
+const isLoggedIn = computed(() => {
+  const now = Math.floor(Date.now() / 1000)
+  return Boolean(
+    credentialStore.credential.access_token &&
+    credentialStore.credential.expire_at &&
+    credentialStore.credential.expire_at > now,
+  )
+})
+
+const openLoginModal = () => {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(
+    new CustomEvent(AUTH_REQUIRED_EVENT, {
+      detail: { redirect: route.fullPath },
+    }),
+  )
+}
+
+const handleCreateApiKey = () => {
+  if (!isLoggedIn.value) {
+    openLoginModal()
+    return
+  }
+  create_api_key.value = true
+}
 </script>
 
 <template>
@@ -15,12 +43,9 @@ const create_api_key = ref(false)
         <!-- 左侧标题 -->
         <div class="flex items-center gap-2">
           <a-avatar :size="32" class="bg-blue-700">
-            <icon-user :size="18" />
+            <icon-link :size="18" />
           </a-avatar>
-          <div class="flex items-center gap-2 text-lg font-medium text-gray-900">
-            开放API
-            <div class="text-xs text-gray-500">利用开放 API 快速与企业现有业务对接</div>
-          </div>
+          <div class="text-lg font-medium text-gray-900">开放 API</div>
         </div>
       </div>
       <!-- 导航按钮 -->
@@ -39,7 +64,7 @@ const create_api_key = ref(false)
             class="rounded-lg text-gray-700 px-3 h-8 leading-8 hover:bg-gray-200 transition-all"
             active-class="bg-gray-100"
           >
-            秘钥
+            密钥
           </router-link>
         </div>
         <!-- 右侧按钮 -->
@@ -47,9 +72,9 @@ const create_api_key = ref(false)
           v-if="route.path.startsWith('/openapi/api-keys')"
           type="primary"
           class="rounded-lg"
-          @click="create_api_key = true"
+          @click="handleCreateApiKey"
         >
-          新增秘钥
+          新增密钥
         </a-button>
       </div>
     </div>

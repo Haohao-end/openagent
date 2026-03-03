@@ -1,4 +1,4 @@
-import { type BasePaginatorRequest, type BasePaginatorResponse } from '@/models/base'
+import { type BasePaginatorRequest, type BasePaginatorResponse, type BaseResponse } from '@/models/base'
 
 // 获取指定会话消息列表请求结构
 export type GetConversationMessagesWithPageRequest = BasePaginatorRequest & {
@@ -24,5 +24,20 @@ export type GetConversationMessagesWithPageResponse = BasePaginatorResponse<{
     latency: number
     created_at: number
   }[]
+  suggested_questions: string[]
   created_at: number
 }>
+
+export type RecentConversation = {
+  id: string
+  name: string
+  source_type: 'assistant_agent' | 'app_debugger'
+  app_id: string
+  app_name: string
+  message_id: string
+  is_active: boolean
+  latest_message_at: number
+  created_at: number
+}
+
+export type GetRecentConversationsResponse = BaseResponse<RecentConversation[]>

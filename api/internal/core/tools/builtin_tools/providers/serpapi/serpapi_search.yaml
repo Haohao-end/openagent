@@ -1,0 +1,16 @@
+name: serpapi_search
+label: SerpAPI搜索
+description: 使用SerpAPI进行Google搜索，支持多种搜索引擎和丰富的搜索结果
+params:
+  - name: engine
+    label: 搜索引擎
+    type: select
+    default: google
+    required: false
+    options:
+      - value: google
+        label: "Google"
+      - value: bing
+        label: "Bing"
+      - value: yahoo
+        label: "Yahoo"

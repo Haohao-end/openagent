@@ -1,0 +1,9 @@
+name: github_issue_search
+label: GitHub Issue搜索
+description: 搜索GitHub上的Issues和Pull Requests
+params:
+  - name: per_page
+    label: 结果数量
+    type: number
+    default: 5
+    required: false

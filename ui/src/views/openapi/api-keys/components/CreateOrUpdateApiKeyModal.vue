@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { type ValidatedError } from '@arco-design/web-vue'
+import { type ValidatedError, Message, Modal } from '@arco-design/web-vue'
 import { useCreateApiKey, useUpdateApiKey } from '@/hooks/use-api-key'
 
 // 1.定义自定义组件所需数据
@@ -17,7 +17,14 @@ const emits = defineEmits([
   'update:is_active',
   'update:remark',
 ])
-const form = ref<Record<string, any>>({})
+type ApiKeyForm = {
+  is_active: boolean
+  remark: string
+}
+const form = ref<ApiKeyForm>({
+  is_active: false,
+  remark: '',
+})
 const formRef = ref(null)
 const { loading: updateApiKeyLoading, handleUpdateApiKey } = useUpdateApiKey()
 const { loading: createApiKeyLoading, handleCreateApiKey } = useCreateApiKey()
@@ -41,10 +48,23 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
     })
   } else {
     // 3.4 执行新增操作
-    await handleCreateApiKey({
+    const createdApiKey = await handleCreateApiKey({
       is_active: Boolean(form.value?.is_active),
       remark: String(form.value?.remark),
     })
+    if (createdApiKey) {
+      Modal.info({
+        title: 'API 密钥（仅显示一次）',
+        content: createdApiKey,
+        okText: '我已保存',
+      })
+      try {
+        await navigator.clipboard.writeText(createdApiKey)
+        Message.success('API 密钥已复制到剪贴板')
+      } catch {
+        Message.warning('复制失败，请手动保存上方密钥')
+      }
+    }
   }
 
   // 3.5 隐藏模态窗
@@ -78,14 +98,22 @@ watch(
     @update:visible="(value) => emits('update:visible', value)"
     hide-title
     :footer="false"
+    :width="520"
   >
     <!-- 顶部标题 -->
-    <div class="flex items-center justify-between">
-      <div class="text-lg font-bold text-gray-700">{{ api_key_id ? '更新' : '新增' }}秘钥</div>
+    <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
+          <icon-safe class="text-white text-lg" />
+        </div>
+        <div>
+          <div class="text-lg font-bold text-gray-900">{{ api_key_id ? '编辑' : '创建' }}密钥</div>
+          <div class="text-sm text-gray-500 mt-0.5">{{ api_key_id ? '更新密钥配置信息' : '创建新的 API 访问密钥' }}</div>
+        </div>
+      </div>
       <a-button
         type="text"
-        class="!text-gray-700"
-        size="small"
+        class="!text-gray-400 hover:!text-gray-600"
         @click="() => emits('update:visible', false)"
       >
         <template #icon>
@@ -93,39 +121,68 @@ watch(
         </template>
       </a-button>
     </div>
-    <!-- 中间表单 -->
-    <div class="pt-6">
-      <a-form ref="formRef" :model="form" layout="vertical" @submit="saveApiKey">
-        <a-form-item field="is_active" label="秘钥状态">
+
+    <!-- 表单 -->
+    <a-form ref="formRef" :model="form" layout="vertical" @submit="saveApiKey">
+      <a-form-item field="is_active" class="mb-5">
+        <template #label>
+          <div class="text-sm font-semibold text-gray-700 mb-2">密钥状态</div>
+        </template>
+        <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
           <a-switch v-model:model-value="form.is_active" />
-        </a-form-item>
-        <a-form-item field="remark" label="秘钥备注">
-          <a-textarea
-            v-model:model-value="form.remark"
-            :max-length="100"
-            show-word-limit
-            placeholder="请输入秘钥备注，用于描述秘钥基础信息"
-          />
-        </a-form-item>
-        <!-- 底部按钮 -->
-        <div class="flex items-center justify-between">
-          <div class=""></div>
-          <a-space :size="16">
-            <a-button class="rounded-lg" @click="() => emits('update:visible', false)">
-              取消
-            </a-button>
-            <a-button
-              :loading="updateApiKeyLoading || createApiKeyLoading"
-              type="primary"
-              html-type="submit"
-              class="rounded-lg"
-            >
-              保存
-            </a-button>
-          </a-space>
+          <div class="flex-1">
+            <div class="text-sm font-medium text-gray-900">
+              {{ form.is_active ? '启用' : '禁用' }}
+            </div>
+            <div class="text-xs text-gray-500 mt-0.5">
+              {{ form.is_active ? '密钥可以正常使用' : '密钥将无法访问 API' }}
+            </div>
+          </div>
         </div>
-      </a-form>
-    </div>
+      </a-form-item>
+
+      <a-form-item field="remark" class="mb-5">
+        <template #label>
+          <div class="text-sm font-semibold text-gray-700 mb-2">密钥备注</div>
+        </template>
+        <a-textarea
+          v-model:model-value="form.remark"
+          :max-length="100"
+          show-word-limit
+          placeholder="请输入密钥备注信息,例如:生产环境密钥、测试环境密钥等"
+          :auto-size="{ minRows: 3, maxRows: 6 }"
+          class="!rounded-lg"
+        />
+      </a-form-item>
+
+      <!-- 提示 -->
+      <div v-if="!api_key_id" class="mb-5 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <div class="flex items-start gap-2">
+          <icon-info-circle class="text-amber-600 text-base flex-shrink-0 mt-0.5" />
+          <div class="flex-1 text-sm text-amber-900">
+            密钥创建后将只显示一次,请妥善保管。如果遗失,您需要重新创建新的密钥。
+          </div>
+        </div>
+      </div>
+
+      <!-- 按钮 -->
+      <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+        <a-button
+          class="!rounded-lg"
+          @click="() => emits('update:visible', false)"
+        >
+          取消
+        </a-button>
+        <a-button
+          :loading="updateApiKeyLoading || createApiKeyLoading"
+          type="primary"
+          html-type="submit"
+          class="!rounded-lg !bg-gray-900 hover:!bg-gray-800"
+        >
+          {{ api_key_id ? '保存' : '创建' }}
+        </a-button>
+      </div>
+    </a-form>
   </a-modal>
 </template>
 

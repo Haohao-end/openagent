@@ -186,3 +186,15 @@ export const getSegment = (dataset_id: string, document_id: string, segment_id: 
     `/datasets/${dataset_id}/documents/${document_id}/segments/${segment_id}`,
   )
 }
+
+// 重新生成知识库图标
+export const regenerateIcon = (dataset_id: string) => {
+  return post<BaseResponse<{ icon: string }>>(`/datasets/${dataset_id}/regenerate-icon`)
+}
+
+// 生成知识库图标预览（不保存到知识库）
+export const generateIconPreview = (name: string, description: string) => {
+  return post<BaseResponse<{ icon: string }>>(`/datasets/generate-icon-preview`, {
+    body: { name, description },
+  })
+}

@@ -5,6 +5,9 @@ from flask_login import login_required, current_user
 from injector import inject
 from internal.schema.assistant_agent_schema import (
     AssistantAgentChat,
+    GetAssistantAgentConversationsReq,
+    GetAssistantAgentConversationsResp,
+    AssistantAgentGenerateIntroduction,
     GetAssistantAgentMessagesWithPageReq,
     GetAssistantAgentMessagesWithPageResp,
 )
@@ -28,8 +31,18 @@ class AssistantAgentHandler:
             return validate_error_json(req.errors)
 
         # 2.调用服务创建会话响应
-        response = self.assistant_agent_service.chat(req.query.data, current_user)
+        response = self.assistant_agent_service.chat(req, current_user)
 
+        return compact_generate_response(response)
+
+    @login_required
+    def generate_assistant_agent_introduction(self):
+        """流式生成辅助Agent个性化欢迎介绍"""
+        req = AssistantAgentGenerateIntroduction()
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        response = self.assistant_agent_service.generate_introduction(current_user)
         return compact_generate_response(response)
 
     @login_required
@@ -55,6 +68,21 @@ class AssistantAgentHandler:
         resp = GetAssistantAgentMessagesWithPageResp(many=True)
 
         return success_json(PageModel(list=resp.dump(messages), paginator=paginator))
+
+    @login_required
+    def get_assistant_agent_conversations(self):
+        """获取与辅助智能体的最近会话列表"""
+        # 1.提取请求并校验数据
+        req = GetAssistantAgentConversationsReq(request.args)
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        # 2.调用服务获取数据
+        conversations = self.assistant_agent_service.get_conversations(req, current_user)
+
+        # 3.构建响应并返回
+        resp = GetAssistantAgentConversationsResp(many=True)
+        return success_json(resp.dump(conversations))
 
     @login_required
     def delete_assistant_agent_conversation(self):

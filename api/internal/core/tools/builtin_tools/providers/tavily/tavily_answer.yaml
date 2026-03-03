@@ -1,0 +1,4 @@
+name: tavily_answer
+label: Tavily答案提取
+description: 从搜索结果中直接提取答案，适合需要快速获取答案的场景
+params: []
