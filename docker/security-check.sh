@@ -7,6 +7,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yaml"
 
 echo "=========================================="
 echo "  LLMOps 安全检查"
@@ -29,14 +30,6 @@ if git ls-files --error-unmatch "$PROJECT_ROOT/api/.env" 2>/dev/null; then
     ISSUES_FOUND=$((ISSUES_FOUND + 1))
 else
     echo -e "${GREEN}✓ api/.env 未被 Git 跟踪${NC}"
-fi
-
-if git ls-files --error-unmatch "$SCRIPT_DIR/.env" 2>/dev/null; then
-    echo -e "${RED}❌ 错误: docker/.env 文件被 Git 跟踪！${NC}"
-    echo "   请执行: git rm --cached docker/.env"
-    ISSUES_FOUND=$((ISSUES_FOUND + 1))
-else
-    echo -e "${GREEN}✓ docker/.env 未被 Git 跟踪${NC}"
 fi
 echo ""
 
@@ -66,7 +59,7 @@ echo ""
 
 # 3. 检查 docker-compose.yaml 中是否有硬编码的 API Keys
 echo "3. 检查 docker-compose.yaml 中的 API Keys..."
-if grep -qE "(OPENAI_API_KEY|DEEPSEEK_API_KEY|MOONSHOT_API_KEY|CLAUDE_API_KEY):\s*sk-" "$SCRIPT_DIR/docker-compose.yaml" 2>/dev/null; then
+if grep -qE "(OPENAI_API_KEY|DEEPSEEK_API_KEY|MOONSHOT_API_KEY|CLAUDE_API_KEY):\s*sk-" "$COMPOSE_FILE" 2>/dev/null; then
     echo -e "${RED}❌ 错误: docker-compose.yaml 中发现硬编码的 API Keys！${NC}"
     ISSUES_FOUND=$((ISSUES_FOUND + 1))
 else
@@ -101,14 +94,7 @@ echo ""
 echo "6. 检查必需的配置文件..."
 if [ ! -f "$PROJECT_ROOT/api/.env" ]; then
     echo -e "${YELLOW}⚠️  警告: api/.env 文件不存在${NC}"
-    echo "   容器将使用 entrypoint.sh 中的默认配置"
     echo "   建议: cp api/.env.example api/.env"
-fi
-
-if [ ! -f "$SCRIPT_DIR/.env" ]; then
-    echo -e "${YELLOW}⚠️  警告: docker/.env 文件不存在${NC}"
-    echo "   将使用 docker-compose.yaml 中的默认值"
-    echo "   建议: cp docker/.env.example docker/.env"
 fi
 echo ""
 

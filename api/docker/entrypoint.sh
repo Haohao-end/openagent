@@ -63,6 +63,14 @@ set_default_if_unset "DEEPSEEK_API_BASE" "https://api.deepseek.com/v1"
 set_default_if_unset "SILICONFLOW_API_BASE" "https://api.siliconflow.cn"
 set_default_if_unset "LANGCHAIN_ENDPOINT" "https://api.smith.langchain.com"
 
+# Docker 环境下优先使用容器内数据库地址拼接连接串
+if [[ -n "${POSTGRES_HOST}" ]]; then
+  set_default_if_unset "POSTGRES_PORT" "5432"
+  if [[ -n "${POSTGRES_USER}" && -n "${POSTGRES_PASSWORD}" && -n "${POSTGRES_DB}" ]]; then
+    export SQLALCHEMY_DATABASE_URI="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?client_encoding=utf8"
+  fi
+fi
+
 # 3.检查必需的环境变量（从 api/.env 或 docker-compose 提供）
 check_required_env() {
   local missing_vars=()

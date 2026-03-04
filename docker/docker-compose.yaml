@@ -18,25 +18,26 @@ services:
     restart: always
     volumes:
       - ./volumes/app/storage:/app/api/storage
-    # 从项目根目录的 .env 读取所有配置
+    # 从 api/.env 读取配置
     env_file:
-      - ../.env
+      - ../api/.env
     environment:
       # Docker 环境特定配置（覆盖 .env 中的对应配置）
       MODE: api
       MIGRATION_ENABLED: 'true'
-      # 数据库连接使用 Docker 服务名
-      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-llmops123456}@llmops-db:5432/${POSTGRES_DB:-llmops}?client_encoding=utf8
+      POSTGRES_HOST: llmops-db
+      POSTGRES_PORT: 5432
       # Redis 连接使用 Docker 服务名
       REDIS_HOST: llmops-redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-llmops123456}
       # Weaviate 连接使用 Docker 服务名
       WEAVIATE_HTTP_HOST: llmops-weaviate
       WEAVIATE_HTTP_PORT: 8080
       WEAVIATE_GRPC_HOST: llmops-weaviate
       WEAVIATE_GRPC_PORT: 50051
-      WEAVIATE_API_KEY: ${WEAVIATE_API_KEY:-ftBC9hKkjfdbdi0W3T6kEtMh5BZFpGa1DF8}
+      # 数据库连接字符串覆盖（使用 Docker 服务名）
+      # 注意: 密码从 .env 文件的 POSTGRES_PASSWORD 读取
+      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@llmops-db:5432/${POSTGRES_DB}?client_encoding=utf8
     ports:
       - "${API_PORT:-5001}:5001"
     depends_on:
@@ -56,25 +57,26 @@ services:
     restart: always
     volumes:
       - ./volumes/app/storage:/app/api/storage
-    # 从项目根目录的 .env 读取所有配置
+    # 从 api/.env 读取配置
     env_file:
-      - ../.env
+      - ../api/.env
     environment:
       # Docker 环境特定配置（覆盖 .env 中的对应配置）
       MODE: celery
       MIGRATION_ENABLED: 'false'
-      # 数据库连接使用 Docker 服务名
-      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-llmops123456}@llmops-db:5432/${POSTGRES_DB:-llmops}?client_encoding=utf8
+      POSTGRES_HOST: llmops-db
+      POSTGRES_PORT: 5432
       # Redis 连接使用 Docker 服务名
       REDIS_HOST: llmops-redis
       REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-llmops123456}
       # Weaviate 连接使用 Docker 服务名
       WEAVIATE_HTTP_HOST: llmops-weaviate
       WEAVIATE_HTTP_PORT: 8080
       WEAVIATE_GRPC_HOST: llmops-weaviate
       WEAVIATE_GRPC_PORT: 50051
-      WEAVIATE_API_KEY: ${WEAVIATE_API_KEY:-ftBC9hKkjfdbdi0W3T6kEtMh5BZFpGa1DF8}
+      # 数据库连接字符串覆盖（使用 Docker 服务名）
+      # 注意: 密码从 .env 文件的 POSTGRES_PASSWORD 读取
+      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@llmops-db:5432/${POSTGRES_DB}?client_encoding=utf8
     depends_on:
       llmops-db:
         condition: service_healthy
@@ -87,11 +89,13 @@ services:
     image: redis:6-alpine
     restart: always
     container_name: llmops-redis
+    env_file:
+      - ../api/.env
     volumes:
       - ./volumes/redis/data:/data
-    command: redis-server --requirepass ${REDIS_PASSWORD:-llmops123456}
+    command: ["sh", "-c", "redis-server --requirepass \"$$REDIS_PASSWORD\""]
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --raw ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -102,16 +106,15 @@ services:
     image: postgres:15-alpine
     restart: always
     container_name: llmops-db
+    env_file:
+      - ../api/.env
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-llmops123456}
-      POSTGRES_DB: ${POSTGRES_DB:-llmops}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - ./volumes/db/data:/var/lib/postgresql/data/pgdata
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -122,6 +125,8 @@ services:
     image: semitechnologies/weaviate:1.28.4
     container_name: llmops-weaviate
     restart: always
+    env_file:
+      - ../api/.env
     environment:
       QUERY_DEFAULTS_LIMIT: 25
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'false'
@@ -130,9 +135,9 @@ services:
       CLUSTER_HOSTNAME: 'node1'
       AUTHENTICATION_APIKEY_ENABLED: 'true'
       AUTHENTICATION_APIKEY_ALLOWED_KEYS: ${WEAVIATE_API_KEY:-ftBC9hKkjfdbdi0W3T6kEtMh5BZFpGa1DF8}
-      AUTHENTICATION_APIKEY_USERS: ${WEAVIATE_USER:-2227625024@qq.com}
+      AUTHENTICATION_APIKEY_USERS: ${WEAVIATE_USER:-admin@localhost}
       AUTHORIZATION_ADMINLIST_ENABLED: 'true'
-      AUTHORIZATION_ADMINLIST_USERS: ${WEAVIATE_USER:-2227625024@qq.com}
+      AUTHORIZATION_ADMINLIST_USERS: ${WEAVIATE_USER:-admin@localhost}
     volumes:
       - ./volumes/weaviate:/var/lib/weaviate
     ports:
@@ -143,15 +148,16 @@ services:
     image: nginx:latest
     restart: always
     container_name: llmops-nginx
+    env_file:
+      - ../api/.env
     environment:
-      - DOMAIN_NAME=${DOMAIN_NAME:-localhost}
-      - ENABLE_HTTPS=${ENABLE_HTTPS:-false}
-      - SSL_CERT_FILE=${SSL_CERT_FILE:-server.crt}
-      - SSL_KEY_FILE=${SSL_KEY_FILE:-server.key}
+      API_UPSTREAM_HOST: llmops-api
+      API_UPSTREAM_PORT: 5001
+      UI_UPSTREAM_HOST: llmops-ui
+      UI_UPSTREAM_PORT: 3000
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/proxy.conf:/etc/nginx/proxy.conf
-      - ./nginx/conf.d/default.conf.template:/etc/nginx/templates/default.conf.template
       - ./nginx/entrypoint.sh:/docker-entrypoint.sh
       - ./nginx/ssl:/etc/ssl
     entrypoint: ["/bin/bash", "/docker-entrypoint.sh"]

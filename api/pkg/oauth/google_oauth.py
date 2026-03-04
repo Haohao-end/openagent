@@ -2,13 +2,13 @@ import os
 import urllib.parse
 
 import certifi
-import dotenv
 import requests
 
+from pkg.env_loader import load_project_env
 from .oauth import OAuth, OAuthUserInfo
 
 # 加载环境变量
-dotenv.load_dotenv()
+load_project_env()
 
 # 修复SSL证书路径
 os.environ["SSL_CERT_FILE"] = certifi.where()

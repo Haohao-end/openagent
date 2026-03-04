@@ -178,7 +178,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Haohao-end/LMForge-End-to-En
 
 ### Manual Deployment
 
-See **[DEPLOYMENT.md](DEPLOYMENT.md)** for detailed instructions.
+See **[DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md)** for detailed instructions.
 
 ---
 
@@ -211,12 +211,28 @@ See **[docker/SECURITY.md](docker/SECURITY.md)** for security best practices.
 
 ## 📚 Documentation
 
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
-- **[QUICKSTART_GUIDE.md](QUICKSTART_GUIDE.md)** - Quick start guide
+### Core Documentation
+- **[DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md)** - Complete deployment guide
+- **[QUICKSTART_GUIDE.md](docs/deployment/QUICKSTART_GUIDE.md)** - Quick start guide
+- **[CLAUDE.md](CLAUDE.md)** - Project architecture for AI assistants
+- **[API Documentation](https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417)** - REST API reference
+
+### Docker & Infrastructure
 - **[docker/README.md](docker/README.md)** - Docker configuration
 - **[docker/SECURITY.md](docker/SECURITY.md)** - Security guidelines
-- **[CLAUDE.md](CLAUDE.md)** - Project architecture
-- **[API Documentation](https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417)** - REST API reference
+
+### Development Guides
+- **[AGENTS.md](docs/development/AGENTS.md)** - Agent development guide
+- **[API Configuration](docs/development/API_CONFIG_SUMMARY.md)** - API configuration guide
+- **[Frontend Guide](docs/development/FRONTEND_IMPLEMENTATION_GUIDE.md)** - Frontend development
+
+### Feature Documentation
+- **[Icon Generation](docs/features/ICON_GENERATION_COMPLETE_GUIDE.md)** - Icon generation system
+- **[If-Else Workflow](docs/features/IF_ELSE_ARCHITECTURE.md)** - Conditional workflow nodes
+
+### Testing & QA
+- **[Test Guide](docs/testing/TEST_GUIDE.md)** - Testing guidelines
+- **[Bug Reports](docs/bugfix/)** - Bug fix history
 
 ---
 
@@ -272,6 +288,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Online Demo**: http://82.157.66.198/
 
 ---
+
+## 🔒 Security Acknowledgements
+
+Special thanks to Rui Yang and Haoyu Wang (Johns Hopkins University) for responsibly reporting a Host Header poisoning issue in the built-in tool icon URL construction and helping improve the security of this project.
 
 <div align="center">
 

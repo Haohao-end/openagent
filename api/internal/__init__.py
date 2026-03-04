@@ -1,3 +1,3 @@
-import dotenv
+from pkg.env_loader import load_project_env
 
-dotenv.load_dotenv()
+load_project_env()

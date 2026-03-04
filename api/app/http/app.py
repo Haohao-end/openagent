@@ -1,15 +1,16 @@
-import dotenv
-dotenv.load_dotenv()
 from flask_migrate import Migrate
 from flask_mail import Mail
 from config import Config
 from internal.router import Router
 from internal.server import Http
 from pkg.sqlalchemy import SQLAlchemy
+from pkg.env_loader import load_project_env
 from flask_weaviate import FlaskWeaviate
 from .module import injector
 from flask_login import LoginManager
 from internal.middleware import Middleware
+
+load_project_env()
 
 
 conf = Config()
