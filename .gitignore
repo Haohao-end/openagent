@@ -8,11 +8,13 @@
 !QUICKSTART_GUIDE.md
 
 # Local runtime secrets - 环境变量文件（包含敏感信息）
+# 只保留项目根目录的 .env 文件
 .env
-*.env
 !.env.example
-docker/.env
+
+# 旧的 .env 文件（已废弃，如果存在也忽略）
 api/.env
+docker/.env
 
 # SSL 证书文件（绝对不能上传！）
 docker/nginx/ssl/*.crt

@@ -1,17 +1,34 @@
 # Nginx 配置模板
-# 此文件会被 entrypoint.sh 动态替换变量
+# 变量格式: ${VARIABLE_NAME}
+# 容器启动时会被 envsubst 替换为实际值
 
-# HTTP 重定向到 HTTPS（仅在启用 HTTPS 时生效）
+# HTTP 重定向到 HTTPS
 server {
     listen 80;
     server_name ${DOMAIN_NAME};
-
-    # 如果启用 HTTPS，重定向到 HTTPS
-    # 如果不启用 HTTPS，直接代理
-    ${HTTP_REDIRECT}
-
-    ${HTTP_PROXY}
+    return 301 https://$host$request_uri;
 }
 
-# HTTPS 配置（仅在启用 HTTPS 时生效）
-${HTTPS_SERVER}
+# HTTPS 配置
+server {
+    listen 443 ssl;
+    server_name ${DOMAIN_NAME};
+
+    ssl_certificate /etc/ssl/${SSL_CERT_FILE};
+    ssl_certificate_key /etc/ssl/${SSL_KEY_FILE};
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    # API 代理
+    location /api/ {
+        proxy_pass http://llmops-api:5001/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    # 前端代理
+    location / {
+        proxy_pass http://llmops-ui:3000;
+        include /etc/nginx/proxy.conf;
+    }
+}

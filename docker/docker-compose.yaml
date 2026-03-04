@@ -18,11 +18,11 @@ services:
     restart: always
     volumes:
       - ./volumes/app/storage:/app/api/storage
-    # 从 api/.env 读取所有业务配置
+    # 从项目根目录的 .env 读取所有配置
     env_file:
-      - ../api/.env
+      - ../.env
     environment:
-      # Docker 环境特定配置（覆盖 api/.env 中的对应配置）
+      # Docker 环境特定配置（覆盖 .env 中的对应配置）
       MODE: api
       MIGRATION_ENABLED: 'true'
       # 数据库连接使用 Docker 服务名
@@ -56,11 +56,11 @@ services:
     restart: always
     volumes:
       - ./volumes/app/storage:/app/api/storage
-    # 从 api/.env 读取所有业务配置
+    # 从项目根目录的 .env 读取所有配置
     env_file:
-      - ../api/.env
+      - ../.env
     environment:
-      # Docker 环境特定配置（覆盖 api/.env 中的对应配置）
+      # Docker 环境特定配置（覆盖 .env 中的对应配置）
       MODE: celery
       MIGRATION_ENABLED: 'false'
       # 数据库连接使用 Docker 服务名
@@ -151,6 +151,7 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/proxy.conf:/etc/nginx/proxy.conf
+      - ./nginx/conf.d/default.conf.template:/etc/nginx/templates/default.conf.template
       - ./nginx/entrypoint.sh:/docker-entrypoint.sh
       - ./nginx/ssl:/etc/ssl
     entrypoint: ["/bin/bash", "/docker-entrypoint.sh"]
