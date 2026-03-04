@@ -141,18 +141,20 @@
 ### One-Command Deployment
 
 ```bash
-# Clone repository
+# 1. Clone repository
 git clone https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents.git
 cd LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents
 
-# Configure environment variables
+# 2. Configure environment variables
 cp api/.env.example api/.env
 vim api/.env  # Fill in your API keys
 
-# Start services
+# 3. Start services
 cd docker
-bash start.sh
+docker compose up -d --build
 ```
+
+**📖 Detailed Guide**: See [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) for complete instructions.
 
 ### Access Services
 
