@@ -10,8 +10,16 @@ const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5001', {
 export function setupAgentNotificationListener(agentNotificationRef: any) {
   // 监听Agent通知事件
   socket.on('agent_notification', (data: any) => {
-    if (agentNotificationRef.value) {
-      agentNotificationRef.value.addNotification(data)
+    try {
+      if (!data || !data.id || !data.app_id) {
+        console.warn('[Agent Notification] Invalid notification data:', data)
+        return
+      }
+      if (agentNotificationRef.value) {
+        agentNotificationRef.value.addNotification(data)
+      }
+    } catch (error) {
+      console.error('[Agent Notification] Error handling notification:', error)
     }
   })
 }

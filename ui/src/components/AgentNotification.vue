@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import type { AgentNotification } from '@/models/agent-notification'
 
@@ -10,6 +10,24 @@ const notifications = ref<AgentNotification[]>([])
 
 // 自动消失的定时器映射
 const autoHideTimers = ref<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+// 点击后消失的定时器映射
+const clickHideTimers = ref<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+/**
+ * 清理所有定时器
+ */
+const clearAllTimers = () => {
+  autoHideTimers.value.forEach((timer) => {
+    clearTimeout(timer)
+  })
+  autoHideTimers.value.clear()
+
+  clickHideTimers.value.forEach((timer) => {
+    clearTimeout(timer)
+  })
+  clickHideTimers.value.clear()
+}
 
 /**
  * 添加通知
@@ -37,11 +55,18 @@ const addNotification = (notification: AgentNotification) => {
 const removeNotification = (notificationId: string) => {
   notifications.value = notifications.value.filter((n) => n.id !== notificationId)
 
-  // 清理定时器
-  const timer = autoHideTimers.value.get(notificationId)
-  if (timer) {
-    clearTimeout(timer)
+  // 清理自动消失定时器
+  const autoTimer = autoHideTimers.value.get(notificationId)
+  if (autoTimer) {
+    clearTimeout(autoTimer)
     autoHideTimers.value.delete(notificationId)
+  }
+
+  // 清理点击消失定时器
+  const clickTimer = clickHideTimers.value.get(notificationId)
+  if (clickTimer) {
+    clearTimeout(clickTimer)
+    clickHideTimers.value.delete(notificationId)
   }
 }
 
@@ -49,10 +74,10 @@ const removeNotification = (notificationId: string) => {
  * 处理通知点击
  */
 const handleNotificationClick = (notification: AgentNotification) => {
-  // 清理定时器
-  const timer = autoHideTimers.value.get(notification.id)
-  if (timer) {
-    clearTimeout(timer)
+  // 清理自动消失定时器
+  const autoTimer = autoHideTimers.value.get(notification.id)
+  if (autoTimer) {
+    clearTimeout(autoTimer)
     autoHideTimers.value.delete(notification.id)
   }
 
@@ -61,12 +86,12 @@ const handleNotificationClick = (notification: AgentNotification) => {
     path: `/space/apps/${notification.app_id}`,
   })
 
-  // 2 秒后移除通知
-  const delayTimer = setTimeout(() => {
+  // 设置 2 秒后消失
+  const clickTimer = setTimeout(() => {
     removeNotification(notification.id)
   }, 2000)
 
-  autoHideTimers.value.set(notification.id, delayTimer)
+  clickHideTimers.value.set(notification.id, clickTimer)
 }
 
 /**
@@ -75,6 +100,11 @@ const handleNotificationClick = (notification: AgentNotification) => {
 const handleCloseNotification = (notificationId: string) => {
   removeNotification(notificationId)
 }
+
+// 组件卸载时清理所有定时器
+onUnmounted(() => {
+  clearAllTimers()
+})
 
 // 暴露方法给外部使用
 defineExpose({
