@@ -1,6 +1,6 @@
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, UTC
 from uuid import UUID
 
 from flask import current_app
@@ -29,7 +29,7 @@ class NotificationService:
     ) -> DocumentIndexNotificationEntity:
         """创建文档索引完成通知"""
         notification_id = str(uuid.uuid4())
-        now = datetime.utcnow()
+        now = datetime.now(UTC).replace(tzinfo=None)
 
         notification = DocumentIndexNotificationEntity(
             id=notification_id,
@@ -156,7 +156,7 @@ class NotificationService:
     ) -> AgentNotificationEntity:
         """创建Agent构建完成通知"""
         notification_id = str(uuid.uuid4())
-        now = datetime.utcnow()
+        now = datetime.now(UTC).replace(tzinfo=None)
 
         notification = AgentNotificationEntity(
             id=notification_id,

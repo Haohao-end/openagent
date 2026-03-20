@@ -78,7 +78,9 @@ def handle_subscribe_agent_notification(data: dict[str, Any] | None = None) -> N
     if not user_id:
         return
 
-    ws_manager.subscribe_notification(request.sid, user_id)
+    # 使用前缀区分Agent通知
+    agent_notification_key = f"agent:{user_id}"
+    ws_manager.subscribe_notification(request.sid, agent_notification_key)
 
 
 @socketio.on("unsubscribe_agent_notification")
@@ -89,5 +91,7 @@ def handle_unsubscribe_agent_notification(data: dict[str, Any] | None = None) ->
     if not user_id:
         return
 
-    ws_manager.unsubscribe_notification(request.sid, user_id)
+    # 使用前缀区分Agent通知
+    agent_notification_key = f"agent:{user_id}"
+    ws_manager.unsubscribe_notification(request.sid, agent_notification_key)
 

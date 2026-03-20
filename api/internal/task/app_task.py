@@ -16,7 +16,7 @@ def auto_create_app(
     from app.http.module import injector
     from internal.service import AppService
     from internal.service.notification_service import NotificationService
-    from internal.lib.websocket_emitter import emit_to_user
+    from internal.lib.websocket_manager import ws_manager
     from internal.schema.agent_notification_schema import AgentNotificationSchema
 
     app_service = injector.get(AppService)
@@ -36,9 +36,10 @@ def auto_create_app(
         # 通过 WebSocket 推送通知
         schema = AgentNotificationSchema()
         notification_data = schema.dump(notification)
-        emit_to_user(account_id, "agent_notification", notification_data)
+        agent_notification_key = f"agent:{account_id}"
+        ws_manager.emit_notification_to_user(agent_notification_key, notification_data, event="agent_notification")
 
-        logger.info(f"Created and emitted notification for agent {app.id}")
+        logger.info("Created and emitted notification for agent %s", app.id)
     except Exception as e:
-        logger.error(f"Error in auto_create_app task: {e}")
+        logger.error("Error in auto_create_app task: %s", str(e))
         raise
