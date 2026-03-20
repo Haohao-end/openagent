@@ -14,6 +14,7 @@ import IconOpenAgent from '@/components/icons/IconOpenAgent.vue'
 import { useRoute } from 'vue-router'
 import { getUserAvatarUrl } from '@/utils/helper'
 import AgentNotification from '@/components/AgentNotification.vue'
+import { setupAgentNotificationListener } from '@/services/websocket'
 
 // 1.定义页面所需数据
 const settingModalVisible = ref(false)
@@ -159,6 +160,7 @@ onMounted(() => {
   window.addEventListener('recent-conversations:show', handleRecentConversationsShow)
   window.addEventListener('recent-conversations:hide', handleRecentConversationsHide)
   window.addEventListener('resize', handleViewportResize)
+  setupAgentNotificationListener(agentNotificationRef)
 })
 
 onUnmounted(() => {
