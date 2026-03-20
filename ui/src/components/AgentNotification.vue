@@ -1,0 +1,139 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import type { AgentNotification } from '@/models/agent-notification'
+
+const router = useRouter()
+
+// 通知列表
+const notifications = ref<AgentNotification[]>([])
+
+// 自动消失的定时器映射
+const autoHideTimers = ref<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+/**
+ * 添加通知
+ */
+const addNotification = (notification: AgentNotification) => {
+  // 检查是否已存在相同的通知
+  const exists = notifications.value.some((n) => n.id === notification.id)
+  if (exists) {
+    return
+  }
+
+  notifications.value.push(notification)
+
+  // 设置 10 秒后自动消失
+  const timer = setTimeout(() => {
+    removeNotification(notification.id)
+  }, 10000)
+
+  autoHideTimers.value.set(notification.id, timer)
+}
+
+/**
+ * 移除通知
+ */
+const removeNotification = (notificationId: string) => {
+  notifications.value = notifications.value.filter((n) => n.id !== notificationId)
+
+  // 清理定时器
+  const timer = autoHideTimers.value.get(notificationId)
+  if (timer) {
+    clearTimeout(timer)
+    autoHideTimers.value.delete(notificationId)
+  }
+}
+
+/**
+ * 处理通知点击
+ */
+const handleNotificationClick = (notification: AgentNotification) => {
+  // 清理定时器
+  const timer = autoHideTimers.value.get(notification.id)
+  if (timer) {
+    clearTimeout(timer)
+    autoHideTimers.value.delete(notification.id)
+  }
+
+  // 导航到Agent调试页面
+  router.push({
+    path: `/space/apps/${notification.app_id}`,
+  })
+
+  // 2 秒后移除通知
+  const delayTimer = setTimeout(() => {
+    removeNotification(notification.id)
+  }, 2000)
+
+  autoHideTimers.value.set(notification.id, delayTimer)
+}
+
+/**
+ * 处理关闭按钮点击
+ */
+const handleCloseNotification = (notificationId: string) => {
+  removeNotification(notificationId)
+}
+
+// 暴露方法给外部使用
+defineExpose({
+  addNotification,
+})
+</script>
+
+<template>
+  <div class="fixed top-4 right-4 z-50 flex flex-col gap-3 max-w-lg">
+    <transition-group name="notification" tag="div" class="flex flex-col gap-3">
+      <div
+        v-for="notification in notifications"
+        :key="notification.id"
+        class="bg-white rounded-lg shadow-md border border-green-200 overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+        @click="handleNotificationClick(notification)"
+      >
+        <!-- 主要内容 -->
+        <div class="p-5 flex items-start gap-3">
+          <!-- 左侧图标 - 绿色成功风格 -->
+          <div class="flex-shrink-0 mt-1">
+            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+          </div>
+
+          <!-- 中间内容 -->
+          <div class="flex-1 min-w-0">
+            <p class="text-base font-medium text-gray-900 mb-1">
+              Agent构建完成
+            </p>
+            <p class="text-sm text-gray-600 truncate">
+              {{ notification.app_name }}
+            </p>
+          </div>
+
+          <!-- 右侧关闭按钮 -->
+          <button
+            class="flex-shrink-0 text-gray-300 hover:text-gray-500 transition-colors mt-0.5"
+            @click.stop="handleCloseNotification(notification.id)"
+          >
+            <icon-close :size="16" />
+          </button>
+        </div>
+      </div>
+    </transition-group>
+  </div>
+</template>
+
+<style scoped>
+.notification-enter-active,
+.notification-leave-active {
+  transition: all 0.3s ease;
+}
+
+.notification-enter-from {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.notification-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
+}
+</style>
