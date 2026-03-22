@@ -11,7 +11,7 @@ interface Props {
   labels?: string[] // 可选的标签
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   container: undefined,
   bottomThreshold: 500,
   itemSelector: '[data-scroll-item]',
@@ -31,17 +31,17 @@ const {
   scrollToTop,
   scrollToItem,
 } = useScrollNavigation({
-  container: undefined, // 将在 onMounted 中设置
-  bottomThreshold: 500,
+  container: props.container,
+  bottomThreshold: props.bottomThreshold,
 })
 
 onMounted(() => {
   // 自动收集导航项
   const container = containerRef.value || document.documentElement
-  const elements = Array.from(container.querySelectorAll(itemSelector)) as HTMLElement[]
+  const elements = Array.from(container.querySelectorAll(props.itemSelector)) as HTMLElement[]
 
   if (elements.length > 0) {
-    collectItems(elements)
+    collectItems(elements, props.labels)
   }
 })
 
