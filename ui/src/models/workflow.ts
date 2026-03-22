@@ -20,6 +20,8 @@ export type GetWorkflowsWithPageResponse = BasePaginatorResponse<{
   status: string
   is_debug_passed: boolean
   node_count: number
+  creator_name: string
+  creator_avatar: string
   published_at: number
   updated_at: number
   created_at: number

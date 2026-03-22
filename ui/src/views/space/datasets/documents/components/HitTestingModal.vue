@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import moment from 'moment'
 import { ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { useGetDatasetQueries, useHit } from '@/hooks/use-dataset'
 import type { GetDatasetQueriesResponse, HitRequest, HitResponse } from '@/models/dataset'
+import { formatTimestampShort } from '@/utils/time-formatter'
 
 type RetrievalSetting = Pick<HitRequest, 'retrieval_strategy' | 'k' | 'score'>
 type HitTestingForm = RetrievalSetting & { query: string }
@@ -196,7 +196,7 @@ watch(
                   >
                     <template #cell="{ record }">
                       <div class="">
-                        {{ moment(record.created_at * 1000).format('YYYY-MM-DD HH:mm') }}
+                        {{ formatTimestampShort(record.created_at) }}
                       </div>
                     </template>
                   </a-table-column>

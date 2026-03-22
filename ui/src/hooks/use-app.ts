@@ -374,6 +374,10 @@ export const useUpdateDraftAppConfig = () => {
       loading.value = true
       const resp = await updateDraftAppConfig(app_id, draft_app_config)
       Message.success(resp.message)
+    } catch (error: unknown) {
+      const msg = getErrorMessage(error, '更新应用草稿配置失败')
+      Message.error(msg)
+      throw error
     } finally {
       loading.value = false
     }
@@ -701,4 +705,23 @@ export const useUnshareAppFromSquare = () => {
   }
 
   return { loading, handleUnshareAppFromSquare }
+}
+
+export const useGetVersions = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+  const versions = ref<Record<string, any>[]>([])
+
+  // 2.定义加载版本数据函数
+  const loadVersions = async (app_id: string) => {
+    try {
+      loading.value = true
+      // TODO: 实现获取应用版本的 API 调用
+      versions.value = []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, versions, loadVersions }
 }

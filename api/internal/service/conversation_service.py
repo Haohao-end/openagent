@@ -425,15 +425,22 @@ class ConversationService(BaseService):
         )
         conversation_map = {conversation.id: conversation for conversation in conversations}
 
-        # 3.为调试会话批量查询应用信息
+        # 3.为调试会话批量查询应用信息，以及为assistant_agent查询应用名称
         app_ids = {
             message.app_id
             for message in message_by_conversation.values()
             if message.invoke_from == InvokeFrom.DEBUGGER.value
         }
+
+        # 添加assistant_agent的应用id
+        assistant_agent_id = current_app.config.get("ASSISTANT_AGENT_ID")
+        for message in message_by_conversation.values():
+            if message.invoke_from == InvokeFrom.ASSISTANT_AGENT.value and assistant_agent_id:
+                app_ids.add(assistant_agent_id)
+
         apps = (
             self.db.session.query(App)
-            .filter(App.id.in_(app_ids), App.account_id == account.id)
+            .filter(App.id.in_(app_ids))
             .all()
             if app_ids
             else []
@@ -454,9 +461,16 @@ class ConversationService(BaseService):
             )
             app_id = ""
             app_name = ""
+            agent_name = ""
             is_active = False
 
             if source_type == "assistant_agent":
+                # 获取assistant_agent的应用名称
+                assistant_agent_id = current_app.config.get("ASSISTANT_AGENT_ID")
+                if assistant_agent_id:
+                    app = app_map.get(assistant_agent_id)
+                    if app:
+                        agent_name = app.name
                 is_active = account.assistant_agent_conversation_id == conversation.id
             else:
                 app = app_map.get(message.app_id)
@@ -468,15 +482,18 @@ class ConversationService(BaseService):
 
             results.append(
                 {
-                    "id": conversation.id,
+                    "id": str(conversation.id),
                     "name": conversation.name,
                     "source_type": source_type,
                     "app_id": app_id,
                     "app_name": app_name,
-                    "message_id": message.id,
+                    "agent_name": agent_name,
+                    "message_id": str(message.id),
                     "is_active": is_active,
                     "latest_message_at": datetime_to_timestamp(message.created_at),
                     "created_at": datetime_to_timestamp(conversation.created_at),
+                    "human_message": message.query,
+                    "ai_message": message.answer,
                 }
             )
 
@@ -585,4 +602,232 @@ class ConversationService(BaseService):
         self.update(conversation, **kwargs)
 
         return conversation
+
+    def search_conversations(self, account: Account, query: str, limit: int = 50) -> list[dict]:
+        """搜索会话及其消息内容"""
+        safe_limit = max(1, min(limit, 100))
+
+        # 1.如果查询为空，返回最近会话
+        if not query or not query.strip():
+            return self.get_recent_conversations(account, safe_limit)
+
+        query_lower = query.lower()
+
+        # 2.查询所有属于该账号的消息
+        messages = (
+            self.db.session.query(Message)
+            .filter(
+                Message.created_by == account.id,
+                Message.invoke_from.in_(
+                    [InvokeFrom.ASSISTANT_AGENT.value, InvokeFrom.DEBUGGER.value]
+                ),
+                Message.status.in_([MessageStatus.STOP.value, MessageStatus.NORMAL.value]),
+                Message.answer != "",
+                ~Message.is_deleted,
+            )
+            .order_by(desc(Message.created_at))
+            .all()
+        )
+
+        # 3.过滤匹配的消息
+        matched_messages = []
+        for message in messages:
+            if (query_lower in message.query.lower() or
+                query_lower in message.answer.lower()):
+                matched_messages.append(message)
+                if len(matched_messages) >= safe_limit * 3:  # 获取更多候选
+                    break
+
+        # 3.1 如果消息搜索结果不足，还需要搜索会话名称
+        if len(matched_messages) < safe_limit:
+            # 查询所有属于该账号的会话
+            conversations = (
+                self.db.session.query(Conversation)
+                .filter(
+                    Conversation.created_by == account.id,
+                    ~Conversation.is_deleted,
+                )
+                .all()
+            )
+
+            # 按会话名称过滤
+            matched_conversation_ids = set()
+            for conversation in conversations:
+                if query_lower in conversation.name.lower():
+                    matched_conversation_ids.add(conversation.id)
+
+            # 为匹配的会话查询最新消息
+            if matched_conversation_ids:
+                latest_messages = (
+                    self.db.session.query(Message)
+                    .filter(
+                        Message.conversation_id.in_(matched_conversation_ids),
+                        Message.created_by == account.id,
+                        Message.invoke_from.in_(
+                            [InvokeFrom.ASSISTANT_AGENT.value, InvokeFrom.DEBUGGER.value]
+                        ),
+                        Message.status.in_([MessageStatus.STOP.value, MessageStatus.NORMAL.value]),
+                        Message.answer != "",
+                        ~Message.is_deleted,
+                    )
+                    .order_by(desc(Message.created_at))
+                    .all()
+                )
+
+                # 添加这些消息到匹配列表（避免重复）
+                existing_message_ids = {m.id for m in matched_messages}
+                for message in latest_messages:
+                    if message.id not in existing_message_ids:
+                        matched_messages.append(message)
+                        if len(matched_messages) >= safe_limit * 3:
+                            break
+
+                # 如果通过会话名称匹配但没有消息，也需要返回这些会话
+                # 为了能够返回这些会话，我们需要为它们创建虚拟消息对象
+                matched_conversation_ids_with_messages = {m.conversation_id for m in latest_messages}
+                matched_conversation_ids_without_messages = matched_conversation_ids - matched_conversation_ids_with_messages
+
+                if matched_conversation_ids_without_messages:
+                    # 为没有消息的会话创建虚拟消息对象
+                    for conv_id in matched_conversation_ids_without_messages:
+                        # 创建一个虚拟消息对象，用于返回会话信息
+                        virtual_message = type('VirtualMessage', (), {
+                            'id': None,
+                            'message_id': None,
+                            'conversation_id': conv_id,
+                            'app_id': None,
+                            'query': '',
+                            'answer': '',
+                            'invoke_from': InvokeFrom.ASSISTANT_AGENT.value,
+                            'created_at': None,
+                        })()
+                        matched_messages.append(virtual_message)
+
+        if not matched_messages:
+            return []
+
+        # 4.按会话分组，每个会话保留一条匹配的消息
+        conversation_messages = {}
+        for message in matched_messages:
+            if message.conversation_id not in conversation_messages:
+                conversation_messages[message.conversation_id] = message
+
+        conversation_ids = list(conversation_messages.keys())[:safe_limit]
+
+        # 5.批量查询会话数据
+        conversations = (
+            self.db.session.query(Conversation)
+            .filter(
+                Conversation.id.in_(conversation_ids),
+                Conversation.created_by == account.id,
+                ~Conversation.is_deleted,
+            )
+            .all()
+        )
+        conversation_map = {conversation.id: conversation for conversation in conversations}
+
+        # 6.为调试会话批量查询应用信息，以及为assistant_agent查询应用名称
+        app_ids = {
+            conversation_messages[cid].app_id
+            for cid in conversation_ids
+            if conversation_messages[cid].invoke_from == InvokeFrom.DEBUGGER.value
+            and conversation_messages[cid].app_id is not None
+        }
+
+        # 添加assistant_agent的应用id
+        assistant_agent_id = current_app.config.get("ASSISTANT_AGENT_ID")
+        for cid in conversation_ids:
+            message = conversation_messages[cid]
+            if message.invoke_from == InvokeFrom.ASSISTANT_AGENT.value and assistant_agent_id:
+                app_ids.add(assistant_agent_id)
+
+        apps = (
+            self.db.session.query(App)
+            .filter(App.id.in_(app_ids))
+            .all()
+            if app_ids
+            else []
+        )
+        app_map = {app.id: app for app in apps}
+
+        # 7.组装响应列表
+        results = []
+        for conversation_id in conversation_ids:
+            conversation = conversation_map.get(conversation_id)
+            message = conversation_messages.get(conversation_id)
+
+            if not conversation:
+                continue
+
+            # 如果消息为None（虚拟消息），使用会话的创建时间
+            if message is None:
+                latest_message_at = datetime_to_timestamp(conversation.created_at)
+            else:
+                latest_message_at = datetime_to_timestamp(message.created_at)
+
+            source_type = (
+                "assistant_agent"
+                if message is None or message.invoke_from == InvokeFrom.ASSISTANT_AGENT.value
+                else "app_debugger"
+            )
+            app_id = ""
+            app_name = ""
+            agent_name = ""
+
+            if source_type == "app_debugger" and message is not None:
+                app = app_map.get(message.app_id)
+                if not app:
+                    continue
+                app_id = str(app.id)
+                app_name = app.name
+            elif source_type == "assistant_agent":
+                # 获取assistant_agent的应用名称
+                assistant_agent_id = current_app.config.get("ASSISTANT_AGENT_ID")
+                if assistant_agent_id:
+                    app = app_map.get(assistant_agent_id)
+                    if app:
+                        agent_name = app.name
+
+            # 提取匹配的查询和答案片段
+            matched_query = message.query if message else ""
+            matched_answer = message.answer if message else ""
+
+            # 如果消息很长，截取包含查询词的部分
+            if len(matched_query) > 200:
+                idx = matched_query.lower().find(query_lower)
+                if idx != -1:
+                    start = max(0, idx - 50)
+                    end = min(len(matched_query), idx + len(query_lower) + 50)
+                    matched_query = ("..." if start > 0 else "") + matched_query[start:end] + ("..." if end < len(matched_query) else "")
+                else:
+                    # 如果消息中找不到查询词，截取前200个字符
+                    matched_query = matched_query[:200] + ("..." if len(matched_query) > 200 else "")
+
+            if len(matched_answer) > 200:
+                idx = matched_answer.lower().find(query_lower)
+                if idx != -1:
+                    start = max(0, idx - 50)
+                    end = min(len(matched_answer), idx + len(query_lower) + 50)
+                    matched_answer = ("..." if start > 0 else "") + matched_answer[start:end] + ("..." if end < len(matched_answer) else "")
+                else:
+                    # 如果消息中找不到查询词，截取前200个字符
+                    matched_answer = matched_answer[:200] + ("..." if len(matched_answer) > 200 else "")
+
+            results.append(
+                {
+                    "id": str(conversation.id),
+                    "name": conversation.name,
+                    "source_type": source_type,
+                    "app_id": app_id,
+                    "app_name": app_name,
+                    "agent_name": agent_name,
+                    "message_id": str(message.id) if message and message.id else "",
+                    "human_message": matched_query,
+                    "ai_message": matched_answer,
+                    "latest_message_at": latest_message_at,
+                    "created_at": datetime_to_timestamp(conversation.created_at),
+                }
+            )
+
+        return results
 

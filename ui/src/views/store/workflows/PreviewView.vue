@@ -52,6 +52,7 @@ type PreviewWorkflow = {
   icon: string
   description: string
   account_name: string
+  account_avatar: string
   view_count: number
   fork_count: number
   is_debug_passed?: boolean
@@ -266,6 +267,7 @@ onMounted(async () => {
               <a-skeleton-line :widths="[60]" :line-height="18" />
             </div>
             <div v-else-if="workflow" class="flex items-center gap-2">
+              <a-avatar :size="20" :image-url="workflow.account_avatar" />
               <div class="flex items-center h-[18px] text-xs text-gray-500">
                 <icon-user />
                 {{ workflow.account_name }}

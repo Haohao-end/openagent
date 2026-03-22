@@ -4,6 +4,16 @@ import {
   type BaseResponse,
 } from '@/models/base' // 获取应用信息响应结构
 
+// 应用版本类型
+export type AppVersion = {
+  id: string
+  app_id: string
+  version: number
+  config: Record<string, any>
+  created_at: number
+  updated_at: number
+}
+
 // 获取应用信息响应结构
 export type GetAppResponse = BaseResponse<{
   id: string
@@ -40,6 +50,8 @@ export type GetAppsWithPageResponse = BasePaginatorResponse<{
     model: string
   }
   status: string
+  creator_name: string
+  creator_avatar: string
   draft_updated_at: number
   updated_at: number
   created_at: number

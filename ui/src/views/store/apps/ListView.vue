@@ -5,7 +5,7 @@ import {
   useGetBuiltinAppCategories,
   useGetBuiltinApps,
 } from '@/hooks/use-builtin-app'
-import moment from 'moment/moment'
+import { formatTimestampShort } from '@/utils/time-formatter'
 
 // 1.定义页面所需数据
 const category = ref('all')
@@ -114,7 +114,7 @@ onMounted(() => {
               </a-avatar>
               <div class="text-xs text-gray-400">
                 发布时间
-                {{ moment(app.created_at * 1000).format('MM-DD HH:mm') }}
+                {{ formatTimestampShort(app.created_at) }}
               </div>
             </div>
           </a-card>

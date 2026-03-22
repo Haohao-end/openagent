@@ -412,7 +412,7 @@ class AssistantAgentService(BaseService):
         filters = [
             Message.conversation_id == conversation.id,
             Message.status.in_([MessageStatus.STOP.value, MessageStatus.NORMAL.value]),
-            Message.answer != "",
+            Message.query != "",  # 只过滤用户提问不为空的消息，允许答案为空（正在生成中）
             ~Message.is_deleted,
         ]
 
@@ -429,10 +429,22 @@ class AssistantAgentService(BaseService):
         )
 
         # 5. 加载完整的消息及其关联数据，避免 N+1 查询
+        if not paginated_ids:
+            return [], paginator
+
+        # Extract IDs from paginated_ids (handle Row objects from SQLAlchemy)
+        id_list = []
+        for item in paginated_ids:
+            # Row objects can be indexed like tuples
+            if hasattr(item, '__getitem__'):
+                id_list.append(item[0])
+            else:
+                id_list.append(item)
+
         messages = (
             self.db.session.query(Message)
             .options(selectinload(Message.agent_thoughts))
-            .filter(Message.id.in_(paginated_ids))
+            .filter(Message.id.in_(id_list))
             .order_by(desc(Message.created_at))
             .all()
         )
@@ -457,7 +469,7 @@ class AssistantAgentService(BaseService):
                     Message.status.in_(
                         [MessageStatus.STOP.value, MessageStatus.NORMAL.value]
                     ),
-                    Message.answer != "",
+                    Message.query != "",  # 只过滤用户提问不为空的消息
                     ~Message.is_deleted,
                 )
             )

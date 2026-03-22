@@ -102,10 +102,10 @@ watch(
 
 <template>
   <!-- 调整边距+隐藏 -->
-  <div class="px-6 flex flex-col overflow-hidden h-full">
+  <div class="px-6 flex flex-col overflow-auto h-full">
     <div class="pt-6 sticky top-0 z-20 bg-gray-50">
       <!-- 顶层标题+创建按钮 -->
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-6 flex-wrap gap-2">
         <!-- 左侧标题 -->
         <div class="flex items-center gap-2">
           <a-avatar :size="32" class="bg-blue-700">
@@ -148,7 +148,7 @@ watch(
         </a-button>
       </div>
       <!-- 导航按钮+搜索框 -->
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-6 flex-wrap gap-2">
         <!-- 左侧导航 -->
         <div class="flex items-center gap-2">
           <router-link

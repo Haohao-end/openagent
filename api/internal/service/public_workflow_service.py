@@ -10,6 +10,8 @@ from sqlalchemy import desc, or_, func
 
 from internal.entity.app_category_entity import AppCategory
 from internal.entity.workflow_entity import WorkflowStatus
+from internal.entity.tag_entity import sort_tags_by_priority
+from internal.service.tag_assignment_service import TagAssignmentService
 from internal.exception import NotFoundException, ForbiddenException, ValidateErrorException, FailException
 from internal.model import (
     Workflow,
@@ -29,7 +31,7 @@ class PublicWorkflowService(BaseService):
     """公共工作流服务"""
     db: SQLAlchemy
 
-    def share_workflow_to_square(self, workflow_id: UUID, category: str, account: Account) -> Workflow:
+    def share_workflow_to_square(self, workflow_id: UUID, tags: str, account: Account) -> Workflow:
         """将工作流共享到广场"""
         # 1.获取工作流并校验权限
         workflow = self.db.session.query(Workflow).filter(Workflow.id == workflow_id).one_or_none()
@@ -43,19 +45,23 @@ class PublicWorkflowService(BaseService):
         if workflow.status != WorkflowStatus.PUBLISHED.value:
             raise ValidateErrorException("只有已发布的工作流才能共享到广场")
 
-        # 3.校验分类是否有效
-        valid_categories = [c.value for c in AppCategory]
-        if category not in valid_categories:
-            raise ValidateErrorException(f"无效的分类: {category}")
+        # 3.处理标签
+        if tags:
+            # 如果提供了标签，使用提供的标签
+            tag_list = [t.strip() for t in tags.split(',') if t.strip()]
+            tag_list = sort_tags_by_priority(tag_list)
+        else:
+            # 如果没有提供标签，自动分配
+            tag_list = TagAssignmentService.auto_assign_tags(workflow.name, workflow.description)
 
         # 4.更新工作流为公开状态
         self.update(workflow, **{
             "is_public": True,
-            "category": category,
+            "tags": tag_list,
             "published_at": datetime.now(UTC).replace(tzinfo=None),
         })
 
-        logging.info(f"工作流已共享到广场: workflow_id={workflow_id}, category={category}")
+        logging.info(f"工作流已共享到广场: workflow_id={workflow_id}, tags={tag_list}")
         return workflow
 
     def unshare_workflow_from_square(self, workflow_id: UUID, account: Account) -> Workflow:
@@ -92,9 +98,15 @@ class PublicWorkflowService(BaseService):
             Workflow.status == WorkflowStatus.PUBLISHED.value,
         ]
 
-        # 分类筛选
-        if req.category.data and req.category.data != "all":
-            filters.append(Workflow.category == req.category.data)
+        # 标签筛选 - 支持多选，OR关系
+        if req.tags.data:
+            tag_list = [t.strip() for t in req.tags.data.split(',') if t.strip()]
+            if tag_list:
+                # 使用PostgreSQL的JSONB包含操作符
+                tag_filters = []
+                for tag in tag_list:
+                    tag_filters.append(Workflow.tags.contains([tag]))
+                filters.append(or_(*tag_filters))
 
         # 搜索词筛选
         if req.search_word.data:
@@ -115,11 +127,12 @@ class PublicWorkflowService(BaseService):
             .subquery()
         )
 
-        # 4.构建主查询（同时拿到发布者名称 + 收藏数）
+        # 4.构建主查询（同时拿到发布者名称、头像 + 收藏数）
         query = (
             self.db.session.query(
                 Workflow,
                 Account.name.label("account_name"),
+                Account.avatar.label("account_avatar"),
                 func.coalesce(favorite_count_subquery.c.favorite_count, 0).label("favorite_count"),
             )
             .join(Account, Account.id == Workflow.account_id)
@@ -139,9 +152,10 @@ class PublicWorkflowService(BaseService):
         query = query.order_by(order_by, desc(Workflow.created_at))
         workflow_rows = paginator.paginate(query)
 
-        workflow_ids = [workflow.id for workflow, _account_name, _favorite_count in workflow_rows]
+        workflow_ids = [workflow.id for workflow, _account_name, _account_avatar, _favorite_count in workflow_rows]
         liked_workflow_ids: set[UUID] = set()
         favorited_workflow_ids: set[UUID] = set()
+        forked_workflow_ids: set[UUID] = set()
         if account and workflow_ids:
             liked_workflow_ids = {
                 row[0]
@@ -157,16 +171,25 @@ class PublicWorkflowService(BaseService):
                     WorkflowFavorite.workflow_id.in_(workflow_ids),
                 ).all()
             }
+            # 查询用户是否fork过这些工作流（包括草稿状态）
+            forked_workflow_ids = {
+                row[0]
+                for row in self.db.session.query(Workflow.original_workflow_id).filter(
+                    Workflow.account_id == account.id,
+                    Workflow.original_workflow_id.in_(workflow_ids),
+                    Workflow.original_workflow_id.isnot(None),
+                ).all()
+            }
 
         # 6.构建返回数据
         result = []
-        for workflow, account_name, favorite_count in workflow_rows:
+        for workflow, account_name, account_avatar, favorite_count in workflow_rows:
             result.append({
                 "id": str(workflow.id),
                 "name": workflow.name,
                 "icon": workflow.icon,
                 "description": workflow.description,
-                "category": workflow.category,
+                "tags": workflow.tags if workflow.tags else [],
                 "view_count": workflow.view_count,
                 "like_count": workflow.like_count,
                 "fork_count": workflow.fork_count,
@@ -175,7 +198,9 @@ class PublicWorkflowService(BaseService):
                 "created_at": int(workflow.created_at.timestamp()),
                 "is_liked": workflow.id in liked_workflow_ids if account else False,
                 "is_favorited": workflow.id in favorited_workflow_ids if account else False,
+                "is_forked": workflow.id in forked_workflow_ids if account else False,
                 "account_name": account_name or "Unknown",
+                "account_avatar": account_avatar or "",
             })
 
         return result, paginator
@@ -373,9 +398,10 @@ class PublicWorkflowService(BaseService):
             "updated_at": int(workflow.updated_at.timestamp()),
             "is_liked": False,
             "is_favorited": False,
+            "is_forked": False,  # 是否已fork
         }
 
-        # 6.如果用户已登录，查询用户的点赞和收藏状态
+        # 6.如果用户已登录，查询用户的点赞、收藏和fork状态
         if account:
             is_liked = self.db.session.query(WorkflowLike).filter(
                 WorkflowLike.workflow_id == workflow.id,
@@ -387,7 +413,15 @@ class PublicWorkflowService(BaseService):
                 WorkflowFavorite.account_id == account.id
             ).one_or_none() is not None
 
+            # 查询用户是否fork过该工作流（包括草稿状态）
+            is_forked = self.db.session.query(Workflow).filter(
+                Workflow.account_id == account.id,
+                Workflow.original_workflow_id == workflow.id,
+                Workflow.original_workflow_id.isnot(None),
+            ).one_or_none() is not None
+
             workflow_detail["is_liked"] = is_liked
             workflow_detail["is_favorited"] = is_favorited
+            workflow_detail["is_forked"] = is_forked
 
         return workflow_detail

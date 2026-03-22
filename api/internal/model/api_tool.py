@@ -6,13 +6,19 @@ from sqlalchemy import (
     DateTime,
     PrimaryKeyConstraint,
     text,
-    Index
+    Index,
+    ForeignKey,
 )
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
+from datetime import UTC, datetime
 
 from internal.extension.database_extension import db
 
 
+def _utcnow_naive() -> datetime:
+    """返回无时区的 UTC 时间，兼容数据库 DateTime 列且避免 utcnow 退化警告。"""
+    return datetime.now(UTC).replace(tzinfo=None)
 class ApiToolProvider(db.Model):
     """API工具提供者模型"""
     __tablename__ = "api_tool_provider"
@@ -23,7 +29,7 @@ class ApiToolProvider(db.Model):
     )
 
     id = Column(UUID, nullable=False, server_default=text('uuid_generate_v4()'))
-    account_id = Column(UUID, nullable=False)
+    account_id = Column(UUID, ForeignKey('account.id'), nullable=False)
     name = Column(String(255), nullable=False, server_default=text("''::character varying"))
     icon = Column(String(255), nullable=False, server_default=text("''::character varying"))
     description = Column(Text, nullable=False, server_default=text("''::text"))
@@ -33,9 +39,13 @@ class ApiToolProvider(db.Model):
         DateTime,
         nullable=False,
         server_default=text('CURRENT_TIMESTAMP(0)'),
-        server_onupdate=text('CURRENT_TIMESTAMP(0)')
+        server_onupdate=text('CURRENT_TIMESTAMP(0)'),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))
+
+    # 关系定义
+    account = relationship("Account", foreign_keys=[account_id], lazy="joined")
 
     @property
     def tools(self) -> list["ApiTool"]:
@@ -64,7 +74,8 @@ class ApiTool(db.Model):
         DateTime,
         nullable=False,
         server_default=text('CURRENT_TIMESTAMP(0)'),
-        server_onupdate=text('CURRENT_TIMESTAMP(0)')
+        server_onupdate=text('CURRENT_TIMESTAMP(0)'),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))
 

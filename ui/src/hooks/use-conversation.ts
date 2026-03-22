@@ -180,7 +180,15 @@ export const useGetRecentConversations = () => {
     try {
       loading.value = true
       const resp = await getRecentConversations(limit)
-      conversations.value = resp.data || []
+      const data = resp.data || []
+      // 直接赋值，不做任何转换
+      conversations.value = data
+      console.log('Loaded conversations:', conversations.value)
+      if (conversations.value.length > 0) {
+        console.log('First conversation:', conversations.value[0])
+        console.log('human_message:', conversations.value[0].human_message)
+        console.log('ai_message:', conversations.value[0].ai_message)
+      }
     } finally {
       loading.value = false
     }

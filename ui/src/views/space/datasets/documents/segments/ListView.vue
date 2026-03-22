@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import moment from 'moment'
 import {
   useDeleteSegment,
   useGetDocument,
@@ -9,6 +8,7 @@ import {
   useUpdateSegmentEnabled,
 } from '@/hooks/use-dataset'
 import CreateOrUpdateSegmentModal from './components/CreateOrUpdateSegmentModal.vue'
+import { formatTimestampShort } from '@/utils/time-formatter'
 
 // 1.定义页面所需的基础数据
 const route = useRoute()
@@ -109,7 +109,7 @@ onMounted(() => {
                 {{ document.hit_count }} 命中
               </a-tag>
               <a-tag size="small" class="rounded h-[18px] leading-[18px] bg-gray-200 text-gray-500">
-                {{ moment(document.updated_at * 1000).format('YYYY-MM-DD HH:mm') }} 最后编辑
+                {{ formatTimestampShort(document.updated_at) }} 最后编辑
               </a-tag>
             </div>
           </div>

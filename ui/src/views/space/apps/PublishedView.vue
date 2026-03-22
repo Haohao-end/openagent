@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { useGetPublishedConfig, useRegenerateWebAppToken } from '@/hooks/use-app'
 import { useGetWechatConfig, useUpdateWechatConfig } from '@/hooks/use-platform'
-import { shareAppToSquare, unshareAppFromSquare, getAppCategories, type AppCategory } from '@/services/public-app'
+import { shareAppToSquare, unshareAppFromSquare, getAppTags, type AppTag } from '@/services/public-app'
 import { getErrorMessage } from '@/utils/error'
 
 // 1.定义页面所需数据
@@ -13,7 +13,7 @@ const router = useRouter()
 const wechatConfigModalVisible = ref(false)
 const shareToSquareModalVisible = ref(false)
 const shareCategory = ref('')
-const categories = ref<AppCategory[]>([])
+const categories = ref<AppTag[]>([])
 const wechatConfigForm = ref({
   wechat_app_id: '',
   wechat_app_secret: '',
@@ -87,13 +87,13 @@ const handleSubmitWechatConfigModal = async () => {
   await loadWechatConfig(String(route.params?.app_id))
 }
 
-// 6.加载应用分类
+// 6.加载应用标签
 const loadCategories = async () => {
   try {
-    const res = await getAppCategories()
-    categories.value = res.data.categories
+    const res = await getAppTags()
+    categories.value = res.data.tags
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, '加载分类失败'))
+    Message.error(getErrorMessage(error, '加载标签失败'))
   }
 }
 
@@ -405,11 +405,11 @@ onMounted(() => {
       <div class="py-4">
         <div class="flex flex-col gap-2">
           <div class="flex items-center gap-1 text-gray-700">
-            选择应用分类
+            选择应用标签
             <div class="text-red-700">*</div>
           </div>
-          <a-select v-model="shareCategory" placeholder="请选择应用分类" class="w-full">
-            <a-option v-for="cat in categories" :key="cat.value" :value="cat.value" :label="cat.label" />
+          <a-select v-model="shareCategory" placeholder="请选择应用标签" class="w-full">
+            <a-option v-for="tag in categories" :key="tag.id" :value="tag.id" :label="tag.name" />
           </a-select>
           <div class="text-xs text-gray-500 mt-2">
             共享后，您的应用将出现在应用广场，其他用户可以查看和Fork使用。

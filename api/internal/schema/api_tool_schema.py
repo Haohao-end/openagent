@@ -126,6 +126,8 @@ class GetApiToolProvidersWithPageResp(Schema):
     description = fields.String()
     headers = fields.List(fields.Dict,dump_default=[])
     tools = fields.List(fields.Dict,dump_default=[])
+    creator_name = fields.String(dump_default="")
+    creator_avatar = fields.String(dump_default="")
     updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
 
@@ -144,6 +146,8 @@ class GetApiToolProvidersWithPageResp(Schema):
                 "name": tool.name,
                 "inputs": [{k: v for k,  v in parameter.items() if k != "in"} for parameter in tool.parameters]
             } for tool in tools],
+            "creator_name": data.account.name if data.account else "",
+            "creator_avatar": data.account.avatar if data.account else "",
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at)
         }

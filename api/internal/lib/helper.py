@@ -38,6 +38,11 @@ def datetime_to_timestamp(dt: datetime) -> int:
     """将传入的datetime时间转换成时间戳，如果数据不存在则返回0"""
     if dt is None:
         return 0
+    # 数据库中的 datetime 是 UTC 时间（无时区信息），需要明确指定为 UTC
+    from datetime import timezone
+    if dt.tzinfo is None:
+        # 如果没有时区信息，假设为 UTC
+        dt = dt.replace(tzinfo=timezone.utc)
     return int(dt.timestamp())
 
 

@@ -7,6 +7,7 @@ import { useProvider } from '@/hooks/use-oauth'
 import { useCredentialStore } from '@/stores/credential'
 import { resetPassword, sendResetCode } from '@/services/auth'
 import { getErrorMessage } from '@/utils/error'
+import IconOpenAgent from '@/components/icons/IconOpenAgent.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -279,10 +280,10 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
       ]"
     >
       <div class="mb-6">
-        <h1 class="text-2xl font-semibold leading-tight text-slate-900">
-          {{ authView === 'login' ? '登录 OpenAgent' : '忘记密码' }}
-        </h1>
-        <p class="text-sm text-slate-500 mt-2">
+        <div class="flex justify-center mb-4">
+          <icon-open-agent type="character" :size="248" />
+        </div>
+        <p class="text-sm text-slate-500 mt-2 text-center">
           {{
             authView === 'login'
               ? '使用邮箱账号登录，继续你的 AI 工作台'

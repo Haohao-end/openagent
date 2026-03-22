@@ -26,7 +26,9 @@ from internal.handler import (
     PlatformHandler,
     WechatHandler,
     PublicAppHandler,
-    PublicWorkflowHandler
+    PublicWorkflowHandler,
+    HomeHandler,
+    NotificationHandler
 
 )
 
@@ -59,6 +61,8 @@ class Router:
     wechat_handler: WechatHandler
     public_app_handler: PublicAppHandler
     public_workflow_handler: PublicWorkflowHandler
+    home_handler: HomeHandler
+    notification_handler: NotificationHandler
 
     def register_router(self, app: Flask):
         """注册路由"""
@@ -341,6 +345,9 @@ class Router:
         bp.add_url_rule("/account/name", methods=["POST"], view_func=self.account_handler.update_name)
         bp.add_url_rule("/account/avatar", methods=["POST"], view_func=self.account_handler.update_avatar)
 
+        # 7.1 首页模块
+        bp.add_url_rule("/home/intent", view_func=self.home_handler.get_intent)
+
         # 8.AI辅助模块
         bp.add_url_rule("/ai/optimize-prompt", methods=["POST"], view_func=self.ai_handler.optimize_prompt)
         bp.add_url_rule(
@@ -539,6 +546,10 @@ class Router:
             methods=["POST"],
             view_func=self.conversation_handler.update_conversation_is_pinned,
         )
+        bp.add_url_rule(
+            "/conversations/search",
+            view_func=self.conversation_handler.search_conversations,
+        )
 
         # 17.语音转换模块
         bp.add_url_rule(
@@ -586,8 +597,8 @@ class Router:
             view_func=self.public_app_handler.get_public_app_analysis,
         )
         bp.add_url_rule(
-            "/public/apps/categories",
-            view_func=self.public_app_handler.get_app_categories,
+            "/public/apps/tags",
+            view_func=self.public_app_handler.get_app_tags,
         )
         bp.add_url_rule(
             "/apps/<uuid:app_id>/share-to-square",
@@ -658,7 +669,20 @@ class Router:
             view_func=self.public_workflow_handler.favorite_workflow,
         )
 
-        # 21.在应用上注册蓝图
+        # 21.通知模块
+        bp.add_url_rule("/notifications", view_func=self.notification_handler.get_notifications)
+        bp.add_url_rule(
+            "/notifications/<string:notification_id>/read",
+            methods=["POST"],
+            view_func=self.notification_handler.mark_notification_as_read,
+        )
+        bp.add_url_rule(
+            "/notifications/<string:notification_id>",
+            methods=["DELETE"],
+            view_func=self.notification_handler.delete_notification,
+        )
+
+        # 22.在应用上注册蓝图
         app.register_blueprint(bp)
         app.register_blueprint(openapi_bp)
 

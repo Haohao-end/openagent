@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AiDynamicBackground from '@/components/AiDynamicBackground.vue'
 import AiMessage from '@/components/AiMessage.vue'
 import HumanMessage from '@/components/HumanMessage.vue'
 import ChatConversationSkeleton from '@/components/skeletons/ChatConversationSkeleton.vue'
@@ -159,6 +160,7 @@ const {
   handleAudioToText,
 } = useAudioToText()
 const typingBreathing = ref(false)
+const isInputFocused = ref(false)
 let inputBreathTimer: number | null = null
 const clearInputBreathTimer = () => {
   if (typeof window === 'undefined') return
@@ -284,13 +286,22 @@ const initializeHomeAfterLogin = async () => {
   if (current_user.value && Object.keys(current_user.value).length > 0) {
     accountStore.update(current_user.value)
   }
-  await reloadAssistantMessages(true, selectedConversationId.value)
 
-  const latestConversationId = normalizeConversationId(messages.value[0]?.conversation_id)
-  if (!selectedConversationId.value && latestConversationId) {
-    selectedConversationId.value = latestConversationId
-    await syncRouteConversationId(latestConversationId)
+  // 无论是否指定了 conversation_id，都应该加载消息
+  // 如果没有指定 conversation_id，则加载最新的会话消息
+  // 如果指定了 conversation_id，则加载该会话的消息
+  try {
+    await reloadAssistantMessages(true, selectedConversationId.value)
+
+    const latestConversationId = normalizeConversationId(messages.value[0]?.conversation_id)
+    if (!selectedConversationId.value && latestConversationId) {
+      selectedConversationId.value = latestConversationId
+      await syncRouteConversationId(latestConversationId)
+    }
+  } catch (error) {
+    console.error('Failed to load initial messages:', error)
   }
+
   if (isHomeRoute.value) {
     await loadAssistantIntroduction()
   }
@@ -362,8 +373,12 @@ watch(
     selectedConversationId.value = normalizedConversationId
     if (!isAuthenticated.value || !isHomeRoute.value) return
 
-    await reloadAssistantMessages(true, selectedConversationId.value)
-    await nextTick(() => scrollChatToBottom())
+    try {
+      await reloadAssistantMessages(true, selectedConversationId.value)
+      await nextTick(() => scrollChatToBottom())
+    } catch (error) {
+      console.error('Failed to reload messages when conversation_id changed:', error)
+    }
   },
 )
 
@@ -748,6 +763,17 @@ const handleSubmit = async () => {
     normalizeMessageMetrics(messages.value[0] as MessageMetrics, requestDurationMs)
   }
 
+  // 聊天响应完成后，重新加载消息以确保数据同步
+  // 注意：这个操作应该在 finally 块外执行，避免错误被吞掉
+  if (message_id.value && selectedConversationId.value) {
+    try {
+      await reloadAssistantMessages(true, selectedConversationId.value)
+    } catch (error) {
+      // 重新加载消息失败时，不影响用户体验
+      console.error('Failed to reload messages:', error)
+    }
+  }
+
   // 5.7 发起API请求获取建议问题列表
   if (message_id.value) {
     await handleGenerateSuggestedQuestions(message_id.value)
@@ -771,18 +797,23 @@ const handleStop = async () => {
 const handleClearConversation = async () => {
   if (!ensureLogin()) return
 
-  // 1.先调用停止响应接口
-  await handleStop()
+  try {
+    // 1.先调用停止响应接口
+    await handleStop()
 
-  // 2.调用api接口清空会话
-  await handleDeleteAssistantAgentConversation()
+    // 2.调用api接口清空会话
+    await handleDeleteAssistantAgentConversation()
 
-  // 3.重新获取数据
-  selectedConversationId.value = ''
-  await syncRouteConversationId('')
-  await reloadAssistantMessages(true, '')
-  await loadAssistantIntroduction()
-  emitRecentConversationsRefresh()
+    // 3.重新获取数据
+    selectedConversationId.value = ''
+    await syncRouteConversationId('')
+    await reloadAssistantMessages(true, '')
+    await loadAssistantIntroduction()
+    emitRecentConversationsRefresh()
+  } catch (error) {
+    console.error('Failed to clear conversation:', error)
+    Message.error('清空会话失败，请重试')
+  }
 }
 
 // 7.定义问题提交函数
@@ -903,10 +934,21 @@ onUnmounted(() => {
 <template>
   <div
     ref="homePageRef"
-    class="relative w-full h-full min-h-screen overflow-y-auto bg-gray-100 bg-cover bg-no-repeat bg-center"
+    class="relative w-full h-full min-h-screen overflow-y-auto"
+    style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 25%, #f3e8ff 50%, #fce7f3 75%, #f0f9ff 100%);"
   >
-    <!-- 中间页面信息 -->
-    <div class="w-full max-w-[600px] h-full min-h-screen mx-auto px-3 sm:px-4 md:px-0 flex flex-col">
+    <!-- AI 动态背景层 -->
+    <div class="absolute inset-0 z-0 pointer-events-none">
+      <AiDynamicBackground
+        className=""
+        intensity="high"
+        :showParticles="true"
+        :showGrid="true"
+      />
+    </div>
+
+    <!-- 内容层 -->
+    <div class="relative z-10 w-full max-w-[600px] h-full min-h-screen mx-auto px-3 sm:px-4 md:px-0 flex flex-col">
       <div
         v-if="getAssistantAgentMessagesWithPageLoading && messages.length === 0"
         class="flex-1 min-h-0 px-4 sm:px-6 pt-6"
@@ -931,7 +973,7 @@ onUnmounted(() => {
               :answer="item.answer" :app="{ name: '辅助Agent' }"
               :suggested_questions="item.suggested_questions && item.suggested_questions.length > 0 ? item.suggested_questions : (item.id === message_id ? suggested_questions : [])"
               :loading="item.id === message_id && assistantAgentChatLoading" :latency="item.latency"
-              :total_token_count="item.total_token_count" message_class="bg-white"
+              :total_token_count="item.total_token_count" message_class="glass-message-bubble bg-white/40 backdrop-blur-md border border-white/60 text-gray-700 px-4 py-3 rounded-2xl break-all w-fit max-w-full shadow-lg shadow-blue-500/5"
               agent_thought_variant="inline"
               :agent_thought_default_visible="false"
               @select-suggested-question="handleSubmitQuestion" />
@@ -982,160 +1024,136 @@ onUnmounted(() => {
             :show_agent_thought="false"
             :always_show_actions="true"
             :suggested_questions="opening_questions"
-            message_class="bg-white"
+            message_class="glass-message-bubble bg-white/50 backdrop-blur-xl border border-white/80 text-gray-700 px-4 py-3 rounded-2xl break-all w-fit max-w-full shadow-xl shadow-cyan-200/30"
             @select-suggested-question="handleSubmitQuestion"
           />
         </div>
       </div>
       <!-- 对话输入框 -->
-      <div class="w-full flex flex-col flex-shrink-0">
-        <!-- 顶部输入框 -->
-        <div class="px-3 sm:px-6 flex items-center gap-3 sm:gap-4">
-          <!-- 清除按钮 -->
-          <a-tooltip content="清空会话">
-            <a-button
-              :loading="deleteAssistantAgentConversationLoading"
-              class="flex-shrink-0 !text-gray-700 !w-9 !h-9"
-              size="small"
-              type="text"
-              shape="circle"
-              aria-label="清空会话"
-              @click="handleClearConversation"
-            >
-              <template #icon>
-                <icon-empty :size="18" />
-              </template>
-            </a-button>
-          </a-tooltip>
-          <!-- 输入框组件 -->
+      <div class="w-full flex flex-col flex-shrink-0 px-2 sm:px-4 pb-2 pt-2 gap-3">
+        <!-- 输入框容器 -->
+        <div class="grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+          <!-- 清空会话按钮 -->
+          <button
+            @click="handleClearConversation"
+            :disabled="deleteAssistantAgentConversationLoading || messages.length === 0"
+            :class="[
+              'flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 border',
+              messages.length > 0
+                ? 'bg-white/40 backdrop-blur-md border-white/60 text-gray-600 hover:bg-white/60 hover:text-red-600 hover:border-red-300/60 hover:shadow-md hover:shadow-red-200/20'
+                : 'bg-white/20 border-white/40 text-gray-400 cursor-not-allowed opacity-70',
+            ]"
+            :title="messages.length > 0 ? '清空会话' : '暂无可清空的会话'"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+
+          <!-- 输入框主体 -->
           <div
             :class="[
-              `chat-input-shell bg-white ${image_urls.length > 0 ? 'min-h-[94px]' : 'min-h-[56px]'} flex flex-col gap-2 px-4 py-2 flex-1 border border-gray-200 rounded-[14px] overflow-hidden`,
-              { 'chat-input-shell--breathing': isInputBreathing },
-            ]">
-            <!-- 图片列表 -->
-            <div v-if="image_urls.length > 0" class="flex items-center gap-2">
-              <div v-for="(image_url, idx) in image_urls" :key="image_url"
-                class="w-10 h-10 relative rounded-lg overflow-hidden group cursor-pointer">
-                <a-avatar shape="square" :image-url="image_url" />
-                <div
-                  class="hidden group-hover:flex items-center justify-center bg-gray-700/50 w-10 h-10 absolute top-0">
-                  <button
-                    type="button"
-                    class="inline-flex items-center justify-center text-white"
-                    aria-label="移除图片"
-                    @click="() => image_urls.splice(idx, 1)"
-                  >
-                    <icon-close />
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div class="flex items-center gap-2">
-              <!-- 上传图片输入框 -->
-              <input type="file" ref="fileInput" accept="image/*" @change="handleFileChange" class="hidden" />
-              <a-tooltip content="上传图片">
-                <a-button
-                  :loading="uploadFileLoading"
-                  size="small"
-                  type="text"
-                  shape="circle"
-                  class="chat-action-btn !text-gray-700"
-                  aria-label="上传图片"
-                  @click="handleTriggerFileInput"
-                >
-                  <template #icon>
-                    <icon-plus :size="18" />
-                  </template>
-                </a-button>
-              </a-tooltip>
-              <textarea
-                ref="queryTextareaRef"
-                v-model="query"
-                rows="1"
-                class="chat-query-textarea"
-                placeholder="发送消息或创建AI应用..."
-                aria-label="聊天输入框"
-                @input="handleQueryInput"
-                @keydown="handleQueryKeydown"
-              />
-              <div class="chat-input-actions">
-                <!-- 语音转文本加载按钮 -->
-                <template v-if="audioToTextLoading">
-                  <a-tooltip content="语音识别中">
-                    <a-button
-                      size="small"
-                      type="text"
-                      shape="circle"
-                      class="chat-action-btn chat-action-btn--breathing !text-gray-700"
-                      aria-label="语音识别中"
-                    >
-                      <template #icon>
-                        <icon-loading :size="18" />
-                      </template>
-                    </a-button>
-                  </a-tooltip>
-                </template>
-                <template v-else>
-                  <!-- 开始音频录制按钮 -->
-                  <a-tooltip v-if="!isRecording" content="开始录音">
-                    <a-button
-                      size="small"
-                      type="text"
-                      shape="circle"
-                      class="chat-action-btn !text-gray-700"
-                      aria-label="开始录音"
-                      @click="handleStartRecord"
-                    >
-                      <template #icon>
-                        <icon-voice :size="18" />
-                      </template>
-                    </a-button>
-                  </a-tooltip>
-                  <!-- 结束音频录制按钮 -->
-                  <a-tooltip v-else content="停止录音">
-                    <a-button
-                      size="small"
-                      type="text"
-                      shape="circle"
-                      class="chat-action-btn chat-action-btn--breathing"
-                      aria-label="停止录音"
-                      @click="handleStopRecord"
-                    >
-                      <template #icon>
-                        <icon-pause :size="18" />
-                      </template>
-                    </a-button>
-                  </a-tooltip>
-                </template>
-                <a-tooltip content="发送消息">
-                  <a-button
-                    :loading="assistantAgentChatLoading"
-                    size="small"
-                    type="text"
-                    shape="circle"
-                    class="chat-action-btn !text-gray-700"
-                    aria-label="发送消息"
-                    @click="handleSubmit"
-                  >
-                    <template #icon>
-                      <icon-send :size="18" />
-                    </template>
-                  </a-button>
-                </a-tooltip>
-              </div>
+              'min-w-0 native-glass-input-shell rounded-2xl px-3 sm:px-4 py-2.5 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 transition-all duration-300',
+              { 'native-glass-input-shell--breathing': isInputBreathing },
+              { 'native-glass-input-shell--focused': isInputFocused },
+            ]"
+            @click.self="queryTextareaRef?.focus()"
+          >
+            <!-- 上传按钮 -->
+            <button
+              @click="handleTriggerFileInput"
+              class="input-action-btn text-gray-600 hover:bg-white/20 hover:text-gray-800"
+              title="上传图片"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+
+            <!-- 输入框 -->
+            <input
+              type="file"
+              ref="fileInput"
+              accept="image/*"
+              @change="handleFileChange"
+              class="hidden"
+            />
+
+            <textarea
+              ref="queryTextareaRef"
+              v-model="query"
+              rows="1"
+              class="native-glass-textarea min-w-0 w-full bg-transparent outline-none text-gray-800 placeholder-gray-500 resize-none"
+              placeholder="发送消息或创建AI应用..."
+              @input="handleQueryInput"
+              @keydown="handleQueryKeydown"
+              @focus="isInputFocused = true"
+              @blur="isInputFocused = false"
+            />
+
+            <!-- 操作按钮 -->
+            <div class="flex items-center gap-1.5 flex-shrink-0 self-center">
+              <!-- 语音按钮 -->
+              <button
+                v-if="!audioToTextLoading && !isRecording"
+                @click="handleStartRecord"
+                class="input-action-btn text-gray-600 hover:bg-white/20 hover:text-gray-800"
+                title="开始录音"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="9" y="3" width="6" height="11" rx="3" stroke-width="1.9" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" d="M6 10.5v1a6 6 0 0 0 12 0v-1M12 17.5V21M8.5 21h7" />
+                </svg>
+              </button>
+
+              <button
+                v-else-if="isRecording"
+                @click="handleStopRecord"
+                class="input-action-btn text-red-500 hover:bg-red-50/60 hover:text-red-600 animate-pulse"
+                title="停止录音"
+              >
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 4h12v12H6z" />
+                </svg>
+              </button>
+
+              <button
+                v-else
+                disabled
+                class="input-action-btn cursor-wait text-cyan-500/80"
+                title="正在转写"
+              >
+                <svg class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+                  <path class="opacity-90" d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+              </button>
+
+              <!-- 发送按钮 -->
+              <button
+                @click="handleSubmit"
+                :disabled="assistantAgentChatLoading"
+                class="input-action-btn text-cyan-600 hover:bg-cyan-500/20 hover:text-cyan-700 disabled:opacity-50"
+                title="发送消息"
+              >
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M16.6915026,12.4744748 L3.50612381,13.2599618 C3.19218622,13.2599618 3.03521743,13.4170592 3.03521743,13.5741566 L1.15159189,20.0151496 C0.8376543,20.8006365 0.99,21.89 1.77946707,22.52 C2.41,22.99 3.50612381,23.1 4.13399899,22.8429026 L21.714504,14.0454487 C22.6563168,13.5741566 23.1272231,12.6315722 22.9702544,11.6889879 L4.13399899,1.16346272 C3.34915502,0.9 2.40734225,1.00636533 1.77946707,1.4776575 C0.994623095,2.10604706 0.837654326,3.0486314 1.15159189,3.99701575 L3.03521743,10.4380088 C3.03521743,10.5951061 3.19218622,10.7522035 3.50612381,10.7522035 L16.6915026,11.5376905 C16.6915026,11.5376905 17.1624089,11.5376905 17.1624089,12.0089827 C17.1624089,12.4744748 16.6915026,12.4744748 16.6915026,12.4744748 Z" />
+                </svg>
+              </button>
             </div>
           </div>
+
         </div>
-        <!-- 底部提示信息 -->
-        <div class="flex flex-wrap items-center justify-center gap-1 py-4 text-xs leading-none text-[#b0b7c0]">
-          <span class="leading-none">内容由AI生成，无法确保真实准确，仅供参考</span>
-          <span class="leading-none">© 2026 OpenAgent</span>
+
+        <!-- 底部提示 -->
+        <div class="flex items-center justify-center gap-2 text-xs text-[#d0d7e0] pb-2 px-2 min-w-0">
+          <span class="whitespace-nowrap">我的内容由AI生成，无法确保真实准确，仅供参考</span>
+          <span class="whitespace-nowrap">© 2026 OpenAgent</span>
           <a
             href="https://beian.miit.gov.cn"
             target="_blank"
             rel="noopener noreferrer"
-            class="inline-flex items-center leading-none hover:opacity-80 transition-opacity"
+            class="inline-flex items-center leading-none hover:opacity-80 transition-opacity whitespace-nowrap"
           >
             桂ICP备2026003219号
           </a>
@@ -1143,10 +1161,10 @@ onUnmounted(() => {
             href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=45010202000868"
             target="_blank"
             rel="noopener noreferrer"
-            class="inline-flex items-center leading-none hover:opacity-80 transition-opacity"
+            class="inline-flex items-center leading-none hover:opacity-80 transition-opacity whitespace-nowrap"
           >
-            <img :src="FilingIcon" alt="备案图标" class="w-3 h-3 mr-1 block shrink-0" />
-            桂公网安备45010202000868号
+            <img :src="FilingIcon" alt="备案图标" class="w-2.5 h-2.5 mr-0.5 block shrink-0" />
+            <span>桂公网安备45010202000868号</span>
           </a>
           <a
             href="https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents"
@@ -1155,7 +1173,7 @@ onUnmounted(() => {
             class="inline-flex items-center justify-center leading-none hover:opacity-80 transition-opacity"
             title="GitHub"
           >
-            <svg class="w-3.5 h-3.5 block" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <svg class="w-3 h-3 block" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
             </svg>
           </a>
@@ -1169,23 +1187,22 @@ onUnmounted(() => {
 <style scoped>
 .chat-input-shell {
   max-height: 336px;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(240, 249, 255, 0.3) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.02);
 }
 
 .chat-input-shell--breathing {
-  background-image: linear-gradient(
-    110deg,
-    rgba(255, 255, 255, 1) 0%,
-    rgba(247, 251, 255, 0.95) 34%,
-    rgba(255, 255, 255, 1) 70%
-  );
-  background-size: 220% 100%;
-  animation: input-breathe-wave 1.6s ease-in-out infinite;
+  animation: input-breathe-wave 1.4s ease-in-out infinite;
 }
 
-.chat-input-shell:focus-within {
-  border-color: #93c5fd;
-  box-shadow: 0 0 0 3px rgb(59 130 246 / 15%);
+.chat-input-shell--focused:focus-within {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(240, 249, 255, 0.5) 100%);
+  border-color: rgba(125, 211, 252, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.02), 0 0 0 3px rgba(125, 211, 252, 0.2);
 }
 
 .chat-query-textarea {
@@ -1239,10 +1256,16 @@ onUnmounted(() => {
 
 @keyframes input-breathe-wave {
   0% {
-    background-position: 100% 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(240, 249, 255, 0.3) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.02), 0 0 0 0 rgba(125, 211, 252, 0.2);
+  }
+  50% {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(240, 249, 255, 0.45) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.02), 0 0 0 6px rgba(125, 211, 252, 0.15);
   }
   100% {
-    background-position: -100% 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(240, 249, 255, 0.3) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.02), 0 0 0 0 rgba(125, 211, 252, 0.2);
   }
 }
 
@@ -1255,6 +1278,174 @@ onUnmounted(() => {
   50% {
     transform: scale(1.08);
     opacity: 1;
+  }
+}
+
+/* 玻璃样式 */
+.glass-message-bubble {
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* 原生玻璃卡片 */
+.native-glass-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(240, 249, 255, 0.6) 100%);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+/* 原生玻璃按钮 */
+.native-glass-button {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(240, 249, 255, 0.4) 100%);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.3s ease;
+}
+
+.native-glass-button:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(240, 249, 255, 0.6) 100%);
+  border-color: rgba(125, 211, 252, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 4px 12px rgba(125, 211, 252, 0.15);
+}
+
+/* 原生玻璃输入框 */
+.native-glass-input-shell {
+  min-width: 0;
+  min-height: 56px;
+  background:
+    linear-gradient(0deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+    linear-gradient(
+      135deg,
+      rgba(56, 189, 248, 0.36) 0%,
+      rgba(167, 139, 250, 0.3) 52%,
+      rgba(244, 114, 182, 0.36) 100%
+    ) border-box;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 2px solid transparent;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.04),
+    0 10px 28px rgba(14, 165, 233, 0.08);
+  transition: all 0.3s ease;
+}
+
+.native-glass-input-shell:focus-within,
+.native-glass-input-shell--focused {
+  background:
+    linear-gradient(0deg, rgba(255, 255, 255, 1), rgba(255, 255, 255, 1)) padding-box,
+    linear-gradient(135deg, #38bdf8 0%, #a78bfa 52%, #f472b6 100%) border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.04),
+    0 0 0 4px rgba(125, 211, 252, 0.12),
+    0 14px 40px rgba(14, 165, 233, 0.1);
+}
+
+.native-glass-input-shell--breathing {
+  animation: native-input-breathe 1.4s ease-in-out infinite;
+}
+
+.input-action-btn {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 12px;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.input-action-btn:disabled {
+  cursor: not-allowed;
+}
+
+.native-glass-textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  margin: 0;
+  padding: 7px 0;
+  border: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1f2937;
+  caret-color: #0ea5e9;
+  max-height: 120px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.native-glass-textarea::-webkit-scrollbar {
+  width: 4px;
+}
+
+.native-glass-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.native-glass-textarea::-webkit-scrollbar-thumb {
+  background: rgba(125, 211, 252, 0.3);
+  border-radius: 2px;
+}
+
+.native-glass-textarea::-webkit-scrollbar-thumb:hover {
+  background: rgba(125, 211, 252, 0.5);
+}
+
+@keyframes native-input-breathe {
+  0% {
+    background:
+      linear-gradient(0deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+      linear-gradient(
+        135deg,
+        rgba(56, 189, 248, 0.36) 0%,
+        rgba(167, 139, 250, 0.3) 52%,
+        rgba(244, 114, 182, 0.36) 100%
+      ) border-box;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.88),
+      inset 0 -1px 0 rgba(15, 23, 42, 0.04),
+      0 0 0 0 rgba(125, 211, 252, 0.08);
+  }
+  50% {
+    background:
+      linear-gradient(0deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.98)) padding-box,
+      linear-gradient(
+        135deg,
+        rgba(56, 189, 248, 0.62) 0%,
+        rgba(167, 139, 250, 0.52) 52%,
+        rgba(244, 114, 182, 0.62) 100%
+      ) border-box;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      inset 0 -1px 0 rgba(15, 23, 42, 0.04),
+      0 0 0 5px rgba(125, 211, 252, 0.1),
+      0 12px 32px rgba(167, 139, 250, 0.1);
+  }
+  100% {
+    background:
+      linear-gradient(0deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.96)) padding-box,
+      linear-gradient(
+        135deg,
+        rgba(56, 189, 248, 0.36) 0%,
+        rgba(167, 139, 250, 0.3) 52%,
+        rgba(244, 114, 182, 0.36) 100%
+      ) border-box;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.88),
+      inset 0 -1px 0 rgba(15, 23, 42, 0.04),
+      0 0 0 0 rgba(125, 211, 252, 0.08);
   }
 }
 </style>

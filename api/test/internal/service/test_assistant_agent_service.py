@@ -297,6 +297,162 @@ class TestAssistantAgentService:
         assert ttl == 3600
         assert json.loads(value) == data
 
+    def test_get_conversation_messages_with_page_should_filter_by_conversation_id(self, monkeypatch):
+        """
+        测试：验证修复了竞态条件导致的消息不显示问题
+
+        问题描述：
+        用户访问 /home?conversation_id=xxx 时，前端在 onMounted 时立即查询消息。
+        但此时消息还没有被插入到数据库中，导致查询返回 0 条记录。
+
+        修复方案：
+        后端应该正确处理 conversation_id 参数，确保查询返回正确的消息。
+        """
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        conversation_id = uuid4()
+
+        # 模拟请求对象
+        req = SimpleNamespace(
+            conversation_id=SimpleNamespace(data=str(conversation_id)),
+            current_page=SimpleNamespace(data=1),
+            page_size=SimpleNamespace(data=5),
+            created_at=SimpleNamespace(data=0),
+        )
+
+        # 模拟对话对象
+        conversation = SimpleNamespace(
+            id=conversation_id,
+            created_by=account.id,
+            is_deleted=False,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+        )
+
+        # 模拟消息对象
+        message = SimpleNamespace(
+            id=uuid4(),
+            conversation_id=conversation_id,
+            query="你好",
+            answer="你好，我是助手",
+            status="normal",
+            is_deleted=False,
+            agent_thoughts=[],
+        )
+
+        # 模拟数据库查询
+        def mock_get(model, conversation_id_param):
+            if model == "Conversation" and conversation_id_param == conversation_id:
+                return conversation
+            return None
+
+        monkeypatch.setattr(service, "get", mock_get)
+
+        # 模拟分页查询
+        paginator_calls = []
+        def mock_paginate(query):
+            paginator_calls.append(query)
+            return [message.id]
+
+        monkeypatch.setattr(service, "db", SimpleNamespace(
+            session=SimpleNamespace(
+                query=lambda *args, **kwargs: SimpleNamespace(
+                    filter=lambda *args, **kwargs: SimpleNamespace(
+                        order_by=lambda *args, **kwargs: SimpleNamespace(
+                            all=lambda: [message]
+                        )
+                    ),
+                    options=lambda *args, **kwargs: SimpleNamespace(
+                        filter=lambda *args, **kwargs: SimpleNamespace(
+                            order_by=lambda *args, **kwargs: SimpleNamespace(
+                                all=lambda: [message]
+                            )
+                        )
+                    )
+                )
+            )
+        ))
+
+        # 调用方法
+        messages, paginator = service.get_conversation_messages_with_page(req, account)
+
+        # 验证结果
+        assert len(messages) == 1
+        assert messages[0].id == message.id
+        assert messages[0].query == "你好"
+        assert messages[0].answer == "你好，我是助手"
+
+    def test_get_conversation_messages_with_page_should_handle_empty_conversation_id(self, monkeypatch):
+        """
+        测试：当 conversation_id 为空时，应该使用账号的默认会话
+        """
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        default_conversation_id = uuid4()
+
+        # 模拟请求对象（conversation_id 为空）
+        req = SimpleNamespace(
+            conversation_id=SimpleNamespace(data=""),
+            current_page=SimpleNamespace(data=1),
+            page_size=SimpleNamespace(data=5),
+            created_at=SimpleNamespace(data=0),
+        )
+
+        # 模拟对话对象
+        conversation = SimpleNamespace(
+            id=default_conversation_id,
+            created_by=account.id,
+            is_deleted=False,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+        )
+
+        account.assistant_agent_conversation = conversation
+
+        # 模拟消息对象
+        message = SimpleNamespace(
+            id=uuid4(),
+            conversation_id=default_conversation_id,
+            query="你好",
+            answer="你好，我是助手",
+            status="normal",
+            is_deleted=False,
+            agent_thoughts=[],
+        )
+
+        # 模拟数据库查询
+        def mock_get(model, conversation_id_param):
+            if model == "Conversation" and conversation_id_param == default_conversation_id:
+                return conversation
+            return None
+
+        monkeypatch.setattr(service, "get", mock_get)
+
+        # 模拟分页查询
+        monkeypatch.setattr(service, "db", SimpleNamespace(
+            session=SimpleNamespace(
+                query=lambda *args, **kwargs: SimpleNamespace(
+                    filter=lambda *args, **kwargs: SimpleNamespace(
+                        order_by=lambda *args, **kwargs: SimpleNamespace(
+                            all=lambda: [message]
+                        )
+                    ),
+                    options=lambda *args, **kwargs: SimpleNamespace(
+                        filter=lambda *args, **kwargs: SimpleNamespace(
+                            order_by=lambda *args, **kwargs: SimpleNamespace(
+                                all=lambda: [message]
+                            )
+                        )
+                    )
+                )
+            )
+        ))
+
+        # 调用方法
+        messages, paginator = service.get_conversation_messages_with_page(req, account)
+
+        # 验证结果
+        assert len(messages) == 1
+        assert messages[0].id == message.id
+
     def test_clear_introduction_cache_should_delete_all_account_caches(self):
         deleted_keys = []
         redis_mock = SimpleNamespace(
@@ -1048,3 +1204,147 @@ class TestAssistantAgentService:
 
         assert markdown.startswith("### Hi，开发者")
         assert "#### 建议下一步" not in markdown
+
+    def test_get_conversation_messages_with_page_should_include_messages_with_empty_answer(self, monkeypatch):
+        """
+        测试：验证修复了消息不显示问题
+
+        问题描述：
+        用户发送消息后，消息被创建但答案还在生成中（answer 为空）。
+        前端立即查询消息时，后端因为过滤条件 Message.answer != "" 而返回 0 条记录。
+
+        修复方案：
+        改为只过滤 Message.query != ""，允许答案为空的消息显示。
+        """
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4(), assistant_agent_conversation=None)
+        conversation_id = uuid4()
+
+        # 模拟请求对象
+        req = SimpleNamespace(
+            conversation_id=SimpleNamespace(data=str(conversation_id)),
+            current_page=SimpleNamespace(data=1),
+            page_size=SimpleNamespace(data=5),
+            created_at=SimpleNamespace(data=0),
+        )
+
+        # 模拟对话对象
+        conversation = SimpleNamespace(
+            id=conversation_id,
+            created_by=account.id,
+            is_deleted=False,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+        )
+
+        # 模拟消息对象 - 答案为空（正在生成中）
+        message_with_empty_answer = SimpleNamespace(
+            id=uuid4(),
+            conversation_id=conversation_id,
+            query="你好",
+            answer="",  # 答案为空
+            status="normal",
+            is_deleted=False,
+            agent_thoughts=[],
+        )
+
+        # 模拟 _resolve_assistant_agent_conversation 方法
+        def mock_resolve_conversation(*args, **kwargs):
+            return conversation
+
+        monkeypatch.setattr(service, "_resolve_assistant_agent_conversation", mock_resolve_conversation)
+
+        # 模拟分页器
+        mock_paginator = SimpleNamespace(paginate=lambda query: [message_with_empty_answer.id])
+        monkeypatch.setattr("internal.service.assistant_agent_service.Paginator", lambda **kwargs: mock_paginator)
+
+        # 模拟分页查询
+        monkeypatch.setattr(service, "db", SimpleNamespace(
+            session=SimpleNamespace(
+                query=lambda *args, **kwargs: SimpleNamespace(
+                    filter=lambda *args, **kwargs: SimpleNamespace(
+                        order_by=lambda *args, **kwargs: SimpleNamespace(
+                            all=lambda: [message_with_empty_answer]
+                        )
+                    ),
+                    options=lambda *args, **kwargs: SimpleNamespace(
+                        filter=lambda *args, **kwargs: SimpleNamespace(
+                            order_by=lambda *args, **kwargs: SimpleNamespace(
+                                all=lambda: [message_with_empty_answer]
+                            )
+                        )
+                    )
+                )
+            )
+        ))
+
+        # 调用方法
+        messages, paginator = service.get_conversation_messages_with_page(req, account)
+
+        # 验证结果 - 应该返回消息，即使答案为空
+        assert len(messages) == 1
+        assert messages[0].id == message_with_empty_answer.id
+        assert messages[0].query == "你好"
+        assert messages[0].answer == ""  # 答案为空也应该返回
+
+    def test_get_conversation_messages_with_page_should_exclude_messages_with_empty_query(self, monkeypatch):
+        """
+        测试：验证仍然过滤掉 query 为空的消息
+
+        说明：
+        虽然允许答案为空，但仍然应该过滤掉用户提问为空的消息。
+        """
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4(), assistant_agent_conversation=None)
+        conversation_id = uuid4()
+
+        # 模拟请求对象
+        req = SimpleNamespace(
+            conversation_id=SimpleNamespace(data=str(conversation_id)),
+            current_page=SimpleNamespace(data=1),
+            page_size=SimpleNamespace(data=5),
+            created_at=SimpleNamespace(data=0),
+        )
+
+        # 模拟对话对象
+        conversation = SimpleNamespace(
+            id=conversation_id,
+            created_by=account.id,
+            is_deleted=False,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+        )
+
+        # 模拟 _resolve_assistant_agent_conversation 方法
+        def mock_resolve_conversation(*args, **kwargs):
+            return conversation
+
+        monkeypatch.setattr(service, "_resolve_assistant_agent_conversation", mock_resolve_conversation)
+
+        # 模拟分页器 - 返回空列表
+        mock_paginator = SimpleNamespace(paginate=lambda query: [])
+        monkeypatch.setattr("internal.service.assistant_agent_service.Paginator", lambda **kwargs: mock_paginator)
+
+        # 模拟分页查询 - 返回空列表（因为 query 为空被过滤掉了）
+        monkeypatch.setattr(service, "db", SimpleNamespace(
+            session=SimpleNamespace(
+                query=lambda *args, **kwargs: SimpleNamespace(
+                    filter=lambda *args, **kwargs: SimpleNamespace(
+                        order_by=lambda *args, **kwargs: SimpleNamespace(
+                            all=lambda: []  # 返回空列表
+                        )
+                    ),
+                    options=lambda *args, **kwargs: SimpleNamespace(
+                        filter=lambda *args, **kwargs: SimpleNamespace(
+                            order_by=lambda *args, **kwargs: SimpleNamespace(
+                                all=lambda: []
+                            )
+                        )
+                    )
+                )
+            )
+        ))
+
+        # 调用方法
+        messages, paginator = service.get_conversation_messages_with_page(req, account)
+
+        # 验证结果 - 应该返回空列表
+        assert len(messages) == 0

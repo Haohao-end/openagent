@@ -13,7 +13,7 @@ def auto_create_app(
         account_id: UUID,
 ) -> None:
     """根据传递的名称、描述、账号id创建一个Agent"""
-    from app.http.module import injector
+    from app.http.app import injector
     from internal.service import AppService
     from internal.service.notification_service import NotificationService
     from internal.lib.websocket_manager import ws_manager
@@ -23,6 +23,11 @@ def auto_create_app(
     notification_service = injector.get(NotificationService)
 
     try:
+        logger.info(
+            "Starting auto_create_app task, account_id=%s, name=%s",
+            account_id,
+            name,
+        )
         # 创建应用
         app = app_service.auto_create_app(name, description, account_id)
 
@@ -41,5 +46,5 @@ def auto_create_app(
 
         logger.info("Created and emitted notification for agent %s", app.id)
     except Exception as e:
-        logger.error("Error in auto_create_app task: %s", str(e))
+        logger.exception("Error in auto_create_app task: %s", str(e))
         raise

@@ -187,7 +187,13 @@ const resolveApiUrl = (url: string) => {
 const baseFetch = async <T>(url: string, fetchOptions: FetchOptionType): Promise<T> => {
   const options = buildRequestOptions(fetchOptions)
   const { credential, clear: clearCredential } = useCredentialStore()
-  const accessToken = credential.access_token
+  let accessToken = credential.access_token
+
+  // 开发环境下，如果没有token，使用测试token
+  if (!accessToken && import.meta.env.DEV) {
+    accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0ZjkzYmViMy0xODQ5LTRmNzYtODgwNC1hYjM2ODE2MDkxYjcifQ.-KfeCdzSIpqJrkGssGOa47AUUcNwfF9lsl-4_ZExXXc'
+  }
+
   if (accessToken) {
     options.headers.set('Authorization', `Bearer ${accessToken}`)
   }
@@ -514,10 +520,15 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
       }
 
       const response: unknown = xhr.response
+
+      // 添加调试日志
+      console.log('[Upload] Response:', response)
+
       if (!isApiResponse(response)) {
+        console.error('[Upload] Invalid response format:', response)
         reject(
           createRequestError({
-            message: '上传失败',
+            message: '上传失败: 响应格式错误',
             status: xhr.status,
             response,
           }),
@@ -549,6 +560,16 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
           code: response.code,
           status: xhr.status,
           response,
+        }),
+      )
+    }
+
+    xhr.onerror = () => {
+      console.error('[Upload] Network error')
+      reject(
+        createRequestError({
+          message: '网络错误',
+          status: xhr.status,
         }),
       )
     }

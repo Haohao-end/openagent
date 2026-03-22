@@ -56,6 +56,8 @@ class GetAppsWithPageResp(Schema):
     preset_prompt = fields.String(dump_default="")
     model_config = fields.Dict(dump_default={})
     status = fields.String(dump_default="")
+    creator_name = fields.String(dump_default="")
+    creator_avatar = fields.String(dump_default="")
     draft_updated_at = fields.Integer(dump_default=0)
     updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
@@ -74,6 +76,8 @@ class GetAppsWithPageResp(Schema):
                 "model": app_config.model_config.get("model", "")
             },
             "status": data.status,
+            "creator_name": data.account.name if data.account else "",
+            "creator_avatar": data.account.avatar if data.account else "",
             "draft_updated_at": datetime_to_timestamp(data.draft_app_config.updated_at),
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),
@@ -104,7 +108,7 @@ class GetAppResp(Schema):
             "description": data.description,
             "status": data.status,
             "is_public": data.is_public,
-            "category": data.category,
+            "category": "general",
             "draft_updated_at": datetime_to_timestamp(data.draft_app_config.updated_at),
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),

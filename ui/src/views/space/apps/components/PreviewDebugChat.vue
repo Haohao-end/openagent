@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AiMessage from '@/components/AiMessage.vue'
 import HumanMessage from '@/components/HumanMessage.vue'
+import ScrollNavigator from '@/components/ScrollNavigation/ScrollNavigator.vue'
 import ChatConversationSkeleton from '@/components/skeletons/ChatConversationSkeleton.vue'
 import { useGenerateSuggestedQuestions } from '@/hooks/use-ai'
 import {
@@ -580,7 +581,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-full min-h-0 flex flex-col overflow-hidden">
+  <scroll-navigator>
+    <div class="h-full min-h-0 flex flex-col overflow-hidden">
     <div
       v-if="getDebugConversationMessagesWithPageLoading && messages.length === 0"
       class="flex-1 min-h-0 px-6 pt-6"
@@ -594,7 +596,7 @@ onUnmounted(() => {
         <template v-slot="{ item, active }">
           <dynamic-scroller-item :item="item" :active="active" :data-index="item.id">
             <div class="flex flex-col gap-6 py-6">
-              <human-message :query="item.query" :image_urls="item.image_urls" :account="accountStore.account" />
+              <human-message data-scroll-item :query="item.query" :image_urls="item.image_urls" :account="accountStore.account" />
               <ai-message :message_id="item.id" :enable_text_to_speech="props.text_to_speech.enable"
                 :agent_thoughts="item.agent_thoughts" :answer="item.answer" :app="props.app"
                 :suggested_questions="item.suggested_questions && item.suggested_questions.length > 0 ? item.suggested_questions : (item.id === message_id ? suggested_questions : [])"
@@ -731,4 +733,5 @@ onUnmounted(() => {
     </div>
     <!-- 停止会话按钮 -->
   </div>
+  </scroll-navigator>
 </template>

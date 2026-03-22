@@ -13,8 +13,6 @@ import { AUTH_REQUIRED_EVENT } from '@/utils/request'
 import IconOpenAgent from '@/components/icons/IconOpenAgent.vue'
 import { useRoute } from 'vue-router'
 import { getUserAvatarUrl } from '@/utils/helper'
-import AgentNotification from '@/components/AgentNotification.vue'
-import { setupAgentNotificationListener } from '@/services/websocket'
 
 // 1.定义页面所需数据
 const settingModalVisible = ref(false)
@@ -24,7 +22,6 @@ const sidebarCollapsed = ref(false)
 const popoverVisible = ref(false)
 const popoverData = ref<any>(null)
 const popoverPosition = ref({ top: 0, left: 0 })
-const agentNotificationRef = ref()
 const RECENT_CONVERSATIONS_POPOVER_MARGIN = 12
 const router = useRouter()
 const route = useRoute()
@@ -160,7 +157,6 @@ onMounted(() => {
   window.addEventListener('recent-conversations:show', handleRecentConversationsShow)
   window.addEventListener('recent-conversations:hide', handleRecentConversationsHide)
   window.addEventListener('resize', handleViewportResize)
-  setupAgentNotificationListener(agentNotificationRef)
 })
 
 onUnmounted(() => {
@@ -303,8 +299,6 @@ onUnmounted(() => {
     <login-modal v-model:visible="loginModalVisible" @success="handleLoginSuccess" />
     <!-- 设置模态窗 -->
     <setting-modal v-model:visible="settingModalVisible" />
-    <!-- Agent通知组件 -->
-    <AgentNotification ref="agentNotificationRef" />
     <!-- 最近对话全局 Popover -->
     <recent-conversations-global-popover
       v-if="popoverVisible && popoverData"

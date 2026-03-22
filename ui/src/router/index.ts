@@ -97,6 +97,11 @@ const router = createRouter({
           component: () => import('@/views/store/workflows/PreviewView.vue'),
         },
         {
+          path: 'search',
+          name: 'conversation-search',
+          component: () => import('@/views/home/ConversationSearchView.vue'),
+        },
+        {
           path: 'openapi',
           component: () => import('@/views/openapi/OpenAPILayoutView.vue'),
           children: [
@@ -196,6 +201,7 @@ const publicRouteNames = new Set([
   'auth-authorize',
   'auth-forgot-password',
   'openapi-index',
+  'conversation-search',
   'errors-not-found',
   'errors-forbidden',
 ])

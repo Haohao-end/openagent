@@ -135,7 +135,7 @@ class AppService(BaseService):
 
         return normalized_questions
 
-    def auto_create_app(self, name: str, description: str, account_id: UUID) -> None:
+    def auto_create_app(self, name: str, description: str, account_id: UUID) -> App:
         """根据传递的应用名称、描述、账号id利用AI创建一个Agent智能体"""
         name = (name or "").strip()
         description = (description or "").strip()
@@ -250,6 +250,9 @@ class AppService(BaseService):
             # 10.更新应用配置id
             app.draft_app_config_id = app_config_version.id
 
+        # 11.返回创建的应用
+        return app
+
     def create_app(self, req: CreateAppReq, account: Account) -> App:
         """创建Agent应用服务"""
         # 1. 如果用户未提供图标，自动生成图标
@@ -264,8 +267,8 @@ class AppService(BaseService):
                 logging.info(f"自动生成图标成功: {icon_url}")
             except Exception as e:
                 logging.error(f"自动生成图标失败: {str(e)}")
-                # 如果生成失败，使用默认图标
-                icon_url = "https://picsum.photos/400"
+                # 如果生成失败，使用默认图标 - 使用一个彩色的SVG图标
+                icon_url = self._generate_default_icon(req.name.data)
 
         # 2.开启数据库自动提交上下文
         with self.db.auto_commit():
@@ -1017,8 +1020,8 @@ class AppService(BaseService):
         # 5.校验preset_prompt
         if "preset_prompt" in draft_app_config:
             preset_prompt = draft_app_config["preset_prompt"]
-            if not isinstance(preset_prompt, str) or len(preset_prompt) > 2000:
-                raise ValidateErrorException("人设与回复逻辑必须是字符串，长度在0-2000个字符")
+            if not isinstance(preset_prompt, str) or len(preset_prompt) > 5000:
+                raise ValidateErrorException("人设与回复逻辑必须是字符串，长度在0-5000个字符")
 
         # 6.校验tools工具
         if "tools" in draft_app_config:
@@ -1290,3 +1293,48 @@ class AppService(BaseService):
                     raise ValidateErrorException("输入审核预设响应不能为空")
 
         return draft_app_config
+
+    def _generate_default_icon(self, app_name: str) -> str:
+        """
+        生成一个默认的彩色SVG图标
+
+        Args:
+            app_name: 应用名称
+
+        Returns:
+            str: 图标的COS URL或数据URI
+        """
+        import hashlib
+
+        # 使用应用名称生成一个稳定的颜色
+        hash_obj = hashlib.md5(app_name.encode())
+        hash_hex = hash_obj.hexdigest()
+
+        # 从哈希值中提取RGB颜色
+        r = int(hash_hex[0:2], 16)
+        g = int(hash_hex[2:4], 16)
+        b = int(hash_hex[4:6], 16)
+
+        # 确保颜色足够亮
+        brightness = (r * 299 + g * 587 + b * 114) / 1000
+        if brightness < 100:
+            r = min(255, r + 100)
+            g = min(255, g + 100)
+            b = min(255, b + 100)
+
+        # 获取应用名称的首字母
+        first_char = app_name[0].upper() if app_name else "A"
+
+        # 创建SVG图标
+        svg_content = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" fill="rgb({r},{g},{b})" rx="40"/>
+  <text x="100" y="120" font-size="100" font-weight="bold" fill="white" text-anchor="middle" font-family="Arial, sans-serif">{first_char}</text>
+</svg>'''
+
+        # 将SVG转换为数据URI
+        import base64
+        svg_bytes = svg_content.encode('utf-8')
+        svg_base64 = base64.b64encode(svg_bytes).decode('utf-8')
+        data_uri = f"data:image/svg+xml;base64,{svg_base64}"
+
+        return data_uri

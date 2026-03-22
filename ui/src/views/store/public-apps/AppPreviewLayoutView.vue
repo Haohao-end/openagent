@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import moment from 'moment'
 import { useRoute, useRouter } from 'vue-router'
 import { onMounted, ref } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { getPublicAppDetail, forkPublicApp, type PublicApp } from '@/services/public-app'
 import { getErrorMessage } from '@/utils/error'
+import { formatTimestampShort } from '@/utils/time-formatter'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,12 +16,13 @@ const app = ref<PreviewApp>({
   name: '',
   icon: '',
   description: '',
-  category: '',
+  tags: [],
   view_count: 0,
   like_count: 0,
   fork_count: 0,
   favorite_count: 0,
   creator_name: '',
+  creator_avatar: '',
   published_at: 0,
   created_at: 0,
   is_liked: false,
@@ -98,6 +99,7 @@ onMounted(async () => await loadApp())
               <a-skeleton-line :widths="[60]" :line-height="18" />
             </div>
             <div v-else class="flex items-center gap-2">
+              <a-avatar :size="20" :image-url="app.creator_avatar" />
               <div class="flex items-center h-[18px] text-xs text-gray-500">
                 <icon-user />
                 {{ app.creator_name }}
@@ -111,7 +113,7 @@ onMounted(async () => await loadApp())
                 {{ app.fork_count }} 次Fork
               </div>
               <a-tag size="small" class="rounded h-[18px] leading-[18px] bg-gray-200 text-gray-500">
-                发布于 {{ moment(app.published_at * 1000).format('YYYY-MM-DD HH:mm') }}
+                发布于 {{ formatTimestampShort(app.published_at) }}
               </a-tag>
             </div>
           </div>

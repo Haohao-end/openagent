@@ -11,7 +11,7 @@ from internal.schema.public_app_schema import (
     ShareAppToSquareReq,
     GetPublicAppsWithPageReq,
     PublicAppResp,
-    GetAppCategoriesResp,
+    GetAppTagsResp,
     LikeAppResp,
     FavoriteAppResp,
     ForkAppResp,
@@ -37,7 +37,8 @@ class PublicAppHandler:
             return validate_error_json(req.errors)
 
         # 2.调用服务共享应用
-        self.public_app_service.share_app_to_square(app_id, req.category.data, current_user)
+        tags = req.tags.data if req.tags.data else None
+        self.public_app_service.share_app_to_square(app_id, tags, current_user)
 
         return success_message("应用已共享到广场")
 
@@ -65,9 +66,9 @@ class PublicAppHandler:
         # 3.返回响应
         return success_json(PageModel(list=apps, paginator=paginator))
 
-    def get_app_categories(self):
-        """获取应用分类列表"""
-        resp = GetAppCategoriesResp()
+    def get_app_tags(self):
+        """获取应用标签列表"""
+        resp = GetAppTagsResp()
         return success_json(resp.dump({}))
 
     @login_required

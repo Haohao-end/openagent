@@ -9,6 +9,7 @@ from config import Config
 from internal.exception import CustomException
 from internal.router import Router
 from internal.extension import logging_extension, redis_extension, celery_extension
+from internal.extension.socketio_extension import init_socketio
 from pkg.response import json, Response, HttpCode
 from pkg.sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -69,6 +70,7 @@ class Http(Flask):
         celery_extension.init_app(self)
         login_manager.init_app(self)
         mail.init_app(self)
+        init_socketio(self)
 
         # 6.注册应用中间件
         login_manager.request_loader(middleware.request_loader)

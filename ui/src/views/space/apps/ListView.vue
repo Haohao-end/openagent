@@ -4,11 +4,13 @@ import { useCopyApp, useDeleteApp, useGetAppsWithPage } from '@/hooks/use-app'
 import { onMounted, ref, watch } from 'vue'
 import { useAccountStore } from '@/stores/account'
 import CreateOrUpdateAppModal from './components/CreateOrUpdateAppModal.vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import CardGridSkeleton from '@/components/skeletons/CardGridSkeleton.vue'
+import { getUserAvatarUrl } from '@/utils/helper'
 
 // 1.定义页面所需数据
 const route = useRoute()
+const router = useRouter()
 const props = defineProps({
   createType: { type: String, default: '', required: true },
 })
@@ -66,17 +68,33 @@ watch(
   },
   { immediate: true },
 )
+
+// 3.定义卡片点击处理器
+const handleCardClick = (appId: string) => {
+  router.push({
+    name: 'space-apps-detail',
+    params: { app_id: appId },
+  })
+}
 </script>
 
 <template>
-  <div class="block h-full w-full scrollbar-w-none overflow-scroll" @scroll="handleScroll">
+  <div class="block h-full w-full scrollbar-w-none overflow-y-scroll overflow-x-hidden" @scroll="handleScroll">
     <card-grid-skeleton v-if="getAppsWithPageLoading && apps.length === 0" :count="8" />
     <template v-else>
       <!-- 底部应用列表 -->
-      <a-row :gutter="[20, 20]" class="flex-1">
+      <a-row :gutter="[20, 20]">
         <!-- 有数据的UI状态 -->
-        <a-col v-for="app in apps" :key="app.id" :span="6">
-          <a-card hoverable class="cursor-pointer rounded-lg">
+        <a-col
+          v-for="app in apps"
+          :key="app.id"
+          :xs="24"
+          :sm="12"
+          :md="8"
+          :lg="6"
+          :xl="6"
+        >
+          <a-card hoverable class="cursor-pointer rounded-lg" @click="handleCardClick(app.id)">
             <!-- 顶部应用名称 -->
             <div class="flex items-center gap-3 mb-3">
               <!-- 左侧图标 -->
@@ -84,25 +102,19 @@ watch(
               <!-- 右侧App信息 -->
               <div class="flex flex-1 justify-between">
                 <div class="flex flex-col">
-                  <router-link
-                    :to="{
-                      name: 'space-apps-detail',
-                      params: { app_id: app.id },
-                    }"
-                    class="text-base text-gray-900 font-bold"
-                  >
+                  <div class="text-base text-gray-900 font-bold">
                     {{ app.name }}
                     <icon-check-circle-fill
                       v-if="app.status === 'published'"
                       class="text-green-700"
                     />
-                  </router-link>
+                  </div>
                   <div class="text-xs text-gray-500 line-clamp-1">
                     {{ app.model_config.provider }} · {{ app.model_config.model }}
                   </div>
                 </div>
                 <!-- 操作按钮 -->
-                <a-dropdown position="br">
+                <a-dropdown position="br" @click.stop>
                   <a-button type="text" size="small" class="rounded-lg !text-gray-700">
                     <template #icon>
                       <icon-more />
@@ -145,8 +157,8 @@ watch(
             </div>
             <!-- 应用的归属者信息 -->
             <div class="flex items-center gap-1.5">
-              <a-avatar :size="18" class="bg-blue-700">
-                <icon-user />
+              <a-avatar :size="18" class="bg-blue-700" :image-url="getUserAvatarUrl(accountStore.account.avatar, accountStore.account.name)">
+                {{ (accountStore.account.name || '未知用户')[0] }}
               </a-avatar>
               <div class="text-xs text-gray-400">
                 {{ accountStore.account.name }} · 最近编辑
@@ -191,4 +203,9 @@ watch(
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+:deep(.arco-row) {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+</style>

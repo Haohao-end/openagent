@@ -7,6 +7,8 @@ from .auth_handler import AuthHandler
 from .builtin_tool_handler import BuiltinToolHandler
 from .dataset_handler import DatasetHandler
 from .document_handler import DocumentHandler
+from .home_handler import HomeHandler
+from .notification_handler import NotificationHandler
 from .oauth_handler import OAuthHandler
 from .openapi_handler import OpenAPIHandler
 from .segment_handler import SegmentHandler
@@ -48,5 +50,7 @@ __all__ = [
     "PlatformHandler",
     "WechatHandler",
     "PublicAppHandler",
-    "PublicWorkflowHandler"
+    "PublicWorkflowHandler",
+    "HomeHandler",
+    "NotificationHandler"
 ]

@@ -6,12 +6,12 @@ import {
   useGetApiKeysWithPage,
   useUpdateApiKeyIsActive,
 } from '@/hooks/use-api-key'
-import moment from 'moment'
 import { Message } from '@arco-design/web-vue'
 import { useCredentialStore } from '@/stores/credential'
 import { AUTH_REQUIRED_EVENT } from '@/utils/request'
 import { getErrorMessage } from '@/utils/error'
 import CreateOrUpdateApiKeyModal from './components/CreateOrUpdateApiKeyModal.vue'
+import { formatTimestampDate } from '@/utils/time-formatter'
 
 // 1.定义页面所需基础数据
 const route = useRoute()
@@ -230,7 +230,7 @@ watch(
             <template #cell="{ record }">
               <div class="flex items-center gap-2 text-gray-600 text-sm whitespace-nowrap">
                 <icon-clock-circle class="text-gray-400 flex-shrink-0" :size="16" />
-                <span>{{ moment(record.created_at * 1000).format('YYYY-MM-DD') }}</span>
+                <span>{{ formatTimestampDate(record.created_at) }}</span>
               </div>
             </template>
           </a-table-column>

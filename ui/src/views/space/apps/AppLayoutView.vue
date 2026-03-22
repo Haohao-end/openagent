@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import moment from 'moment'
 import { useRoute } from 'vue-router'
 import { useCancelPublish, useGetApp, usePublish, useShareAppToSquare, useUnshareAppFromSquare } from '@/hooks/use-app'
 import { onMounted, ref } from 'vue'
 import PublishHistoryDrawer from '@/views/space/apps/components/PublishHistoryDrawer.vue'
+import { formatTimestampTime } from '@/utils/time-formatter'
 
 const route = useRoute()
 const publishHistoryDrawerVisible = ref(false)
@@ -56,7 +56,7 @@ onMounted(async () => await loadApp(String(route.params?.app_id)))
                 {{ app.status === 'draft' ? '草稿' : '已发布' }}
               </div>
               <a-tag size="small" class="rounded h-[18px] leading-[18px] bg-gray-200 text-gray-500">
-                已自动保存 {{ moment(app.draft_updated_at * 1000).format('HH:mm:ss') }}
+                已自动保存 {{ formatTimestampTime(app.draft_updated_at) }}
               </a-tag>
             </div>
           </div>

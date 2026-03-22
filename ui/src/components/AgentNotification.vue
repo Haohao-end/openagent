@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { markNotificationAsRead } from '@/services/notification'
 import type { AgentNotification } from '@/models/agent-notification'
 
 const router = useRouter()
@@ -40,6 +41,10 @@ const addNotification = (notification: AgentNotification) => {
   }
 
   notifications.value.push(notification)
+
+  markNotificationAsRead(notification.id).catch((error) => {
+    console.warn('Failed to mark agent notification as read:', error)
+  })
 
   // 设置 10 秒后自动消失
   const timer = setTimeout(() => {

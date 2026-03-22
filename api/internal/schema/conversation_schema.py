@@ -86,3 +86,30 @@ class GetRecentConversationsResp(Schema):
     is_active = fields.Boolean(dump_default=False)
     latest_message_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
+    human_message = fields.String(dump_default="")
+    ai_message = fields.String(dump_default="")
+
+
+class SearchConversationsReq(FlaskForm):
+    """搜索会话请求结构体"""
+    query = StringField("query", default="", validators=[
+        Optional(),
+        Length(max=500, message="搜索词长度不能超过500个字符")
+    ])
+    limit = IntegerField("limit", default=50, validators=[
+        Optional(),
+        NumberRange(min=1, max=100, message="limit范围必须在1~100之间"),
+    ])
+
+
+class SearchConversationsResp(Schema):
+    """搜索会话响应结构体"""
+    id = fields.UUID(dump_default="")
+    name = fields.String(dump_default="")
+    source_type = fields.String(dump_default="")
+    app_id = fields.UUID(dump_default="")
+    app_name = fields.String(dump_default="")
+    matched_query = fields.String(dump_default="")
+    matched_answer = fields.String(dump_default="")
+    latest_message_at = fields.Integer(dump_default=0)
+    created_at = fields.Integer(dump_default=0)

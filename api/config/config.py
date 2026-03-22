@@ -63,6 +63,13 @@ class Config:
         self.REDIS_DB = _get_env("REDIS_DB")
         self.REDIS_USE_SSL = _get_bool_env("REDIS_USE_SSL")
 
+        # 构建 Redis URL
+        redis_username = self.REDIS_USERNAME or ""
+        redis_password = self.REDIS_PASSWORD or ""
+        redis_auth = f"{redis_username}:{redis_password}@" if redis_password else ""
+        redis_protocol = "rediss" if self.REDIS_USE_SSL else "redis"
+        self.REDIS_URL = f"{redis_protocol}://{redis_auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+
         # Celery配置
         self.CELERY = {
             "broker_url": f"redis://{self.REDIS_USERNAME}:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{int(_get_env('CELERY_BROKER_DB'))}",

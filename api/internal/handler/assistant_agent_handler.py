@@ -67,7 +67,14 @@ class AssistantAgentHandler:
         # 3.创建响应数据结构
         resp = GetAssistantAgentMessagesWithPageResp(many=True)
 
-        return success_json(PageModel(list=resp.dump(messages), paginator=paginator))
+        try:
+            dumped_messages = resp.dump(messages)
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to dump messages: {e}", exc_info=True)
+            raise
+
+        return success_json(PageModel(list=dumped_messages, paginator=paginator))
 
     @login_required
     def get_assistant_agent_conversations(self):

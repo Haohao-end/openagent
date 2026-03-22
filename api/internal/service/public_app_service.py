@@ -13,6 +13,8 @@ from internal.core.tools.builtin_tools.providers import BuiltinProviderManager
 from internal.entity.app_category_entity import AppCategory
 from internal.entity.app_entity import AppStatus
 from internal.entity.workflow_entity import WorkflowStatus
+from internal.entity.tag_entity import sort_tags_by_priority
+from internal.service.tag_assignment_service import TagAssignmentService
 from internal.exception import NotFoundException, ForbiddenException, ValidateErrorException, FailException
 from internal.model import (
     App,
@@ -181,7 +183,7 @@ class PublicAppService(BaseService):
 
         return enriched_workflows
 
-    def share_app_to_square(self, app_id: UUID, category: str, account: Account) -> App:
+    def share_app_to_square(self, app_id: UUID, tags: str, account: Account) -> App:
         """将应用共享到广场"""
         # 1.获取应用并校验权限
         app = self.db.session.query(App).filter(App.id == app_id).one_or_none()
@@ -195,19 +197,23 @@ class PublicAppService(BaseService):
         if app.status != AppStatus.PUBLISHED.value:
             raise ValidateErrorException("只有已发布的应用才能共享到广场")
 
-        # 3.校验分类是否有效
-        valid_categories = [c.value for c in AppCategory]
-        if category not in valid_categories:
-            raise ValidateErrorException(f"无效的分类: {category}")
+        # 3.处理标签
+        if tags:
+            # 如果提供了标签，使用提供的标签
+            tag_list = [t.strip() for t in tags.split(',') if t.strip()]
+            tag_list = sort_tags_by_priority(tag_list)
+        else:
+            # 如果没有提供标签，自动分配
+            tag_list = TagAssignmentService.auto_assign_tags(app.name, app.description)
 
         # 4.更新应用为公开状态
         self.update(app, **{
             "is_public": True,
-            "category": category,
+            "tags": tag_list,
             "published_at": datetime.now(UTC).replace(tzinfo=None),
         })
 
-        logging.info(f"应用已共享到广场: app_id={app_id}, category={category}")
+        logging.info(f"应用已共享到广场: app_id={app_id}, tags={tag_list}")
         return app
 
     def unshare_app_from_square(self, app_id: UUID, account: Account) -> App:
@@ -234,7 +240,7 @@ class PublicAppService(BaseService):
             req: GetPublicAppsWithPageReq,
             account: Account = None
     ) -> tuple[list[dict[str, Any]], Paginator]:
-        """获取公共应用广场列表(支持分类、排序、搜索)"""
+        """获取公共应用广场列表(支持标签、排序、搜索)"""
         # 1.构建分页器
         paginator = Paginator(db=self.db, req=req)
 
@@ -244,9 +250,15 @@ class PublicAppService(BaseService):
             App.status == AppStatus.PUBLISHED.value,
         ]
 
-        # 分类筛选
-        if req.category.data and req.category.data != "all":
-            filters.append(App.category == req.category.data)
+        # 标签筛选 - 支持多选，OR关系
+        if req.tags.data:
+            tag_list = [t.strip() for t in req.tags.data.split(',') if t.strip()]
+            if tag_list:
+                # 使用PostgreSQL的JSONB包含操作符
+                tag_filters = []
+                for tag in tag_list:
+                    tag_filters.append(App.tags.contains([tag]))
+                filters.append(or_(*tag_filters))
 
         # 搜索词筛选
         if req.search_word.data:
@@ -270,6 +282,7 @@ class PublicAppService(BaseService):
             self.db.session.query(
                 App,
                 Account.name.label("creator_name"),
+                Account.avatar.label("creator_avatar"),
                 func.coalesce(favorite_count_subquery.c.favorite_count, 0).label("favorite_count"),
             )
             .join(Account, Account.id == App.account_id)
@@ -294,26 +307,39 @@ class PublicAppService(BaseService):
 
         liked_app_ids: set[UUID] = set()
         favorited_app_ids: set[UUID] = set()
-        user_app_ids = [app.id for app, _creator_name, _favorite_count in user_rows]
-        if account and user_app_ids:
+        forked_app_ids: set[UUID] = set()
+
+        # 先构建所有应用的ID集合（用于批量查询）
+        all_app_ids = [app.id for app, _creator_name, _creator_avatar, _favorite_count in user_rows]
+
+        if account and all_app_ids:
             liked_app_ids = {
                 row[0]
                 for row in self.db.session.query(AppLike.app_id).filter(
                     AppLike.account_id == account.id,
-                    AppLike.app_id.in_(user_app_ids),
+                    AppLike.app_id.in_(all_app_ids),
                 ).all()
             }
             favorited_app_ids = {
                 row[0]
                 for row in self.db.session.query(AppFavorite.app_id).filter(
                     AppFavorite.account_id == account.id,
-                    AppFavorite.app_id.in_(user_app_ids),
+                    AppFavorite.app_id.in_(all_app_ids),
+                ).all()
+            }
+            # 查询用户是否fork过这些应用（包括草稿状态）
+            forked_app_ids = {
+                row[0]
+                for row in self.db.session.query(App.original_app_id).filter(
+                    App.account_id == account.id,
+                    App.original_app_id.in_(all_app_ids),
+                    App.original_app_id.isnot(None),
                 ).all()
             }
 
         # 5.构建用户共享应用数据
         user_app_list = []
-        for app, creator_name, favorite_count in user_rows:
+        for app, creator_name, creator_avatar, favorite_count in user_rows:
             creator_name = creator_name or "未知用户"
 
             app_dict = {
@@ -321,22 +347,25 @@ class PublicAppService(BaseService):
                 "name": app.name,
                 "icon": app.icon,
                 "description": app.description,
-                "category": app.category,
+                "tags": app.tags if app.tags else [],
                 "view_count": app.view_count,
                 "like_count": app.like_count,
                 "fork_count": app.fork_count,
                 "favorite_count": favorite_count,  # 添加收藏数
                 "creator_name": creator_name,  # 添加发布者名称
+                "creator_avatar": creator_avatar or "",  # 添加发布者头像
                 "published_at": int(app.published_at.timestamp()) if app.published_at else 0,
                 "created_at": int(app.created_at.timestamp()),
                 "is_liked": False,
                 "is_favorited": False,
+                "is_forked": False,  # 是否已fork
             }
 
-            # 如果用户已登录，使用批量查询结果设置点赞/收藏状态。
+            # 如果用户已登录，使用批量查询结果设置点赞/收藏/fork状态。
             if account:
                 app_dict["is_liked"] = app.id in liked_app_ids
                 app_dict["is_favorited"] = app.id in favorited_app_ids
+                app_dict["is_forked"] = app.id in forked_app_ids
 
             user_app_list.append(app_dict)
 
@@ -391,7 +420,7 @@ class PublicAppService(BaseService):
             "icon": public_app.icon,
             "description": public_app.description,
             "status": AppStatus.DRAFT.value,
-            "category": public_app.category,
+            "tags": public_app.tags,
             "original_app_id": public_app.id,  # 记录原始应用ID
         }
 
@@ -564,7 +593,7 @@ class PublicAppService(BaseService):
             "name": app.name,
             "icon": app.icon,
             "description": app.description,
-            "category": app.category,
+            "tags": app.tags,
             "status": app.status,
             "is_public": app.is_public,
             "view_count": app.view_count,
@@ -576,9 +605,10 @@ class PublicAppService(BaseService):
             "created_at": int(app.created_at.timestamp()),
             "is_liked": False,
             "is_favorited": False,
+            "is_forked": False,  # 是否已fork
         }
 
-        # 7.如果用户已登录，查询用户的点赞和收藏状态
+        # 7.如果用户已登录，查询用户的点赞、收藏和fork状态
         if account:
             is_liked = self.db.session.query(AppLike).filter(
                 AppLike.app_id == app.id,
@@ -590,8 +620,16 @@ class PublicAppService(BaseService):
                 AppFavorite.account_id == account.id
             ).one_or_none() is not None
 
+            # 查询用户是否fork过该应用（包括草稿状态）
+            is_forked = self.db.session.query(App).filter(
+                App.account_id == account.id,
+                App.original_app_id == app.id,
+                App.original_app_id.isnot(None),
+            ).first() is not None
+
             app_detail["is_liked"] = is_liked
             app_detail["is_favorited"] = is_favorited
+            app_detail["is_forked"] = is_forked
 
         # 8.获取应用配置信息
         app_config = app.app_config

@@ -17,7 +17,7 @@ const { handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
 const { loading, optimize_prompt, handleOptimizePrompt } = useOptimizePrompt()
 
 // 2.定义替换预设prompt处理器
-const handleReplacePresetPrompt = () => {
+const handleReplacePresetPrompt = async () => {
   // 2.1 检测优化prompt是否为空
   if (optimize_prompt.value.trim() === '') {
     Message.warning('优化prompt为空，请重新生成')
@@ -28,7 +28,13 @@ const handleReplacePresetPrompt = () => {
   emits('update:preset_prompt', optimize_prompt.value)
 
   // 2.3 触发更新草稿配置函数
-  handleUpdateDraftAppConfig(props.app_id, { preset_prompt: optimize_prompt.value })
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, { preset_prompt: optimize_prompt.value })
+  } catch (error) {
+    // 错误已在 handleUpdateDraftAppConfig 中处理
+    console.error('替换预设prompt失败:', error)
+    return
+  }
 
   // 2.4 隐藏触发器
   optimizeTriggerVisible.value = false
@@ -53,9 +59,14 @@ const handleEditorUpdate = (value: string) => {
 
 // 5.处理编辑器失焦
 const handleEditorBlur = async () => {
-  await handleUpdateDraftAppConfig(props.app_id, {
-    preset_prompt: props.preset_prompt,
-  })
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, {
+      preset_prompt: props.preset_prompt,
+    })
+  } catch (error) {
+    // 错误已在 handleUpdateDraftAppConfig 中处理，这里只是防止未捕获的异常
+    console.error('编辑器失焦时更新失败:', error)
+  }
 }
 </script>
 

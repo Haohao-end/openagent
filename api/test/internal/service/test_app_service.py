@@ -2105,7 +2105,9 @@ class TestAppServiceDraftConfigValidation:
         app = service.create_app(req, account)
 
         assert create_db.auto_commit_count == 1
-        assert app.icon == "https://picsum.photos/400"  # 使用默认兜底图标
+        # 使用默认兜底图标 - SVG数据URI
+        assert app.icon.startswith("data:image/svg+xml;base64,")
+        assert "测" in app.icon or "A" in app.icon  # 应该包含应用名称的首字母或默认字母
 
     def test_regenerate_icon_success(self):
         """测试重新生成图标成功"""

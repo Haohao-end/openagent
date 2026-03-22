@@ -135,3 +135,13 @@ export const getReferencedVariables = (
 
   return options
 }
+
+// 获取用户头像 URL，如果没有设置则使用用户名首字母
+export const getUserAvatarUrl = (avatar: string | undefined, name: string): string => {
+  // 如果用户设置了自定义头像，直接返回
+  if (avatar && avatar.trim()) {
+    return avatar
+  }
+  // 否则返回空字符串，让组件使用名字首字母作为头像
+  return ''
+}

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import moment from 'moment'
 import { apiPrefix, typeMap } from '@/config'
 import { useGetBuiltinTools, useGetCategories } from '@/hooks/use-builtin-tool'
+import { formatTimestampShort } from '@/utils/time-formatter'
 
 // 1.定义页面所需数据
 const { categories, loadCategories } = useGetCategories()
@@ -30,7 +30,7 @@ onMounted(() => {
 
 <template>
   <a-spin :loading="getBuiltinToolsLoading" class="block h-full w-full">
-    <div class="p-6 flex flex-col">
+    <div class="p-6 flex flex-col h-full">
       <!-- 顶层标题+创建按钮 -->
       <div class="flex items-center justify-between mb-6">
         <!-- 左侧标题 -->
@@ -111,7 +111,7 @@ onMounted(() => {
               </a-avatar>
               <div class="text-xs text-gray-400">
                 发布时间
-                {{ moment(builtinTool.created_at * 1000).format('MM-DD HH:mm') }}
+                {{ formatTimestampShort(builtinTool.created_at) }}
               </div>
             </div>
           </a-card>

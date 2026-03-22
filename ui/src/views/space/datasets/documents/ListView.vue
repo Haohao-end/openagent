@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import moment from 'moment'
 import {
   useDeleteDocument,
   useGetDataset,
@@ -10,6 +9,7 @@ import {
 } from '@/hooks/use-dataset'
 import UpdateDocumentNameModal from '@/views/space/datasets/documents/components/UpdateDocumentNameModal.vue'
 import HitTestingModal from '@/views/space/datasets/documents/components/HitTestingModal.vue'
+import { formatTimestampLong } from '@/utils/time-formatter'
 
 // 1.定义页面所需数据
 const route = useRoute()
@@ -197,7 +197,7 @@ onMounted(() => {
             cell-class="bg-transparent text-gray-700"
           >
             <template #cell="{ record }">
-              {{ moment(record.created_at * 1000).format('YYYY-MM-DD HH:mm:ss') }}
+              {{ formatTimestampLong(record.created_at) }}
             </template>
           </a-table-column>
           <a-table-column

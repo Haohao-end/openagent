@@ -11,10 +11,13 @@ from .cos_service import CosService
 from .dataset_service import DatasetService
 from .document_service import DocumentService
 from .embeddings_service import EmbeddingsService
+from .home_service import HomeService
 from .indexing_service import IndexingService
+from .intent_recognition_service import IntentRecognitionService
 from .jieba_service import JiebaService
 from .jwt_service import JwtService
 from .keyword_table_service import KeywordTableService
+from .notification_service import NotificationService
 from .oauth_service import OAuthService
 from .openapi_service import OpenAPIService
 from .process_rule_service import ProcessRuleService
@@ -48,7 +51,9 @@ __all__ = [
     "EmbeddingsService",
     "JiebaService",
     "DocumentService",
+    "HomeService",
     "IndexingService",
+    "IntentRecognitionService",
     "ProcessRuleService",
     "KeywordTableService",
     "SegmentService",
@@ -72,5 +77,6 @@ __all__ = [
     "WechatService",
     "IconGeneratorService",
     "PublicAppService",
-    "PublicWorkflowService"
+    "PublicWorkflowService",
+    "NotificationService"
 ]

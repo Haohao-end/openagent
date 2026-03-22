@@ -1389,3 +1389,114 @@ class TestConversationServiceBasics:
         service.delete_conversation(conversation.id, account)
 
         assert updates == [(conversation, {"is_deleted": True})]
+
+    def test_delete_conversation_removes_from_list(self, monkeypatch):
+        """测试删除对话后不再出现在列表中"""
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4(), assistant_agent_conversation_id=None)
+
+        # 创建两个对话
+        conv1 = SimpleNamespace(
+            id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            app_id=None,
+        )
+        conv2 = SimpleNamespace(
+            id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            app_id=None,
+        )
+
+        # Mock get_conversation
+        def mock_get_conversation(conv_id, _account):
+            if conv_id == conv1.id:
+                return conv1
+            if conv_id == conv2.id:
+                return conv2
+            raise NotFoundException()
+
+        monkeypatch.setattr(service, "get_conversation", mock_get_conversation)
+        monkeypatch.setattr(service, "_clear_cached_conversation_name", lambda *_args, **_kwargs: None)
+
+        updates = []
+        def mock_update(target, **kwargs):
+            updates.append((target, kwargs))
+            return target
+
+        monkeypatch.setattr(service, "update", mock_update)
+
+        # 删除第一个对话
+        service.delete_conversation(conv1.id, account)
+
+        # 验证删除标记
+        assert len(updates) == 1
+        assert updates[0][1] == {"is_deleted": True}
+
+    def test_update_conversation_name(self, monkeypatch):
+        """测试更新对话名称"""
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        conversation = SimpleNamespace(
+            id=uuid4(),
+            created_by=account.id,
+            name="旧名称",
+        )
+
+        monkeypatch.setattr(service, "get_conversation", lambda *_args, **_kwargs: conversation)
+        monkeypatch.setattr(service, "_clear_cached_conversation_name", lambda *_args, **_kwargs: None)
+
+        updates = []
+        def mock_update(target, **kwargs):
+            updates.append((target, kwargs))
+            for key, value in kwargs.items():
+                setattr(target, key, value)
+            return target
+
+        monkeypatch.setattr(service, "update", mock_update)
+
+        # 更新名称
+        service.update_conversation(conversation.id, account, name="新名称")
+
+        # 验证更新
+        assert len(updates) == 1
+        assert updates[0][1] == {"name": "新名称"}
+        assert conversation.name == "新名称"
+
+    def test_rename_and_delete_workflow(self, monkeypatch):
+        """测试重命名和删除的完整流程"""
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4(), assistant_agent_conversation_id=None)
+        conversation = SimpleNamespace(
+            id=uuid4(),
+            created_by=account.id,
+            name="原始名称",
+            is_deleted=False,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            app_id=None,
+        )
+
+        monkeypatch.setattr(service, "get_conversation", lambda *_args, **_kwargs: conversation)
+        monkeypatch.setattr(service, "_clear_cached_conversation_name", lambda *_args, **_kwargs: None)
+
+        updates = []
+        def mock_update(target, **kwargs):
+            updates.append((target, kwargs))
+            for key, value in kwargs.items():
+                setattr(target, key, value)
+            return target
+
+        monkeypatch.setattr(service, "update", mock_update)
+
+        # 1. 重命名
+        service.update_conversation(conversation.id, account, name="新名称")
+        assert conversation.name == "新名称"
+        assert len(updates) == 1
+
+        # 2. 删除
+        service.delete_conversation(conversation.id, account)
+        assert len(updates) == 2
+        assert updates[1][1] == {"is_deleted": True}

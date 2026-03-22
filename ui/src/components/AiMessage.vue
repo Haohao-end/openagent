@@ -158,7 +158,7 @@ const handleMarkdownClick = async (event: MouseEvent) => {
     <!-- 右侧名称与消息 -->
     <div class="flex-1 flex flex-col items-start gap-2">
       <!-- 应用名称 -->
-      <div class="text-gray-700 font-bold">{{ props.app?.name }}</div>
+      <div class="text-gray-700 font-bold text-sm">{{ props.app?.name }}</div>
       <!-- 推理步骤 -->
       <agent-thought
         v-if="props.show_agent_thought"
@@ -169,19 +169,18 @@ const handleMarkdownClick = async (event: MouseEvent) => {
         :default_visible="props.agent_thought_default_visible"
         :follow_latest_thought="props.agent_thought_follow_latest"
       />
-      <div class="inline-flex flex-col max-w-full gap-1">
+      <div class="flex flex-col gap-1">
         <!-- AI消息 -->
         <div
           v-if="props.loading && props.answer.trim() === ''"
-          :class="`${props.message_class} border border-gray-200 text-gray-700 px-4 py-3 rounded-2xl break-all w-fit max-w-full`"
+          class="glass-message-bubble px-4 py-3 rounded-2xl break-all max-w-[600px] transition-all duration-300"
         >
           <dot-flashing />
         </div>
         <div
           v-else
           :class="[
-            props.message_class,
-            'markdown-body border border-gray-200 text-gray-700 px-4 py-3 rounded-2xl break-all w-fit max-w-full',
+            'glass-message-bubble markdown-body px-4 py-3 rounded-2xl break-all max-w-[600px] transition-all duration-300',
             isCurrentPlaying ? 'ai-message-playing' : '',
           ]"
           v-html="compiledMarkdown"
@@ -229,7 +228,7 @@ const handleMarkdownClick = async (event: MouseEvent) => {
       <!-- 建议问题列表 -->
       <div v-if="props.suggested_questions.length > 0" class="flex flex-col gap-2">
         <div v-for="(suggested_question, idx) in props.suggested_questions" :key="idx"
-          class="px-4 py-1.5 border rounded-lg text-gray-700 cursor-pointer bg-white hover:bg-gray-50"
+          class="glass-suggestion-bubble px-4 py-2 border rounded-lg text-gray-700 cursor-pointer transition-all duration-300"
           @click="() => emits('selectSuggestedQuestion', suggested_question)">
           {{ suggested_question }}
         </div>
@@ -239,6 +238,73 @@ const handleMarkdownClick = async (event: MouseEvent) => {
 </template>
 
 <style scoped>
+.glass-message-bubble {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(240, 248, 255, 0.35) 100%);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 8px 32px rgba(186, 230, 253, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+  color: #1f2937;
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-message-bubble::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+
+.glass-message-bubble:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(240, 248, 255, 0.45) 100%);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 12px 40px rgba(186, 230, 253, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+}
+
+.glass-suggestion-bubble {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(240, 248, 255, 0.4) 100%);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1.2px solid rgba(255, 255, 255, 0.65);
+  box-shadow:
+    0 6px 24px rgba(186, 230, 253, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-suggestion-bubble::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+
+.glass-suggestion-bubble:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(240, 248, 255, 0.5) 100%);
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow:
+    0 8px 32px rgba(186, 230, 253, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+}
+
 :deep(.markdown-body) {
   background: transparent;
 }
@@ -291,19 +357,27 @@ const handleMarkdownClick = async (event: MouseEvent) => {
 }
 
 .ai-message-playing {
-  border-color: #60a5fa !important;
-  animation: ai-message-breathing 1.6s ease-in-out infinite;
+  border-color: rgba(186, 230, 253, 0.9) !important;
+  animation: ai-message-breathing 1.2s ease-in-out infinite;
 }
 
 @keyframes ai-message-breathing {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.24);
-    background-color: rgba(239, 246, 255, 0.72);
+    box-shadow:
+      0 8px 32px rgba(186, 230, 253, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+      0 0 0 0 rgba(186, 230, 253, 0.4);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(240, 248, 255, 0.35) 100%);
   }
   50% {
-    box-shadow: 0 0 0 7px rgba(59, 130, 246, 0.08);
-    background-color: rgba(239, 246, 255, 0.94);
+    box-shadow:
+      0 12px 40px rgba(186, 230, 253, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 0 0 12px rgba(186, 230, 253, 0.15);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(240, 248, 255, 0.5) 100%);
   }
 }
 </style>
