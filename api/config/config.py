@@ -1,5 +1,6 @@
 import os
 from typing import Any
+from kombu import Queue
 from .default_config import DEFAULT_CONFIG
 
 
@@ -10,8 +11,16 @@ def _get_env(key: str) -> Any:
 
 def _get_bool_env(key: str) -> bool:
     """从环境变量中获取布尔值型的配置项，如果找不到则返回默认值"""
-    value: str = _get_env(key)
-    return value.lower() == "true" if value is not None else False
+    value = _get_env(key)
+    if value is None:
+        return False
+
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return False
 
 
 def _get_list_env(key: str) -> list[str]:
@@ -22,6 +31,27 @@ def _get_list_env(key: str) -> list[str]:
     if isinstance(value, (list, tuple)):
         return [str(item).strip() for item in value if str(item).strip()]
     return [item.strip() for item in str(value).split(",") if item.strip()]
+
+
+def _build_redis_auth(username: Any, password: Any) -> str:
+    """构建 Redis 认证片段，兼容空用户名或空密码。"""
+    redis_username = str(username or "")
+    redis_password = str(password or "")
+
+    if redis_username and redis_password:
+        return f"{redis_username}:{redis_password}@"
+    if redis_username:
+        return f"{redis_username}@"
+    if redis_password:
+        return f":{redis_password}@"
+    return ""
+
+
+def _build_redis_url(*, host: Any, port: Any, db: Any, use_ssl: bool, username: Any, password: Any) -> str:
+    """统一构建 Redis 连接 URL。"""
+    protocol = "rediss" if use_ssl else "redis"
+    auth = _build_redis_auth(username, password)
+    return f"{protocol}://{auth}{host}:{port}/{db}"
 
 
 class Config:
@@ -63,13 +93,45 @@ class Config:
         self.REDIS_DB = _get_env("REDIS_DB")
         self.REDIS_USE_SSL = _get_bool_env("REDIS_USE_SSL")
 
+        # 构建 Redis URL
+        self.REDIS_URL = _build_redis_url(
+            host=self.REDIS_HOST,
+            port=self.REDIS_PORT,
+            db=self.REDIS_DB,
+            use_ssl=self.REDIS_USE_SSL,
+            username=self.REDIS_USERNAME,
+            password=self.REDIS_PASSWORD,
+        )
+
         # Celery配置
         self.CELERY = {
-            "broker_url": f"redis://{self.REDIS_USERNAME}:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{int(_get_env('CELERY_BROKER_DB'))}",
-            "result_backend": f"redis://{self.REDIS_USERNAME}:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{int(_get_env('CELERY_RESULT_BACKEND_DB'))}",
+            "broker_url": _build_redis_url(
+                host=self.REDIS_HOST,
+                port=self.REDIS_PORT,
+                db=int(_get_env("CELERY_BROKER_DB")),
+                use_ssl=self.REDIS_USE_SSL,
+                username=self.REDIS_USERNAME,
+                password=self.REDIS_PASSWORD,
+            ),
+            "result_backend": _build_redis_url(
+                host=self.REDIS_HOST,
+                port=self.REDIS_PORT,
+                db=int(_get_env("CELERY_RESULT_BACKEND_DB")),
+                use_ssl=self.REDIS_USE_SSL,
+                username=self.REDIS_USERNAME,
+                password=self.REDIS_PASSWORD,
+            ),
             "task_ignore_result": _get_bool_env("CELERY_TASK_IGNORE_RESULT"),
             "result_expires": int(_get_env("CELERY_RESULT_EXPIRES")),
             "broker_connection_retry_on_startup": _get_bool_env("CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP"),
+            "task_default_queue": "celery",
+            "task_queues": (
+                Queue("celery"),
+                Queue("mail"),
+            ),
+            "task_routes": {
+                "internal.task.email_task.send_verification_email_task": {"queue": "mail"},
+            },
         }
 
         # 辅助Agent应用id标识
@@ -95,3 +157,4 @@ class Config:
         self.MAIL_USERNAME = _get_env("MAIL_USERNAME")
         self.MAIL_PASSWORD = _get_env("MAIL_PASSWORD")
         self.MAIL_DEFAULT_SENDER = _get_env("MAIL_DEFAULT_SENDER")
+        self.MAIL_TIMEOUT = int(_get_env("MAIL_TIMEOUT"))

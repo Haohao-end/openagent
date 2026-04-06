@@ -200,10 +200,11 @@ const handleMarkdownClick = async (event: MouseEvent) => {
 </script>
 
 <template>
-  <div class="markdown-editor">
+  <div class="markdown-editor" :style="{ '--editor-min-height': props.minHeight }">
     <!-- 工具栏 -->
     <div v-if="props.showToolbar" class="editor-toolbar">
-      <a-space :size="4">
+      <div class="editor-toolbar-group">
+        <a-space :size="4">
         <!-- 标题 -->
         <a-dropdown trigger="hover" position="bottom">
           <a-button size="mini" class="toolbar-btn">
@@ -275,44 +276,47 @@ const handleMarkdownClick = async (event: MouseEvent) => {
             <icon-link />
           </template>
         </a-button>
-      </a-space>
+        </a-space>
+      </div>
 
       <!-- 右侧操作 -->
-      <a-space :size="4">
-        <a-button
-          size="mini"
-          :type="mode === 'edit' ? 'primary' : 'text'"
-          class="toolbar-btn"
-          @click="mode = 'edit'"
-        >
-          <template #icon>
-            <icon-edit />
-          </template>
-          编辑
-        </a-button>
-        <a-button
-          size="mini"
-          :type="mode === 'split' ? 'primary' : 'text'"
-          class="toolbar-btn"
-          @click="mode = 'split'"
-        >
-          <template #icon>
-            <icon-apps />
-          </template>
-          对比
-        </a-button>
-        <a-button
-          size="mini"
-          :type="mode === 'preview' ? 'primary' : 'text'"
-          class="toolbar-btn"
-          @click="mode = 'preview'"
-        >
-          <template #icon>
-            <icon-eye />
-          </template>
-          浏览
-        </a-button>
-      </a-space>
+      <div class="editor-toolbar-group editor-toolbar-mode">
+        <a-space :size="4">
+          <a-button
+            size="mini"
+            :type="mode === 'edit' ? 'primary' : 'text'"
+            class="toolbar-btn"
+            @click="mode = 'edit'"
+          >
+            <template #icon>
+              <icon-edit />
+            </template>
+            编辑
+          </a-button>
+          <a-button
+            size="mini"
+            :type="mode === 'split' ? 'primary' : 'text'"
+            class="toolbar-btn"
+            @click="mode = 'split'"
+          >
+            <template #icon>
+              <icon-apps />
+            </template>
+            对比
+          </a-button>
+          <a-button
+            size="mini"
+            :type="mode === 'preview' ? 'primary' : 'text'"
+            class="toolbar-btn"
+            @click="mode = 'preview'"
+          >
+            <template #icon>
+              <icon-eye />
+            </template>
+            浏览
+          </a-button>
+        </a-space>
+      </div>
     </div>
 
     <!-- 编辑器主体 -->
@@ -368,9 +372,30 @@ const handleMarkdownClick = async (event: MouseEvent) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 8px;
   padding: 8px 12px;
   background: #f9fafb;
   border-bottom: 1px solid #e5e7eb;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.editor-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.editor-toolbar-group {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.editor-toolbar-mode {
+  margin-left: auto;
 }
 
 .toolbar-btn {
@@ -386,13 +411,13 @@ const handleMarkdownClick = async (event: MouseEvent) => {
   display: flex;
   flex: 1;
   overflow: hidden;
-  min-height: 0; /* 关键：允许 flex 子元素正确计算高度 */
+  min-height: var(--editor-min-height, 200px);
 }
 
 .editor-body.split-mode {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  min-height: 600px;
+  min-height: max(600px, var(--editor-min-height, 200px));
 }
 
 .editor-pane {

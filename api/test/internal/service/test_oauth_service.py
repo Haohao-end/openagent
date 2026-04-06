@@ -263,16 +263,18 @@ class TestOAuthService:
             get_account_by_email=lambda _email: None,
             create_account=lambda **_kwargs: account,
             get_account=lambda _id: account,
+            begin_login=lambda _account: {"access_token": "oauth-jwt", "expire_at": 123},
         )
         service = self._build_service(account_service=account_service)
 
         monkeypatch.setattr(service, "get_oauth_by_provider_name", lambda _name: oauth)
         create_calls = []
+        created_binding = SimpleNamespace(account_id=account.id)
         monkeypatch.setattr(
             service,
             "create",
             lambda model, **kwargs: create_calls.append((model, kwargs))
-            or SimpleNamespace(account_id=account.id),
+            or created_binding,
         )
         update_calls = []
         monkeypatch.setattr(
@@ -289,8 +291,14 @@ class TestOAuthService:
         assert len(create_calls) == 1
         assert create_calls[0][1]["provider"] == "github"
         assert create_calls[0][1]["openid"] == "openid-1"
-        assert update_calls[0][1]["last_login_ip"] == "10.0.0.8"
-        assert update_calls[1][1]["encrypted_token"] == "oauth-token"
+        assert update_calls == [
+            (
+                created_binding,
+                {
+                    "encrypted_token": "oauth-token",
+                },
+            )
+        ]
 
     def test_oauth_login_should_use_existing_binding_account(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
@@ -305,6 +313,7 @@ class TestOAuthService:
             get_account_by_email=lambda _email: (_ for _ in ()).throw(AssertionError("should not query email")),
             create_account=lambda **_kwargs: (_ for _ in ()).throw(AssertionError("should not create account")),
             get_account=lambda _id: account,
+            begin_login=lambda _account: {"access_token": "oauth-jwt", "expire_at": 123},
         )
         service = self._build_service(account_service=account_service)
         monkeypatch.setattr(service, "get_oauth_by_provider_name", lambda _name: oauth)
@@ -326,10 +335,14 @@ class TestOAuthService:
             result = service.oauth_login("github", "code-existing")
 
         assert result["access_token"] == "oauth-jwt"
-        assert update_calls[0][0] is account
-        assert update_calls[1][0] is account_oauth
-        assert update_calls[0][1]["last_login_ip"] == "10.0.0.9"
-        assert update_calls[1][1]["encrypted_token"] == "oauth-token-existing"
+        assert update_calls == [
+            (
+                account_oauth,
+                {
+                    "encrypted_token": "oauth-token-existing",
+                },
+            )
+        ]
 
     def test_oauth_login_should_bind_oauth_for_existing_email_account(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
@@ -343,15 +356,17 @@ class TestOAuthService:
             get_account_by_email=lambda _email: account,
             create_account=lambda **_kwargs: (_ for _ in ()).throw(AssertionError("should not create account")),
             get_account=lambda _id: account,
+            begin_login=lambda _account: {"access_token": "oauth-jwt", "expire_at": 123},
         )
         service = self._build_service(account_service=account_service)
         monkeypatch.setattr(service, "get_oauth_by_provider_name", lambda _name: oauth)
         create_calls = []
+        created_binding = SimpleNamespace(account_id=account.id)
         monkeypatch.setattr(
             service,
             "create",
             lambda model, **kwargs: create_calls.append((model, kwargs))
-            or SimpleNamespace(account_id=account.id),
+            or created_binding,
         )
         update_calls = []
         monkeypatch.setattr(
@@ -367,4 +382,71 @@ class TestOAuthService:
         assert result["access_token"] == "oauth-jwt"
         assert len(create_calls) == 1
         assert create_calls[0][1]["account_id"] == account.id
-        assert update_calls[0][0] is account
+        assert update_calls == [
+            (
+                created_binding,
+                {
+                    "encrypted_token": "oauth-token-existing-email",
+                },
+            )
+        ]
+
+    def test_bind_oauth_should_create_binding_for_current_account(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        oauth_user = SimpleNamespace(id="openid-4", email="bind@example.com", name="bind")
+        oauth = SimpleNamespace(
+            get_access_token=lambda _code: "oauth-token-bind",
+            get_user_info=lambda _token: oauth_user,
+        )
+        account_service = SimpleNamespace(
+            get_account_oauth_by_account_id_and_provider_name=lambda *_args, **_kwargs: None,
+            get_account_oauth_by_provider_name_and_openid=lambda *_args, **_kwargs: None,
+            get_account_oauths_by_account_id=lambda *_args, **_kwargs: [],
+            issue_credential=lambda _account, **_kwargs: {"access_token": "oauth-jwt", "expire_at": 123},
+        )
+        service = self._build_service(account_service=account_service)
+        monkeypatch.setattr(service, "get_oauth_by_provider_name", lambda _name: oauth)
+        create_calls = []
+        monkeypatch.setattr(
+            service,
+            "create",
+            lambda model, **kwargs: create_calls.append((model, kwargs)) or SimpleNamespace(id=uuid4()),
+        )
+
+        result = service.bind_oauth(account, "github", "code-bind")
+
+        assert result["access_token"] == "oauth-jwt"
+        assert len(create_calls) == 1
+        assert create_calls[0][1]["account_id"] == account.id
+        assert create_calls[0][1]["openid"] == "openid-4"
+
+    def test_bind_oauth_should_raise_when_provider_is_bound_to_other_account(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        other_account_binding = SimpleNamespace(account_id=uuid4(), openid="openid-5")
+        oauth_user = SimpleNamespace(id="openid-5", email="bind@example.com", name="bind")
+        oauth = SimpleNamespace(
+            get_access_token=lambda _code: "oauth-token-bind",
+            get_user_info=lambda _token: oauth_user,
+        )
+        account_service = SimpleNamespace(
+            get_account_oauth_by_account_id_and_provider_name=lambda *_args, **_kwargs: None,
+            get_account_oauth_by_provider_name_and_openid=lambda *_args, **_kwargs: other_account_binding,
+            get_account_oauths_by_account_id=lambda *_args, **_kwargs: [],
+        )
+        service = self._build_service(account_service=account_service)
+        monkeypatch.setattr(service, "get_oauth_by_provider_name", lambda _name: oauth)
+
+        with pytest.raises(FailException):
+            service.bind_oauth(account, "github", "code-bind")
+
+    def test_unbind_oauth_should_block_last_login_method_when_password_missing(self):
+        account = SimpleNamespace(id=uuid4(), is_password_set=False)
+        binding = SimpleNamespace(id=uuid4(), provider="github")
+        account_service = SimpleNamespace(
+            get_account_oauth_by_account_id_and_provider_name=lambda *_args, **_kwargs: binding,
+            get_account_oauths_by_account_id=lambda *_args, **_kwargs: [binding],
+        )
+        service = self._build_service(account_service=account_service)
+
+        with pytest.raises(FailException):
+            service.unbind_oauth(account, "github")

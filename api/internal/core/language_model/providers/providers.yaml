@@ -6,13 +6,6 @@
   supported_model_types:
     - chat
     - completion
-- name: claude
-  label: Claude
-  description: Claude中转模型，例如claude-opus-4-5-20251101、claude-3-7-sonnet-20250219等。
-  icon: icon.png
-  background: "#FFFFFF"
-  supported_model_types:
-    - chat
 - name: moonshot
   label: 月之暗面
   description: Moonshot提供的模型，例如moonshot-v1-8k、moonshot-v1-32k和moonshot-v1-128k。

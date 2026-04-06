@@ -1,310 +1,496 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import moment from 'moment'
 import {
-  useDeleteDocument,
-  useGetDataset,
-  useGetDocumentsWithPage,
-  useUpdateDocumentEnabled,
+ useDeleteDocument,
+ useGetDataset,
+ useGetDocumentsWithPage,
+ useUpdateDocumentEnabled,
 } from '@/hooks/use-dataset'
 import UpdateDocumentNameModal from '@/views/space/datasets/documents/components/UpdateDocumentNameModal.vue'
 import HitTestingModal from '@/views/space/datasets/documents/components/HitTestingModal.vue'
+import { formatTimestampLong } from '@/utils/time-formatter'
 
-// 1.定义页面所需数据
+type DocumentRecord = Record<string, any>
+
 const route = useRoute()
 const router = useRouter()
 const hitModalVisible = ref(false)
 const updateDocumentNameModalVisible = ref(false)
 const updateDocumentID = ref('')
+const searchInput = ref('')
+const updatingDocumentId = ref('')
 const { dataset, loadDataset } = useGetDataset()
 const { loading, documents, paginator, loadDocuments } = useGetDocumentsWithPage()
 const { handleDelete } = useDeleteDocument()
 const { handleUpdate: handleUpdateEnabled } = useUpdateDocumentEnabled()
+
+const datasetId = computed(() => String(route.params?.dataset_id ?? ''))
+const searchWord = computed(() => String(route.query?.search_word ?? ''))
 const req = computed(() => {
-  return {
-    current_page: Number(route.query?.current_page ?? 1),
-    page_size: Number(route.query?.page_size ?? 20),
-    search_word: String(route.query?.search_word ?? ''),
-  }
+ return {
+ current_page: Number(route.query?.current_page ??1),
+ page_size: Number(route.query?.page_size ??20),
+ search_word: searchWord.value,
+ }
+})
+const hasActiveSearch = computed(() => searchWord.value.trim() !== '')
+const sortedDocuments = computed(() => {
+ return [...documents.value].sort((left, right) => {
+ const createdAtDiff = Number(right.created_at ??0) - Number(left.created_at ??0)
+ if (createdAtDiff !==0) return createdAtDiff
+ return String(right.id ?? '').localeCompare(String(left.id ?? ''))
+ })
 })
 
-// 2.监听路由query变化，当query发生变化时触发loadDocuments函数
+const updateRouteQuery = async (patch: Record<string, string | number | undefined>) => {
+ const nextQuery = {
+ ...route.query,
+ ...patch,
+ } as Record<string, string | number | undefined>
+
+ Object.keys(nextQuery).forEach((key) => {
+ const value = nextQuery[key]
+ if (value === '' || value === undefined) {
+ delete nextQuery[key]
+ }
+ })
+
+ await router.push({
+ path: route.path,
+ query: nextQuery,
+ })
+}
+
+const getProcessingStatusLabel = (status: string) => {
+ const normalizedStatus = String(status || '').toLowerCase()
+
+ if (normalizedStatus === 'completed') return '已完成'
+ if (normalizedStatus === 'error') return '处理失败'
+ if (['parsing', 'splitting', 'indexing', 'processing'].includes(normalizedStatus)) return '处理中'
+ if (['waiting', 'pending', 'queued'].includes(normalizedStatus)) return '待处理'
+ return '处理中'
+}
+
+const getProcessingStatusClass = (status: string) => {
+ const normalizedStatus = String(status || '').toLowerCase()
+
+ if (normalizedStatus === 'completed') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+ if (normalizedStatus === 'error') return 'bg-red-50 text-red-700 border-red-200'
+ if (['waiting', 'pending', 'queued'].includes(normalizedStatus)) {
+ return 'bg-slate-100 text-slate-600 border-slate-200'
+ }
+ return 'bg-amber-50 text-amber-700 border-amber-200'
+}
+
+const getAvailabilityLabel = (record: DocumentRecord) => {
+ if (record.status !== 'completed') return '不可切换'
+ return record.enabled ? '可用' : '已禁用'
+}
+
+const getAvailabilityClass = (record: DocumentRecord) => {
+ if (record.status !== 'completed') return 'bg-slate-100 text-slate-500 border-slate-200'
+ if (record.enabled) return 'bg-sky-50 text-sky-700 border-sky-200'
+ return 'bg-slate-100 text-slate-600 border-slate-200'
+}
+
+const handleSearch = async (value: string) => {
+ await updateRouteQuery({
+ search_word: value.trim(),
+ current_page:1,
+ page_size: req.value.page_size,
+ })
+}
+
+const handlePageChange = async (page: number) => {
+ await updateRouteQuery({
+ current_page: page,
+ page_size: req.value.page_size,
+ search_word: searchWord.value || undefined,
+ })
+}
+
+const handlePageSizeChange = async (pageSize: number) => {
+ await updateRouteQuery({
+ current_page:1,
+ page_size: pageSize,
+ search_word: searchWord.value || undefined,
+ })
+}
+
+const handleDocumentEnabledChange = async (
+ record: DocumentRecord,
+ value: boolean,
+) => {
+ if (updatingDocumentId.value) return
+
+ updatingDocumentId.value = String(record.id)
+ try {
+ await handleUpdateEnabled(datasetId.value, String(record.id), value, () => {
+ const targetDocument = documents.value.find((item) => String(item.id) === String(record.id))
+ if (targetDocument) {
+ targetDocument.enabled = value
+ }
+ })
+ } finally {
+ updatingDocumentId.value = ''
+ }
+}
+
+const getDisplayIndex = (rowIndex: number) => {
+ return (req.value.current_page -1) * req.value.page_size + rowIndex +1
+}
+
 watch(
-  () => route.query,
-  () => {
-    // 2.1 当搜索词发生变化时重新出发loadDocuments函数
-    loadDocuments(String(route.params?.dataset_id), req.value)
-  },
+ searchWord,
+ (value) => {
+ searchInput.value = value
+ },
+ { immediate: true },
 )
 
-onMounted(() => {
-  loadDataset(String(route.params?.dataset_id))
-  loadDocuments(String(route.params?.dataset_id), req.value)
-})
+watch(
+ datasetId,
+ (value) => {
+ if (!value) return
+ void loadDataset(value)
+ },
+ { immediate: true },
+)
+
+watch(
+ () => [datasetId.value, req.value.current_page, req.value.page_size, req.value.search_word] as const,
+ ([value]) => {
+ if (!value) return
+ void loadDocuments(value, req.value)
+ },
+ { immediate: true },
+)
 </script>
 
 <template>
-  <div class="p-6">
-    <!-- 顶部知识库详情 -->
-    <div class="flex items-center w-full gap-2 mb-6">
-      <!-- 左侧回退按钮 -->
-      <router-link :to="{ name: 'space-datasets-list' }">
-        <a-button size="mini" type="text" class="!text-gray-700">
-          <template #icon>
-            <icon-left />
-          </template>
-        </a-button>
-      </router-link>
-      <!-- 右侧知识库信息 -->
-      <div class="flex items-center gap-3">
-        <!-- 知识库的图标 -->
-        <a-avatar :size="40" shape="square" class="rounded-lg" :image-url="dataset.icon" />
-        <!-- 知识库信息 -->
-        <div class="flex flex-col justify-between h-[40px]">
-          <a-skeleton-line v-if="!dataset?.name" :widths="[100]" />
-          <div v-else class="text-gray-700">知识库 / {{ dataset.name }}</div>
-          <div v-if="!dataset?.name" class="flex items-center gap-2">
-            <a-skeleton-line :widths="[60]" :line-height="18" />
-            <a-skeleton-line :widths="[60]" :line-height="18" />
-            <a-skeleton-line :widths="[60]" :line-height="18" />
-          </div>
-          <div v-else class="flex items-center gap-2">
-            <a-tag size="small" class="rounded h-[18px] leading-[18px] bg-gray-200 text-gray-500">
-              {{ dataset.document_count }} 文档
-            </a-tag>
-            <a-tag size="small" class="rounded h-[18px] leading-[18px] bg-gray-200 text-gray-500">
-              {{ dataset.hit_count }} 命中
-            </a-tag>
-            <a-tag size="small" class="rounded h-[18px] leading-[18px] bg-gray-200 text-gray-500">
-              {{ dataset.related_app_count }} 关联应用
-            </a-tag>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- 中间检索以及召回测试 -->
-    <div class="flex items-center justify-between mb-6">
-      <!-- 左侧搜索框 -->
-      <a-input-search
-        :default-value="route.query?.search_word || ''"
-        placeholder="请输入关键词搜索文档"
-        class="w-[240px] bg-white rounded-lg border-gray-200"
-        @search="
-          (value: string) => {
-            router.push({
-              path: route.path,
-              query: {
-                search_word: value,
-                current_page: 1,
-              },
-            })
-          }
-        "
-      />
-      <!-- 右侧按钮 -->
-      <a-space :size="12">
-        <a-button class="rounded-lg" @click="hitModalVisible = true">召回测试</a-button>
-        <router-link
-          :to="{
-            name: 'space-datasets-documents-create',
-            params: { dataset_id: route.params?.dataset_id as string },
-          }"
-        >
-          <a-button type="primary" class="rounded-lg">添加文件</a-button>
-        </router-link>
-      </a-space>
-    </div>
-    <!-- 底部表格 -->
-    <div class="">
-      <!-- 表格内容 -->
-      <a-table
-        hoverable
-        :pagination="{
-          total: paginator.total_record,
-          current: paginator.current_page,
-          defaultCurrent: 1,
-          pageSize: paginator.page_size,
-          defaultPageSize: 20,
-          showTotal: true,
-        }"
-        :loading="loading"
-        :data="documents"
-        :bordered="{ wrapper: false }"
-        @page-change="
-          (page: number) => {
-            router.push({
-              path: route.path,
-              query: {
-                current_page: page,
-                search_word: route.query?.search_word || '',
-              },
-            })
-          }
-        "
-      >
-        <template #columns>
-          <a-table-column
-            title="#"
-            data-index="position"
-            align="center"
-            :width="80"
-            header-cell-class="rounded-tl-lg !bg-gray-200 text-gray-700"
-            cell-class="bg-transparent text-gray-700"
-          />
-          <a-table-column
-            title="文档名"
-            data-index="name"
-            :width="400"
-            header-cell-class="!bg-gray-200 text-gray-700"
-            cell-class="bg-transparent text-gray-700"
-          >
-            <template #cell="{ record }">
-              <router-link
-                :to="{
-                  name: 'space-datasets-documents-segments-list',
-                  params: {
-                    dataset_id: route.params?.dataset_id as string,
-                    document_id: record.id as string,
-                  },
-                }"
-                class="line-clamp-1 hover:text-gray-900"
-              >
-                {{ record.name }}
-              </router-link>
-            </template>
-          </a-table-column>
-          <a-table-column
-            title="字符数"
-            data-index="character_count"
-            header-cell-class="!bg-gray-200 text-gray-700"
-            cell-class="bg-transparent text-gray-700"
-          >
-            <template #cell="{ record }">
-              {{ (record.character_count / 1000).toFixed(1) }}k
-            </template>
-          </a-table-column>
-          <a-table-column
-            title="召回次数"
-            data-index="hit_count"
-            header-cell-class="!bg-gray-200 text-gray-700"
-            cell-class="bg-transparent text-gray-700"
-          />
-          <a-table-column
-            title="上传时间"
-            data-index="created_at"
-            header-cell-class="!bg-gray-200 text-gray-700"
-            cell-class="bg-transparent text-gray-700"
-          >
-            <template #cell="{ record }">
-              {{ moment(record.created_at * 1000).format('YYYY-MM-DD HH:mm:ss') }}
-            </template>
-          </a-table-column>
-          <a-table-column
-            title="状态"
-            data-index="enabled"
-            header-cell-class="!bg-gray-200 text-gray-700"
-            cell-class="bg-transparent text-gray-700"
-          >
-            <template #cell="{ record }">
-              <a-space>
-                <div
-                  v-if="record.enabled"
-                  class="w-2 h-2 bg-green-500 rounded-sm border border-green-700"
-                ></div>
-                <div v-else class="w-2 h-2 bg-gray-500 rounded-sm border border-gray-700"></div>
-                <div v-if="record.enabled" class="text-gray-700">可用</div>
-                <div v-else class="text-gray-700">已禁用</div>
-              </a-space>
-            </template>
-          </a-table-column>
-          <a-table-column
-            title="操作"
-            data-index="operator"
-            header-cell-class="rounded-tr-lg !bg-gray-200 text-gray-700"
-            cell-class="bg-transparent text-gray-700 !h-[40px]"
-            :width="100"
-          >
-            <template #cell="{ record, rowIndex }">
-              <a-space :size="0">
-                <template #split>
-                  <a-divider direction="vertical" />
-                </template>
-                <a-tooltip
-                  position="left"
-                  v-if="record.status === 'error'"
-                  :content="`错误信息: ${record.error}`"
-                >
-                  <a-switch size="small" type="round" :default-checked="false" disabled />
-                </a-tooltip>
-                <a-switch
-                  v-else
-                  size="small"
-                  type="round"
-                  :model-value="record.enabled"
-                  @change="
-                    (value) => {
-                      handleUpdateEnabled(
-                        route.params?.dataset_id as string,
-                        record.id,
-                        value as boolean,
-                        () => {
-                          // 更新对应记录的状态文字描述
-                          documents[rowIndex].enabled = value
-                        },
-                      )
-                    }
-                  "
-                />
-                <a-dropdown position="br">
-                  <a-button type="text" size="mini" class="!text-gray-700">
-                    <template #icon>
-                      <icon-more />
-                    </template>
-                  </a-button>
-                  <template #content>
-                    <a-doption
-                      @click="
-                        () => {
-                          updateDocumentNameModalVisible = true
-                          updateDocumentID = record.id
-                        }
-                      "
-                      >重命名
-                    </a-doption>
-                    <a-doption
-                      class="!text-red-700"
-                      @click="
-                        () =>
-                          handleDelete(String(route.params?.dataset_id), record.id, () => {
-                            loadDocuments(String(route.params?.dataset_id), req)
-                            loadDataset(String(route.params?.dataset_id))
-                          })
-                      "
-                    >
-                      删除
-                    </a-doption>
-                  </template>
-                </a-dropdown>
-              </a-space>
-            </template>
-          </a-table-column>
-        </template>
-      </a-table>
-    </div>
-    <!-- 更新文档名字模态窗 -->
-    <update-document-name-modal
-      :document_id="updateDocumentID"
-      :dataset_id="route.params?.dataset_id as string"
-      v-model:visible="updateDocumentNameModalVisible"
-      :on-after-update="() => loadDocuments(String(route.params?.dataset_id ?? ''), req)"
-    />
-    <!-- 召回测试模态窗 -->
-    <hit-testing-modal
-      v-model:visible="hitModalVisible"
-      :dataset_id="route.params?.dataset_id as string"
-    />
-  </div>
+ <div class="scrollbar-w-none h-full min-h-0 overflow-y-auto bg-slate-50 px-6 py-6 pb-10">
+ <div
+ class="flex min-h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+ >
+ <div class="border-b border-slate-200 px-5 py-4">
+ <div class="flex flex-col gap-2">
+ <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+ <div class="flex min-w-0 items-start gap-3">
+ <router-link :to="{ name: 'space-datasets-list' }">
+ <a-button size="mini" type="text" class="mt-1 !text-slate-600">
+ <template #icon>
+ <icon-left />
+ </template>
+ </a-button>
+ </router-link>
+ <a-avatar :size="52" shape="square" class="rounded-xl" :image-url="dataset.icon" />
+ <div class="min-w-0 flex-1 space-y-2">
+ <a-skeleton-line v-if="!dataset?.name" :widths="[160]" />
+ <div v-else class="line-clamp-1 text-xl font-semibold tracking-tight text-slate-900">
+ {{ dataset.name }}
+ </div>
+ <div class="flex flex-wrap items-center gap-2">
+ <a-tag class="!m-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-slate-600">
+ {{ dataset.character_count ||0 }} 字符
+ </a-tag>
+ <a-tag class="!m-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-slate-600">
+ {{ dataset.hit_count }} 命中
+ </a-tag>
+ <a-tag class="!m-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-slate-600">
+ {{ dataset.related_app_count }}关联应用
+ </a-tag>
+ </div>
+ </div>
+ </div>
+ <div class="flex flex-col gap-2 lg:items-end">
+ <div class="flex flex-wrap items-center justify-end gap-3">
+ <a-button class="rounded-xl border-slate-200 bg-white px-4 !text-slate-700" @click="hitModalVisible = true">
+ 召回测试
+ </a-button>
+ <router-link
+ :to="{
+ name: 'space-datasets-documents-create',
+ params: { dataset_id: datasetId },
+ }"
+ >
+ <a-button type="primary" class="rounded-xl px-4">添加文件</a-button>
+ </router-link>
+ </div>
+ <div
+ class="relative h-8 w-[220px] max-w-full self-end rounded-xl border border-slate-300 bg-white transition focus-within:border-sky-400 focus-within:shadow-sm hover:border-slate-400"
+ >
+  <input
+  v-model="searchInput"
+  type="text"
+  placeholder="搜索文档"
+  class="h-full w-full border-0 bg-transparent pl-3 pr-9 text-sm text-slate-700 outline-none placeholder:text-slate-400"
+  @keydown.enter="handleSearch(searchInput)"
+  />
+  <button
+  type="button"
+  class="absolute right-1.5 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-sky-600"
+  @click="handleSearch(searchInput)"
+  >
+ <svg
+ class="h-4 w-4"
+ viewBox="0 0 20 20"
+ fill="none"
+ xmlns="http://www.w3.org/2000/svg"
+ aria-hidden="true"
+ >
+ <path
+ d="M8.75 3.75a5 5 0 1 0 0 10a5 5 0 0 0 0-10Zm0-1.5a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13Zm4.56 11.12a.75.75 0 0 1 1.06 0l2.41 2.41a.75.75 0 1 1-1.06 1.06l-2.41-2.41a.75.75 0 0 1 0-1.06Z"
+ fill="currentColor"
+  />
+  </svg>
+  </button>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <div class="min-h-0 flex-1 pb-4">
+ <a-table
+ row-key="id"
+ hoverable
+ :pagination="{
+ total: paginator.total_record,
+ current: paginator.current_page,
+ defaultCurrent:1,
+ pageSize: paginator.page_size,
+ defaultPageSize:20,
+ showTotal: true,
+ showPageSize: true,
+ pageSizeOptions: [10,20,50,100],
+ }"
+ :loading="loading"
+ :data="sortedDocuments"
+ :bordered="{ wrapper: false }"
+ @page-change="handlePageChange"
+ @page-size-change="handlePageSizeChange"
+ >
+ <template #columns>
+ <a-table-column
+ title="编号"
+ data-index="position"
+ align="center"
+ :width="80"
+ header-cell-class="!bg-slate-100 text-slate-700"
+ cell-class="bg-transparent text-slate-700"
+ >
+ <template #cell="{ rowIndex }">
+ <div class="font-mono text-sm font-semibold text-slate-500">
+ {{ getDisplayIndex(rowIndex) }}
+ </div>
+ </template>
+ </a-table-column>
+ <a-table-column
+ title="文档"
+ data-index="name"
+ align="center"
+ :width="320"
+ header-cell-class="!bg-slate-100 text-slate-700"
+ cell-class="bg-transparent text-slate-700"
+ >
+  <template #cell="{ record }">
+ <div class="mx-auto min-w-0 max-w-[240px] text-center">
+  <router-link
+  :to="{
+  name: 'space-datasets-documents-segments-list',
+ params: {
+ dataset_id: datasetId,
+ document_id: record.id as string,
+ },
+ }"
+ class="block truncate font-medium text-slate-800 transition hover:text-sky-700"
+  >
+  {{ record.name }}
+  </router-link>
+ </div>
+ </template>
+ </a-table-column>
+ <a-table-column
+ title="字符数"
+ data-index="character_count"
+ align="center"
+ :width="110"
+ header-cell-class="!bg-slate-100 text-slate-700"
+ cell-class="bg-transparent text-slate-700"
+ >
+ <template #cell="{ record }">
+ {{ (record.character_count /1000).toFixed(1) }}k
+ </template>
+ </a-table-column>
+<a-table-column
+ title="召回次数"
+ data-index="hit_count"
+ align="center"
+ :width="110"
+ header-cell-class="!bg-slate-100 text-slate-700"
+ cell-class="bg-transparent text-slate-700"
+ >
+ <template #cell="{ record }">
+ <span class="text-sm text-slate-600">
+ {{ record.hit_count === null || record.hit_count === undefined || record.hit_count === '' ? '-' : record.hit_count }}
+ </span>
+ </template>
+ </a-table-column>
+ <a-table-column
+ title="处理状态"
+ data-index="status"
+ align="center"
+ :width="140"
+ header-cell-class="!bg-slate-100 text-slate-700"
+ cell-class="bg-transparent text-slate-700"
+ >
+ <template #cell="{ record }">
+ <a-tooltip v-if="record.status === 'error' && record.error" :content="record.error">
+ <div
+ class="mx-auto inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold"
+ :class="getProcessingStatusClass(record.status)"
+ >
+ {{ getProcessingStatusLabel(record.status) }}
+ </div>
+ </a-tooltip>
+ <div
+ v-else
+ class="mx-auto inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold"
+ :class="getProcessingStatusClass(record.status)"
+ >
+ {{ getProcessingStatusLabel(record.status) }}
+ </div>
+ </template>
+ </a-table-column>
+ <a-table-column
+ title="启用状态"
+ data-index="enabled"
+ align="center"
+ :width="130"
+ header-cell-class="!bg-slate-100 text-slate-700"
+ cell-class="bg-transparent text-slate-700"
+ >
+ <template #cell="{ record }">
+ <div
+ class="mx-auto inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold"
+ :class="getAvailabilityClass(record)"
+ >
+ {{ getAvailabilityLabel(record) }}
+ </div>
+ </template>
+ </a-table-column>
+ <a-table-column
+ title="上传时间"
+ data-index="created_at"
+ align="center"
+ :width="180"
+ header-cell-class="!bg-slate-100 text-slate-700"
+ cell-class="bg-transparent text-slate-700"
+ >
+ <template #cell="{ record }">
+ <div class="text-center text-sm text-slate-600">
+ {{ formatTimestampLong(record.created_at) }}
+ </div>
+ </template>
+ </a-table-column>
+ <a-table-column
+ title="操作"
+ data-index="operator"
+ align="center"
+ :width="220"
+ header-cell-class="!bg-slate-100 text-slate-700"
+ cell-class="bg-transparent text-slate-700"
+ >
+ <template #cell="{ record }">
+ <div class="flex items-center justify-center gap-2">
+ <button
+ type="button"
+ class="inline-flex h-8 items-center gap-2 rounded-full border px-1.5 pr-3 transition"
+ :class="
+ record.status !== 'completed'
+ ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+ : record.enabled
+ ? 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
+ : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+ "
+ :disabled="record.status !== 'completed' || updatingDocumentId === record.id"
+ @click="handleDocumentEnabledChange(record, !record.enabled)"
+ >
+ <span
+ class="relative h-5 w-9 rounded-full transition"
+ :class="
+ record.status !== 'completed'
+ ? 'bg-slate-300'
+ : record.enabled
+ ? 'bg-sky-500'
+ : 'bg-slate-300'
+ "
+ >
+ <span
+ class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition"
+ :class="record.enabled && record.status === 'completed' ? 'left-4' : 'left-0.5'"
+ />
+ </span>
+ <span class="text-xs font-medium">
+ {{ updatingDocumentId === record.id ? '切换中' : record.status !== 'completed' ? '不可切换' : record.enabled ? '已启用' : '已禁用' }}
+ </span>
+ </button>
+ <a-dropdown position="br">
+ <a-button type="text" size="mini" class="rounded-lg !text-slate-600">
+ <template #icon>
+ <icon-more />
+ </template>
+ </a-button>
+ <template #content>
+ <a-doption
+ @click="
+ () => {
+ updateDocumentNameModalVisible = true
+ updateDocumentID = record.id
+ }
+ "
+ >
+ 重命名
+ </a-doption>
+ <a-doption
+ class="!text-red-700"
+ @click="
+ () =>
+ handleDelete(datasetId, record.id, () => {
+ void loadDocuments(datasetId, req)
+ void loadDataset(datasetId)
+ })
+ "
+ >
+ 删除
+ </a-doption>
+ </template>
+ </a-dropdown>
+ </div>
+ </template>
+ </a-table-column>
+ </template>
+
+ <template #empty>
+ <a-empty :description="hasActiveSearch ? '没有匹配的文档结果' : '当前知识库还没有文档'" />
+ </template>
+ </a-table>
+ </div>
+ </div>
+
+ <update-document-name-modal
+ :document_id="updateDocumentID"
+ :dataset_id="datasetId"
+ v-model:visible="updateDocumentNameModalVisible"
+ :on-after-update="() => loadDocuments(datasetId, req)"
+ />
+ <hit-testing-modal v-model:visible="hitModalVisible" :dataset_id="datasetId" />
+ </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+:deep(.arco-table-pagination) {
+ padding: 16px 20px 20px;
+}
+</style>

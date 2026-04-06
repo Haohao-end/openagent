@@ -1,9 +1,9 @@
+import logging
 import hashlib
 import os
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
 
 from injector import inject
 from qcloud_cos import CosS3Client, CosConfig
@@ -11,6 +11,7 @@ from werkzeug.datastructures import FileStorage
 
 from internal.entity.upload_file_entity import ALLOWED_IMAGE_EXTENSION, ALLOWED_DOCUMENT_EXTENSION
 from internal.exception import FailException
+from internal.lib.helper import utc_now_naive
 from internal.model import UploadFile, Account
 from .upload_file_service import UploadFileService
 
@@ -38,7 +39,7 @@ class CosService:
 
         # 3.生成一个随机的名字
         random_filename = str(uuid.uuid4()) + "." + extension
-        now = datetime.now()
+        now = utc_now_naive()
         upload_filename = f"{now.year}/{now.month:02d}/{now.day:02d}/{random_filename}"
 
         # 4.流式读取上传的数据并将其上传到cos中
@@ -47,7 +48,13 @@ class CosService:
         try:
             # 5.将数据上传到cos存储桶中
             self._upload_with_retry(client, bucket, file_content, upload_filename)
-        except Exception as e:
+        except Exception:
+            logging.exception(
+                "COS upload failed: bucket=%s key=%s account_id=%s",
+                bucket,
+                upload_filename,
+                account.id,
+            )
             raise FailException("上传文件失败，请稍后重试")
 
         # 6.创建upload_file记录
@@ -81,9 +88,12 @@ class CosService:
             bucket: str,
             file_content: bytes,
             upload_filename: str,
-            max_attempts: int = 3,
+            max_attempts: int | None = None,
     ) -> None:
         """上传文件并在失败时重试，遇到对象已存在视为幂等成功。"""
+        if max_attempts is None:
+            max_attempts = self._get_upload_max_attempts()
+
         for attempt in range(1, max_attempts + 1):
             try:
                 client.put_object(bucket, file_content, upload_filename)
@@ -94,6 +104,15 @@ class CosService:
 
                 if attempt == max_attempts:
                     raise
+
+                logging.warning(
+                    "COS upload attempt failed: attempt=%s/%s bucket=%s key=%s error=%s",
+                    attempt,
+                    max_attempts,
+                    bucket,
+                    upload_filename,
+                    e,
+                )
 
                 # 轻量线性退避，降低瞬时网络抖动导致的失败概率。
                 time.sleep(0.1 * attempt)
@@ -126,11 +145,46 @@ class CosService:
             SecretId=os.getenv("COS_SECRET_ID"),
             SecretKey=os.getenv("COS_SECRET_KEY"),
             Token=None,
-            Scheme=os.getenv("COS_SCHEME", "https")
+            Scheme=os.getenv("COS_SCHEME", "https"),
+            Timeout=cls._get_int_env("COS_TIMEOUT_SECONDS", 10),
+            AutoSwitchDomainOnRetry=cls._get_bool_env("COS_AUTO_SWITCH_DOMAIN_ON_RETRY", True),
+            EnableOldDomain=cls._get_bool_env("COS_ENABLE_OLD_DOMAIN", True),
+            EnableInternalDomain=cls._get_bool_env("COS_ENABLE_INTERNAL_DOMAIN", False),
         )
-        return CosS3Client(conf)
+        return CosS3Client(conf, retry=cls._get_int_env("COS_SDK_RETRY", 1, minimum=0))
 
     @classmethod
     def _get_bucket(cls) -> str:
         """获取存储桶的名字"""
         return os.getenv("COS_BUCKET")
+
+    @classmethod
+    def _get_upload_max_attempts(cls) -> int:
+        """获取业务层上传最大重试次数。"""
+        return cls._get_int_env("COS_UPLOAD_MAX_ATTEMPTS", 3, minimum=0)
+
+    @staticmethod
+    def _get_bool_env(key: str, default: bool) -> bool:
+        """读取布尔环境变量，非法值时回退默认值。"""
+        value = os.getenv(key)
+        if value is None:
+            return default
+
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        return default
+
+    @staticmethod
+    def _get_int_env(key: str, default: int, minimum: int = 1) -> int:
+        """读取整型环境变量，非法值时回退默认值。"""
+        value = os.getenv(key)
+        if value is None:
+            return default
+
+        try:
+            return max(minimum, int(value))
+        except (TypeError, ValueError):
+            return default

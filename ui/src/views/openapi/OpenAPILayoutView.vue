@@ -3,18 +3,12 @@ import { useRoute } from 'vue-router'
 import { computed, ref } from 'vue'
 import { useCredentialStore } from '@/stores/credential'
 import { AUTH_REQUIRED_EVENT } from '@/utils/request'
+import { isCredentialLoggedIn } from '@/utils/auth'
 
 const route = useRoute()
 const credentialStore = useCredentialStore()
 const create_api_key = ref(false)
-const isLoggedIn = computed(() => {
-  const now = Math.floor(Date.now() / 1000)
-  return Boolean(
-    credentialStore.credential.access_token &&
-    credentialStore.credential.expire_at &&
-    credentialStore.credential.expire_at > now,
-  )
-})
+const isLoggedIn = computed(() => isCredentialLoggedIn(credentialStore.credential))
 
 const openLoginModal = () => {
   if (typeof window === 'undefined') return

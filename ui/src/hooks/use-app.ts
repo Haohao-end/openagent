@@ -14,11 +14,14 @@ import {
   getDraftAppConfig,
   getPublishedConfig,
   getPublishHistoriesWithPage,
+  getVersions,
   publish,
+  promptCompareChat,
   regenerateWebAppToken,
   regenerateIcon,
   generateIconPreview,
   stopDebugChat,
+  stopPromptCompareChat,
   updateApp,
   updateDebugConversationSummary,
   updateDraftAppConfig,
@@ -27,9 +30,11 @@ import {
 } from '@/services/app'
 import { Message, Modal } from '@arco-design/web-vue'
 import type {
+  AppVersion,
   CreateAppRequest,
   GetAppsWithPageResponse,
   GetDebugConversationMessagesWithPageResponse,
+  PromptCompareChatRequest,
   UpdateAppRequest,
   UpdateDraftAppConfigRequest,
 } from '@/models/app'
@@ -374,6 +379,10 @@ export const useUpdateDraftAppConfig = () => {
       loading.value = true
       const resp = await updateDraftAppConfig(app_id, draft_app_config)
       Message.success(resp.message)
+    } catch (error: unknown) {
+      const msg = getErrorMessage(error, '更新应用草稿配置失败')
+      Message.error(msg)
+      throw error
     } finally {
       loading.value = false
     }
@@ -541,6 +550,40 @@ export const useStopDebugChat = () => {
   return { loading, handleStopDebugChat }
 }
 
+export const usePromptCompareChat = () => {
+  const loading = ref(false)
+
+  const handlePromptCompareChat = async (
+    app_id: string,
+    req: PromptCompareChatRequest,
+    onData: (event_response: Record<string, any>) => void,
+  ) => {
+    try {
+      loading.value = true
+      await promptCompareChat(app_id, req, onData)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, handlePromptCompareChat }
+}
+
+export const useStopPromptCompareChat = () => {
+  const loading = ref(false)
+
+  const handleStopPromptCompareChat = async (app_id: string, task_id: string) => {
+    try {
+      loading.value = true
+      await stopPromptCompareChat(app_id, task_id)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, handleStopPromptCompareChat }
+}
+
 export const useGetPublishedConfig = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
@@ -701,4 +744,23 @@ export const useUnshareAppFromSquare = () => {
   }
 
   return { loading, handleUnshareAppFromSquare }
+}
+
+export const useGetVersions = () => {
+  // 1.定义hooks所需数据
+  const loading = ref(false)
+  const versions = ref<AppVersion[]>([])
+
+  // 2.定义加载版本数据函数
+  const loadVersions = async (app_id: string) => {
+    try {
+      loading.value = true
+      const resp = await getVersions(app_id)
+      versions.value = resp.data.list
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, versions, loadVersions }
 }

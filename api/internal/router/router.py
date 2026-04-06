@@ -26,8 +26,12 @@ from internal.handler import (
     PlatformHandler,
     WechatHandler,
     PublicAppHandler,
-    PublicWorkflowHandler
-
+    PublicWorkflowHandler,
+    LikeHandler,
+    FavoriteHandler,
+    HomeHandler,
+    NotificationHandler,
+    TagHandler
 )
 
 
@@ -59,6 +63,11 @@ class Router:
     wechat_handler: WechatHandler
     public_app_handler: PublicAppHandler
     public_workflow_handler: PublicWorkflowHandler
+    like_handler: LikeHandler
+    favorite_handler: FavoriteHandler
+    home_handler: HomeHandler
+    notification_handler: NotificationHandler
+    tag_handler: TagHandler
 
     def register_router(self, app: Flask):
         """注册路由"""
@@ -96,6 +105,10 @@ class Router:
             view_func=self.app_handler.get_publish_histories_with_page,
         )
         bp.add_url_rule(
+            "/apps/<uuid:app_id>/versions",
+            view_func=self.app_handler.get_versions,
+        )
+        bp.add_url_rule(
             "/apps/<uuid:app_id>/fallback-history",
             methods=["POST"],
             view_func=self.app_handler.fallback_history_to_draft,
@@ -120,9 +133,19 @@ class Router:
             view_func=self.app_handler.debug_chat,
         )
         bp.add_url_rule(
+            "/apps/<uuid:app_id>/prompt-compare/chat",
+            methods=["POST"],
+            view_func=self.app_handler.prompt_compare_chat,
+        )
+        bp.add_url_rule(
             "/apps/<uuid:app_id>/conversations/tasks/<uuid:task_id>/stop",
             methods=["POST"],
             view_func=self.app_handler.stop_debug_chat,
+        )
+        bp.add_url_rule(
+            "/apps/<uuid:app_id>/prompt-compare/tasks/<uuid:task_id>/stop",
+            methods=["POST"],
+            view_func=self.app_handler.stop_prompt_compare_chat,
         )
         bp.add_url_rule(
             "/apps/<uuid:app_id>/conversations/messages",
@@ -334,12 +357,36 @@ class Router:
             methods=["POST"],
             view_func=self.auth_handler.reset_password,
         )
+        bp.add_url_rule(
+            "/auth/login-challenge/verify",
+            methods=["POST"],
+            view_func=self.auth_handler.verify_login_challenge,
+        )
+        bp.add_url_rule(
+            "/auth/login-challenge/resend",
+            methods=["POST"],
+            view_func=self.auth_handler.resend_login_challenge,
+        )
 
         # 7.账号设置模块
         bp.add_url_rule("/account", view_func=self.account_handler.get_current_user)
+        bp.add_url_rule("/account/email/send-code", methods=["POST"], view_func=self.account_handler.send_change_email_code)
+        bp.add_url_rule("/account/email", methods=["POST"], view_func=self.account_handler.update_email)
         bp.add_url_rule("/account/password", methods=["POST"], view_func=self.account_handler.update_password)
         bp.add_url_rule("/account/name", methods=["POST"], view_func=self.account_handler.update_name)
         bp.add_url_rule("/account/avatar", methods=["POST"], view_func=self.account_handler.update_avatar)
+        bp.add_url_rule("/account/sessions", view_func=self.account_handler.get_account_sessions)
+        bp.add_url_rule("/account/login-history", view_func=self.account_handler.get_account_login_history)
+        bp.add_url_rule("/account/sessions/revoke-others", methods=["POST"], view_func=self.account_handler.revoke_other_account_sessions)
+        bp.add_url_rule("/account/sessions/<uuid:session_id>/revoke", methods=["POST"], view_func=self.account_handler.revoke_account_session)
+        bp.add_url_rule(
+            "/account/oauth/<string:provider_name>/unbind",
+            methods=["POST"],
+            view_func=self.account_handler.unbind_oauth,
+        )
+
+        # 7.1 首页模块
+        bp.add_url_rule("/home/intent", view_func=self.home_handler.get_intent)
 
         # 8.AI辅助模块
         bp.add_url_rule("/ai/optimize-prompt", methods=["POST"], view_func=self.ai_handler.optimize_prompt)
@@ -539,6 +586,10 @@ class Router:
             methods=["POST"],
             view_func=self.conversation_handler.update_conversation_is_pinned,
         )
+        bp.add_url_rule(
+            "/conversations/search",
+            view_func=self.conversation_handler.search_conversations,
+        )
 
         # 17.语音转换模块
         bp.add_url_rule(
@@ -582,12 +633,21 @@ class Router:
             view_func=self.public_app_handler.get_public_app_detail,
         )
         bp.add_url_rule(
+            "/public/apps/<string:app_id>/a2a/agent-card",
+            view_func=self.public_app_handler.get_public_app_a2a_card,
+        )
+        bp.add_url_rule(
+            "/public/apps/<string:app_id>/a2a/messages",
+            methods=["POST"],
+            view_func=self.public_app_handler.send_public_app_a2a_message,
+        )
+        bp.add_url_rule(
             "/public/apps/<string:app_id>/analysis",
             view_func=self.public_app_handler.get_public_app_analysis,
         )
         bp.add_url_rule(
-            "/public/apps/categories",
-            view_func=self.public_app_handler.get_app_categories,
+            "/public/apps/tags",
+            view_func=self.public_app_handler.get_app_tags,
         )
         bp.add_url_rule(
             "/apps/<uuid:app_id>/share-to-square",
@@ -658,7 +718,33 @@ class Router:
             view_func=self.public_workflow_handler.favorite_workflow,
         )
 
-        # 21.在应用上注册蓝图
+        # 21.标签模块
+        bp.add_url_rule("/tags", view_func=self.tag_handler.list_tags)
+        bp.add_url_rule("/tags", methods=["POST"], view_func=self.tag_handler.create_tag)
+        bp.add_url_rule("/tags/hot", view_func=self.tag_handler.get_hot_tags)
+        bp.add_url_rule("/tags/dimensions", view_func=self.tag_handler.get_dimensions)
+        bp.add_url_rule("/tags/<uuid:tag_id>", view_func=self.tag_handler.get_tag)
+        bp.add_url_rule("/tags/<uuid:tag_id>", methods=["POST"], view_func=self.tag_handler.update_tag)
+        bp.add_url_rule("/tags/<uuid:tag_id>/delete", methods=["POST"], view_func=self.tag_handler.delete_tag)
+
+        # 22.点赞与收藏聚合列表
+        bp.add_url_rule("/likes", view_func=self.like_handler.get_likes)
+        bp.add_url_rule("/favorites", view_func=self.favorite_handler.get_favorites)
+
+        # 23.通知模块
+        bp.add_url_rule("/notifications", view_func=self.notification_handler.get_notifications)
+        bp.add_url_rule(
+            "/notifications/<string:notification_id>/read",
+            methods=["POST"],
+            view_func=self.notification_handler.mark_notification_as_read,
+        )
+        bp.add_url_rule(
+            "/notifications/<string:notification_id>",
+            methods=["DELETE"],
+            view_func=self.notification_handler.delete_notification,
+        )
+
+        # 24.在应用上注册蓝图
         app.register_blueprint(bp)
         app.register_blueprint(openapi_bp)
 

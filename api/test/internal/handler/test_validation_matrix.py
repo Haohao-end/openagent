@@ -41,6 +41,12 @@ CASES = [
         "url": f"/apps/{APP_ID}/conversations",
         "kwargs": {"json": {"query": "hello", "image_urls": ["a", "b", "c", "d", "e", "f"]}},
     },
+    {
+        "name": "prompt_compare_missing_required",
+        "method": "post",
+        "url": f"/apps/{APP_ID}/prompt-compare/chat",
+        "kwargs": {"json": {}},
+    },
     # api tool
     {
         "name": "validate_openapi_schema_missing",
@@ -62,8 +68,15 @@ CASES = [
         "kwargs": {"json": {}},
     },
     # account
+    {"name": "send_change_email_code_missing", "method": "post", "url": "/account/email/send-code", "kwargs": {"json": {}}},
+    {"name": "send_change_email_code_invalid", "method": "post", "url": "/account/email/send-code", "kwargs": {"json": {"email": "bad-email"}}},
+    {"name": "get_account_login_history_invalid_page", "method": "get", "url": "/account/login-history", "kwargs": {"query_string": {"current_page": 0}}},
+    {"name": "get_account_login_history_invalid_status", "method": "get", "url": "/account/login-history", "kwargs": {"query_string": {"status": "weird"}}},
+    {"name": "update_email_missing", "method": "post", "url": "/account/email", "kwargs": {"json": {}}},
+    {"name": "update_email_invalid_code", "method": "post", "url": "/account/email", "kwargs": {"json": {"email": "next@example.com", "code": "12"}}},
+    {"name": "update_email_password_too_long", "method": "post", "url": "/account/email", "kwargs": {"json": {"email": "next@example.com", "code": "123456", "current_password": "x" * 129}}},
     {"name": "update_password_missing", "method": "post", "url": "/account/password", "kwargs": {"json": {}}},
-    {"name": "update_password_weak", "method": "post", "url": "/account/password", "kwargs": {"json": {"password": "123"}}},
+    {"name": "update_password_weak", "method": "post", "url": "/account/password", "kwargs": {"json": {"new_password": "123"}}},
     {"name": "update_name_missing", "method": "post", "url": "/account/name", "kwargs": {"json": {}}},
     {"name": "update_avatar_missing", "method": "post", "url": "/account/avatar", "kwargs": {"json": {}}},
     {"name": "update_avatar_invalid_url", "method": "post", "url": "/account/avatar", "kwargs": {"json": {"avatar": "bad"}}},
@@ -114,6 +127,8 @@ CASES = [
     {"name": "text_to_audio_missing_required", "method": "post", "url": "/audio/text-to-audio", "kwargs": {"json": {}}},
     # auth/oauth/openapi/web app
     {"name": "password_login_missing_required", "method": "post", "url": "/auth/password-login", "kwargs": {"json": {}}},
+    {"name": "verify_login_challenge_missing_required", "method": "post", "url": "/auth/login-challenge/verify", "kwargs": {"json": {}}},
+    {"name": "resend_login_challenge_missing_required", "method": "post", "url": "/auth/login-challenge/resend", "kwargs": {"json": {}}},
     {"name": "oauth_authorize_missing_required", "method": "post", "url": "/oauth/authorize/github", "kwargs": {"json": {}}},
     {"name": "openapi_chat_missing_required", "method": "post", "url": "/openapi/chat", "kwargs": {"json": {}}},
     {

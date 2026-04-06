@@ -88,28 +88,42 @@ class GetAssistantAgentMessagesWithPageResp(Schema):
 
     @pre_dump
     def process_data(self, data: Message, **kwargs):
-        return {
-            "id": data.id,
-            "conversation_id": data.conversation_id,
-            "query": data.query,
-            "image_urls": data.image_urls,
-            "answer": data.answer,
-            "total_token_count": data.total_token_count,
-            "latency": data.latency,
-            "agent_thoughts": [{
-                "id": agent_thought.id,
-                "position": agent_thought.position,
-                "event": agent_thought.event,
-                "thought": agent_thought.thought,
-                "observation": agent_thought.observation,
-                "tool": agent_thought.tool,
-                "tool_input": agent_thought.tool_input,
-                "latency": agent_thought.latency,
-                "created_at": datetime_to_timestamp(agent_thought.created_at),
-            } for agent_thought in data.agent_thoughts],
-            "suggested_questions": data.suggested_questions if data.suggested_questions else [],
-            "created_at": datetime_to_timestamp(data.created_at),
-        }
+        import logging
+        try:
+            # 安全地访问agent_thoughts，处理可能的lazy loading异常
+            agent_thoughts_list = []
+            try:
+                for agent_thought in data.agent_thoughts:
+                    agent_thoughts_list.append({
+                        "id": agent_thought.id,
+                        "position": agent_thought.position,
+                        "event": agent_thought.event,
+                        "thought": agent_thought.thought,
+                        "observation": agent_thought.observation,
+                        "tool": agent_thought.tool,
+                        "tool_input": agent_thought.tool_input,
+                        "latency": agent_thought.latency,
+                        "created_at": datetime_to_timestamp(agent_thought.created_at),
+                    })
+            except Exception as e:
+                logging.warning(f"Failed to load agent_thoughts for message {data.id}: {e}")
+                agent_thoughts_list = []
+
+            return {
+                "id": data.id,
+                "conversation_id": data.conversation_id,
+                "query": data.query,
+                "image_urls": data.image_urls,
+                "answer": data.answer,
+                "total_token_count": data.total_token_count,
+                "latency": data.latency,
+                "agent_thoughts": agent_thoughts_list,
+                "suggested_questions": data.suggested_questions if data.suggested_questions else [],
+                "created_at": datetime_to_timestamp(data.created_at),
+            }
+        except Exception as e:
+            logging.error(f"Error processing message data: {e}", exc_info=True)
+            raise
 
 
 class AssistantAgentGenerateIntroduction(FlaskForm):

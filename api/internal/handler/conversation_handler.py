@@ -10,10 +10,13 @@ from internal.schema.conversation_schema import (
     GetRecentConversationsResp,
     UpdateConversationNameReq,
     UpdateConversationIsPinnedReq,
+    SearchConversationsReq,
+    SearchConversationsResp,
 )
 from internal.service import ConversationService
 from pkg.paginator import PageModel
 from pkg.response import validate_error_json, success_json, success_message
+
 
 
 @inject
@@ -108,3 +111,22 @@ class ConversationHandler:
         self.conversation_service.update_conversation(conversation_id, current_user, is_pinned=req.is_pinned.data)
 
         return success_message("修改会话置顶状态成功")
+
+    @login_required
+    def search_conversations(self):
+        """搜索会话及其消息内容"""
+        # 1.提取请求并校验
+        req = SearchConversationsReq(request.args)
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        # 2.调用服务搜索会话
+        conversations = self.conversation_service.search_conversations(
+            current_user,
+            req.query.data or "",
+            req.limit.data or 50,
+        )
+
+        # 3.构建响应结构并返回
+        resp = SearchConversationsResp(many=True)
+        return success_json(resp.dump(conversations))

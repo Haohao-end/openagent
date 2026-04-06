@@ -407,7 +407,7 @@ onBeforeUnmount(() => {
 
 <template>
   <!-- 外部容器 -->
-  <div class="min-h-screen flex flex-col h-full overflow-hidden relative">
+  <div class="w-screen h-screen flex flex-col overflow-hidden relative">
     <!-- 顶部Header -->
     <div
       class="h-[77px] flex-shrink-0 bg-white p-4 flex items-center justify-between relative border-b"
@@ -533,7 +533,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <!-- 中间编排画布 -->
-    <div class="flex-1">
+    <div class="flex-1 w-full h-full">
       <vue-flow
         :min-zoom="0.25"
         :max-zoom="2"

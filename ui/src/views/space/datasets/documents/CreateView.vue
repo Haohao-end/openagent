@@ -66,7 +66,8 @@ const documents = ref<GetDocumentsStatusResponse['data']>([])
 
 const getUploadFileId = (fileItem: FileItem): string => {
   const response = fileItem.response as UploadFileResponsePayload | undefined
-  return String(response?.id || '')
+  const id = response?.id
+  return id ? String(id) : ''
 }
 
 // 2.定义下一步处理函数
@@ -236,9 +237,21 @@ onUnmounted(() => stopTimer())
                     onError(new Error('无效文件'))
                     return
                   }
-                  await handleUploadFile(fileItem.file as File)
-                  onSuccess(upload_file.value)
+                  console.log('[Upload] Starting upload for file:', fileItem.file.name)
+                  const response = await handleUploadFile(fileItem.file as File)
+                  console.log('[Upload] Upload completed, response:', response)
+
+                  // 从响应的 data 字段中获取文件ID
+                  const fileId = response?.data?.id
+                  if (!fileId) {
+                    console.error('[Upload] No file ID in response:', response)
+                    onError(new Error('上传失败: 未获得文件ID'))
+                    return
+                  }
+                  console.log('[Upload] File ID:', fileId)
+                  onSuccess({ id: fileId })
                 } catch (error: unknown) {
+                  console.error('[Upload] Error:', error)
                   onError(error instanceof Error ? error : new Error('上传失败'))
                 }
               }

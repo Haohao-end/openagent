@@ -32,7 +32,8 @@ class PublicWorkflowHandler:
         if not req.validate():
             return validate_error_json(req.errors)
 
-        self.public_workflow_service.share_workflow_to_square(workflow_id, req.category.data, current_user)
+        tags = req.tags.data if req.tags.data else None
+        self.public_workflow_service.share_workflow_to_square(workflow_id, tags, current_user)
         return success_message("工作流已共享到广场")
 
     @login_required

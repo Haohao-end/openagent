@@ -14,10 +14,17 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
+from datetime import UTC, datetime
 
 from internal.extension.database_extension import db
 
-class  Conversation(db.Model):
+
+def _utcnow_naive() -> datetime:
+    """返回无时区的 UTC 时间，兼容数据库 DateTime 列且避免 utcnow 退化警告。"""
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+class Conversation(db.Model):
     """交流会话模型"""
     __tablename__ = "conversation"
     __table_args__ = (
@@ -42,6 +49,7 @@ class  Conversation(db.Model):
         nullable=False,
         server_default=text('CURRENT_TIMESTAMP(0)'),
         server_onupdate=text('CURRENT_TIMESTAMP(0)'),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))
 
@@ -106,6 +114,7 @@ class Message(db.Model):
         nullable=False,
         server_default=text('CURRENT_TIMESTAMP(0)'),
         server_onupdate=text('CURRENT_TIMESTAMP(0)'),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))
 
@@ -193,5 +202,6 @@ class MessageAgentThought(db.Model):
         nullable=False,
         server_default=text('CURRENT_TIMESTAMP(0)'),
         server_onupdate=text('CURRENT_TIMESTAMP(0)'),
+        default=_utcnow_naive,
     )  # 更新时间
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))  # 创建时间

@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import internal.entity as entity_pkg
-from internal.entity.ai_entity import OPENAPI_SCHEMA_ASSISTANT_PROMPT, OPTIMIZE_PROMPT_TEMPLATE
+from internal.entity.ai_entity import (
+    OPENAPI_SCHEMA_ASSISTANT_PROMPT,
+    OPTIMIZE_PROMPT_TEMPLATE,
+    PYTHON_CODE_ASSISTANT_PROMPT,
+)
 from internal.entity.app_entity import (
     AppConfigType,
     AppStatus,
@@ -72,7 +76,8 @@ def test_app_entity_should_keep_expected_defaults_and_enums():
     }
     assert required_keys.issubset(DEFAULT_APP_CONFIG.keys())
     assert DEFAULT_APP_CONFIG["dialog_round"] == 3
-    assert DEFAULT_APP_CONFIG["model_config"]["provider"] == "openai"
+    assert DEFAULT_APP_CONFIG["model_config"]["provider"] == "deepseek"
+    assert DEFAULT_APP_CONFIG["model_config"]["model"] == "deepseek-chat"
     assert DEFAULT_APP_CONFIG["text_to_speech"]["voice"] in ALLOWED_AUDIO_VOICES
 
 
@@ -133,9 +138,18 @@ def test_cache_entity_lock_patterns_should_support_formatting():
 
 
 def test_ai_and_conversation_templates_should_keep_core_constraints_and_placeholders():
-    assert "### 一、业务理解" in OPTIMIZE_PROMPT_TEMPLATE
-    assert "### 二、优化后提示词" in OPTIMIZE_PROMPT_TEMPLATE
-    assert "### 三、可配置项" in OPTIMIZE_PROMPT_TEMPLATE
+    assert "# 角色" in OPTIMIZE_PROMPT_TEMPLATE
+    assert "## 目标" in OPTIMIZE_PROMPT_TEMPLATE
+    assert "## 必须遵守" in OPTIMIZE_PROMPT_TEMPLATE
+    assert "## 内部工作流程" in OPTIMIZE_PROMPT_TEMPLATE
+    assert "默认输出中文" in OPTIMIZE_PROMPT_TEMPLATE
+    assert "禁止输出 <example> 等无关标签" in OPTIMIZE_PROMPT_TEMPLATE
+    assert "步骤1：识别用户业务目标" in OPTIMIZE_PROMPT_TEMPLATE
+
+    assert "def main(params)" in PYTHON_CODE_ASSISTANT_PROMPT
+    assert "params.get('key', default)" in PYTHON_CODE_ASSISTANT_PROMPT
+    assert "只输出一个 Markdown 的 Python 代码块" in PYTHON_CODE_ASSISTANT_PROMPT
+    assert "few-shot" in PYTHON_CODE_ASSISTANT_PROMPT
 
     assert "OPENAPI_SCHEMA" in OPENAPI_SCHEMA_ASSISTANT_PROMPT
     assert "server" in OPENAPI_SCHEMA_ASSISTANT_PROMPT

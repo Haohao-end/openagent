@@ -34,7 +34,7 @@ api/
 ### 2. 应用业务配置 (`api/.env`)
 
 用于配置应用的业务逻辑:
-- LLM API Keys (OpenAI, DeepSeek, Claude 等)
+- LLM API Keys (OpenAI, DeepSeek, Moonshot 等)
 - 第三方服务 Keys (高德地图、Serper 搜索等)
 - OAuth 配置
 - LangSmith 追踪配置
@@ -103,7 +103,7 @@ api/
 - Flask 配置 (FLASK_DEBUG, FLASK_ENV)
 - JWT 密钥
 - 数据库连接 (本地开发时使用 localhost)
-- LLM 服务商配置 (OpenAI, DeepSeek, Claude, 月之暗面等)
+- LLM 服务商配置 (OpenAI, DeepSeek, 月之暗面等)
 - 工具插件配置 (高德地图, Serper 搜索, GitHub Token 等)
 - OAuth 配置 (GitHub, Google)
 - 对象存储配置 (腾讯云 COS)

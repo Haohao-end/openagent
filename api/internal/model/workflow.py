@@ -9,13 +9,19 @@ from sqlalchemy import (
     Integer,
     text,
     PrimaryKeyConstraint,
-    Index
+    Index,
+    ForeignKey,
 )
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
+from datetime import UTC, datetime
 
 from internal.extension.database_extension import db
 
 
+def _utcnow_naive() -> datetime:
+    """返回无时区的 UTC 时间，兼容数据库 DateTime 列且避免 utcnow 退化警告。"""
+    return datetime.now(UTC).replace(tzinfo=None)
 class Workflow(db.Model):
     """工作流模型"""
     __tablename__ = "workflow"
@@ -24,11 +30,11 @@ class Workflow(db.Model):
         Index("workflow_account_id_idx", "account_id"),
         Index("workflow_tool_call_name_idx", "tool_call_name"),
         Index("workflow_is_public_idx", "is_public"),
-        Index("workflow_category_idx", "category"),
+        Index("workflow_tags_idx", "tags", postgresql_using="gin"),
     )
 
     id = Column(UUID, nullable=False, server_default=text("uuid_generate_v4()"))
-    account_id = Column(UUID, nullable=False)  # 创建账号id
+    account_id = Column(UUID, ForeignKey('account.id'), nullable=False)  # 创建账号id
     name = Column(String(255), nullable=False, server_default=text("''::character varying"))  # 工作流名字
     tool_call_name = Column(String(255), nullable=False, server_default=text("''::character varying"))  # 工作流工具调用名字
     icon = Column(String(255), nullable=False, server_default=text("''::character varying"))  # 工作流图标
@@ -38,7 +44,7 @@ class Workflow(db.Model):
     is_debug_passed = Column(Boolean, nullable=False, server_default=text("false"))  # 是否调试通过
     status = Column(String(255), nullable=False, server_default=text("''::character varying"))  # 工作流状态
     is_public = Column(Boolean, nullable=False, server_default=text("false"))  # 是否公开到广场
-    category = Column(String(100), nullable=False, server_default=text("'general'::character varying"))  # 工作流分类
+    tags = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))  # 工作流标签列表
     view_count = Column(Integer, nullable=False, server_default=text("0"))  # 浏览次数
     like_count = Column(Integer, nullable=False, server_default=text("0"))  # 点赞数
     fork_count = Column(Integer, nullable=False, server_default=text("0"))  # 被Fork次数
@@ -49,8 +55,12 @@ class Workflow(db.Model):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP(0)"),
         server_onupdate=text("CURRENT_TIMESTAMP(0)"),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
+
+    # 关系定义
+    account = relationship("Account", foreign_keys=[account_id], lazy="joined")
 
 
 class WorkflowResult(db.Model):
@@ -76,6 +86,7 @@ class WorkflowResult(db.Model):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP(0)"),
         server_onupdate=text("CURRENT_TIMESTAMP(0)"),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
 

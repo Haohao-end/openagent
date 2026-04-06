@@ -56,6 +56,12 @@ set_default_if_unset "MAIL_USE_SSL" "False"
 # 腾讯云 COS 配置（非敏感）
 set_default_if_unset "COS_REGION" "ap-beijing"
 set_default_if_unset "COS_SCHEME" "https"
+set_default_if_unset "COS_TIMEOUT_SECONDS" "10"
+set_default_if_unset "COS_SDK_RETRY" "1"
+set_default_if_unset "COS_UPLOAD_MAX_ATTEMPTS" "3"
+set_default_if_unset "COS_AUTO_SWITCH_DOMAIN_ON_RETRY" "True"
+set_default_if_unset "COS_ENABLE_OLD_DOMAIN" "True"
+set_default_if_unset "COS_ENABLE_INTERNAL_DOMAIN" "False"
 
 # API 基础地址（非敏感）
 set_default_if_unset "OPENAI_API_BASE" "https://api.openai.com/v1"

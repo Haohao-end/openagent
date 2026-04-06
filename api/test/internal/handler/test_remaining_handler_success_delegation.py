@@ -145,6 +145,68 @@ class TestRemainingHandlerSuccessDelegation:
         assert resp.status_code == 200
         assert resp.json["code"] == HttpCode.SUCCESS
         assert resp.json["data"]["paginator"]["current_page"] == 1
+        assert len(resp.json["data"]["list"]) == 1
+        assert resp.json["data"]["list"][0]["id"] == "00000000-0000-0000-0000-000000000004"
+        assert resp.json["data"]["list"][0]["conversation_id"] == "00000000-0000-0000-0000-000000000005"
+        assert resp.json["data"]["list"][0]["query"] == "hello"
+        assert resp.json["data"]["list"][0]["answer"] == "hi"
+        assert resp.json["data"]["list"][0]["agent_thoughts"][0]["thought"] == "thinking"
         assert captures["req"].current_page.data == 1
         assert captures["req"].page_size.data == 20
         assert captures["account"] is current_user_stub
+
+    def test_get_likes_should_delegate_with_query_filters(self, http_client, monkeypatch):
+        current_user_stub = SimpleNamespace(id=UUID(APP_ID), is_authenticated=True)
+        monkeypatch.setattr("internal.handler.like_handler.current_user", current_user_stub)
+        captures = {}
+
+        def _get_likes(_self, account, search_word="", resource_type="all"):
+            captures["account"] = account
+            captures["search_word"] = search_word
+            captures["resource_type"] = resource_type
+            return []
+
+        monkeypatch.setattr(
+            "internal.service.like_service.LikeService.get_likes",
+            _get_likes,
+        )
+
+        resp = http_client.get(
+            "/likes",
+            query_string={"search_word": "天气", "resource_type": "app"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.SUCCESS
+        assert resp.json["data"] == []
+        assert captures["account"] is current_user_stub
+        assert captures["search_word"] == "天气"
+        assert captures["resource_type"] == "app"
+
+    def test_get_favorites_should_delegate_with_query_filters(self, http_client, monkeypatch):
+        current_user_stub = SimpleNamespace(id=UUID(APP_ID), is_authenticated=True)
+        monkeypatch.setattr("internal.handler.favorite_handler.current_user", current_user_stub)
+        captures = {}
+
+        def _get_favorites(_self, account, search_word="", resource_type="all"):
+            captures["account"] = account
+            captures["search_word"] = search_word
+            captures["resource_type"] = resource_type
+            return []
+
+        monkeypatch.setattr(
+            "internal.service.favorite_service.FavoriteService.get_favorites",
+            _get_favorites,
+        )
+
+        resp = http_client.get(
+            "/favorites",
+            query_string={"search_word": "代码", "resource_type": "workflow"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.SUCCESS
+        assert resp.json["data"] == []
+        assert captures["account"] is current_user_stub
+        assert captures["search_word"] == "代码"
+        assert captures["resource_type"] == "workflow"

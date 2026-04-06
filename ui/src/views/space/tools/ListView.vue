@@ -17,8 +17,9 @@ import { useAccountStore } from '@/stores/account'
 import { openapiSchemaAssistantChat } from '@/services/ai'
 import moment from 'moment/moment'
 import { typeMap } from '@/config'
-import { Message, type FileItem, Form, type ValidatedError } from '@arco-design/web-vue'
+import { type FileItem, Form, type ValidatedError, Message } from '@arco-design/web-vue'
 import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
+import { getUserAvatarUrl } from '@/utils/helper'
 
 type HeaderItem = {
   key: string
@@ -403,13 +404,21 @@ watch(
 <template>
   <a-spin
     :loading="loading"
-    class="block h-full w-full scrollbar-w-none overflow-scroll"
+    class="block h-full w-full scrollbar-w-none overflow-y-scroll overflow-x-hidden"
     @scroll="handleScroll"
   >
     <!-- 底部插件列表 -->
-    <a-row :gutter="[20, 20]" class="flex-1">
+    <a-row :gutter="[20, 20]">
       <!-- 有数据的UI状态 -->
-      <a-col v-for="(provider, idx) in api_tool_providers" :key="provider.name" :span="6">
+      <a-col
+        v-for="(provider, idx) in api_tool_providers"
+        :key="provider.name"
+        :xs="24"
+        :sm="12"
+        :md="8"
+        :lg="6"
+        :xl="6"
+      >
         <a-card hoverable class="cursor-pointer rounded-lg" @click="showIdx = Number(idx)">
           <!-- 顶部提供商名称 -->
           <div class="flex items-center gap-3 mb-3">
@@ -429,8 +438,8 @@ watch(
           </div>
           <!-- 提供商的发布信息 -->
           <div class="flex items-center gap-1.5">
-            <a-avatar :size="18" class="bg-blue-700">
-              <icon-user />
+            <a-avatar :size="18" class="bg-blue-700" :image-url="getUserAvatarUrl(accountStore.account.avatar, accountStore.account.name)">
+              {{ (accountStore.account.name || '未知用户')[0] }}
             </a-avatar>
             <div class="text-xs text-gray-400">
               {{ accountStore.account.name }} · 最近编辑
@@ -788,4 +797,9 @@ watch(
   </a-spin>
 </template>
 
-<style scoped></style>
+<style scoped>
+:deep(.arco-row) {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+</style>

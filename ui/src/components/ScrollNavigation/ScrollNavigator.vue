@@ -1,0 +1,72 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import ScrollToTopButton from './ScrollToTopButton.vue'
+import IndexNavigator from './IndexNavigator.vue'
+import { useScrollNavigation } from '@/composables/useScrollNavigation'
+
+interface Props {
+  container?: HTMLElement | Window
+  bottomThreshold?: number
+  itemSelector?: string // CSS 选择器，用于自动收集导航项
+  labels?: string[] // 可选的标签
+  showScrollToTopButton?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  container: undefined,
+  bottomThreshold: 500,
+  itemSelector: '[data-scroll-item]',
+  showScrollToTopButton: true,
+})
+
+const emit = defineEmits<{
+  'item-click': [index: number]
+}>()
+
+const containerRef = ref<HTMLElement | null>(null)
+
+const { items, currentIndex, isNearBottom, collectItems, scrollToTop, scrollToItem } =
+  useScrollNavigation({
+    container: props.container,
+    bottomThreshold: props.bottomThreshold,
+  })
+
+onMounted(() => {
+  // 自动收集导航项
+  const container = containerRef.value || document.documentElement
+  const elements = Array.from(container.querySelectorAll(props.itemSelector)) as HTMLElement[]
+
+  if (elements.length > 0) {
+    collectItems(elements, props.labels)
+  }
+})
+
+const handleScrollToTop = () => {
+  scrollToTop()
+}
+
+const handleItemClick = (index: number) => {
+  scrollToItem(index)
+  emit('item-click', index)
+}
+</script>
+
+<template>
+  <div ref="containerRef" class="relative">
+    <slot />
+
+    <!-- 回到顶部按钮 -->
+    <scroll-to-top-button
+      v-if="showScrollToTopButton"
+      :visible="isNearBottom"
+      @click="handleScrollToTop"
+    />
+
+    <!-- 右侧索引导航 -->
+    <index-navigator
+      :count="items.length"
+      :current-index="currentIndex"
+      @item-click="handleItemClick"
+    />
+  </div>
+</template>

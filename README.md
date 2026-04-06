@@ -1,304 +1,214 @@
-# 🚀 LLMOps - End-to-End LLM Operations Platform
+# LLMOps - End-to-End LLM Operations Platform
 
 <div align="center">
 
 ![AI Agent](https://github.com/user-attachments/assets/f4cad915-411e-4e0f-95bc-8f8afdcf1019)
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/docker-20.10+-blue.svg)](https://www.docker.com/)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents)
 
 [English](README.md) | [中文](README_ZH.md)
 
-**🌐 Online Demo**: http://82.157.66.198/
+**Demo**: http://82.157.66.198/
 
-**📚 Documentation**: https://deepwiki.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents
-
-**📖 API Docs**: https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417
+**API Docs**: https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417
 
 </div>
 
 ---
 
-## 📋 Table of Contents
+## Overview
 
-- [Overview](#-overview)
-- [Features](#-features)
-- [Architecture](#-architecture)
-- [Quick Start](#-quick-start)
-- [Deployment](#-deployment)
-- [Configuration](#-configuration)
-- [Documentation](#-documentation)
-- [License](#-license)
+LLMOps is a full-stack platform for building and operating AI agent applications. The repository contains:
 
----
+- A Flask backend with LangChain and LangGraph orchestration
+- A Vue 3 frontend for agent, workflow, dataset, tool, and conversation management
+- Celery workers for background jobs
+- PostgreSQL, Redis, Weaviate, and Nginx in the Docker stack
 
-## 🎯 Overview
+The current codebase focuses on:
 
-**LLMOps** is a comprehensive platform for building, deploying, and managing AI Agent applications with multiple LLM providers. It features a Python Flask backend with LangChain/LangGraph orchestration and a Vue 3 frontend, enabling seamless development of intelligent agent workflows.
-
-### 🌟 Key Highlights
-
-- 🤖 **Multi-Agent System**: Build complex AI agents with LangGraph
-- 🔄 **Visual Workflow Builder**: Drag-and-drop interface for workflow design
-- 🧠 **Multi-LLM Support**: OpenAI, DeepSeek, Claude, Moonshot, Qianfan, and more
-- 📊 **RAG Integration**: Weaviate vector database for knowledge retrieval
-- 🔧 **Built-in Tools**: 20+ pre-built tools (search, weather, maps, etc.)
-- 🔐 **Enterprise Security**: OAuth, JWT, role-based access control
-- 📈 **Real-time Analytics**: Monitor agent performance and usage
-- 🐳 **Docker Ready**: One-command deployment with Docker Compose
+- Multi-provider LLM integration
+- Workflow authoring and execution
+- Conversation management and search
+- Public app and workflow publishing
+- Knowledge base, document, and dataset management
+- Built-in tools and notification pipelines
 
 ---
 
-## ✨ Features
+## Project Layout
 
-### 🤖 AI Agent Development
-
-- **Function Call Agent**: Direct function invocation with LLM
-- **ReAct Agent**: Reasoning and acting with tool integration
-- **Custom Agents**: Build your own agent types
-- **Agent Queue Management**: Handle concurrent agent requests
-
-### 🔄 Workflow System
-
-<img width="1920" height="959" alt="workflow" src="https://github.com/user-attachments/assets/26d6dd8f-03d2-4b45-8ae0-a9817771fa08" />
-
-- **Visual Editor**: Drag-and-drop workflow builder
-- **Node Types**: LLM, Tool, Knowledge Retrieval, Code Execution, If-Else
-- **DAG Execution**: Directed acyclic graph workflow engine
-- **Real-time Streaming**: SSE-based streaming responses
-
-### 🧠 Knowledge Management
-
-- **Dataset Management**: Upload and manage documents
-- **Vector Storage**: Weaviate integration for semantic search
-- **Multiple Formats**: PDF, DOCX, TXT, Markdown support
-- **Chunking Strategies**: Configurable text splitting
-
-### 🔧 Built-in Tools
-
-- **Search**: Google Serper, SerpAPI, Tavily AI
-- **Weather**: OpenWeatherMap
-- **Maps**: Gaode Maps API
-- **News**: News API
-- **Computation**: Wolfram Alpha
-- **Code**: GitHub integration
-- **Image Generation**: Stability AI
-- **Custom Tools**: API-based tool integration
-
----
-
-## 🏗️ Architecture
-
+```text
+.
+├── api/        # Flask backend, services, handlers, tasks, tests
+├── ui/         # Vue 3 frontend, components, views, tests
+├── docker/     # Docker Compose stack and deployment config
+├── docs/       # High-level documentation index and deployment guides
+└── README.md   # Project overview
 ```
+
+---
+
+## Features
+
+### Backend
+
+- REST APIs built with Flask
+- Service-oriented backend structure
+- JWT, OAuth, and role-based account flows
+- SSE / websocket driven real-time notifications
+- Celery-based background tasks
+
+### Frontend
+
+- Vue 3 + Vite + TypeScript
+- Workflow editor and app management views
+- Conversation history, search, and publishing pages
+- Notification components and live UI updates
+
+### Infrastructure
+
+- Docker Compose deployment
+- PostgreSQL for persistence
+- Redis for cache and task queue
+- Weaviate for vector search
+- Nginx as reverse proxy
+
+---
+
+## Architecture
+
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                         Frontend (Vue 3)                     │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │  Agent   │  │ Workflow │  │ Dataset  │  │  Tools   │   │
-│  │  Builder │  │  Editor  │  │ Manager  │  │ Manager  │   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+│  Agent Builder  Workflow Editor  Dataset Manager  Tools UI   │
 └─────────────────────────────────────────────────────────────┘
-                            ↕ HTTP/SSE
+                            ↕ HTTP / SSE / WebSocket
 ┌─────────────────────────────────────────────────────────────┐
 │                      Backend (Flask + Celery)                │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │              API Layer (Flask)                        │  │
-│  │  Handler → Service → Model → Database                │  │
-│  └──────────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │         Core Engine (LangChain/LangGraph)            │  │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐          │  │
-│  │  │  Agent   │  │ Workflow │  │   RAG    │          │  │
-│  │  │  Engine  │  │  Engine  │  │  Engine  │          │  │
-│  │  └──────────┘  └──────────┘  └──────────┘          │  │
-│  └──────────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │         Background Tasks (Celery)                     │  │
-│  │  Document Indexing, Email Sending, etc.              │  │
-│  └──────────────────────────────────────────────────────┘  │
+│  API Layer   Services   LangChain / LangGraph   Background   │
 └─────────────────────────────────────────────────────────────┘
                             ↕
 ┌─────────────────────────────────────────────────────────────┐
 │                    Infrastructure                            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │PostgreSQL│  │  Redis   │  │ Weaviate │  │  Nginx   │   │
-│  │    DB    │  │  Cache   │  │ VectorDB │  │  Proxy   │   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+│  PostgreSQL   Redis   Weaviate   Nginx                       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
 - Docker 20.10+
 - Docker Compose 2.0+
-- 8GB+ RAM recommended
+- 8GB+ RAM recommended for the full stack
 
-### One-Command Deployment
+### Start with Docker
 
 ```bash
-# 1. Clone repository
 git clone https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents.git
 cd LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents
 
-# 2. Configure environment variables
 cp api/.env.example api/.env
-vim api/.env  # Fill in your API keys
+# edit api/.env and fill in the required API keys
 
-# 3. Start services
 cd docker
 docker compose up -d --build
 ```
 
-**📖 Detailed Guide**: See [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) for complete instructions.
+### Service URLs
 
-### Access Services
-
-| Service | URL | Description |
-|---------|-----|-------------|
-| Frontend | http://localhost:3000 | Vue 3 Web UI |
+| Service | URL | Notes |
+|---|---|---|
+| Frontend | http://localhost:3000 | Vue 3 web UI |
 | API | http://localhost:5001 | Flask REST API |
-| Nginx | http://localhost | Reverse Proxy |
+| Nginx | http://localhost | Reverse proxy |
+
+For more deployment details, see [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) and [docker/README.md](docker/README.md).
 
 ---
 
-## 🐳 Deployment
+## Local Development
 
-### Server Deployment (One-Click)
-
-```bash
-# SSH to your server
-ssh root@your-server-ip
-
-# Run deployment script
-bash <(curl -fsSL https://raw.githubusercontent.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents/main/deploy-server.sh)
-```
-
-### Manual Deployment
-
-See **[DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md)** for detailed instructions.
-
----
-
-## ⚙️ Configuration
-
-### Required Environment Variables
-
-Create `api/.env` from `api/.env.example`:
-
-```bash
-# LLM Providers (Configure at least one)
-OPENAI_API_KEY=sk-your-openai-key
-DEEPSEEK_API_KEY=sk-your-deepseek-key
-MOONSHOT_API_KEY=sk-your-moonshot-key
-
-# Database (Auto-configured in Docker)
-SQLALCHEMY_DATABASE_URI=postgresql://postgres:password@llmops-db:5432/llmops
-
-# Redis (Auto-configured in Docker)
-REDIS_HOST=llmops-redis
-REDIS_PASSWORD=your-redis-password
-
-# JWT Secret (Generate with: openssl rand -hex 32)
-JWT_SECRET_KEY=your-random-secret-key
-```
-
-See **[docker/SECURITY.md](docker/SECURITY.md)** for security best practices.
-
----
-
-## 📚 Documentation
-
-### Core Documentation
-- **[DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md)** - Complete deployment guide
-- **[QUICKSTART_GUIDE.md](docs/deployment/QUICKSTART_GUIDE.md)** - Quick start guide
-- **[CLAUDE.md](CLAUDE.md)** - Project architecture for AI assistants
-- **[API Documentation](https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417)** - REST API reference
-
-### Docker & Infrastructure
-- **[docker/README.md](docker/README.md)** - Docker configuration
-- **[docker/SECURITY.md](docker/SECURITY.md)** - Security guidelines
-
-### Development Guides
-- **[AGENTS.md](docs/development/AGENTS.md)** - Agent development guide
-- **[API Configuration](docs/development/API_CONFIG_SUMMARY.md)** - API configuration guide
-- **[Frontend Guide](docs/development/FRONTEND_IMPLEMENTATION_GUIDE.md)** - Frontend development
-
-### Feature Documentation
-- **[Icon Generation](docs/features/ICON_GENERATION_COMPLETE_GUIDE.md)** - Icon generation system
-- **[If-Else Workflow](docs/features/IF_ELSE_ARCHITECTURE.md)** - Conditional workflow nodes
-
-### Testing & QA
-- **[Test Guide](docs/testing/TEST_GUIDE.md)** - Testing guidelines
-- **[Bug Reports](docs/bugfix/)** - Bug fix history
-
----
-
-## 🛠️ Development
-
-### Backend (Flask)
+### Backend
 
 ```bash
 cd api
 pip install -r requirements.txt
 flask run --port 5001
-
-# Run tests
-pytest
-
-# Run Celery worker
-celery -A app.http.app:celery worker --loglevel=info
 ```
 
-### Frontend (Vue 3)
+Run tests:
+
+```bash
+cd api
+pytest
+```
+
+### Frontend
 
 ```bash
 cd ui
 npm install
 npm run serve
+```
 
-# Build for production
+Vite serves the frontend on port `5173` by default and proxies `/api` to `http://localhost:5001`.
+
+Useful frontend commands:
+
+```bash
+cd ui
+npm run type-check
+npm run lint
 npm run build
+npm run test:unit -- --run
 ```
 
 ---
 
-## 📄 License
+## Configuration
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Backend environment
 
----
+Copy `api/.env.example` to `api/.env` and set at least one LLM provider key plus the required database and Redis settings.
 
-## 🙏 Acknowledgments
+### Docker environment
 
-- [LangChain](https://github.com/langchain-ai/langchain) - LLM orchestration framework
-- [LangGraph](https://github.com/langchain-ai/langgraph) - Agent workflow engine
-- [Weaviate](https://github.com/weaviate/weaviate) - Vector database
-- [Vue 3](https://github.com/vuejs/core) - Progressive JavaScript framework
-- [Flask](https://github.com/pallets/flask) - Python web framework
+If you need to customize ports, container passwords, or other infrastructure settings, use the Docker configuration documented in [docker/README.md](docker/README.md).
 
----
+### Key references
 
-## 📞 Contact & Support
-
-- **GitHub Issues**: [Report bugs or request features](https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents/issues)
-- **Documentation**: [DeepWiki](https://deepwiki.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents)
-- **Online Demo**: http://82.157.66.198/
+- [api/.env.example](api/.env.example)
+- [docker/README.md](docker/README.md)
+- [docker/SECURITY.md](docker/SECURITY.md)
+- [CLAUDE.md](CLAUDE.md)
 
 ---
 
-## 🔒 Security Acknowledgements
+## Documentation
 
-Special thanks to Rui Yang and Haoyu Wang (Johns Hopkins University) for responsibly reporting a Host Header poisoning issue in the built-in tool icon URL construction and helping improve the security of this project.
+- [docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md) - deployment guide
+- [docs/deployment/QUICKSTART_GUIDE.md](docs/deployment/QUICKSTART_GUIDE.md) - quick start guide
+- [api/README.md](api/README.md) - backend notes
+- [ui/README.md](ui/README.md) - frontend notes
+- [docker/README.md](docker/README.md) - Docker setup
+- [docker/SECURITY.md](docker/SECURITY.md) - security guidance
 
-<div align="center">
+---
 
-**⭐ Star this repo if you find it helpful!**
+## Testing
 
-Made with ❤️ by [Haohao-end](https://github.com/Haohao-end)
+The repository already includes a large automated test suite.
 
-</div>
+- Backend: `cd api && pytest`
+- Frontend: `cd ui && npm run test:unit -- --run`
+
+---
+
+## License
+
+License terms are not declared in a root `LICENSE` file at the moment. Add one if you want the licensing to be explicit.

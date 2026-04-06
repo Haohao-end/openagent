@@ -1,6 +1,13 @@
 import { apiPrefix, httpCode } from '@/config'
+import { getActivePinia } from 'pinia'
 import router from '@/router'
 import { useCredentialStore } from '@/stores/credential'
+import {
+  clearStoredCredential,
+  getCredentialAccessToken,
+  getStoredCredential,
+  type CredentialLike,
+} from '@/utils/auth'
 import { createRequestError, getErrorMessage, isRequestError } from '@/utils/error'
 
 // 1.超时时间为100s
@@ -183,11 +190,31 @@ const resolveApiUrl = (url: string) => {
   return `${apiPrefix}${url.startsWith('/') ? url : `/${url}`}`
 }
 
+const resolveCredentialContext = (): {
+  credential: CredentialLike | null
+  clearCredential: () => void
+} => {
+  const activePinia = getActivePinia()
+  if (!activePinia) {
+    return {
+      credential: getStoredCredential(),
+      clearCredential: clearStoredCredential,
+    }
+  }
+
+  const credentialStore = useCredentialStore(activePinia)
+  return {
+    credential: credentialStore.credential,
+    clearCredential: () => credentialStore.clear(),
+  }
+}
+
 // 4.封装基础的fetch请求
 const baseFetch = async <T>(url: string, fetchOptions: FetchOptionType): Promise<T> => {
   const options = buildRequestOptions(fetchOptions)
-  const { credential, clear: clearCredential } = useCredentialStore()
-  const accessToken = credential.access_token
+  const { credential, clearCredential } = resolveCredentialContext()
+  const accessToken = getCredentialAccessToken(credential)
+
   if (accessToken) {
     options.headers.set('Authorization', `Bearer ${accessToken}`)
   }
@@ -406,8 +433,8 @@ export const ssePost = async <TData = unknown, TResponse = unknown>(
   onData: (data: StreamEventPayload<TData>) => void,
 ): Promise<TResponse | void> => {
   const options = buildRequestOptions(fetchOptions, 'POST')
-  const { credential, clear: clearCredential } = useCredentialStore()
-  const accessToken = credential.access_token
+  const { credential, clearCredential } = resolveCredentialContext()
+  const accessToken = getCredentialAccessToken(credential)
   if (accessToken) {
     options.headers.set('Authorization', `Bearer ${accessToken}`)
   }
@@ -482,8 +509,8 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
     },
   }
 
-  const { credential, clear: clearCredential } = useCredentialStore()
-  const accessToken = credential.access_token
+  const { credential, clearCredential } = resolveCredentialContext()
+  const accessToken = getCredentialAccessToken(credential)
   if (accessToken) {
     mergedOptions.headers.Authorization = `Bearer ${accessToken}`
   }
@@ -514,10 +541,15 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
       }
 
       const response: unknown = xhr.response
+
+      // 添加调试日志
+      console.log('[Upload] Response:', response)
+
       if (!isApiResponse(response)) {
+        console.error('[Upload] Invalid response format:', response)
         reject(
           createRequestError({
-            message: '上传失败',
+            message: '上传失败: 响应格式错误',
             status: xhr.status,
             response,
           }),
@@ -549,6 +581,16 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
           code: response.code,
           status: xhr.status,
           response,
+        }),
+      )
+    }
+
+    xhr.onerror = () => {
+      console.error('[Upload] Network error')
+      reject(
+        createRequestError({
+          message: '网络错误',
+          status: xhr.status,
         }),
       )
     }

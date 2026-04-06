@@ -90,6 +90,8 @@ class GetDatasetsWithPageResp(Schema):
     document_count = fields.Integer(dump_default=0)
     related_app_count = fields.Integer(dump_default=0)
     character_count = fields.Integer(dump_default=0)
+    creator_name = fields.String(dump_default="")
+    creator_avatar = fields.String(dump_default="")
     upload_at = fields.Integer(dump_default=0)
     updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
@@ -104,6 +106,8 @@ class GetDatasetsWithPageResp(Schema):
             "document_count": data.document_count,
             "related_app_count": data.related_app_count,
             "character_count": data.character_count,
+            "creator_name": data.account.name if data.account else "",
+            "creator_avatar": data.account.avatar if data.account else "",
             "upload_at": datetime_to_timestamp(data.updated_at),
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),

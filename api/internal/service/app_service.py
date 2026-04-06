@@ -1,22 +1,18 @@
-import io
 import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Generator, TYPE_CHECKING
-from uuid import UUID
-import requests
-from flask import current_app
+from uuid import UUID, uuid4
+from flask import Flask, current_app, has_app_context
 from injector import inject
-from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
+from langchain_core.messages import AIMessage, trim_messages
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableParallel
 from internal.entity.audio_entity import ALLOWED_AUDIO_VOICES
 from redis import Redis
 from sqlalchemy import func, desc
 from sqlalchemy.orm import joinedload, selectinload
-from werkzeug.datastructures import FileStorage
 from internal.core.agent.agents import FunctionCallAgent, AgentQueueManager, ReACTAgent
 from internal.core.agent.entities.agent_entity import AgentConfig
 from internal.core.agent.entities.queue_entity import QueueEvent
@@ -26,7 +22,6 @@ from internal.core.tools.api_tools.providers import ApiProviderManager
 from internal.core.tools.builtin_tools.providers import BuiltinProviderManager
 from internal.entity.ai_entity import OPTIMIZE_PROMPT_TEMPLATE
 from internal.entity.app_entity import AppStatus, AppConfigType, DEFAULT_APP_CONFIG
-from internal.entity.app_entity import GENERATE_ICON_PROMPT_TEMPLATE
 from internal.entity.conversation_entity import InvokeFrom, MessageStatus
 from internal.entity.dataset_entity import RetrievalSource
 from internal.exception import NotFoundException, ForbiddenException, ValidateErrorException, FailException
@@ -49,6 +44,7 @@ from internal.schema.app_schema import (
     GetPublishHistoriesWithPageReq,
     GetDebugConversationMessagesWithPageReq,
 )
+from internal.task.app_task import sync_public_app_registry
 from pkg.paginator import Paginator
 from pkg.sqlalchemy import SQLAlchemy
 from .app_config_service import AppConfigService
@@ -56,6 +52,7 @@ from .base_service import BaseService
 from .conversation_service import ConversationService
 from .cos_service import CosService
 from .language_model_service import LanguageModelService
+from .public_agent_registry_service import PublicAgentRegistryService
 from .retrieval_service import RetrievalService
 from .icon_generator_service import IconGeneratorService
 from ..core.language_model.entities.model_entity import ModelParameterType, ModelFeature
@@ -78,6 +75,7 @@ class AppService(BaseService):
     language_model_service: LanguageModelService
     builtin_provider_manager: BuiltinProviderManager
     icon_generator_service: IconGeneratorService
+    public_agent_registry_service: PublicAgentRegistryService | None = None
     AUTO_CREATE_DEFAULT_TOOLS = [
         {
             "type": "builtin_tool",
@@ -101,6 +99,39 @@ class AppService(BaseService):
             },
         },
     ]
+
+    @classmethod
+    def _enqueue_public_app_registry_sync(cls, app_id: UUID) -> None:
+        """后台同步公共Agent索引，失败时仅记录日志，不阻塞主流程。"""
+        try:
+            normalized_app_id = str(app_id)
+            apply_async = getattr(sync_public_app_registry, "apply_async", None)
+            if callable(apply_async):
+                apply_async(
+                    args=(normalized_app_id,),
+                    ignore_result=True,
+                    retry=False,
+                )
+                return
+
+            sync_public_app_registry.delay(normalized_app_id)
+        except Exception:
+            logging.exception("公共Agent索引同步任务入队失败: app_id=%s", app_id)
+
+    def _sync_public_app_registry_after_unpublish(self, app_id: UUID) -> None:
+        """取消发布后优先执行本地索引移除，失败时再退回异步任务同步。"""
+        if not self.public_agent_registry_service:
+            return
+
+        remove_public_app = getattr(self.public_agent_registry_service, "remove_public_app", None)
+        if callable(remove_public_app):
+            try:
+                remove_public_app(app_id)
+                return
+            except Exception:
+                logging.exception("公共Agent索引移除失败，改为异步同步: app_id=%s", app_id)
+
+        self._enqueue_public_app_registry_sync(app_id)
 
     @classmethod
     def _normalize_opening_questions(cls, questions: list[Any]) -> list[str]:
@@ -135,7 +166,7 @@ class AppService(BaseService):
 
         return normalized_questions
 
-    def auto_create_app(self, name: str, description: str, account_id: UUID) -> None:
+    def auto_create_app(self, name: str, description: str, account_id: UUID) -> App:
         """根据传递的应用名称、描述、账号id利用AI创建一个Agent智能体"""
         name = (name or "").strip()
         description = (description or "").strip()
@@ -148,26 +179,18 @@ class AppService(BaseService):
             metadata={},
         )
 
-        # 2.创建DallEApiWrapper包装器
-        dalle_api_wrapper = DallEAPIWrapper(model="dall-e-3", size="1024x1024")
-
-        # 3.构建生成icon链
-        generate_icon_chain = ChatPromptTemplate.from_template(
-            GENERATE_ICON_PROMPT_TEMPLATE
-        ) | llm | StrOutputParser() | dalle_api_wrapper.run
-
-        # 4.生成预设prompt链
+        # 2.生成预设prompt链
         generate_preset_prompt_chain = ChatPromptTemplate.from_messages([
             ("system", OPTIMIZE_PROMPT_TEMPLATE),
             ("human", "应用名称: {name}\n\n应用描述: {description}")
         ]) | llm | StrOutputParser()
 
-        # 5.创建并行链同时执行两条链
-        generate_app_config_chain = RunnableParallel({
-            "icon": generate_icon_chain,
-            "preset_prompt": generate_preset_prompt_chain,
-        })
-        app_config = generate_app_config_chain.invoke({"name": name, "description": description})
+        app_config = {
+            "preset_prompt": generate_preset_prompt_chain.invoke({
+                "name": name,
+                "description": description,
+            })
+        }
 
         # 5.1 自动生成对话开场白与开场建议问题
         opening_statement = (description or "").strip()
@@ -201,19 +224,13 @@ class AppService(BaseService):
             for tool in self.AUTO_CREATE_DEFAULT_TOOLS
         ]
 
-        # 6.将图片下载到本地后上传到腾讯云cos中
-        icon_response = requests.get(app_config.get("icon"))
-        if icon_response.status_code == 200:
-            icon_content = icon_response.content
-        else:
-            raise FailException("生成应用icon图标出错")
-        account = self.db.session.query(Account).get(account_id)
-        upload_file = self.cos_service.upload_file(
-            FileStorage(io.BytesIO(icon_content), filename="icon.png"),
-            True,
-            account,
+        # 6.使用共享图标服务生成并上传应用图标
+        icon = self.icon_generator_service.generate_icon(
+            name=name,
+            description=description or "",
         )
-        icon = self.cos_service.get_file_url(upload_file.key)
+
+        account = self.db.session.query(Account).get(account_id)
 
         # 7.开启数据库自动提交上下文
         with self.db.auto_commit():
@@ -250,6 +267,9 @@ class AppService(BaseService):
             # 10.更新应用配置id
             app.draft_app_config_id = app_config_version.id
 
+        # 11.返回创建的应用
+        return app
+
     def create_app(self, req: CreateAppReq, account: Account) -> App:
         """创建Agent应用服务"""
         # 1. 如果用户未提供图标，自动生成图标
@@ -264,8 +284,8 @@ class AppService(BaseService):
                 logging.info(f"自动生成图标成功: {icon_url}")
             except Exception as e:
                 logging.error(f"自动生成图标失败: {str(e)}")
-                # 如果生成失败，使用默认图标
-                icon_url = "https://picsum.photos/400"
+                # 如果生成失败，使用默认图标 - 使用一个彩色的SVG图标
+                icon_url = self._generate_default_icon(req.name.data)
 
         # 2.开启数据库自动提交上下文
         with self.db.auto_commit():
@@ -497,6 +517,8 @@ class AppService(BaseService):
             **draft_app_config_copy,
         )
 
+        if self.public_agent_registry_service:
+            self._enqueue_public_app_registry_sync(app.id)
         logging.info(f"应用已发布: app_id={app_id}, share_to_square={share_to_square}")
         return app
 
@@ -518,15 +540,9 @@ class AppService(BaseService):
             published_at=None,  # 清空发布时间
         )
 
+        if self.public_agent_registry_service:
+            self._sync_public_app_registry_after_unpublish(app.id)
         logging.info(f"应用已取消发布并从应用广场移除: app_id={app_id}")
-        return app
-
-        # 4.删除应用关联的知识库信息
-        with self.db.auto_commit():
-            self.db.session.query(AppDatasetJoin).filter(
-                AppDatasetJoin.app_id == app_id,
-            ).delete()
-
         return app
 
     def get_publish_histories_with_page(
@@ -551,6 +567,40 @@ class AppService(BaseService):
         )
 
         return app_config_versions, paginator
+
+    def get_versions(self, app_id: UUID, account: Account) -> list[AppConfigVersion]:
+        """获取指定应用的版本对比数据，包含当前草稿和全部发布历史。"""
+        app = self.get_app(app_id, account)
+        display_config_loader = getattr(self.app_config_service, "get_version_display_config", None)
+
+        draft_version = app.draft_app_config
+        draft_version.is_current_published = False
+        if callable(display_config_loader):
+            draft_version.display_config = display_config_loader(draft_version)
+
+        published_versions = (
+            self.db.session.query(AppConfigVersion)
+            .filter(
+                AppConfigVersion.app_id == app_id,
+                AppConfigVersion.config_type == AppConfigType.PUBLISHED.value,
+            )
+            .order_by(desc("version"))
+            .all()
+        )
+
+        current_published_version = None
+        if app.status == AppStatus.PUBLISHED.value and published_versions:
+            current_published_version = published_versions[0].version
+
+        for published_version in published_versions:
+            published_version.is_current_published = (
+                current_published_version is not None
+                and published_version.version == current_published_version
+            )
+            if callable(display_config_loader):
+                published_version.display_config = display_config_loader(published_version)
+
+        return [draft_version, *published_versions]
 
     def fallback_history_to_draft(
             self,
@@ -656,6 +706,185 @@ class AppService(BaseService):
 
         return conversation
 
+    def _build_runtime_tools(
+        self,
+        app_id: UUID,
+        account: Account,
+        draft_app_config: dict[str, Any],
+        flask_app: Flask | None = None,
+    ) -> list[Any]:
+        """根据应用草稿配置构建运行时工具列表"""
+        tools = self.app_config_service.get_langchain_tools_by_tools_config(draft_app_config["tools"])
+
+        if draft_app_config["datasets"]:
+            runtime_flask_app = flask_app
+            if runtime_flask_app is None and has_app_context():
+                runtime_flask_app = current_app._get_current_object()
+            if runtime_flask_app is None:
+                raise FailException("构建知识库检索工具失败: 缺少 Flask application context")
+            dataset_retrieval = self.retrieval_service.create_langchain_tool_from_search(
+                flask_app=runtime_flask_app,
+                dataset_ids=[dataset["id"] for dataset in draft_app_config["datasets"]],
+                account_id=account.id,
+                retrieval_source=RetrievalSource.APP.value,
+                **draft_app_config["retrieval_config"],
+            )
+            tools.append(dataset_retrieval)
+
+        if draft_app_config["workflows"]:
+            workflow_tools = self.app_config_service.get_langchain_tools_by_workflow_ids(
+                [workflow["id"] for workflow in draft_app_config["workflows"]]
+            )
+            tools.extend(workflow_tools)
+
+        return tools
+
+    @classmethod
+    def _create_runtime_agent(
+        cls,
+        llm: Any,
+        account: Account,
+        draft_app_config: dict[str, Any],
+        tools: list[Any],
+    ) -> FunctionCallAgent | ReACTAgent:
+        """根据运行时配置创建Agent实例"""
+        agent_class = FunctionCallAgent if ModelFeature.TOOL_CALL.value in llm.features else ReACTAgent
+        return agent_class(
+            llm=llm,
+            agent_config=AgentConfig(
+                user_id=account.id,
+                invoke_from=InvokeFrom.DEBUGGER.value,
+                preset_prompt=draft_app_config["preset_prompt"],
+                enable_long_term_memory=draft_app_config["long_term_memory"]["enable"],
+                tools=tools,
+                review_config=draft_app_config["review_config"],
+            ),
+        )
+
+    def _build_compare_history_prompt_messages(
+        self,
+        llm: Any,
+        history_entries: list[dict[str, str]],
+        message_limit: int,
+        max_token_limit: int = 2000,
+    ) -> list[Any]:
+        """根据前端传递的历史问答构建对比调试上下文"""
+        if message_limit <= 0 or not history_entries:
+            return []
+
+        prompt_messages = []
+        for history_item in history_entries[-message_limit:]:
+            query = str(history_item.get("query", "")).strip()
+            answer = str(history_item.get("answer", "")).strip()
+            if not query or not answer:
+                continue
+            prompt_messages.extend([
+                llm.convert_to_human_message(query),
+                AIMessage(content=answer),
+            ])
+
+        if not prompt_messages:
+            return []
+
+        try:
+            return trim_messages(
+                messages=prompt_messages,
+                max_tokens=max_token_limit,
+                token_counter=llm,
+                strategy="last",
+                start_on="human",
+                end_on="ai",
+            )
+        except NotImplementedError:
+            token_buffer_memory = TokenBufferMemory(
+                db=self.db,
+                conversation=None,
+                model_instance=llm,
+            )
+            return trim_messages(
+                messages=prompt_messages,
+                max_tokens=max_token_limit,
+                token_counter=token_buffer_memory._fallback_token_counter,
+                strategy="last",
+                start_on="human",
+                end_on="ai",
+            )
+
+    def _get_debug_long_term_memory_snapshot(self, app: App, account: Account) -> str:
+        """获取当前应用已有调试会话的长期记忆快照，不主动创建新会话"""
+        if not app.debug_conversation_id:
+            return ""
+
+        debug_conversation = self.db.session.query(Conversation).filter(
+            Conversation.id == app.debug_conversation_id,
+            Conversation.app_id == app.id,
+            Conversation.created_by == account.id,
+            Conversation.invoke_from == InvokeFrom.DEBUGGER.value,
+            Conversation.is_deleted == False,
+        ).one_or_none()
+
+        return debug_conversation.summary if debug_conversation else ""
+
+    def _stream_agent_events(
+        self,
+        app_id: UUID,
+        account: Account,
+        draft_app_config: dict[str, Any],
+        llm: Any,
+        query: str,
+        image_urls: list[str],
+        history: list[Any],
+        long_term_memory: str,
+        conversation_id: str = "",
+        message_id: str = "",
+        agent_thoughts: dict[str, Any] | None = None,
+    ) -> Generator[str, None, None]:
+        """统一流式执行应用Agent并输出事件"""
+        tools = self._build_runtime_tools(app_id, account, draft_app_config)
+        agent = self._create_runtime_agent(llm, account, draft_app_config, tools)
+        agent_thoughts = agent_thoughts if agent_thoughts is not None else {}
+
+        for agent_thought in agent.stream({
+            "messages": [llm.convert_to_human_message(query, image_urls)],
+            "history": history,
+            "long_term_memory": long_term_memory,
+        }):
+            event_id = str(agent_thought.id)
+
+            if agent_thought.event != QueueEvent.PING.value:
+                if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
+                    if event_id not in agent_thoughts:
+                        agent_thoughts[event_id] = agent_thought
+                    else:
+                        agent_thoughts[event_id] = agent_thoughts[event_id].model_copy(update={
+                            "thought": agent_thoughts[event_id].thought + agent_thought.thought,
+                            "message": agent_thought.message,
+                            "message_token_count": agent_thought.message_token_count,
+                            "message_unit_price": agent_thought.message_unit_price,
+                            "message_price_unit": agent_thought.message_price_unit,
+                            "answer": agent_thoughts[event_id].answer + agent_thought.answer,
+                            "answer_token_count": agent_thought.answer_token_count,
+                            "answer_unit_price": agent_thought.answer_unit_price,
+                            "answer_price_unit": agent_thought.answer_price_unit,
+                            "total_token_count": agent_thought.total_token_count,
+                            "total_price": agent_thought.total_price,
+                            "latency": agent_thought.latency,
+                        })
+                else:
+                    agent_thoughts[event_id] = agent_thought
+
+            data = {
+                **agent_thought.model_dump(include={
+                    "event", "thought", "observation", "tool", "tool_input", "answer",
+                    "total_token_count", "total_price", "latency",
+                }),
+                "id": event_id,
+                "conversation_id": conversation_id,
+                "message_id": message_id,
+                "task_id": str(agent_thought.task_id),
+            }
+            yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
+
 
     def debug_chat(self, app_id: UUID, req: DebugChatReq, account: Account) -> Generator:
         """根据传递的应用id+提问query向特定的应用发起会话调试"""
@@ -699,91 +928,20 @@ class AppService(BaseService):
             message_limit=draft_app_config["dialog_round"],
         )
 
-        # 7.将草稿配置中的tools转换成LangChain工具
-        tools = self.app_config_service.get_langchain_tools_by_tools_config(draft_app_config["tools"])
-
-        # 8.检测是否关联了知识库
-        if draft_app_config["datasets"]:
-            # 9.构建LangChain知识库检索工具
-            dataset_retrieval = self.retrieval_service.create_langchain_tool_from_search(
-                flask_app=current_app._get_current_object(),
-                dataset_ids=[dataset["id"] for dataset in draft_app_config["datasets"]],
-                account_id=account.id,
-                retrieval_source=RetrievalSource.APP.value,
-                **draft_app_config["retrieval_config"],
-            )
-            tools.append(dataset_retrieval)
-
-        # 10.检测是否关联工作流 如果关联了工作流则将工作流构建成工具添加到tools中
-        if draft_app_config["workflows"]:
-            workflow_tools = self.app_config_service.get_langchain_tools_by_workflow_ids(
-                [workflow["id"] for workflow in draft_app_config["workflows"]]
-            )
-            tools.extend(workflow_tools)
-
-        # 10.根据LLM是否支持tool_call决定使用不同的Agent
-        agent_class = FunctionCallAgent if ModelFeature.TOOL_CALL.value in llm.features else ReACTAgent
-        agent = agent_class(
-            llm=llm,
-            agent_config=AgentConfig(
-                user_id=account.id,
-                invoke_from=InvokeFrom.DEBUGGER.value,
-                preset_prompt=draft_app_config["preset_prompt"],
-                enable_long_term_memory=draft_app_config["long_term_memory"]["enable"],
-                tools=tools,
-                review_config=draft_app_config["review_config"],
-            ),
-        )
-
         agent_thoughts = {}
-        for agent_thought in agent.stream({
-            "messages": [llm.convert_to_human_message(req.query.data, req.image_urls.data)],
-            "history": history,
-            "long_term_memory": debug_conversation.summary,
-        }):
-            # 11.提取thought以及answer
-            event_id = str(agent_thought.id)
-
-            # 12.将数据填充到agent_thought，便于存储到数据库服务中
-            if agent_thought.event != QueueEvent.PING.value:
-                # 13.除了agent_message数据为叠加，其他均为覆盖
-                if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
-                    if event_id not in agent_thoughts:
-                        # 14.初始化智能体消息事件
-                        agent_thoughts[event_id] = agent_thought
-                    else:
-                        # 15.叠加智能体消息
-                        agent_thoughts[event_id] = agent_thoughts[event_id].model_copy(update={
-                            "thought": agent_thoughts[event_id].thought + agent_thought.thought,
-                            # 消息相关数据
-                            "message": agent_thought.message,
-                            "message_token_count": agent_thought.message_token_count,
-                            "message_unit_price": agent_thought.message_unit_price,
-                            "message_price_unit": agent_thought.message_price_unit,
-                            # 答案相关数据
-                            "answer": agent_thoughts[event_id].answer + agent_thought.answer,
-                            "answer_token_count": agent_thought.answer_token_count,
-                            "answer_unit_price": agent_thought.answer_unit_price,
-                            "answer_price_unit": agent_thought.answer_price_unit,
-                            # Agent推理统计相关
-                            "total_token_count": agent_thought.total_token_count,
-                            "total_price": agent_thought.total_price,
-                            "latency": agent_thought.latency,
-                        })
-                else:
-                    # 16.处理其他类型事件的消息
-                    agent_thoughts[event_id] = agent_thought
-            data = {
-                **agent_thought.model_dump(include={
-                    "event", "thought", "observation", "tool", "tool_input", "answer",
-                    "total_token_count", "total_price", "latency",
-                }),
-                "id": event_id,
-                "conversation_id": str(debug_conversation.id),
-                "message_id": str(message.id),
-                "task_id": str(agent_thought.task_id),
-            }
-            yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
+        yield from self._stream_agent_events(
+            app_id=app_id,
+            account=account,
+            draft_app_config=draft_app_config,
+            llm=llm,
+            query=req.query.data,
+            image_urls=req.image_urls.data,
+            history=history,
+            long_term_memory=debug_conversation.summary,
+            conversation_id=str(debug_conversation.id),
+            message_id=str(message.id),
+            agent_thoughts=agent_thoughts,
+        )
 
         # 17.将消息以及推理过程添加到数据库
         self.conversation_service.save_agent_thoughts(
@@ -795,12 +953,53 @@ class AppService(BaseService):
             agent_thoughts=[agent_thought for agent_thought in agent_thoughts.values()],
         )
 
+    def prompt_compare_chat(self, app_id: UUID, req: Any, account: Account) -> Generator[str, None, None]:
+        """根据传递的应用id发起无状态提示词对比调试"""
+        app = self.get_app(app_id, account)
+        draft_app_config = self.get_draft_app_config(app_id, account)
+        overrides = self._validate_draft_app_config(
+            {
+                "preset_prompt": req.preset_prompt.data,
+                "model_config": req.model_config.data,
+            },
+            account,
+        )
+        draft_app_config.update(overrides)
+
+        llm = self.language_model_service.load_language_model(draft_app_config.get("model_config", {}))
+        history = self._build_compare_history_prompt_messages(
+            llm=llm,
+            history_entries=req.history.data,
+            message_limit=draft_app_config["dialog_round"],
+        )
+        long_term_memory = ""
+        if draft_app_config["long_term_memory"]["enable"]:
+            long_term_memory = self._get_debug_long_term_memory_snapshot(app, account)
+
+        yield from self._stream_agent_events(
+            app_id=app_id,
+            account=account,
+            draft_app_config=draft_app_config,
+            llm=llm,
+            query=req.query.data,
+            image_urls=[],
+            history=history,
+            long_term_memory=long_term_memory,
+            conversation_id=req.lane_id.data.strip() if req.lane_id.data else str(uuid4()),
+            message_id=str(uuid4()),
+        )
+
     def stop_debug_chat(self, app_id: UUID, task_id: UUID, account: Account) -> None:
         """根据传递的应用id+任务id+账号，停止某个应用的调试会话，中断流式事件"""
         # 1.获取应用信息并校验权限
         self.get_app(app_id, account)
 
         # 2.调用智能体队列管理器停止特定任务
+        AgentQueueManager.set_stop_flag(task_id, InvokeFrom.DEBUGGER.value, account.id)
+
+    def stop_prompt_compare_chat(self, app_id: UUID, task_id: UUID, account: Account) -> None:
+        """根据传递的应用id+任务id停止某个提示词对比调试会话"""
+        self.get_app(app_id, account)
         AgentQueueManager.set_stop_flag(task_id, InvokeFrom.DEBUGGER.value, account.id)
 
     def get_debug_conversation_messages_with_page(
@@ -867,7 +1066,7 @@ class AppService(BaseService):
                 "status": app.status
             },
             "is_public": app.is_public,
-            "category": app.category,
+            "category": getattr(app, "category", "general"),
         }
 
     def regenerate_web_app_token(self, app_id: UUID, account: Account) -> str:
@@ -1017,8 +1216,8 @@ class AppService(BaseService):
         # 5.校验preset_prompt
         if "preset_prompt" in draft_app_config:
             preset_prompt = draft_app_config["preset_prompt"]
-            if not isinstance(preset_prompt, str) or len(preset_prompt) > 2000:
-                raise ValidateErrorException("人设与回复逻辑必须是字符串，长度在0-2000个字符")
+            if not isinstance(preset_prompt, str) or len(preset_prompt) > 5000:
+                raise ValidateErrorException("人设与回复逻辑必须是字符串，长度在0-5000个字符")
 
         # 6.校验tools工具
         if "tools" in draft_app_config:
@@ -1290,3 +1489,48 @@ class AppService(BaseService):
                     raise ValidateErrorException("输入审核预设响应不能为空")
 
         return draft_app_config
+
+    def _generate_default_icon(self, app_name: str) -> str:
+        """
+        生成一个默认的彩色SVG图标
+
+        Args:
+            app_name: 应用名称
+
+        Returns:
+            str: 图标的COS URL或数据URI
+        """
+        import hashlib
+
+        # 使用应用名称生成一个稳定的颜色
+        hash_obj = hashlib.md5(app_name.encode())
+        hash_hex = hash_obj.hexdigest()
+
+        # 从哈希值中提取RGB颜色
+        r = int(hash_hex[0:2], 16)
+        g = int(hash_hex[2:4], 16)
+        b = int(hash_hex[4:6], 16)
+
+        # 确保颜色足够亮
+        brightness = (r * 299 + g * 587 + b * 114) / 1000
+        if brightness < 100:
+            r = min(255, r + 100)
+            g = min(255, g + 100)
+            b = min(255, b + 100)
+
+        # 获取应用名称的首字母
+        first_char = app_name[0].upper() if app_name else "A"
+
+        # 创建SVG图标
+        svg_content = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="200" height="200" fill="rgb({r},{g},{b})" rx="40"/>
+  <text x="100" y="120" font-size="100" font-weight="bold" fill="white" text-anchor="middle" font-family="Arial, sans-serif">{first_char}</text>
+</svg>'''
+
+        # 将SVG转换为数据URI
+        import base64
+        svg_bytes = svg_content.encode('utf-8')
+        svg_base64 = base64.b64encode(svg_bytes).decode('utf-8')
+        data_uri = f"data:image/svg+xml;base64,{svg_base64}"
+
+        return data_uri

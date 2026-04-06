@@ -9,6 +9,8 @@ export type GetDatasetsWithPageResponse = BasePaginatorResponse<{
   document_count: number
   character_count: number
   related_app_count: number
+  creator_name: string
+  creator_avatar: string
   updated_at: number
   created_at: number
 }>

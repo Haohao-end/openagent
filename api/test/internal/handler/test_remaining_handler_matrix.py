@@ -25,6 +25,7 @@ def _current_user_stub():
         last_login_at=datetime(2024, 1, 1, 0, 0, 0),
         last_login_ip="127.0.0.1",
         created_at=datetime(2024, 1, 1, 0, 0, 0),
+        is_password_set=True,
     )
 
 
@@ -35,6 +36,20 @@ def _assert_ping(data: dict):
 def _assert_account(data: dict):
     assert data["id"] == APP_ID
     assert data["email"] == "tester@example.com"
+    assert data["last_login_location"] == "上海市"
+
+
+def _assert_account_sessions(data: dict):
+    assert data["session_capable"] is True
+    assert data["current_session_id"] == APP_ID
+    assert data["sessions"][0]["current"] is True
+    assert data["sessions"][0]["location"] == "上海市"
+
+
+def _assert_account_login_history(data: dict):
+    assert data["history"][0]["status"] == "active"
+    assert data["history"][0]["unusual_ip"] is True
+    assert data["history"][0]["location"] == "上海市"
 
 
 def _assert_app_published_config(data: dict):
@@ -110,7 +125,10 @@ JSON_CASES = [
         "url": "/account",
         "kwargs": {},
         "raw_patches": [("internal.handler.account_handler.current_user", _current_user_stub())],
-        "patches": [],
+        "patches": [
+            ("internal.service.account_service.AccountService.get_account_oauth_bindings", []),
+            ("internal.service.account_service.AccountService.resolve_ip_location", "上海市"),
+        ],
         "assertion": _assert_account,
     },
     {
@@ -120,6 +138,73 @@ JSON_CASES = [
         "kwargs": {"json": {}},
         "raw_patches": [("internal.handler.auth_handler.logout_user", lambda: None)],
         "patches": [],
+    },
+    {
+        "name": "account_sessions_success",
+        "method": "get",
+        "url": "/account/sessions",
+        "kwargs": {},
+        "raw_patches": [
+            ("internal.handler.account_handler.current_user", _current_user_stub()),
+            ("internal.handler.account_handler.g", SimpleNamespace(current_account_session=SimpleNamespace(id=UUID(APP_ID)))),
+        ],
+        "patches": [
+            (
+                "internal.service.account_service.AccountService.get_account_sessions",
+                [
+                    {
+                        "id": APP_ID,
+                        "current": True,
+                        "device_name": "Windows · Chrome",
+                        "user_agent": "Mozilla/5.0",
+                        "ip": "127.0.0.1",
+                        "location": "上海市",
+                        "created_at": datetime(2024, 1, 1, 0, 0, 0),
+                        "last_active_at": datetime(2024, 1, 1, 1, 0, 0),
+                        "expires_at": datetime(2024, 1, 31, 0, 0, 0),
+                    }
+                ],
+            )
+        ],
+        "assertion": _assert_account_sessions,
+    },
+    {
+        "name": "account_login_history_success",
+        "method": "get",
+        "url": "/account/login-history",
+        "kwargs": {},
+        "raw_patches": [
+            ("internal.handler.account_handler.current_user", _current_user_stub()),
+            ("internal.handler.account_handler.g", SimpleNamespace(current_account_session=SimpleNamespace(id=UUID(APP_ID)))),
+        ],
+        "patches": [
+            (
+                "internal.service.account_service.AccountService.get_account_login_history",
+                {
+                    "history": [
+                        {
+                            "id": APP_ID,
+                            "current": True,
+                            "legacy": False,
+                            "device_name": "Windows · Chrome",
+                            "user_agent": "Mozilla/5.0",
+                            "ip": "127.0.0.1",
+                            "location": "上海市",
+                            "status": "active",
+                            "unusual_ip": True,
+                            "created_at": datetime(2024, 1, 1, 0, 0, 0),
+                            "last_active_at": datetime(2024, 1, 1, 1, 0, 0),
+                            "expires_at": datetime(2024, 1, 31, 0, 0, 0),
+                            "revoked_at": None,
+                        }
+                    ],
+                    "total": 1,
+                    "current_page": 1,
+                    "page_size": 20,
+                },
+            )
+        ],
+        "assertion": _assert_account_login_history,
     },
     {
         "name": "get_published_config_success",

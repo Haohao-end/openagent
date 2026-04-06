@@ -2,7 +2,6 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
-import moment from 'moment'
 import {
   getPublicWorkflows,
   forkPublicWorkflow,
@@ -10,14 +9,16 @@ import {
   favoriteWorkflow,
   type PublicWorkflow
 } from '@/services/public-workflow'
-import { getAppCategories, type AppCategory } from '@/services/public-app'
+import { getAppTags, type AppTag } from '@/services/public-app'
 import { getErrorMessage } from '@/utils/error'
+import { formatTimestampShort } from '@/utils/time-formatter'
+import ResourceCardDescription from '@/components/ResourceCardDescription.vue'
 
 const router = useRouter()
 const loading = ref(false)
 const workflows = ref<PublicWorkflow[]>([])
-const categories = ref<AppCategory[]>([])
-const category = ref('all')
+const tags = ref<AppTag[]>([])
+const selectedTags = ref<string[]>([])
 type WorkflowSortBy = 'most_liked' | 'most_favorited' | 'most_forked' | 'latest'
 const sortBy = ref<WorkflowSortBy>('most_liked')
 const searchWord = ref('')
@@ -38,7 +39,7 @@ const loadWorkflows = async () => {
     const res = await getPublicWorkflows({
       current_page: page.value,
       page_size: pageSize.value,
-      category: category.value,
+      tags: selectedTags.value.join(','),
       sort_by: sortBy.value,
       search_word: searchWord.value
     })
@@ -51,12 +52,12 @@ const loadWorkflows = async () => {
   }
 }
 
-const loadCategories = async () => {
+const loadTags = async () => {
   try {
-    const res = await getAppCategories()
-    categories.value = res.data.categories
+    const res = await getAppTags()
+    tags.value = res.data.tags
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, '加载分类列表失败'))
+    Message.error(getErrorMessage(error, '加载标签列表失败'))
   }
 }
 
@@ -97,8 +98,55 @@ const handleFavorite = async (workflow: PublicWorkflow) => {
   }
 }
 
+const toggleTag = (tagId: string) => {
+  const index = selectedTags.value.indexOf(tagId)
+  if (index > -1) {
+    selectedTags.value.splice(index, 1)
+  } else {
+    selectedTags.value.push(tagId)
+  }
+  page.value = 1
+  loadWorkflows()
+}
+
+const handleSortChange = (newSort: WorkflowSortBy) => {
+  sortBy.value = newSort
+  page.value = 1
+  loadWorkflows()
+}
+
+const handleSearch = () => {
+  page.value = 1
+  loadWorkflows()
+}
+
+const handlePageChange = (newPage: number) => {
+  page.value = newPage
+  loadWorkflows()
+}
+
+const getDisplayTags = (workflowTags: string[]) => {
+  if (!workflowTags || workflowTags.length === 0) return []
+  return workflowTags.slice(0, 3)
+}
+
+const getTagName = (tagId: string) => {
+  const tag = tags.value.find(t => t.id === tagId)
+  return tag?.name || tagId
+}
+
+const getExtraTagCount = (workflowTags: string[]) => {
+  if (!workflowTags || workflowTags.length <= 3) return 0
+  return workflowTags.length - 3
+}
+
+const getExtraTagNames = (workflowTags: string[]) => {
+  if (!workflowTags || workflowTags.length <= 3) return []
+  return workflowTags.slice(3).map(tagId => getTagName(tagId))
+}
+
 onMounted(() => {
-  loadCategories()
+  loadTags()
   loadWorkflows()
 })
 </script>
@@ -106,41 +154,30 @@ onMounted(() => {
 <template>
   <a-spin :loading="loading" class="block h-full w-full">
     <div class="p-6 flex flex-col h-full">
-      <!-- 顶部标题 -->
       <div class="flex items-center justify-between mb-6">
         <div class="flex items-center gap-2">
-          <a-avatar :size="32" class="bg-purple-700">
+          <a-avatar :size="32" class="bg-blue-700">
             <icon-relation :size="18" />
           </a-avatar>
           <div class="text-lg font-medium text-gray-900">工作流广场</div>
         </div>
       </div>
 
-      <!-- 筛选和排序 - 两行布局 -->
       <div class="flex flex-col gap-4 mb-6">
-        <!-- 第一行：分类标签 -->
         <div class="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+          <span class="text-sm text-gray-500 mr-1 whitespace-nowrap">标签:</span>
           <a
-            class="rounded-lg text-gray-700 px-3 h-8 leading-8 hover:bg-gray-200 transition-all cursor-pointer whitespace-nowrap"
-            :class="{ 'bg-gray-100': category === 'all' }"
-            @click="category = 'all'; page = 1; loadWorkflows()"
+            v-for="tag in tags"
+            :key="tag.id"
+            class="rounded-lg px-3 h-8 leading-8 hover:bg-gray-200 transition-all cursor-pointer whitespace-nowrap text-sm"
+            :class="selectedTags.includes(tag.id) ? 'bg-blue-100 text-blue-700 font-medium' : 'bg-gray-100 text-gray-700'"
+            @click="toggleTag(tag.id)"
           >
-            全部
-          </a>
-          <a
-            v-for="cat in categories"
-            :key="cat.value"
-            class="rounded-lg text-gray-700 px-3 h-8 leading-8 hover:bg-gray-200 transition-all cursor-pointer whitespace-nowrap"
-            :class="{ 'bg-gray-100': category === cat.value }"
-            @click="category = cat.value; page = 1; loadWorkflows()"
-          >
-            {{ cat.label }}
+            {{ tag.name }}
           </a>
         </div>
 
-        <!-- 第二行：排序和搜索 -->
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <!-- 左侧排序选项 - 使用文字链接样式 -->
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-sm text-gray-500 mr-1">排序:</span>
             <a
@@ -148,121 +185,93 @@ onMounted(() => {
               :key="option.value"
               class="text-sm text-gray-600 px-2 h-7 leading-7 hover:text-blue-600 transition-all cursor-pointer whitespace-nowrap"
               :class="{ 'text-blue-600 font-medium': sortBy === option.value }"
-              @click="sortBy = option.value; page = 1; loadWorkflows()"
+              @click="handleSortChange(option.value)"
             >
               {{ option.label }}
             </a>
           </div>
 
-          <!-- 右侧搜索框 -->
           <a-input-search
             v-model="searchWord"
             placeholder="搜索工作流"
             class="w-full sm:w-[240px] bg-white rounded-lg border-gray-300"
-            @search="page = 1; loadWorkflows()"
+            @search="handleSearch"
           />
         </div>
       </div>
 
-      <!-- 工作流列表 -->
       <div class="flex-1 overflow-auto scrollbar-hide">
         <a-row :gutter="[20, 20]">
           <a-col v-for="workflow in workflows" :key="workflow.id" :span="6">
-            <a-card hoverable class="h-full">
-              <button type="button" class="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-lg" @click="handlePreview(workflow)">
-                <!-- 顶部图标和标题 -->
-                <div class="flex items-start gap-3 mb-3">
-                  <a-avatar :size="48" shape="square"><img :src="workflow.icon" :alt="workflow.name" /></a-avatar>
+            <a-card hoverable class="h-full rounded-lg flex flex-col" :body-style="{ padding: '16px' }">
+              <button type="button" class="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-lg flex-1" @click="handlePreview(workflow)">
+                <!-- 顶部工作流名称和标签 -->
+                <div class="flex items-center gap-3 mb-3">
+                  <a-avatar :size="40" shape="square" :image-url="workflow.icon" />
                   <div class="flex-1 min-w-0">
                     <div class="text-base font-bold text-gray-900 truncate">{{ workflow.name }}</div>
-                    <a-tag size="small" class="mt-1">{{ categories.find(c => c.value === workflow.category)?.label || workflow.category }}</a-tag>
+                    <div class="flex items-center gap-1 flex-wrap">
+                      <a-tag v-for="tag in getDisplayTags(workflow.tags)" :key="tag" size="small">
+                        {{ getTagName(tag) }}
+                      </a-tag>
+                      <a-tag v-if="getExtraTagCount(workflow.tags) > 0" size="small" class="cursor-help" :title="getExtraTagNames(workflow.tags).join(', ')">
+                        +{{ getExtraTagCount(workflow.tags) }}
+                      </a-tag>
+                    </div>
                   </div>
                 </div>
 
-                <!-- 描述 -->
-                <div class="text-sm text-gray-600 h-[60px] line-clamp-3 mb-3">{{ workflow.description }}</div>
-
-                <!-- 统计数据 -->
-                <div class="flex items-center gap-4 text-xs text-gray-500 mb-3">
-                  <span class="flex items-center gap-1">
-                    <icon-heart :size="14" />
-                    {{ workflow.like_count }}
-                  </span>
-                  <span class="flex items-center gap-1">
-                    <icon-star :size="14" />
-                    {{ workflow.favorite_count || 0 }}
-                  </span>
-                  <span class="flex items-center gap-1">
-                    <icon-branch :size="14" />
-                    {{ workflow.fork_count }}
-                  </span>
-                </div>
-
-                <!-- 发布者和发布时间 -->
-                <div class="text-xs text-gray-400">
-                  {{ workflow.account_name || '匿名用户' }} · 发布于 {{ workflow.published_at > 0 ? moment(workflow.published_at * 1000).format('YYYY-MM-DD HH:mm') : '未知时间' }}
-                </div>
+                <!-- 工作流描述 -->
+                <resource-card-description :text="workflow.description" />
               </button>
 
-              <!-- 操作按钮 - 顺序：点赞、收藏、Fork -->
-              <div class="flex items-center gap-2 mb-3" @click.stop>
-                <!-- 点赞按钮 -->
-                <a-button
-                  :type="workflow.is_liked ? 'primary' : 'outline'"
-                  size="small"
-                  @click="handleLike(workflow)"
-                >
-                  <template #icon><icon-heart :fill="workflow.is_liked" /></template>
-                </a-button>
+              <!-- 操作按钮 -->
+              <div class="flex items-center gap-2 mt-2 mb-2">
+                <button type="button" class="flex items-center gap-1.5 px-3 h-8 rounded-full transition-all duration-200 hover:scale-105" :class="workflow.is_liked ? 'bg-red-50' : 'bg-gray-50'" @click.stop="handleLike(workflow)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" :fill="workflow.is_liked ? '#ef4444' : 'none'" :stroke="workflow.is_liked ? 'none' : '#ef4444'" stroke-width="2">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                  </svg>
+                  <span :class="workflow.is_liked ? 'text-red-600' : 'text-gray-600'" class="text-xs font-medium">{{ workflow.like_count }}</span>
+                </button>
 
-                <!-- 收藏按钮 -->
-                <a-button
-                  :type="workflow.is_favorited ? 'primary' : 'outline'"
-                  size="small"
-                  @click="handleFavorite(workflow)"
-                >
-                  <template #icon><icon-star :fill="workflow.is_favorited" /></template>
-                </a-button>
+                <button type="button" class="flex items-center gap-1.5 px-3 h-8 rounded-full transition-all duration-200 hover:scale-105" :class="workflow.is_favorited ? 'bg-yellow-50' : 'bg-gray-50'" @click.stop="handleFavorite(workflow)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" :fill="workflow.is_favorited ? '#eab308' : 'none'" :stroke="workflow.is_favorited ? 'none' : '#eab308'" stroke-width="2">
+                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                  </svg>
+                  <span :class="workflow.is_favorited ? 'text-yellow-600' : 'text-gray-600'" class="text-xs font-medium">{{ workflow.favorite_count || 0 }}</span>
+                </button>
 
-                <!-- Fork按钮 -->
-                <a-button
-                  type="primary"
-                  size="small"
-                  @click="handleFork(workflow)"
-                >
-                  <template #icon><icon-branch /></template>
-                  Fork
-                </a-button>
+                <button type="button" class="flex items-center gap-1.5 px-3 h-8 rounded-full transition-all duration-200 hover:scale-105" :class="workflow.is_forked ? 'bg-blue-50' : 'bg-gray-50'" @click.stop="handleFork(workflow)">
+                  <icon-branch :size="16" :style="{ color: workflow.is_forked ? '#3b82f6' : '#9ca3af' }" />
+                  <span :class="workflow.is_forked ? 'text-blue-600' : 'text-gray-600'" class="text-xs font-medium">{{ workflow.fork_count }}</span>
+                </button>
               </div>
 
+              <!-- 发布者和发布时间 -->
+              <div class="flex items-center gap-1.5">
+                <a-avatar :size="18" :image-url="workflow.account_avatar" />
+                <div class="text-xs text-gray-400">{{ workflow.account_name || '匿名用户' }} · 发布于 {{ workflow.published_at > 0 ? formatTimestampShort(workflow.published_at) : '未知时间' }}</div>
+              </div>
             </a-card>
           </a-col>
           <a-col v-if="workflows.length === 0" :span="24"><a-empty description="暂无工作流" class="py-20" /></a-col>
         </a-row>
       </div>
 
-      <!-- 分页 -->
       <div v-if="total > pageSize" class="flex justify-center mt-6">
-        <a-pagination :current="page" :page-size="pageSize" :total="total" show-total @change="(p: number) => { page = p; loadWorkflows() }" />
+        <a-pagination :current="page" :page-size="pageSize" :total="total" show-total @change="handlePageChange" />
       </div>
     </div>
   </a-spin>
 </template>
 
 <style scoped>
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
 .scrollbar-hide {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .scrollbar-hide::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
+  display: none;
 }
 </style>

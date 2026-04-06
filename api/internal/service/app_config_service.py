@@ -110,6 +110,21 @@ class AppConfigService(BaseService):
             app_config
         )
 
+    def get_version_display_config(self, app_config_version: AppConfigVersion) -> dict[str, Any]:
+        """根据传递的版本配置，返回用于前端展示的完整配置结构。"""
+        validate_model_config = self._process_and_validate_model_config(app_config_version.model_config)
+        tools, _ = self._process_and_validate_tools(app_config_version.tools)
+        datasets, _ = self._process_and_validate_datasets(app_config_version.datasets)
+        workflows, _ = self._process_and_validate_workflows(app_config_version.workflows)
+
+        return self._process_and_transformer_app_config(
+            validate_model_config,
+            tools,
+            workflows,
+            datasets,
+            app_config_version,
+        )
+
     def get_langchain_tools_by_tools_config(self, tools_config: list[dict]) -> list[BaseTool]:
         """根据传递的工具配置列表获取langchain工具列表"""
         # 1.循环遍历所有工具配置列表信息

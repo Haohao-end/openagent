@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
+import { defineComponent } from 'vue'
 import WebAppsIndexView from '@/views/web-apps/IndexView.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -162,6 +163,23 @@ const buttonStub = {
   template: '<button v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>',
 }
 
+const chatComposerStub = defineComponent({
+  name: 'ChatComposer',
+  props: {
+    modelValue: { type: String, default: '' },
+  },
+  emits: ['update:modelValue', 'input', 'submit'],
+  template: `
+    <div>
+      <textarea
+        :value="modelValue"
+        @input="$emit('update:modelValue', $event.target.value); $emit('input', $event)"
+      />
+      <button type="button" aria-label="发送消息" @click="$emit('submit')">发送消息</button>
+    </div>
+  `,
+})
+
 describe('web-app chat submit failure', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -191,6 +209,7 @@ describe('web-app chat submit failure', () => {
           DynamicScroller: true,
           DynamicScrollerItem: true,
           'a-button': buttonStub,
+          'chat-composer': chatComposerStub,
           'a-avatar': true,
           'a-empty': true,
           'a-dropdown': true,
@@ -235,5 +254,7 @@ describe('web-app chat submit failure', () => {
     )
     expect(mocks.state.messages?.value).toEqual([])
     expect(mocks.state.query?.value).toBe('你好')
+    expect(mocks.adjustQueryTextareaHeight).toHaveBeenCalled()
+    expect(mocks.state.unpinnedConversations?.value).toEqual([])
   })
 })

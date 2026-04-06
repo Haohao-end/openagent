@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import storage from '@/utils/storage'
+import { isCredentialLoggedIn } from '@/utils/auth'
 import { useRoute, useRouter } from 'vue-router'
 import { useCredentialStore } from '@/stores/credential'
 import { AUTH_REQUIRED_EVENT } from '@/utils/request'
@@ -8,19 +9,14 @@ import { AUTH_REQUIRED_EVENT } from '@/utils/request'
 const route = useRoute()
 const router = useRouter()
 const credentialStore = useCredentialStore()
-const isLoggedIn = computed(() => {
-  const now = Math.floor(Date.now() / 1000)
-  return Boolean(
-    credentialStore.credential.access_token &&
-    credentialStore.credential.expire_at &&
-    credentialStore.credential.expire_at > now,
-  )
-})
+const isLoggedIn = computed(() => isCredentialLoggedIn(credentialStore.credential))
 const unauthDescription = computed(() => {
   if (route.path.startsWith('/space/apps')) return '请你登录查看你的Agent！'
   if (route.path.startsWith('/space/tools')) return '请你登录查看你的插件！'
   if (route.path.startsWith('/space/workflows')) return '请你登录查看你的工作流！'
   if (route.path.startsWith('/space/datasets')) return '请你登录查看你的知识库！'
+  if (route.path.startsWith('/space/likes')) return '请你登录查看你的点赞内容！'
+  if (route.path.startsWith('/space/favorites')) return '请你登录查看你的收藏内容！'
   return '请你登录查看你的个人空间内容！'
 })
 const createType = ref<string>('')
@@ -102,10 +98,10 @@ watch(
 
 <template>
   <!-- 调整边距+隐藏 -->
-  <div class="px-6 flex flex-col overflow-hidden h-full">
-    <div class="pt-6 sticky top-0 z-20 bg-gray-50">
+  <div class="flex h-full min-h-0 flex-col overflow-hidden px-6">
+    <div class="shrink-0 bg-gray-50 pt-6">
       <!-- 顶层标题+创建按钮 -->
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-6 flex-wrap gap-2">
         <!-- 左侧标题 -->
         <div class="flex items-center gap-2">
           <a-avatar :size="32" class="bg-blue-700">
@@ -148,7 +144,7 @@ watch(
         </a-button>
       </div>
       <!-- 导航按钮+搜索框 -->
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-6 flex-wrap gap-2">
         <!-- 左侧导航 -->
         <div class="flex items-center gap-2">
           <router-link
@@ -179,6 +175,20 @@ watch(
           >
             知识库
           </router-link>
+          <router-link
+            to="/space/likes"
+            class="rounded-lg text-gray-700 px-3 h-8 leading-8 hover:bg-gray-200 transition-all"
+            active-class="bg-gray-100"
+          >
+            我的点赞
+          </router-link>
+          <router-link
+            to="/space/favorites"
+            class="rounded-lg text-gray-700 px-3 h-8 leading-8 hover:bg-gray-200 transition-all"
+            active-class="bg-gray-100"
+          >
+            我的收藏
+          </router-link>
         </div>
         <!-- 右侧搜索 -->
         <a-input-search
@@ -191,7 +201,9 @@ watch(
       </div>
     </div>
     <!-- 中间内容 -->
-    <router-view v-if="isLoggedIn" v-model:create-type="createType" />
+    <div v-if="isLoggedIn" class="min-h-0 flex-1 overflow-hidden">
+      <router-view v-model:create-type="createType" />
+    </div>
     <div v-else class="flex-1 flex items-center justify-center">
       <a-empty :description="unauthDescription" />
     </div>

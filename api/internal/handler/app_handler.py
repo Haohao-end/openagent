@@ -19,6 +19,7 @@ from internal.schema.app_schema import (
     FallbackHistoryToDraftReq,
     UpdateDebugConversationSummaryReq,
     DebugChatReq,
+    PromptCompareChatReq,
     GetDebugConversationMessagesWithPageReq,
     GetDebugConversationMessagesWithPageResp
 )
@@ -150,6 +151,13 @@ class AppHandler:
         return success_json(PageModel(list=resp.dump(app_config_versions), paginator=paginator))
 
     @login_required
+    def get_versions(self, app_id: UUID):
+        """获取应用版本对比数据，包含当前草稿和全部发布历史。"""
+        versions = self.app_service.get_versions(app_id, current_user)
+        resp = GetPublishHistoriesWithPageResp(many=True)
+        return success_json({"list": resp.dump(versions)})
+
+    @login_required
     def fallback_history_to_draft(self, app_id: UUID):
         """根据传递的应用id+历史配置版本id，退回指定版本到草稿中"""
         # 1.提取数据并校验
@@ -202,10 +210,27 @@ class AppHandler:
         return compact_generate_response(response)
 
     @login_required
+    def prompt_compare_chat(self, app_id: UUID):
+        """根据传递的应用id发起提示词对比调试"""
+        req = PromptCompareChatReq()
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        response = self.app_service.prompt_compare_chat(app_id, req, current_user)
+
+        return compact_generate_response(response)
+
+    @login_required
     def stop_debug_chat(self, app_id: UUID, task_id: UUID):
         """根据传递的应用id+任务id停止某个应用的指定调试会话"""
         self.app_service.stop_debug_chat(app_id, task_id, current_user)
         return success_message("停止应用调试会话成功")
+
+    @login_required
+    def stop_prompt_compare_chat(self, app_id: UUID, task_id: UUID):
+        """根据传递的应用id+任务id停止某个提示词对比调试会话"""
+        self.app_service.stop_prompt_compare_chat(app_id, task_id, current_user)
+        return success_message("停止提示词对比调试会话成功")
 
     @login_required
     def get_published_config(self, app_id: UUID):

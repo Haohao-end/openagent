@@ -129,6 +129,7 @@ def test_dataset_response_schema_should_dump_expected_fields():
         hit_count=10,
         related_app_count=3,
         character_count=1234,
+        account=ns(name="dataset-owner", avatar="https://img.example.com/dataset-owner.png"),
         updated_at=utc_dt(2024, 1, 2, 0, 0, 0),
         created_at=utc_dt(2024, 1, 1, 0, 0, 0),
     )
@@ -138,6 +139,8 @@ def test_dataset_response_schema_should_dump_expected_fields():
     assert detail["hit_count"] == 10
     assert detail["upload_at"] == int(utc_dt(2024, 1, 2, 0, 0, 0).timestamp())
     assert listing["related_app_count"] == 3
+    assert listing["creator_name"] == "dataset-owner"
+    assert listing["creator_avatar"] == "https://img.example.com/dataset-owner.png"
 
     query = ns(
         id=uuid4(),

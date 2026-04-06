@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -30,8 +30,8 @@ class TestAnalysisService:
     def test_get_app_analysis_should_calculate_realtime_data(self, monkeypatch):
         """测试实时计算统计数据(不使用缓存)"""
         app = SimpleNamespace(id=uuid4())
-        now = datetime.now()
-        midnight = datetime.combine(now, datetime.min.time())
+        now = datetime(2024, 1, 8, 18, 30, 0)
+        midnight = datetime(2024, 1, 8, 0, 0, 0)
 
         recent_messages = [
             _message(created_at=midnight - timedelta(days=1), latency=2.0, tokens=100, price=0.5),
@@ -43,6 +43,7 @@ class TestAnalysisService:
         message_sets = [recent_messages, previous_messages]
 
         service = _build_service(app=app)
+        monkeypatch.setattr("internal.service.analysis_service.utc_now_naive", lambda: now)
 
         monkeypatch.setattr(
             service,
@@ -62,6 +63,7 @@ class TestAnalysisService:
         app = SimpleNamespace(id=uuid4())
         message_sets = [[], []]
         service = _build_service(app=app)
+        monkeypatch.setattr("internal.service.analysis_service.utc_now_naive", lambda: datetime(2024, 1, 8, 18, 30, 0))
         monkeypatch.setattr(
             service,
             "get_messages_by_time_range",
@@ -154,3 +156,18 @@ class TestAnalysisService:
         assert len(trend["active_accounts_trend"]["y_axis"]) == 7
         assert len(trend["avg_of_conversation_messages_trend"]["y_axis"]) == 7
         assert len(trend["cost_consumption_trend"]["y_axis"]) == 7
+
+    def test_calculate_trend_by_messages_should_accept_aware_utc_datetimes(self, monkeypatch):
+        monkeypatch.setattr(
+            "internal.service.analysis_service.utc_now_naive",
+            lambda: datetime(2024, 1, 8, 18, 30, 0),
+        )
+        end_at = datetime(2024, 1, 8, 18, 30, 0, tzinfo=UTC)
+        messages = [
+            _message(created_at=datetime(2024, 1, 2, 10, 0, 0, tzinfo=UTC), price=0.2),
+            _message(created_at=datetime(2024, 1, 2, 11, 0, 0, tzinfo=UTC), price=0.4),
+        ]
+
+        trend = AnalysisService.calculate_trend_by_messages(end_at=end_at, days_ago=7, messages=messages)
+
+        assert trend["total_messages_trend"]["y_axis"][0] == 2
