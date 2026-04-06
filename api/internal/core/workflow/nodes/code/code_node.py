@@ -16,7 +16,7 @@ from .code_entity import CodeNodeData
 class CodeNode(BaseNode):
     """Python代码运行节点"""
     node_data: CodeNodeData
-    
+
     # 腾讯云函数沙箱地址
     Sandbox_URL: ClassVar[str] = os.getenv("SANDBOX_URL").rstrip("/")
 

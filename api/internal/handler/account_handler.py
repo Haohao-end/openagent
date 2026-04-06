@@ -39,7 +39,7 @@ class AccountHandler:
             "password_set": current_user.is_password_set,
             "oauth_bindings": self.account_service.get_account_oauth_bindings(current_user),
         }))
-        
+
     @login_required
     def update_password(self):
         """更新当前登陆账号密码"""

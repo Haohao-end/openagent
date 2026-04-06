@@ -10,7 +10,7 @@ DEFAULT_CONFIG = {
     # WebApp 访客 Cookie 配置
     "WEB_APP_VISITOR_COOKIE_SECURE": "False",
     "WEB_APP_VISITOR_COOKIE_SECRET": "",
-    
+
     # SQLAlchemy数据库配置
     "SQLALCHEMY_DATABASE_URI": "",
     "SQLALCHEMY_POOL_SIZE": 30,
