@@ -35,9 +35,6 @@ services:
       WEAVIATE_HTTP_PORT: 8080
       WEAVIATE_GRPC_HOST: llmops-weaviate
       WEAVIATE_GRPC_PORT: 50051
-      # 数据库连接字符串覆盖（使用 Docker 服务名）
-      # 注意: 密码从 .env 文件的 POSTGRES_PASSWORD 读取
-      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@llmops-db:5432/${POSTGRES_DB}?client_encoding=utf8
     ports:
       - "${API_PORT:-5001}:5001"
     depends_on:
@@ -74,9 +71,6 @@ services:
       WEAVIATE_HTTP_PORT: 8080
       WEAVIATE_GRPC_HOST: llmops-weaviate
       WEAVIATE_GRPC_PORT: 50051
-      # 数据库连接字符串覆盖（使用 Docker 服务名）
-      # 注意: 密码从 .env 文件的 POSTGRES_PASSWORD 读取
-      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@llmops-db:5432/${POSTGRES_DB}?client_encoding=utf8
     depends_on:
       llmops-db:
         condition: service_healthy
