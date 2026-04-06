@@ -4,6 +4,8 @@ services:
     build:
       context: ../ui
       dockerfile: Dockerfile
+      args:
+        VITE_API_PREFIX: ${VITE_API_PREFIX:-http://127.0.0.1:5001}
     container_name: llmops-ui
     restart: always
     ports:

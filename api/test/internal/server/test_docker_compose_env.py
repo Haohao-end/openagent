@@ -15,3 +15,10 @@ def test_docker_compose_should_keep_api_env_file_as_single_source_of_truth():
 
     assert "env_file:" in compose_text
     assert "../api/.env" in compose_text
+
+
+def test_docker_compose_should_pass_vite_api_prefix_to_ui_build():
+    compose_path = Path(__file__).resolve().parents[4] / "docker" / "docker-compose.yaml"
+    compose_text = compose_path.read_text(encoding="utf-8")
+
+    assert "VITE_API_PREFIX: ${VITE_API_PREFIX:-http://127.0.0.1:5001}" in compose_text
