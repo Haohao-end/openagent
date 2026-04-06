@@ -48,4 +48,5 @@ unstructured==0.17.2
 pytz==2025.2
 pyowm==3.5.0
 flask_mail==0.10.0
+flask-socketio==5.6.1
 
