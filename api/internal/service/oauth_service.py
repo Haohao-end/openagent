@@ -1,9 +1,9 @@
 import os
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 from typing import Any
 from flask import request, has_request_context, current_app
 from injector import inject
+from internal.exception import FailException
 from internal.exception import NotFoundException
 from internal.model import AccountOAuth
 from pkg.oauth import OAuth, GithubOAuth, GoogleOAuth
@@ -122,27 +122,70 @@ class OAuthService(BaseService):
             # 8.查找账号信息
             account = self.account_service.get_account(account_oauth.account_id)
 
-        # 9.更新账号信息，涵盖最后一次登录时间，以及ip地址
-        self.update(
-            account,
-            last_login_at=datetime.now(UTC),
-            last_login_ip=request.remote_addr,
-        )
+        # 9.刷新授权 token 信息
         self.update(
             account_oauth,
             encrypted_token=oauth_access_token,
         )
 
-        # 10.生成授权凭证信息
-        expire_at = int((datetime.now() + timedelta(days=30)).timestamp())
-        payload = {
-            "sub": str(account.id),
-            "iss": "llmops",
-            "exp": expire_at,
-        }
-        access_token = self.jwt_service.generate_token(payload)
+        # 10.根据登录风险生成授权凭证信息或二次验证挑战
+        return self.account_service.begin_login(account)
 
-        return {
-            "expire_at": expire_at,
-            "access_token": access_token,
-        }
+    def bind_oauth(self, account, provider_name: str, code: str, current_session=None) -> dict[str, Any]:
+        """将第三方账号绑定到当前登录账号。"""
+        oauth = self.get_oauth_by_provider_name(provider_name)
+        oauth_access_token = oauth.get_access_token(code)
+        oauth_user_info = oauth.get_user_info(oauth_access_token)
+
+        existing_provider_binding = self.account_service.get_account_oauth_by_account_id_and_provider_name(
+            account.id,
+            provider_name,
+        )
+        existing_openid_binding = self.account_service.get_account_oauth_by_provider_name_and_openid(
+            provider_name,
+            oauth_user_info.id,
+        )
+
+        if existing_openid_binding and existing_openid_binding.account_id != account.id:
+            raise FailException("该第三方账号已绑定其他账号")
+
+        if existing_provider_binding and existing_provider_binding.openid != oauth_user_info.id:
+            raise FailException("当前账号已绑定其他同类型第三方账号")
+
+        if existing_provider_binding:
+            self.update(
+                existing_provider_binding,
+                encrypted_token=oauth_access_token,
+                openid=oauth_user_info.id,
+            )
+        elif existing_openid_binding:
+            self.update(existing_openid_binding, encrypted_token=oauth_access_token)
+        else:
+            self.create(
+                AccountOAuth,
+                account_id=account.id,
+                provider=provider_name,
+                openid=oauth_user_info.id,
+                encrypted_token=oauth_access_token,
+            )
+
+        return self.account_service.issue_credential(
+            account,
+            session=current_session,
+            update_login_metadata=False,
+        )
+
+    def unbind_oauth(self, account, provider_name: str) -> None:
+        """解绑当前账号的第三方登录方式。"""
+        binding = self.account_service.get_account_oauth_by_account_id_and_provider_name(
+            account.id,
+            provider_name,
+        )
+        if not binding:
+            raise NotFoundException("当前账号未绑定该第三方登录方式")
+
+        bindings = self.account_service.get_account_oauths_by_account_id(account.id)
+        if not account.is_password_set and len(bindings) <= 1:
+            raise FailException("请先设置登录密码或绑定其他第三方账号，再解绑当前方式")
+
+        self.delete(binding)

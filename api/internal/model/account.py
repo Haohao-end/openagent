@@ -109,3 +109,39 @@ class AccountOAuth(db.Model):
         default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
+
+
+class AccountSession(db.Model):
+    """账号登录会话记录表"""
+    __tablename__ = "account_session"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="pk_account_session_id"),
+        Index("account_session_account_id_idx", "account_id"),
+        Index("account_session_revoked_at_idx", "revoked_at"),
+        Index("account_session_expires_at_idx", "expires_at"),
+    )
+
+    id = Column(UUID, nullable=False, server_default=text("uuid_generate_v4()"))
+    account_id = Column(UUID, nullable=False)
+    user_agent = Column(String(1024), nullable=False, server_default=text("''::character varying"))
+    last_login_ip = Column(String(255), nullable=False, server_default=text("''::character varying"))
+    last_active_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP(0)"),
+        server_onupdate=text("CURRENT_TIMESTAMP(0)"),
+        default=_utcnow_naive,
+    )
+    created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
+
+    @property
+    def is_active(self) -> bool:
+        """只读属性，判断当前会话是否仍然有效。"""
+        if self.revoked_at is not None:
+            return False
+        if self.expires_at is None:
+            return True
+        return self.expires_at >= _utcnow_naive()

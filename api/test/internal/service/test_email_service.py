@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 from flask import Flask
@@ -34,13 +34,17 @@ class TestEmailService:
         assert len(code) == 8
         assert code.isdigit() is True
 
-    def test_send_verification_code_should_store_code_and_send_mail(self, monkeypatch):
+    def test_send_verification_code_should_store_code_and_enqueue_mail_task(self, monkeypatch):
         setex_calls = []
         delete_calls = []
         expire_calls = []
         incr_calls = []
-        sent_messages = []
-        service = EmailService(mail=SimpleNamespace(send=lambda msg: sent_messages.append(msg)))
+        delay_calls = []
+        service = EmailService(
+            mail=SimpleNamespace(
+                send=lambda _msg: (_ for _ in ()).throw(AssertionError("mail.send should not be called"))
+            )
+        )
 
         class _FakeMessage:
             def __init__(self, **kwargs):
@@ -58,10 +62,14 @@ class TestEmailService:
         monkeypatch.setattr("internal.service.email_service.Message", _FakeMessage)
         monkeypatch.setattr(service, "generate_verification_code", lambda length=6: "123456")
         monkeypatch.setattr("internal.service.email_service.redis_client", redis_stub)
+        monkeypatch.setattr(
+            "internal.service.email_service.send_verification_email_task",
+            SimpleNamespace(apply_async=lambda **kwargs: delay_calls.append(kwargs)),
+        )
 
         code = service.send_verification_code("demo@example.com")
 
-        assert code == "123456"
+        assert code == ""
         assert incr_calls == [
             "password_reset:send_count:demo@example.com",
             "password_reset:send_count_ip:unknown",
@@ -70,32 +78,27 @@ class TestEmailService:
             ("password_reset:send_count:demo@example.com", 3600),
             ("password_reset:send_count_ip:unknown", 3600),
         ]
-        assert len(setex_calls) == 3
-        assert setex_calls[0][0] == "password_reset:demo@example.com"
-        assert setex_calls[0][1] == timedelta(seconds=300)
-        assert setex_calls[0][2] == "123456"
-        assert setex_calls[1][0] == "password_reset:send_cooldown:demo@example.com"
-        assert setex_calls[1][1] == timedelta(seconds=60)
+        assert len(setex_calls) == 2
+        assert setex_calls[0][0] == "password_reset:send_pending:demo@example.com"
+        assert setex_calls[0][1] == timedelta(seconds=EmailService.SEND_PENDING_SECONDS)
+        assert setex_calls[0][2] == "1"
+        assert setex_calls[1][0] == "password_reset:send_pending_ip:unknown"
+        assert setex_calls[1][1] == timedelta(seconds=EmailService.SEND_PENDING_SECONDS)
         assert setex_calls[1][2] == "1"
-        assert setex_calls[2][0] == "password_reset:send_cooldown_ip:unknown"
-        assert setex_calls[2][1] == timedelta(seconds=60)
-        assert setex_calls[2][2] == "1"
-        assert delete_calls == [
-            "password_reset:verify_attempt:demo@example.com",
-            "password_reset:verify_lock:demo@example.com",
-        ]
-        assert len(sent_messages) == 1
-        assert sent_messages[0].recipients == ["demo@example.com"]
-        assert "123456" in sent_messages[0].body
+        assert delete_calls == []
+        assert len(delay_calls) == 1
+        assert "queue" not in delay_calls[0]
+        assert delay_calls[0]["kwargs"] == {
+            "email": "demo@example.com",
+            "scene": "password_reset",
+            "client_ip": "unknown",
+        }
 
-    def test_send_verification_code_should_raise_when_mail_send_failed(self, monkeypatch):
+    def test_send_verification_code_should_raise_when_enqueue_mail_task_failed(self, monkeypatch):
         setex_calls = []
         delete_calls = []
 
-        def _raise_send_error(_msg):
-            raise RuntimeError("smtp down")
-
-        service = EmailService(mail=SimpleNamespace(send=_raise_send_error))
+        service = EmailService(mail=SimpleNamespace(send=lambda _msg: None))
 
         class _FakeMessage:
             def __init__(self, **kwargs):
@@ -110,19 +113,87 @@ class TestEmailService:
             delete=lambda key: delete_calls.append(key),
         )
 
-        monkeypatch.setattr("internal.service.email_service.Message", _FakeMessage)
-        monkeypatch.setattr(service, "generate_verification_code", lambda length=6: "654321")
         monkeypatch.setattr("internal.service.email_service.redis_client", redis_stub)
+        monkeypatch.setattr(
+            "internal.service.email_service.send_verification_email_task",
+            SimpleNamespace(apply_async=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("queue down"))),
+        )
 
         app = Flask(__name__)
         with app.app_context():
             with pytest.raises(FailException, match="邮件发送失败"):
                 service.send_verification_code("demo@example.com")
 
-        assert len(setex_calls) == 3
-        assert "password_reset:demo@example.com" in delete_calls
-        assert "password_reset:send_cooldown:demo@example.com" in delete_calls
-        assert "password_reset:send_cooldown_ip:unknown" in delete_calls
+        assert len(setex_calls) == 2
+        assert "password_reset:send_pending:demo@example.com" in delete_calls
+        assert "password_reset:send_pending_ip:unknown" in delete_calls
+
+    def test_send_change_email_code_should_use_change_email_scene(self, monkeypatch):
+        setex_calls = []
+        delay_calls = []
+        service = EmailService(mail=SimpleNamespace(send=lambda _msg: None))
+
+        class _FakeMessage:
+            def __init__(self, **kwargs):
+                self.__dict__.update(kwargs)
+
+        redis_stub = SimpleNamespace(
+            exists=lambda _key: False,
+            ttl=lambda _key: -2,
+            incr=lambda _key: 1,
+            expire=lambda *_args: None,
+            setex=lambda key, ttl, value: setex_calls.append((key, ttl, value)),
+            delete=lambda *_args: None,
+        )
+
+        monkeypatch.setattr("internal.service.email_service.redis_client", redis_stub)
+        monkeypatch.setattr(
+            "internal.service.email_service.send_verification_email_task",
+            SimpleNamespace(apply_async=lambda **kwargs: delay_calls.append(kwargs)),
+        )
+
+        service.send_change_email_code("next@example.com")
+
+        assert setex_calls[0][0] == "change_email:send_pending:next@example.com"
+        assert delay_calls[0]["kwargs"]["scene"] == "change_email"
+        assert "queue" not in delay_calls[0]
+
+    def test_send_login_alert_email_should_send_security_message(self, monkeypatch):
+        sent_messages = []
+        service = EmailService(mail=SimpleNamespace(send=lambda msg: sent_messages.append(msg)))
+
+        class _FakeMessage:
+            def __init__(self, **kwargs):
+                self.__dict__.update(kwargs)
+
+        monkeypatch.setattr("internal.service.email_service.Message", _FakeMessage)
+
+        app = Flask(__name__)
+        with app.app_context():
+            service.send_login_alert_email(
+                "demo@example.com",
+                account_name="tester",
+                client_ip="10.0.0.5",
+                user_agent="Mozilla/5.0",
+                login_at=datetime(2024, 1, 2, 3, 4, 5),
+            )
+
+        assert len(sent_messages) == 1
+        assert sent_messages[0].recipients == ["demo@example.com"]
+        assert sent_messages[0].subject == "【OpenAgent】检测到新 IP 登录"
+        assert "10.0.0.5" in sent_messages[0].body
+
+    def test_verify_change_email_code_should_delegate_to_change_email_scene(self, monkeypatch):
+        service = EmailService(mail=SimpleNamespace(send=lambda _msg: None))
+        verify_calls = []
+        monkeypatch.setattr(
+            service,
+            "verify_code",
+            lambda email, code, scene="password_reset": verify_calls.append((email, code, scene)) or True,
+        )
+
+        assert service.verify_change_email_code("next@example.com", "123456") is True
+        assert verify_calls == [("next@example.com", "123456", "change_email")]
 
     def test_send_verification_code_should_raise_when_in_cooldown(self, monkeypatch):
         redis_stub = SimpleNamespace(
@@ -137,6 +208,21 @@ class TestEmailService:
         service = EmailService(mail=SimpleNamespace(send=lambda _msg: None))
 
         with pytest.raises(FailException, match="30秒后再试"):
+            service.send_verification_code("demo@example.com")
+
+    def test_send_verification_code_should_raise_when_pending(self, monkeypatch):
+        redis_stub = SimpleNamespace(
+            exists=lambda key: key == "password_reset:send_pending:demo@example.com",
+            ttl=lambda _key: 15,
+            incr=lambda _key: (_ for _ in ()).throw(AssertionError("incr should not be called")),
+            expire=lambda *_args: None,
+            setex=lambda *_args: None,
+            delete=lambda *_args: None,
+        )
+        monkeypatch.setattr("internal.service.email_service.redis_client", redis_stub)
+        service = EmailService(mail=SimpleNamespace(send=lambda _msg: None))
+
+        with pytest.raises(FailException, match="15秒后再试"):
             service.send_verification_code("demo@example.com")
 
     @pytest.mark.parametrize("ttl_value", [0, -1, -2, -999999])

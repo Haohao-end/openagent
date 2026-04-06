@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from internal.extension import celery_extension, logging_extension, redis_extension
+from internal.extension import celery_extension, logging_extension, redis_extension, socketio_extension
 
 
 def test_celery_extension_should_bind_flask_context_and_mount_extension(monkeypatch):
@@ -176,3 +176,38 @@ def test_redis_extension_should_select_connection_class_by_ssl_flag(
     assert pool_calls[0]["connection_class"] is expected_class
     assert fake_redis_client.connection_pool == pool_calls[0]
     assert app.extensions["redis"] is fake_redis_client
+
+
+def test_socketio_extension_should_align_cors_settings_with_http_defaults(monkeypatch):
+    register_calls = []
+    socketio_calls = []
+
+    class _FakeSocketIO:
+        def __init__(self, app, **kwargs):
+            self.app = app
+            self.kwargs = kwargs
+            socketio_calls.append((app, kwargs))
+
+    monkeypatch.setattr("flask_socketio.SocketIO", _FakeSocketIO)
+    monkeypatch.setattr(
+        "internal.handler.websocket_handler.register_socketio_handlers",
+        lambda socketio: register_calls.append(socketio),
+    )
+
+    app = SimpleNamespace(
+        config={
+            "CORS_ALLOW_ORIGINS": ["*"],
+            "CORS_SUPPORTS_CREDENTIALS": True,
+            "REDIS_URL": "redis://example",
+        }
+    )
+
+    socketio = socketio_extension.init_socketio(app)
+
+    assert socketio_calls[0][1]["cors_allowed_origins"] == [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    assert socketio_calls[0][1]["cors_credentials"] is True
+    assert socketio_calls[0][1]["message_queue"] == "redis://example"
+    assert register_calls == [socketio]

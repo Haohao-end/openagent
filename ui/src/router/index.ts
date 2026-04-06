@@ -43,6 +43,16 @@ const router = createRouter({
               name: 'space-datasets-list',
               component: () => import('@/views/space/datasets/ListView.vue'),
             },
+            {
+              path: 'likes',
+              name: 'space-likes-list',
+              component: () => import('@/views/space/likes/ListView.vue'),
+            },
+            {
+              path: 'favorites',
+              name: 'space-favorites-list',
+              component: () => import('@/views/space/favorites/ListView.vue'),
+            },
           ],
         },
         {
@@ -157,6 +167,16 @@ const router = createRouter({
               name: 'space-apps-analysis',
               component: () => import('@/views/space/apps/AnalysisView.vue'),
             },
+            {
+              path: ':app_id/versions',
+              name: 'space-apps-versions',
+              component: () => import('@/views/space/apps/VersionComparisonView.vue'),
+            },
+            {
+              path: ':app_id/prompt-compare',
+              name: 'space-apps-prompt-compare',
+              component: () => import('@/views/space/apps/PromptCompareView.vue'),
+            },
           ],
         },
         {
@@ -188,7 +208,7 @@ const router = createRouter({
   ],
 })
 
-const publicRouteNames = new Set([
+const PUBLIC_ROUTE_NAMES = new Set([
   'pages-home',
   'web-apps-index',
   'store-public-apps-list',
@@ -206,12 +226,39 @@ const publicRouteNames = new Set([
   'errors-forbidden',
 ])
 
-router.beforeEach(async (to) => {
-  const routeName = String(to.name || '')
-  const isPublicPathPrefix = to.path.startsWith('/space')
+const ANONYMOUS_PROMPT_ROUTE_NAMES = new Set([
+  'space-apps-list',
+  'space-tools-list',
+  'space-workflows-list',
+  'space-datasets-list',
+  'space-likes-list',
+  'space-favorites-list',
+  'openapi-api-keys-list',
+])
 
-  if (!auth.isLogin() && !isPublicPathPrefix && !publicRouteNames.has(routeName)) {
-    return { path: '/home' }
+export const getAuthGuardRedirect = ({
+  routeName,
+  isLoggedIn,
+}: {
+  routeName: string
+  isLoggedIn: boolean
+}) => {
+  if (isLoggedIn) return null
+  if (PUBLIC_ROUTE_NAMES.has(routeName) || ANONYMOUS_PROMPT_ROUTE_NAMES.has(routeName)) {
+    return null
+  }
+
+  return { path: '/home' as const }
+}
+
+router.beforeEach(async (to) => {
+  const redirect = getAuthGuardRedirect({
+    routeName: String(to.name || ''),
+    isLoggedIn: auth.isLogin(),
+  })
+
+  if (redirect) {
+    return redirect
   }
 })
 export default router

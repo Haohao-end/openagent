@@ -49,4 +49,5 @@ DEFAULT_CONFIG = {
     "MAIL_USERNAME": "",
     "MAIL_PASSWORD": "",
     "MAIL_DEFAULT_SENDER": "",
+ "MAIL_TIMEOUT": 10,
 }

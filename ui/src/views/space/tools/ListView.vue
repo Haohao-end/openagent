@@ -17,7 +17,7 @@ import { useAccountStore } from '@/stores/account'
 import { openapiSchemaAssistantChat } from '@/services/ai'
 import moment from 'moment/moment'
 import { typeMap } from '@/config'
-import { Message, type FileItem, Form, type ValidatedError } from '@arco-design/web-vue'
+import { type FileItem, Form, type ValidatedError, Message } from '@arco-design/web-vue'
 import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
 import { getUserAvatarUrl } from '@/utils/helper'
 

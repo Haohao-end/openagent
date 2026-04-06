@@ -4,10 +4,9 @@ import { computed } from 'vue'
 interface Props {
   count: number
   currentIndex: number
-  onItemClick?: (index: number) => void
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   count: 0,
   currentIndex: -1,
 })
@@ -23,14 +22,20 @@ const items = computed(() => {
 const handleItemClick = (index: number) => {
   emit('item-click', index)
 }
+
+const handleEnter = (el: Element) => {
+  const element = el as HTMLElement
+  element.style.opacity = '0'
+}
+
+const handleAfterEnter = (el: Element) => {
+  const element = el as HTMLElement
+  element.style.opacity = '1'
+}
 </script>
 
 <template>
-  <transition
-    name="index-navigator"
-    @enter="(el) => el.style.opacity = '0'"
-    @after-enter="(el) => el.style.opacity = '1'"
-  >
+  <transition name="index-navigator" @enter="handleEnter" @after-enter="handleAfterEnter">
     <div
       v-if="count > 0"
       class="fixed right-8 top-1/2 transform -translate-y-1/2 z-40 flex flex-col gap-2"

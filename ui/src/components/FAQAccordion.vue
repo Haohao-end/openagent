@@ -21,7 +21,7 @@ const faqs: FAQItem[] = [
   {
     id: 3,
     question: 'What LLM providers are supported?',
-    answer: 'We support all major LLM providers including OpenAI, Anthropic, Google, DeepSeek, and more. You can easily switch between providers or use multiple providers in the same application.'
+    answer: 'We support all major LLM providers including OpenAI, Google, DeepSeek, Moonshot, and more. You can easily switch between providers or use multiple providers in the same application.'
   },
   {
     id: 4,

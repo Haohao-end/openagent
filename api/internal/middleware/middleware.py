@@ -1,6 +1,6 @@
 from typing import Optional
 from dataclasses import dataclass
-from flask import Request
+from flask import Request, g
 from injector import inject
 from internal.model import Account
 from internal.exception import UnauthorizedException
@@ -16,6 +16,9 @@ class Middleware:
 
     def request_loader(self, request: Request) -> Optional[Account]:
         """登陆管理器的请求加载器"""
+        g.current_account_session = None
+        g.current_access_token_payload = None
+
         # 1.单独位llmops路由蓝图创建请求加载器
         if request.blueprint == "llmops":
             # 2.校验获取access_token
@@ -23,6 +26,8 @@ class Middleware:
 
             # 3.解析token信息得到用户信息并返回
             payload = self.jwt_service.parse_token(access_token)
+            g.current_access_token_payload = payload
+            g.current_account_session = self.account_service.validate_access_session(payload)
             account_id = payload.get("sub")
             return self.account_service.get_account(account_id)
         elif request.blueprint == "openapi":

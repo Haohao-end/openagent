@@ -7,6 +7,7 @@ import { formatTimestampTime } from '@/utils/time-formatter'
 
 const route = useRoute()
 const publishHistoryDrawerVisible = ref(false)
+const publishedRefreshToken = ref(0)
 const { loading, app, loadApp } = useGetApp()
 const { loading: publishLoading, handlePublish } = usePublish()
 const { handleCancelPublish } = useCancelPublish()
@@ -14,6 +15,10 @@ const { loading: shareLoading, handleShareAppToSquare } = useShareAppToSquare()
 const { handleUnshareAppFromSquare } = useUnshareAppFromSquare()
 
 onMounted(async () => await loadApp(String(route.params?.app_id)))
+
+const refreshPublishedView = () => {
+  publishedRefreshToken.value += 1
+}
 </script>
 
 <template>
@@ -86,6 +91,20 @@ onMounted(async () => await loadApp(String(route.params?.app_id)))
           >
             统计分析
           </router-link>
+          <router-link
+            :to="{ name: 'space-apps-versions', params: { app_id: String(route.params?.app_id) } }"
+            class="text-base font-bold text-gray-500"
+            active-class="!text-blue-700"
+          >
+            版本对比
+          </router-link>
+          <router-link
+            :to="{ name: 'space-apps-prompt-compare', params: { app_id: String(route.params?.app_id) } }"
+            class="text-base font-bold text-gray-500"
+            active-class="!text-blue-700"
+          >
+            对比测试
+          </router-link>
         </a-space>
       </div>
       <!-- 右侧按钮信息 -->
@@ -111,6 +130,7 @@ onMounted(async () => await loadApp(String(route.params?.app_id)))
                   const app_id = String(route.params?.app_id)
                   await handlePublish(app_id, true)
                   await loadApp(app_id)
+                  refreshPublishedView()
                 }
               "
             >
@@ -133,6 +153,7 @@ onMounted(async () => await loadApp(String(route.params?.app_id)))
                       const app_id = String(route.params?.app_id)
                       await handlePublish(app_id, false)
                       await loadApp(app_id)
+                      refreshPublishedView()
                     }
                   "
                 >
@@ -144,9 +165,15 @@ onMounted(async () => await loadApp(String(route.params?.app_id)))
                     async () => {
                       const app_id = String(route.params?.app_id)
                       if (app.is_public) {
-                        await handleUnshareAppFromSquare(app_id, async () => await loadApp(app_id))
+                        await handleUnshareAppFromSquare(app_id, async () => {
+                          await loadApp(app_id)
+                          refreshPublishedView()
+                        })
                       } else {
-                        await handleShareAppToSquare(app_id, app.category || 'general', async () => await loadApp(app_id))
+                        await handleShareAppToSquare(app_id, app.category || 'general', async () => {
+                          await loadApp(app_id)
+                          refreshPublishedView()
+                        })
                       }
                     }
                   "
@@ -159,7 +186,10 @@ onMounted(async () => await loadApp(String(route.params?.app_id)))
                   @click="
                     async () => {
                       const app_id = String(route.params?.app_id)
-                      await handleCancelPublish(app_id, async () => await loadApp(app_id))
+                      await handleCancelPublish(app_id, async () => {
+                        await loadApp(app_id)
+                        refreshPublishedView()
+                      })
                     }
                   "
                 >
@@ -172,7 +202,7 @@ onMounted(async () => await loadApp(String(route.params?.app_id)))
       </div>
     </div>
     <!-- 底部内容区 -->
-    <router-view :app="app" />
+    <router-view :app="app" :published-refresh-token="publishedRefreshToken" />
     <!-- 发布历史抽屉组件 -->
     <publish-history-drawer
       :app="app"

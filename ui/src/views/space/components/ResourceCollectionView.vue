@@ -10,6 +10,7 @@ import { favoriteWorkflow, forkPublicWorkflow, likeWorkflow } from '@/services/p
 import { getErrorMessage } from '@/utils/error'
 import { getUserAvatarUrl } from '@/utils/helper'
 import { formatTimestampShort } from '@/utils/time-formatter'
+import ResourceCardDescription from '@/components/ResourceCardDescription.vue'
 
 const props = defineProps<{
   mode: 'favorites' | 'likes'
@@ -18,26 +19,21 @@ const props = defineProps<{
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
-const resourceType = ref<'all' | SpaceResourceType>('all')
+const resourceType = ref<SpaceResourceType>('app')
 const items = ref<SpaceResourceCardItem[]>([])
 
 const isFavoritesMode = computed(() => props.mode === 'favorites')
-const pageTitle = computed(() => (isFavoritesMode.value ? '收藏列表' : '点赞列表'))
+const pageTitle = computed(() => (isFavoritesMode.value ? '我的收藏' : '我的点赞'))
 const actionLabel = computed(() => (isFavoritesMode.value ? '收藏于' : '点赞于'))
 const emptyDescription = computed(() => {
   if (isFavoritesMode.value) {
-    return resourceType.value === 'all' ? '你还没有收藏任何应用或工作流' : '当前分类下暂无收藏内容'
+    return resourceType.value === 'app' ? '你还没有收藏任何应用' : '你还没有收藏任何工作流'
   }
-  return resourceType.value === 'all' ? '你还没有点赞任何应用或工作流' : '当前分类下暂无点赞内容'
+  return resourceType.value === 'app' ? '你还没有点赞任何应用' : '你还没有点赞任何工作流'
 })
 const searchWord = computed(() => String(route.query.search_word ?? ''))
-const appCount = computed(() => items.value.filter((item) => item.resource_type === 'app').length)
-const workflowCount = computed(
-  () => items.value.filter((item) => item.resource_type === 'workflow').length,
-)
 
-const typeOptions: Array<{ label: string; value: 'all' | SpaceResourceType }> = [
-  { label: '全部', value: 'all' },
+const typeOptions: Array<{ label: string; value: SpaceResourceType }> = [
   { label: '应用', value: 'app' },
   { label: '工作流', value: 'workflow' },
 ]
@@ -147,14 +143,11 @@ watch([searchWord, resourceType], () => {
 <template>
   <a-spin :loading="loading" class="block h-full w-full overflow-hidden">
     <div class="h-full flex flex-col overflow-hidden">
-      <div class="flex items-start justify-between gap-4 mb-6">
+      <div class="flex flex-col items-start gap-3 mb-6">
         <div>
-          <div class="text-lg font-medium text-gray-900 mb-1">{{ pageTitle }}</div>
-          <div class="text-sm text-gray-500">
-            共 {{ items.length }} 项，应用 {{ appCount }} 个，工作流 {{ workflowCount }} 个
-          </div>
+          <div class="text-lg font-medium text-gray-900">{{ pageTitle }}</div>
         </div>
-        <div class="flex items-center gap-2 flex-wrap justify-end">
+        <div class="flex items-center gap-2 flex-wrap justify-start">
           <button
             v-for="option in typeOptions"
             :key="option.value"
@@ -208,9 +201,7 @@ watch([searchWord, resourceType], () => {
                 </div>
               </div>
 
-              <div class="text-sm text-gray-600 h-[66px] line-clamp-3 mb-3">
-                {{ item.description || '暂无描述' }}
-              </div>
+              <resource-card-description :text="item.description" class="mb-3" />
 
               <div class="flex items-center gap-1.5 text-xs text-gray-400 mb-3">
                 <a-avatar :size="18" class="bg-blue-700" :image-url="getUserAvatarUrl(item.creator_avatar, item.creator_name)">
@@ -322,14 +313,6 @@ watch([searchWord, resourceType], () => {
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
   border-color: rgba(0, 0, 0, 0.1);
   z-index: 50;
-}
-
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  word-break: break-word;
 }
 
 .scrollbar-hide {

@@ -20,8 +20,15 @@ class TestRouterFullMatrix:
         expected = {
             '/account': {'GET'},
             '/account/avatar': {'POST'},
+            '/account/email': {'POST'},
+            '/account/email/send-code': {'POST'},
+            '/account/login-history': {'GET'},
             '/account/name': {'POST'},
+            '/account/oauth/<string:provider_name>/unbind': {'POST'},
             '/account/password': {'POST'},
+            '/account/sessions': {'GET'},
+            '/account/sessions/<uuid:session_id>/revoke': {'POST'},
+            '/account/sessions/revoke-others': {'POST'},
             '/ai/chat': {'POST'},
             '/ai/openapi-schema-chat': {'POST'},
             '/ai/optimize-prompt': {'POST'},
@@ -49,10 +56,13 @@ class TestRouterFullMatrix:
             '/apps/<uuid:app_id>/publish-histories': {'GET'},
             '/apps/<uuid:app_id>/published-config': {'GET'},
             '/apps/<uuid:app_id>/published-config/regenerate-web-app-token': {'POST'},
+            '/apps/<uuid:app_id>/prompt-compare/chat': {'POST'},
+            '/apps/<uuid:app_id>/prompt-compare/tasks/<uuid:task_id>/stop': {'POST'},
             '/apps/<uuid:app_id>/regenerate-icon': {'POST'},
             '/apps/<uuid:app_id>/share-to-square': {'POST'},
             '/apps/<uuid:app_id>/summary': {'GET', 'POST'},
             '/apps/<uuid:app_id>/unshare-from-square': {'POST'},
+            '/apps/<uuid:app_id>/versions': {'GET'},
             '/apps/generate-icon-preview': {'POST'},
             '/assistant-agent/chat': {'POST'},
             '/assistant-agent/chat/<uuid:task_id>/stop': {'POST'},
@@ -64,6 +74,8 @@ class TestRouterFullMatrix:
             '/audio/message-to-audio': {'POST'},
             '/audio/text-to-audio': {'POST'},
             '/auth/logout': {'POST'},
+            '/auth/login-challenge/resend': {'POST'},
+            '/auth/login-challenge/verify': {'POST'},
             '/auth/password-login': {'POST'},
             '/auth/reset-password': {'POST'},
             '/auth/send-reset-code': {'POST'},
@@ -78,6 +90,7 @@ class TestRouterFullMatrix:
             '/conversations/<uuid:conversation_id>/messages/<uuid:message_id>/delete': {'POST'},
             '/conversations/<uuid:conversation_id>/name': {'GET', 'POST'},
             '/conversations/recent': {'GET'},
+            '/conversations/search': {'GET'},
             '/datasets': {'GET', 'POST'},
             '/datasets/<uuid:dataset_id>': {'GET', 'POST'},
             '/datasets/<uuid:dataset_id>/delete': {'POST'},
@@ -96,9 +109,15 @@ class TestRouterFullMatrix:
             '/datasets/<uuid:dataset_id>/regenerate-icon': {'POST'},
             '/datasets/generate-icon-preview': {'POST'},
             '/health': {'GET'},
+            '/home/intent': {'GET'},
             '/language-models': {'GET'},
             '/language-models/<string:provider_name>/<string:model_name>': {'GET'},
             '/language-models/<string:provider_name>/icon': {'GET'},
+            '/likes': {'GET'},
+            '/favorites': {'GET'},
+            '/notifications': {'GET'},
+            '/notifications/<string:notification_id>': {'DELETE'},
+            '/notifications/<string:notification_id>/read': {'POST'},
             '/oauth/<string:provider_name>': {'GET'},
             '/oauth/authorize/<string:provider_name>': {'POST'},
             '/openapi/api-keys': {'GET', 'POST'},
@@ -110,18 +129,25 @@ class TestRouterFullMatrix:
             '/platform/<uuid:app_id>/wechat-config': {'GET', 'POST'},
             '/public/apps': {'GET'},
             '/public/apps/<string:app_id>': {'GET'},
+            '/public/apps/<string:app_id>/a2a/agent-card': {'GET'},
+            '/public/apps/<string:app_id>/a2a/messages': {'POST'},
             '/public/apps/<string:app_id>/analysis': {'GET'},
             '/public/apps/<string:app_id>/fork': {'POST'},
             '/public/apps/<uuid:app_id>/favorite': {'POST'},
             '/public/apps/<uuid:app_id>/like': {'POST'},
-            '/public/apps/categories': {'GET'},
             '/public/apps/my-favorites': {'GET'},
+            '/public/apps/tags': {'GET'},
             '/public/workflows': {'GET'},
             '/public/workflows/<uuid:workflow_id>': {'GET'},
             '/public/workflows/<uuid:workflow_id>/draft-graph': {'GET'},
             '/public/workflows/<uuid:workflow_id>/favorite': {'POST'},
             '/public/workflows/<uuid:workflow_id>/fork': {'POST'},
             '/public/workflows/<uuid:workflow_id>/like': {'POST'},
+            '/tags': {'GET', 'POST'},
+            '/tags/<uuid:tag_id>': {'GET', 'POST'},
+            '/tags/<uuid:tag_id>/delete': {'POST'},
+            '/tags/dimensions': {'GET'},
+            '/tags/hot': {'GET'},
             '/upload-files/file': {'POST'},
             '/upload-files/image': {'POST'},
             '/web-apps/<string:token>': {'GET'},
@@ -153,10 +179,10 @@ class TestRouterFullMatrix:
         for rule in rules:
             blueprint_name = rule.endpoint.split(".", 1)[0]
             by_blueprint[blueprint_name] += 1
-            assert _methods(rule).issubset({"GET", "POST"})
+            assert _methods(rule).issubset({"GET", "POST", "DELETE"})
             assert len(_methods(rule)) >= 1
 
         assert by_blueprint["openapi"] == 1
         assert by_blueprint["llmops"] == len(rules) - 1
         # 当前系统的接口总量是一个重要契约，避免漏挂导致线上能力消失。
-        assert len(rules) == 140
+        assert len(rules) == 168

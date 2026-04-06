@@ -12,6 +12,7 @@ from redis import Redis
 @dataclass
 class EmbeddingsService:
     """文本嵌入模型服务"""
+    EMBEDDING_DIMENSION = 1536
     _store: RedisStore
     _embeddings: Embeddings
     _cache_backed_embeddings: CacheBackedEmbeddings
@@ -40,3 +41,7 @@ class EmbeddingsService:
     @property
     def cache_backed_embeddings(self) -> CacheBackedEmbeddings:
         return self._cache_backed_embeddings
+
+    @property
+    def embedding_dimension(self) -> int:
+        return self.EMBEDDING_DIMENSION

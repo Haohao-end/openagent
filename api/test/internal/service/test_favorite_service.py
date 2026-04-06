@@ -81,7 +81,32 @@ class TestFavoriteService:
         app_id = uuid4()
         workflow_id = uuid4()
         created_at = datetime(2026, 1, 1, tzinfo=UTC)
-        service = _service(
+        app_service = _service(
+            app_items=[
+                {
+                    "id": str(app_id),
+                    "name": "天气应用",
+                    "description": "查询天气",
+                    "creator_name": "Alice",
+                    "creator_avatar": "",
+                    "created_at": 10,
+                }
+            ],
+            workflow_items=[
+                {
+                    "id": str(workflow_id),
+                    "name": "代码工作流",
+                    "description": "自动生成代码",
+                    "account_name": "Bob",
+                    "account_avatar": "",
+                    "created_at": 20,
+                }
+            ],
+            queries=[
+                _Query(all_result=[SimpleNamespace(app_id=app_id, created_at=created_at)]),
+            ],
+        )
+        workflow_service = _service(
             app_items=[
                 {
                     "id": str(app_id),
@@ -108,8 +133,8 @@ class TestFavoriteService:
             ],
         )
 
-        app_only = service.get_favorites(account, resource_type="app")
-        workflow_search = service.get_favorites(account, search_word="代码")
+        app_only = app_service.get_favorites(account, resource_type="app")
+        workflow_search = workflow_service.get_favorites(account, search_word="代码")
 
         assert len(app_only) == 1
         assert app_only[0]["resource_type"] == "app"

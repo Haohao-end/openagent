@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { OPEN_AGENT_NAME } from '@/config/openagent'
 import type { RecentConversation } from '@/models/conversation'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -47,6 +48,13 @@ const getAiMessagePreview = (conversation: RecentConversation) => {
   if (!conversation.ai_message) return ''
   const message = conversation.ai_message
   return message.length > 50 ? `${message.substring(0, 50)}...` : message
+}
+
+const getConversationSourceLabel = (conversation: RecentConversation) => {
+  if (conversation.source_type === 'assistant_agent') {
+    return conversation.agent_name || OPEN_AGENT_NAME
+  }
+  return conversation.app_name || '应用'
 }
 
 // 显示的对话列表（显示所有对话）
@@ -156,7 +164,7 @@ onUnmounted(() => {
               {{ conversation.name }}
             </div>
             <div class="text-xs text-gray-500 mt-0.5">
-              {{ conversation.app_name || '助手' }}
+              {{ getConversationSourceLabel(conversation) }}
             </div>
           </div>
         </div>

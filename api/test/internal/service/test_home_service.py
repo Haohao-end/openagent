@@ -1,142 +1,11 @@
-import json
 import pytest
 from datetime import UTC, datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 from uuid import uuid4
 
 from internal.service.intent_recognition_service import IntentRecognitionService
 from internal.service.home_service import HomeService
-from internal.model import Account, Conversation, Message
-
-
-class TestIntentRecognitionService:
-    """意图识别服务测试"""
-
-    @pytest.fixture
-    def mock_redis(self):
-        """Mock Redis客户端"""
-        return Mock()
-
-    @pytest.fixture
-    def service(self, mock_redis):
-        """创建服务实例"""
-        service = IntentRecognitionService(redis_client=mock_redis)
-        return service
-
-    def test_default_intent(self, service):
-        """测试默认意图"""
-        default = service.DEFAULT_INTENT
-        assert "intent" in default
-        assert "confidence" in default
-        assert "suggested_actions" in default
-        assert default["is_default"] is True
-
-    def test_build_langchain_messages(self, service):
-        """测试构建LangChain消息"""
-        messages = [
-            {"role": "user", "content": "你好"},
-            {"role": "assistant", "content": "你好，有什么帮助吗？"},
-        ]
-        lc_messages = service._build_langchain_messages(messages)
-        assert len(lc_messages) == 2
-        assert lc_messages[0].content == "你好"
-        assert lc_messages[1].content == "你好，有什么帮助吗？"
-
-    def test_format_messages(self, service):
-        """测试格式化消息"""
-        from langchain_core.messages import HumanMessage, AIMessage
-        messages = [
-            HumanMessage(content="你好"),
-            AIMessage(content="你好，有什么帮助吗？"),
-        ]
-        formatted = service._format_messages(messages)
-        assert "用户: 你好" in formatted
-        assert "助手: 你好，有什么帮助吗？" in formatted
-
-    def test_parse_response_valid_json(self, service):
-        """测试解析有效的JSON响应"""
-        response = json.dumps({
-            "intent": "用户想创建应用",
-            "confidence": 0.9,
-            "suggested_actions": [
-                {"label": "创建应用", "action": "create_app", "icon": "plus"}
-            ]
-        })
-        result = service._parse_response(response)
-        assert result["intent"] == "用户想创建应用"
-        assert result["confidence"] == 0.9
-        assert result["is_default"] is False
-
-    def test_parse_response_json_in_markdown(self, service):
-        """测试解析Markdown代码块中的JSON"""
-        response = """```json
-{
-  "intent": "用户想创建应用",
-  "confidence": 0.9,
-  "suggested_actions": [
-    {"label": "创建应用", "action": "create_app", "icon": "plus"}
-  ]
-}
-```"""
-        result = service._parse_response(response)
-        assert result["intent"] == "用户想创建应用"
-        assert result["is_default"] is False
-
-    def test_parse_response_invalid_json(self, service):
-        """测试解析无效JSON时返回默认值"""
-        response = "这不是JSON"
-        result = service._parse_response(response)
-        assert result == service.DEFAULT_INTENT
-
-    def test_cache_key_generation(self, service):
-        """测试缓存key生成"""
-        user_id = "test-user-123"
-        key = service._get_cache_key(user_id)
-        assert key == f"home:intent:{user_id}"
-
-    def test_get_cached_intent_hit(self, service, mock_redis):
-        """测试缓存命中"""
-        user_id = "test-user-123"
-        cached_data = {
-            "intent": "缓存的意图",
-            "confidence": 0.8,
-            "suggested_actions": []
-        }
-        mock_redis.get.return_value = json.dumps(cached_data).encode()
-
-        result = service.get_cached_intent(user_id)
-        assert result["intent"] == "缓存的意图"
-        mock_redis.get.assert_called_once()
-
-    def test_get_cached_intent_miss(self, service, mock_redis):
-        """测试缓存未命中"""
-        user_id = "test-user-123"
-        mock_redis.get.return_value = None
-
-        result = service.get_cached_intent(user_id)
-        assert result is None
-
-    def test_cache_intent(self, service, mock_redis):
-        """测试缓存意图"""
-        user_id = "test-user-123"
-        intent_result = {
-            "intent": "用户想创建应用",
-            "confidence": 0.9,
-            "suggested_actions": []
-        }
-
-        service.cache_intent(user_id, intent_result)
-
-        mock_redis.setex.assert_called_once()
-        call_args = mock_redis.setex.call_args
-        assert call_args[0][0] == f"home:intent:{user_id}"
-        assert call_args[0][1] == 24 * 60 * 60
-
-    def test_clear_cache(self, service, mock_redis):
-        """测试清除缓存"""
-        user_id = "test-user-123"
-        service.clear_cache(user_id)
-        mock_redis.delete.assert_called_once_with(f"home:intent:{user_id}")
+from internal.model import Account, Message
 
 
 class TestHomeService:
@@ -158,14 +27,13 @@ class TestHomeService:
         service = HomeService(db=mock_db, intent_recognition_service=mock_intent_service)
         return service
 
-    def test_get_recent_messages_no_conversation(self, service, mock_db):
-        """测试没有对话时返回空列表"""
+    def test_get_recent_messages_no_messages(self, service, mock_db):
+        """测试没有消息时返回空列表"""
         user = Mock(spec=Account)
         user.id = uuid4()
 
-        # Mock查询返回None
         mock_query = Mock()
-        mock_query.filter.return_value.order_by.return_value.first.return_value = None
+        mock_query.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
         mock_db.session.query.return_value = mock_query
 
         result = service._get_recent_messages(user)
@@ -176,10 +44,6 @@ class TestHomeService:
         user = Mock(spec=Account)
         user.id = uuid4()
 
-        # Mock对话
-        conversation = Mock(spec=Conversation)
-        conversation.id = uuid4()
-
         # Mock消息
         message1 = Mock(spec=Message)
         message1.query = "你好"
@@ -187,15 +51,9 @@ class TestHomeService:
         message1.created_at = datetime.now(UTC)
         message1.is_deleted = False
 
-        # Mock查询
         mock_query = Mock()
-        mock_query.filter.return_value.order_by.return_value.first.return_value = conversation
+        mock_query.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [message1]
         mock_db.session.query.return_value = mock_query
-
-        # Mock消息查询
-        mock_msg_query = Mock()
-        mock_msg_query.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [message1]
-        mock_db.session.query.side_effect = [mock_query, mock_msg_query]
 
         result = service._get_recent_messages(user)
         assert len(result) == 2

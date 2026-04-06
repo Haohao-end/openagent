@@ -9,7 +9,7 @@ from config import Config
 from internal.exception import CustomException
 from internal.router import Router
 from internal.extension import logging_extension, redis_extension, celery_extension
-from internal.extension.socketio_extension import init_socketio
+from internal.extension.socketio_extension import init_socketio, resolve_cors_settings
 from pkg.response import json, Response, HttpCode
 from pkg.sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -42,17 +42,7 @@ class Http(Flask):
         self.register_error_handler(Exception, self._register_error_handler)
 
         # 4.解决接口跨域问题
-        cors_allow_origins = self.config.get("CORS_ALLOW_ORIGINS") or []
-        cors_supports_credentials = bool(self.config.get("CORS_SUPPORTS_CREDENTIALS", True))
-
-        if cors_supports_credentials and cors_allow_origins == ["*"]:
-            logging.warning("CORS_ALLOW_ORIGINS='*' 与 supports_credentials=True 冲突，已拒绝使用通配符")
-            cors_allow_origins = []
-        if not cors_allow_origins:
-            cors_allow_origins = [
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-            ]
+        cors_allow_origins, cors_supports_credentials = resolve_cors_settings(self.config)
 
         CORS(self, resources={
             r"/*": {

@@ -9,6 +9,7 @@ import {
 import { Message } from '@arco-design/web-vue'
 import { useCredentialStore } from '@/stores/credential'
 import { AUTH_REQUIRED_EVENT } from '@/utils/request'
+import { isCredentialLoggedIn } from '@/utils/auth'
 import { getErrorMessage } from '@/utils/error'
 import CreateOrUpdateApiKeyModal from './components/CreateOrUpdateApiKeyModal.vue'
 import { formatTimestampDate } from '@/utils/time-formatter'
@@ -33,14 +34,7 @@ const createOrUpdateApiKeyModalVisible = ref(false)
 const updateApiKeyId = ref('')
 const updateApiKeyIsActive = ref(false)
 const updateApiKeyRemark = ref('')
-const isLoggedIn = computed(() => {
-  const now = Math.floor(Date.now() / 1000)
-  return Boolean(
-    credentialStore.credential.access_token &&
-    credentialStore.credential.expire_at &&
-    credentialStore.credential.expire_at > now,
-  )
-})
+const isLoggedIn = computed(() => isCredentialLoggedIn(credentialStore.credential))
 
 const openLoginModal = () => {
   if (typeof window === 'undefined') return

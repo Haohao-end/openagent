@@ -7,8 +7,8 @@ export const provider = (provider_name: string) => {
 }
 
 // 指定第三方授权服务认证地址
-export const authorize = (provider_name: string, code: string) => {
+export const authorize = (provider_name: string, code: string, intent: 'login' | 'bind' = 'login') => {
   return post<AuthorizeResponse>(`/oauth/authorize/${provider_name}`, {
-    body: { code },
+    body: { code, intent },
   })
 }

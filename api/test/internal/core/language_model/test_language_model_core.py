@@ -6,7 +6,6 @@ import yaml
 from internal.core.language_model.entities.model_entity import BaseLanguageModel, ModelFeature, ModelType
 from internal.core.language_model.entities.provider_entity import Provider, ProviderEntity
 from internal.core.language_model.language_model_manager import LanguageModelManager
-from internal.core.language_model.providers.claude.chat import Chat as ClaudeChat
 from internal.core.language_model.providers.grok.chat import Chat as GrokChat
 from internal.core.language_model.providers.moonshot.chat import Chat as MoonshotChat
 from internal.core.language_model.providers.tongyi.chat import Chat as TongyiChat
@@ -177,14 +176,7 @@ def test_language_model_manager_should_load_and_delegate(monkeypatch, tmp_path):
         manager.get_provider("missing")
 
 
-def test_claude_and_grok_env_resolvers_should_apply_priority(monkeypatch):
-    monkeypatch.setenv("CLAUDE_API_KEY", "ckey")
-    monkeypatch.setenv("CLAUDE_API_BASE", "https://claude-proxy")
-    resolved = ClaudeChat.resolve_claude_relay_env({"model": "x"})
-    assert resolved["api_key"] == "ckey"
-    assert resolved["base_url"] == "https://claude-proxy"
-    assert ClaudeChat.resolve_claude_relay_env("raw-values") == "raw-values"
-
+def test_grok_env_resolver_should_apply_priority(monkeypatch):
     monkeypatch.setenv("GROK_API_KEY", "")
     monkeypatch.setenv("XAI_API_KEY", "xkey")
     monkeypatch.delenv("GROK_API_BASE", raising=False)
@@ -198,20 +190,10 @@ def test_claude_and_grok_env_resolvers_should_apply_priority(monkeypatch):
     assert explicit["base_url"] == "https://custom"
     assert GrokChat.resolve_grok_env("raw-values") == "raw-values"
 
-    # 覆盖 claude/grok 的“openai_* 显式参数存在时不覆盖”分支。
-    claude_openai = ClaudeChat.resolve_claude_relay_env({"openai_api_key": "ok", "openai_api_base": "obase"})
+    # 覆盖 grok 的“openai_* 显式参数存在时不覆盖”分支。
     grok_openai = GrokChat.resolve_grok_env({"openai_api_key": "ok", "openai_api_base": "obase"})
-    assert "api_key" not in claude_openai
-    assert "base_url" not in claude_openai
     assert "api_key" not in grok_openai
     assert "base_url" not in grok_openai
-
-    # 覆盖 claude relay 环境为空时不注入字段（27->30, 32->35）。
-    monkeypatch.delenv("CLAUDE_API_KEY", raising=False)
-    monkeypatch.delenv("CLAUDE_API_BASE", raising=False)
-    claude_no_relay = ClaudeChat.resolve_claude_relay_env({"model": "x"})
-    assert "api_key" not in claude_no_relay
-    assert "base_url" not in claude_no_relay
 
     # 覆盖 grok 无 key 环境时不注入 api_key 的分支（28->31）。
     monkeypatch.delenv("GROK_API_KEY", raising=False)

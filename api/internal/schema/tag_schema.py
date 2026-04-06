@@ -4,13 +4,12 @@
 定义标签相关的请求和响应数据结构。
 """
 
-from uuid import UUID
 from flask_wtf import FlaskForm
-from marshmallow import Schema, fields, pre_dump
+from marshmallow import Schema, fields
 from wtforms import StringField
-from wtforms.validators import DataRequired, Length, Optional
+from wtforms.validators import AnyOf, DataRequired, Length, Optional
 
-from internal.entity.tag_entity import TagStatus, TagType
+from internal.entity.tag_entity import TagType
 from internal.lib.helper import datetime_to_timestamp
 from pkg.paginator import PaginatorReq
 
@@ -27,6 +26,10 @@ class CreateTagReq(FlaskForm):
     ])
     tag_type = StringField("tag_type", validators=[
         Optional(),
+        AnyOf(
+            [TagType.CUSTOM.value, TagType.SYSTEM.value, TagType.CATEGORY.value],
+            message="标签类型不支持",
+        ),
     ])
 
 
@@ -67,10 +70,8 @@ class TagResp(Schema):
 
 class ListTagsResp(Schema):
     """标签列表响应"""
-    items = fields.List(fields.Nested(TagResp))
-    total = fields.Integer()
-    page = fields.Integer()
-    page_size = fields.Integer()
+    list = fields.List(fields.Nested(TagResp))
+    paginator = fields.Dict()
 
 
 class GetMyTagsReq(PaginatorReq):
@@ -82,3 +83,30 @@ class AppTagsSchema(Schema):
     """应用标签 Schema"""
     tags = fields.List(fields.Nested(TagResp))
     total = fields.Integer()
+
+
+class TagDimensionResp(Schema):
+    """标签维度响应"""
+    value = fields.String()
+    label = fields.String()
+
+
+class GetTagDimensionsResp(Schema):
+    """获取标签维度响应"""
+    dimensions = fields.List(fields.Nested(TagDimensionResp))
+
+
+class HotTagResp(Schema):
+    """热门标签响应"""
+    id = fields.String()
+    name = fields.String()
+    dimension = fields.String()
+    use_count = fields.Integer()
+
+
+class GetHotTagsResp(Schema):
+    """获取热门标签响应"""
+    hot_tags = fields.Dict(
+        keys=fields.String(),
+        values=fields.List(fields.Nested(HotTagResp)),
+    )

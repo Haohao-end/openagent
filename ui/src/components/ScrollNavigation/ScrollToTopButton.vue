@@ -15,14 +15,20 @@ const emit = defineEmits<{
 const handleClick = () => {
   emit('click')
 }
+
+const handleEnter = (el: Element) => {
+  const element = el as HTMLElement
+  element.style.opacity = '0'
+}
+
+const handleAfterEnter = (el: Element) => {
+  const element = el as HTMLElement
+  element.style.opacity = '1'
+}
 </script>
 
 <template>
-  <transition
-    name="scroll-to-top"
-    @enter="(el) => el.style.opacity = '0'"
-    @after-enter="(el) => el.style.opacity = '1'"
-  >
+  <transition name="scroll-to-top" @enter="handleEnter" @after-enter="handleAfterEnter">
     <button
       v-if="visible"
       @click="handleClick"

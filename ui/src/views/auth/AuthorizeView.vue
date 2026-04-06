@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthorize } from '@/hooks/use-oauth'
 import { useCredentialStore } from '@/stores/credential'
+import { isCredentialLoggedIn } from '@/utils/auth'
 import { Message } from '@arco-design/web-vue'
 import { getErrorMessage } from '@/utils/error'
 
@@ -13,6 +14,25 @@ const credentialStore = useCredentialStore()
 const { authorization, handleAuthorize } = useAuthorize()
 const authorizeError = ref('')
 const providerName = computed(() => String(route.params?.provider_name ?? ''))
+const OAUTH_ACTION_STORAGE_KEY = 'account_oauth_action'
+const OAUTH_RESULT_STORAGE_KEY = 'account_oauth_result'
+const LOGIN_CHALLENGE_STORAGE_KEY = 'pending_login_challenge'
+
+const parseOAuthAction = () => {
+  const raw = sessionStorage.getItem(OAUTH_ACTION_STORAGE_KEY)
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed?.intent !== 'bind') return null
+    return {
+      intent: 'bind' as const,
+      provider: String(parsed.provider || ''),
+    }
+  } catch {
+    return null
+  }
+}
 
 const parseAuthorizeCode = () => {
   // 1.优先取路由query中的code
@@ -34,6 +54,22 @@ const parseAuthorizeCode = () => {
   return ''
 }
 
+const persistPendingLoginChallenge = (payload: {
+  challenge_id?: string
+  challenge_type?: string
+  masked_email?: string
+  risk_reason?: string
+}) => {
+  sessionStorage.setItem(
+    LOGIN_CHALLENGE_STORAGE_KEY,
+    JSON.stringify({
+      ...payload,
+      source: 'oauth',
+      provider: providerName.value,
+    }),
+  )
+}
+
 onMounted(async () => {
   const oauthError = String(route.query?.error ?? '')
   if (oauthError) {
@@ -50,13 +86,43 @@ onMounted(async () => {
   }
 
   try {
-    // 1.调用authorize接口进行登录
-    await handleAuthorize(providerName.value, code)
+    const oauthAction = parseOAuthAction()
+    const isBindAction =
+      oauthAction?.intent === 'bind' &&
+      oauthAction.provider === providerName.value &&
+      isCredentialLoggedIn(credentialStore.credential)
+
+    // 1.调用authorize接口进行登录或绑定
+    await handleAuthorize(providerName.value, code, isBindAction ? 'bind' : 'login')
+    const authorizationResult = authorization.value
+
+    sessionStorage.removeItem(OAUTH_ACTION_STORAGE_KEY)
+
+    if (isBindAction) {
+      sessionStorage.setItem(
+        OAUTH_RESULT_STORAGE_KEY,
+        JSON.stringify({ action: 'bind', provider: providerName.value }),
+      )
+      await router.replace({
+        path: '/home',
+        query: { settings: 'account', tab: 'bindings', t: String(Date.now()) },
+      })
+      return
+    }
+
+    if (authorizationResult.challenge_required) {
+      persistPendingLoginChallenge(authorizationResult)
+      Message.warning('检测到新的登录环境，请完成邮箱验证码验证')
+      await router.replace({ path: '/home', query: { login: '1', t: String(Date.now()) } })
+      return
+    }
 
     // 2.更新用户授权数据并跳转到首页
-    credentialStore.update(authorization.value)
+    sessionStorage.removeItem(LOGIN_CHALLENGE_STORAGE_KEY)
+    credentialStore.update(authorizationResult)
     await router.replace({ path: '/home' })
   } catch (error: unknown) {
+    sessionStorage.removeItem(OAUTH_ACTION_STORAGE_KEY)
     authorizeError.value = getErrorMessage(error, '第三方授权登录失败，请重试')
     Message.error(authorizeError.value)
   }

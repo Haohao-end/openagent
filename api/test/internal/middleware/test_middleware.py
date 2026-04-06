@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+from flask import Flask
 
 from internal.exception import UnauthorizedException
 from internal.middleware.middleware import Middleware
@@ -38,13 +39,15 @@ def test_validate_credential_should_return_credential_when_valid():
 def test_request_loader_should_load_account_for_llmops_blueprint():
     parse_calls = []
     account_calls = []
+    validate_session_calls = []
     middleware = Middleware(
         jwt_service=SimpleNamespace(
             parse_token=lambda token: parse_calls.append(token) or {"sub": "account-id-1"}
         ),
         api_key_service=SimpleNamespace(get_api_by_by_credential=lambda _k: None),
         account_service=SimpleNamespace(
-            get_account=lambda account_id: account_calls.append(account_id) or {"id": account_id}
+            validate_access_session=lambda payload: validate_session_calls.append(payload) or None,
+            get_account=lambda account_id: account_calls.append(account_id) or {"id": account_id},
         ),
     )
     request = SimpleNamespace(
@@ -52,11 +55,41 @@ def test_request_loader_should_load_account_for_llmops_blueprint():
         headers={"Authorization": "Bearer jwt-token"},
     )
 
-    account = middleware.request_loader(request)
+    app = Flask(__name__)
+    with app.app_context():
+        account = middleware.request_loader(request)
 
     assert parse_calls == ["jwt-token"]
+    assert validate_session_calls == [{"sub": "account-id-1"}]
     assert account_calls == ["account-id-1"]
     assert account == {"id": "account-id-1"}
+
+
+def test_request_loader_should_store_current_session_when_jti_exists():
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(
+            parse_token=lambda _token: {"sub": "account-id-1", "jti": "session-1"}
+        ),
+        api_key_service=SimpleNamespace(get_api_by_by_credential=lambda _k: None),
+        account_service=SimpleNamespace(
+            validate_access_session=lambda _payload: {"id": "session-1"},
+            get_account=lambda account_id: {"id": account_id},
+        ),
+    )
+    request = SimpleNamespace(
+        blueprint="llmops",
+        headers={"Authorization": "Bearer jwt-token"},
+    )
+
+    app = Flask(__name__)
+    with app.app_context():
+        account = middleware.request_loader(request)
+
+        from flask import g
+
+        assert g.current_account_session == {"id": "session-1"}
+        assert g.current_access_token_payload == {"sub": "account-id-1", "jti": "session-1"}
+        assert account == {"id": "account-id-1"}
 
 
 def test_request_loader_should_raise_when_openapi_api_key_not_found():
@@ -70,8 +103,10 @@ def test_request_loader_should_raise_when_openapi_api_key_not_found():
         headers={"Authorization": "Bearer api-key"},
     )
 
-    with pytest.raises(UnauthorizedException, match="不存在或未激活"):
-        middleware.request_loader(request)
+    app = Flask(__name__)
+    with app.app_context():
+        with pytest.raises(UnauthorizedException, match="不存在或未激活"):
+            middleware.request_loader(request)
 
 
 def test_request_loader_should_raise_when_openapi_api_key_inactive():
@@ -87,8 +122,10 @@ def test_request_loader_should_raise_when_openapi_api_key_inactive():
         headers={"Authorization": "Bearer api-key"},
     )
 
-    with pytest.raises(UnauthorizedException, match="不存在或未激活"):
-        middleware.request_loader(request)
+    app = Flask(__name__)
+    with app.app_context():
+        with pytest.raises(UnauthorizedException, match="不存在或未激活"):
+            middleware.request_loader(request)
 
 
 def test_request_loader_should_return_account_when_openapi_api_key_active():
@@ -105,7 +142,9 @@ def test_request_loader_should_return_account_when_openapi_api_key_active():
         headers={"Authorization": "Bearer api-key"},
     )
 
-    account = middleware.request_loader(request)
+    app = Flask(__name__)
+    with app.app_context():
+        account = middleware.request_loader(request)
 
     assert account == expected_account
 
@@ -118,4 +157,6 @@ def test_request_loader_should_return_none_for_unmatched_blueprint():
     )
     request = SimpleNamespace(blueprint="health-check", headers={})
 
-    assert middleware.request_loader(request) is None
+    app = Flask(__name__)
+    with app.app_context():
+        assert middleware.request_loader(request) is None

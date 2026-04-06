@@ -56,6 +56,9 @@ const { renderMarkdown, handleMarkdownCopyClick } = useMarkdownRenderer()
 const compiledMarkdown = computed(() => {
   return renderMarkdown(props.answer)
 })
+const avatarText = computed(() => {
+  return String(props.app?.avatar_text || '').trim()
+})
 
 const fallbackAudioId = computed(() => {
   return `answer-audio:${props.app?.name || 'assistant'}`
@@ -151,7 +154,14 @@ const handleMarkdownClick = async (event: MouseEvent) => {
 <template>
   <div class="flex gap-2 group">
     <!-- 左侧图标 -->
-    <a-avatar v-if="props.app?.icon" :size="36" shape="circle" class="flex-shrink-0" :image-url="props.app?.icon" />
+    <a-avatar
+      v-if="avatarText"
+      :size="36"
+      class="flex-shrink-0 text-sm bg-blue-700"
+    >
+      {{ avatarText }}
+    </a-avatar>
+    <a-avatar v-else-if="props.app?.icon" :size="36" shape="circle" class="flex-shrink-0" :image-url="props.app?.icon" />
     <a-avatar v-else :size="36" shape="circle" class="flex-shrink-0 bg-blue-700">
       <icon-apps />
     </a-avatar>
@@ -380,4 +390,5 @@ const handleMarkdownClick = async (event: MouseEvent) => {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(240, 248, 255, 0.5) 100%);
   }
 }
+
 </style>

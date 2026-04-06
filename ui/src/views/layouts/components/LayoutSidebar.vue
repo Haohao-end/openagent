@@ -2,6 +2,7 @@
 import type { RecentConversation } from '@/models/conversation'
 import { useDeleteConversation, useGetRecentConversations } from '@/hooks/use-conversation'
 import { useCredentialStore } from '@/stores/credential'
+import { isCredentialLoggedIn } from '@/utils/auth'
 import UpdateConversationNameModal from '@/views/layouts/components/UpdateConversationNameModal.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -28,14 +29,7 @@ const props = withDefaults(defineProps<Props>(), {
 const route = useRoute()
 const router = useRouter()
 const credentialStore = useCredentialStore()
-const isLoggedIn = computed(() => {
-  const now = Math.floor(Date.now() / 1000)
-  return Boolean(
-    credentialStore.credential.access_token &&
-    credentialStore.credential.expire_at &&
-    credentialStore.credential.expire_at > now,
-  )
-})
+const isLoggedIn = computed(() => isCredentialLoggedIn(credentialStore.credential))
 const selectedConversationId = computed(() => String(route.query.conversation_id || '').trim())
 const isHomeRootRoute = computed(() => route.path === '/home' && !selectedConversationId.value)
 const currentAppId = computed(() => {

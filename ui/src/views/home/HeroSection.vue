@@ -121,7 +121,7 @@
                   </div>
                   <div>
                     <p class="font-semibold text-[#1F2937]">Multi-Model Support</p>
-                    <p class="text-sm text-[#6B7280]">GPT, Claude, DeepSeek</p>
+                    <p class="text-sm text-[#6B7280]">GPT, Gemini, DeepSeek</p>
                   </div>
                 </div>
 
@@ -171,7 +171,7 @@
         <p class="text-sm text-[#6B7280] mb-4">Trusted by leading AI teams</p>
         <div class="flex justify-center gap-8 opacity-60">
           <div class="text-[#9CA3AF] font-semibold">OpenAI</div>
-          <div class="text-[#9CA3AF] font-semibold">Anthropic</div>
+          <div class="text-[#9CA3AF] font-semibold">Google</div>
           <div class="text-[#9CA3AF] font-semibold">DeepSeek</div>
         </div>
       </div>

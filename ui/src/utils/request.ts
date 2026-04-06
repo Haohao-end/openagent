@@ -1,6 +1,13 @@
 import { apiPrefix, httpCode } from '@/config'
+import { getActivePinia } from 'pinia'
 import router from '@/router'
 import { useCredentialStore } from '@/stores/credential'
+import {
+  clearStoredCredential,
+  getCredentialAccessToken,
+  getStoredCredential,
+  type CredentialLike,
+} from '@/utils/auth'
 import { createRequestError, getErrorMessage, isRequestError } from '@/utils/error'
 
 // 1.超时时间为100s
@@ -183,16 +190,30 @@ const resolveApiUrl = (url: string) => {
   return `${apiPrefix}${url.startsWith('/') ? url : `/${url}`}`
 }
 
+const resolveCredentialContext = (): {
+  credential: CredentialLike | null
+  clearCredential: () => void
+} => {
+  const activePinia = getActivePinia()
+  if (!activePinia) {
+    return {
+      credential: getStoredCredential(),
+      clearCredential: clearStoredCredential,
+    }
+  }
+
+  const credentialStore = useCredentialStore(activePinia)
+  return {
+    credential: credentialStore.credential,
+    clearCredential: () => credentialStore.clear(),
+  }
+}
+
 // 4.封装基础的fetch请求
 const baseFetch = async <T>(url: string, fetchOptions: FetchOptionType): Promise<T> => {
   const options = buildRequestOptions(fetchOptions)
-  const { credential, clear: clearCredential } = useCredentialStore()
-  let accessToken = credential.access_token
-
-  // 开发环境下，如果没有token，使用测试token
-  if (!accessToken && import.meta.env.DEV) {
-    accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0ZjkzYmViMy0xODQ5LTRmNzYtODgwNC1hYjM2ODE2MDkxYjcifQ.-KfeCdzSIpqJrkGssGOa47AUUcNwfF9lsl-4_ZExXXc'
-  }
+  const { credential, clearCredential } = resolveCredentialContext()
+  const accessToken = getCredentialAccessToken(credential)
 
   if (accessToken) {
     options.headers.set('Authorization', `Bearer ${accessToken}`)
@@ -412,8 +433,8 @@ export const ssePost = async <TData = unknown, TResponse = unknown>(
   onData: (data: StreamEventPayload<TData>) => void,
 ): Promise<TResponse | void> => {
   const options = buildRequestOptions(fetchOptions, 'POST')
-  const { credential, clear: clearCredential } = useCredentialStore()
-  const accessToken = credential.access_token
+  const { credential, clearCredential } = resolveCredentialContext()
+  const accessToken = getCredentialAccessToken(credential)
   if (accessToken) {
     options.headers.set('Authorization', `Bearer ${accessToken}`)
   }
@@ -488,8 +509,8 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
     },
   }
 
-  const { credential, clear: clearCredential } = useCredentialStore()
-  const accessToken = credential.access_token
+  const { credential, clearCredential } = resolveCredentialContext()
+  const accessToken = getCredentialAccessToken(credential)
   if (accessToken) {
     mergedOptions.headers.Authorization = `Bearer ${accessToken}`
   }

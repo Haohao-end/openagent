@@ -225,9 +225,10 @@ export const useDeleteDocument = () => {
           // 1.点击确定后向API接口发起请求
           const resp = await deleteDocument(dataset_id, document_id)
           Message.success(resp.message)
-        } finally {
-          // 2.调用callback函数指定回调功能
           callback && callback()
+        } catch (error: unknown) {
+          Message.error(getErrorMessage(error, '删除文档失败，请稍后重试'))
+          throw error
         }
       },
     })
@@ -246,9 +247,10 @@ export const useUpdateDocumentEnabled = () => {
     try {
       const resp = await updateDocumentEnabled(dataset_id, document_id, enabled)
       Message.success(resp.message)
-    } finally {
-      // 2.调用callback函数指定回调功能
       callback && callback()
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error, '更新文档状态失败，请稍后重试'))
+      throw error
     }
   }
 
@@ -350,9 +352,10 @@ export const useDeleteSegment = () => {
           // 1.点击确定后向API接口发起请求
           const resp = await deleteSegment(dataset_id, document_id, segment_id)
           Message.success(resp.message)
-        } finally {
-          // 2.调用callback函数指定回调功能
           callback && callback()
+        } catch (error: unknown) {
+          Message.error(getErrorMessage(error, '删除文档片段失败，请稍后重试'))
+          throw error
         }
       },
     })
@@ -372,9 +375,10 @@ export const useUpdateSegmentEnabled = () => {
     try {
       const resp = await updateSegmentEnabled(dataset_id, document_id, segment_id, enabled)
       Message.success(resp.message)
-    } finally {
-      // 2.调用callback函数指定回调功能
       callback && callback()
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error, '更新文档片段状态失败，请稍后重试'))
+      throw error
     }
   }
 
@@ -535,6 +539,9 @@ export const useUpdateDocumentName = () => {
       loading.value = true
       const resp = await updateDocumentName(dataset_id, document_id, name)
       Message.success(resp.message)
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error, '重命名文档失败，请稍后重试'))
+      throw error
     } finally {
       loading.value = false
     }

@@ -23,7 +23,7 @@ parameters:
     default: 0.0
   - name: max_tokens
     use_template: max_tokens
-    default: 4096
+    default: 8000
     max: 8000
 metadata:
   pricing:

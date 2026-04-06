@@ -1,16 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onUnmounted } from 'vue'
+import router from '@/router'
 import { markNotificationAsRead } from '@/services/notification'
 import type { DocumentIndexNotification } from '@/models/notification'
-
-const router = useRouter()
 
 // 通知列表
 const notifications = ref<DocumentIndexNotification[]>([])
 
 // 自动消失的定时器映射
 const autoHideTimers = ref<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+const clearAllTimers = () => {
+  autoHideTimers.value.forEach((timer) => {
+    clearTimeout(timer)
+  })
+  autoHideTimers.value.clear()
+}
 
 /**
  * 获取状态颜色
@@ -33,7 +38,7 @@ const addNotification = (notification: DocumentIndexNotification) => {
 
   // 立即标记为已读（调用后端 API）
   // 即使失败也不重试，只在前端标记为已显示
-  markNotificationAsRead(notification.id).catch((error) => {
+  Promise.resolve(markNotificationAsRead(notification.id)).catch((error) => {
     console.warn('Failed to mark notification as read:', error)
     // 不抛出错误，继续显示通知
   })
@@ -95,6 +100,10 @@ const handleCloseNotification = (notificationId: string) => {
   removeNotification(notificationId)
 }
 
+onUnmounted(() => {
+  clearAllTimers()
+})
+
 // 暴露方法给外部使用
 defineExpose({
   addNotification,
@@ -134,6 +143,7 @@ defineExpose({
           <!-- 右侧关闭按钮 -->
           <button
             class="flex-shrink-0 text-gray-300 hover:text-gray-500 transition-colors mt-0.5"
+            aria-label="关闭通知"
             @click.stop="handleCloseNotification(notification.id)"
           >
             <icon-close :size="16" />
@@ -160,5 +170,3 @@ defineExpose({
   transform: translateX(30px);
 }
 </style>
-
-

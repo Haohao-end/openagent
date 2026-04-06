@@ -1,13 +1,28 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Message, type ValidatedError } from '@arco-design/web-vue'
-import { usePasswordLogin } from '@/hooks/use-auth'
+import { type ValidatedError, Message } from '@arco-design/web-vue'
+import {
+  usePasswordLogin,
+  useResendLoginChallenge,
+  useVerifyLoginChallenge,
+} from '@/hooks/use-auth'
 import { useProvider } from '@/hooks/use-oauth'
 import { useCredentialStore } from '@/stores/credential'
 import { resetPassword, sendResetCode } from '@/services/auth'
+import { type LoginAuthorizationData } from '@/models/auth'
 import { getErrorMessage } from '@/utils/error'
 import IconOpenAgent from '@/components/icons/IconOpenAgent.vue'
+
+type AuthView = 'login' | 'challenge' | 'forgot'
+type LoginChallengeSource = 'password' | 'oauth'
+type LoginChallengeState = {
+  challenge_id: string
+  challenge_type: string
+  masked_email: string
+  risk_reason: string
+  source: LoginChallengeSource
+}
 
 const props = withDefaults(
   defineProps<{
@@ -24,7 +39,18 @@ const emits = defineEmits<{
   (event: 'success'): void
 }>()
 
-const authView = ref<'login' | 'forgot'>('login')
+const STORAGE_KEY = 'login_credentials'
+const LOGIN_CHALLENGE_STORAGE_KEY = 'pending_login_challenge'
+
+const createEmptyChallenge = (): LoginChallengeState => ({
+  challenge_id: '',
+  challenge_type: '',
+  masked_email: '',
+  risk_reason: '',
+  source: 'password',
+})
+
+const authView = ref<AuthView>('login')
 const errorMessage = ref('')
 const loginForm = ref({ email: '', password: '' })
 const rememberPassword = ref(true)
@@ -35,19 +61,37 @@ const forgotForm = ref({
   new_password: '',
   confirm_password: '',
 })
+const loginChallenge = ref<LoginChallengeState>(createEmptyChallenge())
+const challengeCode = ref('')
 const sendingCode = ref(false)
 const resetting = ref(false)
 const countdown = ref(0)
 const countdownTimer = ref<number>()
+const challengeCountdown = ref(0)
+const challengeTimer = ref<number>()
 const credentialStore = useCredentialStore()
 const router = useRouter()
 const { loading: passwordLoginLoading, authorization, handlePasswordLogin } = usePasswordLogin()
+const {
+  loading: verifyLoginChallengeLoading,
+  authorization: challengeAuthorization,
+  handleVerifyLoginChallenge,
+} = useVerifyLoginChallenge()
+const { loading: resendLoginChallengeLoading, handleResendLoginChallenge } =
+  useResendLoginChallenge()
 const { loading: providerLoading, redirect_url, handleProvider } = useProvider()
 const countdownText = computed(() => {
   return countdown.value > 0 ? `${countdown.value}秒后重发` : '发送验证码'
 })
-
-const STORAGE_KEY = 'login_credentials'
+const challengeCountdownText = computed(() => {
+  return challengeCountdown.value > 0 ? `${challengeCountdown.value}秒后重发` : '重发验证码'
+})
+const challengeDescription = computed(() => {
+  if (loginChallenge.value.risk_reason === 'new_ip') {
+    return `检测到本次登录来自新的 IP 环境。请输入发送到 ${loginChallenge.value.masked_email || '绑定邮箱'} 的验证码，确认是你本人操作。`
+  }
+  return `请输入发送到 ${loginChallenge.value.masked_email || '绑定邮箱'} 的验证码，完成本次登录验证。`
+})
 
 const getUserFriendlyErrorMessage = (error: unknown, fallback: string) => {
   const rawMessage = getErrorMessage(error, fallback).trim()
@@ -73,6 +117,64 @@ const getUserFriendlyErrorMessage = (error: unknown, fallback: string) => {
   return rawMessage
 }
 
+const persistPendingLoginChallenge = () => {
+  sessionStorage.setItem(LOGIN_CHALLENGE_STORAGE_KEY, JSON.stringify(loginChallenge.value))
+}
+
+const clearPendingLoginChallenge = () => {
+  sessionStorage.removeItem(LOGIN_CHALLENGE_STORAGE_KEY)
+}
+
+const startChallengeCountdown = () => {
+  if (challengeTimer.value) {
+    window.clearInterval(challengeTimer.value)
+  }
+  challengeCountdown.value = 60
+  challengeTimer.value = window.setInterval(() => {
+    challengeCountdown.value -= 1
+    if (challengeCountdown.value <= 0) {
+      if (challengeTimer.value) {
+        window.clearInterval(challengeTimer.value)
+        challengeTimer.value = undefined
+      }
+      challengeCountdown.value = 0
+    }
+  }, 1000)
+}
+
+const clearChallengeCountdown = () => {
+  if (challengeTimer.value) {
+    window.clearInterval(challengeTimer.value)
+    challengeTimer.value = undefined
+  }
+  challengeCountdown.value = 0
+}
+
+const applyLoginChallenge = (
+  payload: LoginAuthorizationData,
+  source: LoginChallengeSource = 'password',
+) => {
+  loginChallenge.value = {
+    challenge_id: String(payload.challenge_id || ''),
+    challenge_type: String(payload.challenge_type || 'email_code'),
+    masked_email: String(payload.masked_email || ''),
+    risk_reason: String(payload.risk_reason || ''),
+    source,
+  }
+  challengeCode.value = ''
+  errorMessage.value = ''
+  authView.value = 'challenge'
+  persistPendingLoginChallenge()
+  startChallengeCountdown()
+}
+
+const clearLoginChallenge = () => {
+  loginChallenge.value = createEmptyChallenge()
+  challengeCode.value = ''
+  clearChallengeCountdown()
+  clearPendingLoginChallenge()
+}
+
 const loadSavedCredentials = () => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
@@ -83,6 +185,29 @@ const loadSavedCredentials = () => {
     rememberPassword.value = true
   } catch {
     localStorage.removeItem(STORAGE_KEY)
+  }
+}
+
+const loadPendingLoginChallenge = () => {
+  try {
+    const saved = sessionStorage.getItem(LOGIN_CHALLENGE_STORAGE_KEY)
+    if (!saved) return
+    const parsed = JSON.parse(saved)
+    if (!parsed?.challenge_id) {
+      clearPendingLoginChallenge()
+      return
+    }
+    loginChallenge.value = {
+      challenge_id: String(parsed.challenge_id || ''),
+      challenge_type: String(parsed.challenge_type || 'email_code'),
+      masked_email: String(parsed.masked_email || ''),
+      risk_reason: String(parsed.risk_reason || ''),
+      source: parsed.source === 'oauth' ? 'oauth' : 'password',
+    }
+    authView.value = 'challenge'
+    startChallengeCountdown()
+  } catch {
+    clearPendingLoginChallenge()
   }
 }
 
@@ -106,12 +231,14 @@ const handleRememberChange = (checked: boolean) => {
 
 onMounted(() => {
   loadSavedCredentials()
+  loadPendingLoginChallenge()
 })
 
 onBeforeUnmount(() => {
   if (countdownTimer.value) {
     window.clearInterval(countdownTimer.value)
   }
+  clearChallengeCountdown()
 })
 
 const clearCountdown = () => {
@@ -138,8 +265,10 @@ const openForgotPassword = () => {
 }
 
 const backToLogin = () => {
+  errorMessage.value = ''
   authView.value = 'login'
   resetForgotForm()
+  clearLoginChallenge()
 }
 
 const handleForgotBack = () => {
@@ -188,6 +317,59 @@ const handleSendCode = async () => {
 const handleResendCode = async () => {
   if (countdown.value > 0) return
   await handleSendCode()
+}
+
+const finalizeLoginSuccess = async (credential: LoginAuthorizationData) => {
+  clearPendingLoginChallenge()
+  credentialStore.update({
+    access_token: String(credential.access_token || ''),
+    expire_at: Number(credential.expire_at || 0),
+  })
+
+  if (props.redirectAfterLogin) {
+    Message.success('登录成功，正在跳转')
+    await router.replace({ path: '/home' })
+    return
+  }
+
+  Message.success('登录成功')
+  emits('success')
+}
+
+const handleVerifyChallenge = async () => {
+  if (!loginChallenge.value.challenge_id) {
+    errorMessage.value = '登录验证已失效，请重新登录'
+    backToLogin()
+    return
+  }
+
+  if (!challengeCode.value.trim()) {
+    Message.error('请输入验证码')
+    return
+  }
+
+  try {
+    await handleVerifyLoginChallenge(loginChallenge.value.challenge_id, challengeCode.value.trim())
+    const loginResult = challengeAuthorization.value
+    if (loginChallenge.value.source === 'password') {
+      saveCredentials()
+    }
+    clearLoginChallenge()
+    await finalizeLoginSuccess(loginResult)
+  } catch (error: unknown) {
+    errorMessage.value = getUserFriendlyErrorMessage(error, '登录验证失败，请重试')
+  }
+}
+
+const handleResendChallengeCode = async () => {
+  if (challengeCountdown.value > 0 || !loginChallenge.value.challenge_id) return
+
+  try {
+    await handleResendLoginChallenge(loginChallenge.value.challenge_id)
+    startChallengeCountdown()
+  } catch (error: unknown) {
+    errorMessage.value = getUserFriendlyErrorMessage(error, '验证码发送失败，请稍后重试')
+  }
 }
 
 const handleResetPassword = async () => {
@@ -245,17 +427,16 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
 
   try {
     await handlePasswordLogin(loginForm.value.email, loginForm.value.password)
-    saveCredentials()
-    credentialStore.update(authorization.value)
+    const loginResult = authorization.value
 
-    if (props.redirectAfterLogin) {
-      Message.success('登录成功，正在跳转')
-      await router.replace({ path: '/home' })
+    if (loginResult.challenge_required) {
+      applyLoginChallenge(loginResult, 'password')
+      Message.warning('检测到新的登录环境，请完成邮箱验证码验证')
       return
     }
 
-    Message.success('登录成功')
-    emits('success')
+    saveCredentials()
+    await finalizeLoginSuccess(loginResult)
   } catch (error: unknown) {
     errorMessage.value = getUserFriendlyErrorMessage(error, '登录失败，请检查邮箱和密码后重试')
     loginForm.value.password = ''
@@ -287,6 +468,8 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
           {{
             authView === 'login'
               ? '使用邮箱账号登录，继续你的 AI 工作台'
+              : authView === 'challenge'
+                ? '检测到新的登录环境，请完成邮箱验证码验证'
               : forgotStep === 1
                 ? '输入您的注册邮箱'
                 : '输入验证码并设置新密码'
@@ -295,7 +478,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
       </div>
 
       <div
-        v-if="authView === 'login' && errorMessage"
+        v-if="authView !== 'forgot' && errorMessage"
         class="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2 mb-4"
       >
         {{ errorMessage }}
@@ -407,6 +590,56 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
           </a-button>
         </div>
       </a-form>
+
+      <div v-else-if="authView === 'challenge'">
+        <div class="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-900 mb-4">
+          {{ challengeDescription }}
+        </div>
+
+        <a-form-item hide-label class="login-input !mb-4">
+          <a-input
+            v-model="challengeCode"
+            size="large"
+            placeholder="请输入6位验证码"
+            maxlength="6"
+            @keyup.enter="handleVerifyChallenge"
+          >
+            <template #prefix>
+              <icon-safe class="text-slate-400" />
+            </template>
+            <template #suffix>
+              <a-button
+                type="text"
+                size="mini"
+                class="!text-slate-500"
+                :loading="resendLoginChallengeLoading"
+                :disabled="challengeCountdown > 0"
+                @click="handleResendChallengeCode"
+              >
+                {{ challengeCountdownText }}
+              </a-button>
+            </template>
+          </a-input>
+        </a-form-item>
+
+        <a-button
+          :loading="verifyLoginChallengeLoading"
+          size="large"
+          type="primary"
+          long
+          class="login-submit-btn !text-base !font-medium"
+          @click="handleVerifyChallenge"
+        >
+          完成登录验证
+        </a-button>
+
+        <div class="text-center mt-4">
+          <a-link class="!text-slate-500 hover:!text-slate-700" @click="backToLogin">
+            <icon-left />
+            返回登录
+          </a-link>
+        </div>
+      </div>
 
       <div v-else>
         <div v-if="forgotStep === 1">

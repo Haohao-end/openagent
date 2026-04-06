@@ -1,13 +1,25 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { markNotificationAsRead } from '@/services/notification'
 import DocumentIndexNotification from '../DocumentIndexNotification.vue'
 import type { DocumentIndexNotification as DocumentNotificationType } from '@/models/notification'
+
+vi.mock('@/services/notification', () => ({
+  markNotificationAsRead: vi.fn().mockResolvedValue(undefined),
+}))
 
 describe('DocumentIndexNotification.vue', () => {
   let wrapper: any
 
   beforeEach(() => {
-    wrapper = mount(DocumentIndexNotification)
+    vi.clearAllMocks()
+    wrapper = mount(DocumentIndexNotification, {
+      global: {
+        stubs: {
+          'icon-close': true,
+        },
+      },
+    })
   })
 
   it('should render empty notification list initially', () => {
@@ -34,6 +46,7 @@ describe('DocumentIndexNotification.vue', () => {
 
     expect(wrapper.vm.notifications).toHaveLength(1)
     expect(wrapper.vm.notifications[0]).toEqual(notification)
+    expect(markNotificationAsRead).toHaveBeenCalledWith('doc-1')
   })
 
   it('should add error notification', () => {

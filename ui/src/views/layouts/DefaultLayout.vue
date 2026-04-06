@@ -1,21 +1,27 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { Message } from '@arco-design/web-vue'
 import { useLogout } from '@/hooks/use-auth'
 import LayoutSidebar from './components/LayoutSidebar.vue'
 import RecentConversationsGlobalPopover from './components/RecentConversationsGlobalPopover.vue'
 import { useGetCurrentUser } from '@/hooks/use-account'
 import { useCredentialStore } from '@/stores/credential'
 import { useAccountStore } from '@/stores/account'
-import SettingModal from '@/views/layouts/components/SettingModal.vue'
 import LoginModal from '@/views/auth/components/LoginModal.vue'
 import { AUTH_REQUIRED_EVENT } from '@/utils/request'
+import { isCredentialLoggedIn } from '@/utils/auth'
 import IconOpenAgent from '@/components/icons/IconOpenAgent.vue'
 import { useRoute } from 'vue-router'
 import { getUserAvatarUrl } from '@/utils/helper'
 
+const SettingModal = defineAsyncComponent(
+  () => import('@/views/layouts/components/SettingModal.vue'),
+)
+
 // 1.定义页面所需数据
 const settingModalVisible = ref(false)
+const settingModalInitialTab = ref<'profile' | 'security' | 'bindings' | 'devices'>('profile')
 const loginModalVisible = ref(false)
 const loginRedirectPath = ref('')
 const sidebarCollapsed = ref(false)
@@ -23,20 +29,14 @@ const popoverVisible = ref(false)
 const popoverData = ref<any>(null)
 const popoverPosition = ref({ top: 0, left: 0 })
 const RECENT_CONVERSATIONS_POPOVER_MARGIN = 12
+const OAUTH_RESULT_STORAGE_KEY = 'account_oauth_result'
 const router = useRouter()
 const route = useRoute()
 const credentialStore = useCredentialStore()
 const accountStore = useAccountStore()
 const { handleLogout: handleLogoutHook } = useLogout()
 const { current_user, loadCurrentUser } = useGetCurrentUser()
-const isLoggedIn = computed(() => {
-  const now = Math.floor(Date.now() / 1000)
-  return Boolean(
-    credentialStore.credential.access_token &&
-    credentialStore.credential.expire_at &&
-    credentialStore.credential.expire_at > now,
-  )
-})
+const isLoggedIn = computed(() => isCredentialLoggedIn(credentialStore.credential))
 const sidebarWidth = computed(() => (sidebarCollapsed.value ? 80 : 240))
 const isSearchActive = computed(() => route.path === '/search')
 
@@ -151,12 +151,55 @@ const handleViewportResize = () => {
   void adjustRecentConversationsPopoverPosition()
 }
 
+const clearAccountSettingsQuery = async () => {
+  if (route.query.settings !== 'account') return
+
+  const nextQuery = { ...route.query }
+  delete nextQuery.settings
+  delete nextQuery.tab
+  delete nextQuery.t
+
+  await router.replace({
+    path: route.path,
+    query: nextQuery,
+  })
+}
+
+const openSettingsFromRoute = () => {
+  if (route.query.settings !== 'account') return
+
+  const tab = String(route.query.tab || 'profile')
+  if (tab === 'security' || tab === 'bindings' || tab === 'devices') {
+    settingModalInitialTab.value = tab
+  } else {
+    settingModalInitialTab.value = 'profile'
+  }
+  settingModalVisible.value = true
+
+  const oauthResultRaw = sessionStorage.getItem(OAUTH_RESULT_STORAGE_KEY)
+  if (!oauthResultRaw) return
+
+  try {
+    const oauthResult = JSON.parse(oauthResultRaw)
+    const providerLabel = String(oauthResult.provider || '').toLowerCase()
+    const displayName = providerLabel === 'github' ? 'GitHub' : providerLabel === 'google' ? 'Google' : oauthResult.provider
+    if (oauthResult.action === 'bind') {
+      Message.success(`${displayName} 绑定成功`)
+    }
+  } catch {
+    Message.success('第三方账号绑定成功')
+  } finally {
+    sessionStorage.removeItem(OAUTH_RESULT_STORAGE_KEY)
+  }
+}
+
 onMounted(() => {
   if (typeof window === 'undefined') return
   window.addEventListener(AUTH_REQUIRED_EVENT, handleAuthRequired as EventListener)
   window.addEventListener('recent-conversations:show', handleRecentConversationsShow)
   window.addEventListener('recent-conversations:hide', handleRecentConversationsHide)
   window.addEventListener('resize', handleViewportResize)
+  openSettingsFromRoute()
 })
 
 onUnmounted(() => {
@@ -165,6 +208,18 @@ onUnmounted(() => {
   window.removeEventListener('recent-conversations:show', handleRecentConversationsShow)
   window.removeEventListener('recent-conversations:hide', handleRecentConversationsHide)
   window.removeEventListener('resize', handleViewportResize)
+})
+
+watch(
+  () => [route.query.settings, route.query.tab, route.query.t],
+  () => {
+    openSettingsFromRoute()
+  },
+)
+
+watch(settingModalVisible, async (visible) => {
+  if (visible) return
+  await clearAccountSettingsQuery()
 })
 </script>
 
@@ -298,7 +353,7 @@ onUnmounted(() => {
     </a-layout-content>
     <login-modal v-model:visible="loginModalVisible" @success="handleLoginSuccess" />
     <!-- 设置模态窗 -->
-    <setting-modal v-model:visible="settingModalVisible" />
+    <setting-modal v-model:visible="settingModalVisible" :initial-tab="settingModalInitialTab" />
     <!-- 最近对话全局 Popover -->
     <recent-conversations-global-popover
       v-if="popoverVisible && popoverData"

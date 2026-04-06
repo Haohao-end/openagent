@@ -1,6 +1,6 @@
 import { post } from '@/utils/request'
 import { type BaseResponse } from '@/models/base'
-import { type PasswordLoginResponse } from '@/models/auth'
+import { type PasswordLoginResponse, type VerifyLoginChallengeResponse } from '@/models/auth'
 
 // 账号密码登录请求
 export const passwordLogin = (email: string, password: string) => {
@@ -25,5 +25,19 @@ export const sendResetCode = (email: string) => {
 export const resetPassword = (email: string, code: string, new_password: string) => {
   return post<BaseResponse<any>>(`/auth/reset-password`, {
     body: { email, code, new_password },
+  })
+}
+
+// 完成异常登录二次验证
+export const verifyLoginChallenge = (challenge_id: string, code: string) => {
+  return post<VerifyLoginChallengeResponse>(`/auth/login-challenge/verify`, {
+    body: { challenge_id, code },
+  })
+}
+
+// 重发异常登录验证码
+export const resendLoginChallenge = (challenge_id: string) => {
+  return post<BaseResponse<any>>(`/auth/login-challenge/resend`, {
+    body: { challenge_id },
   })
 }

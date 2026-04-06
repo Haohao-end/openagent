@@ -12,7 +12,6 @@ import type {
   GetAssistantAgentMessagesWithPageResponse,
 } from '@/models/assistant-agent'
 import { Message } from '@arco-design/web-vue'
-
 export const useAssistantAgentChat = () => {
   // 1.定义自定义hooks所需数据
   const loading = ref(false)
@@ -79,7 +78,7 @@ export const useGetAssistantAgentMessagesWithPage = () => {
   const created_at = ref(0)
   const defaultPaginator = {
     current_page: 1,
-    page_size: 5,
+    page_size: 20,
     total_page: 0,
     total_record: 0,
   }

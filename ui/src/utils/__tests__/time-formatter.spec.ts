@@ -3,23 +3,23 @@ import { formatTimestamp, formatTimestampShort, formatTimestampLong, formatTimes
 
 describe('time-formatter', () => {
   // 使用一个已知的时间戳进行测试
-  // 2024-01-15 12:30:45 UTC 对应的时间戳是 1705329045
+  // 2024-01-15 14:30:45 UTC 对应的时间戳是 1705329045
   const testTimestamp = 1705329045
 
   it('should format timestamp to Asia/Shanghai timezone', () => {
-    // 2024-01-15 12:30:45 UTC = 2024-01-15 20:30:45 Asia/Shanghai (UTC+8)
+    // 2024-01-15 14:30:45 UTC = 2024-01-15 22:30:45 Asia/Shanghai (UTC+8)
     const result = formatTimestamp(testTimestamp, 'YYYY-MM-DD HH:mm:ss')
-    expect(result).toBe('2024-01-15 20:30:45')
+    expect(result).toBe('2024-01-15 22:30:45')
   })
 
   it('should format timestamp short format', () => {
     const result = formatTimestampShort(testTimestamp)
-    expect(result).toBe('01-15 20:30')
+    expect(result).toBe('01-15 22:30')
   })
 
   it('should format timestamp long format', () => {
     const result = formatTimestampLong(testTimestamp)
-    expect(result).toBe('2024-01-15 20:30:45')
+    expect(result).toBe('2024-01-15 22:30:45')
   })
 
   it('should format timestamp date format', () => {
@@ -29,7 +29,7 @@ describe('time-formatter', () => {
 
   it('should format timestamp time format', () => {
     const result = formatTimestampTime(testTimestamp)
-    expect(result).toBe('20:30:45')
+    expect(result).toBe('22:30:45')
   })
 
   it('should handle null timestamp', () => {

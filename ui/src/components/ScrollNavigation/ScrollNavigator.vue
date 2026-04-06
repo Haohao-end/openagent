@@ -9,12 +9,14 @@ interface Props {
   bottomThreshold?: number
   itemSelector?: string // CSS 选择器，用于自动收集导航项
   labels?: string[] // 可选的标签
+  showScrollToTopButton?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   container: undefined,
   bottomThreshold: 500,
   itemSelector: '[data-scroll-item]',
+  showScrollToTopButton: true,
 })
 
 const emit = defineEmits<{
@@ -23,17 +25,11 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLElement | null>(null)
 
-const {
-  items,
-  currentIndex,
-  isNearBottom,
-  collectItems,
-  scrollToTop,
-  scrollToItem,
-} = useScrollNavigation({
-  container: props.container,
-  bottomThreshold: props.bottomThreshold,
-})
+const { items, currentIndex, isNearBottom, collectItems, scrollToTop, scrollToItem } =
+  useScrollNavigation({
+    container: props.container,
+    bottomThreshold: props.bottomThreshold,
+  })
 
 onMounted(() => {
   // 自动收集导航项
@@ -61,6 +57,7 @@ const handleItemClick = (index: number) => {
 
     <!-- 回到顶部按钮 -->
     <scroll-to-top-button
+      v-if="showScrollToTopButton"
       :visible="isNearBottom"
       @click="handleScrollToTop"
     />

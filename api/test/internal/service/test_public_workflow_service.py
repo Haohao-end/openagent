@@ -15,9 +15,9 @@ def _field(value):
     return SimpleNamespace(data=value)
 
 
-def _req(*, category="all", sort_by="latest", search_word="", current_page=1, page_size=20):
+def _req(*, tags="", sort_by="latest", search_word="", current_page=1, page_size=20):
     return SimpleNamespace(
-        category=_field(category),
+        tags=_field(tags),
         sort_by=_field(sort_by),
         search_word=_field(search_word),
         current_page=_field(current_page),
@@ -125,7 +125,7 @@ def _build_service(*, session=None):
 
 
 class TestPublicWorkflowService:
-    def test_share_workflow_to_square_should_validate_exists_owner_status_and_category(self):
+    def test_share_workflow_to_square_should_validate_exists_owner_status_and_accept_tags(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         workflow_id = uuid4()
 
@@ -143,10 +143,26 @@ class TestPublicWorkflowService:
         with pytest.raises(ValidateErrorException):
             service.share_workflow_to_square(workflow_id, AppCategory.GENERAL.value, account)
 
-        published = SimpleNamespace(id=workflow_id, account_id=account.id, status=WorkflowStatus.PUBLISHED.value)
+        published = SimpleNamespace(
+            id=workflow_id,
+            account_id=account.id,
+            status=WorkflowStatus.PUBLISHED.value,
+            is_public=False,
+            tags=[],
+            published_at=None,
+        )
         service = _build_service(session=_QueueSession([_Query(one_or_none_result=published)]))
-        with pytest.raises(ValidateErrorException):
-            service.share_workflow_to_square(workflow_id, "invalid-category", account)
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: target.__dict__.update(kwargs) or target,
+        )
+
+        shared = service.share_workflow_to_square(workflow_id, AppCategory.GENERAL.value, account)
+
+        assert shared.tags == [AppCategory.GENERAL.value]
+        assert shared.is_public is True
+        assert shared.published_at is not None
 
     def test_share_and_unshare_workflow_should_update_public_fields(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
@@ -173,7 +189,7 @@ class TestPublicWorkflowService:
         assert shared is workflow
         assert unshared is workflow
         assert updates[0][1]["is_public"] is True
-        assert updates[0][1]["category"] == AppCategory.GENERAL.value
+        assert updates[0][1]["tags"] == [AppCategory.GENERAL.value]
         assert updates[0][1]["published_at"] is not None
         assert updates[1][1] == {"is_public": False, "published_at": None}
 
@@ -198,7 +214,7 @@ class TestPublicWorkflowService:
             name="wf",
             icon="https://icon",
             description="desc",
-            category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             view_count=9,
             like_count=4,
             fork_count=2,
@@ -211,6 +227,7 @@ class TestPublicWorkflowService:
                 _Query(),  # query(Workflow, Account.name, favorite_count)
                 _Query(all_result=[(workflow.id,)]),  # liked workflow ids
                 _Query(all_result=[]),  # favorited workflow ids
+                _Query(all_result=[(workflow.id,)]),  # forked workflow ids
             ]
         )
         service = _build_service(session=session)
@@ -223,7 +240,7 @@ class TestPublicWorkflowService:
 
             def paginate(self, query):
                 captures["query"] = query
-                return [(workflow, "Owner", 5)]
+                return [(workflow, "Owner", "https://avatar", 5)]
 
         monkeypatch.setattr("internal.service.public_workflow_service.Paginator", _Paginator)
         results, paginator = service.get_public_workflows_with_page(
@@ -238,7 +255,111 @@ class TestPublicWorkflowService:
         assert results[0]["favorite_count"] == 5
         assert results[0]["is_liked"] is True
         assert results[0]["is_favorited"] is False
+        assert results[0]["is_forked"] is True
         assert results[0]["account_name"] == "Owner"
+
+    def test_get_my_likes_should_return_serialized_public_workflows(self):
+        account = SimpleNamespace(id=uuid4())
+        like_1 = SimpleNamespace(workflow_id=uuid4(), created_at=datetime(2026, 1, 2, tzinfo=UTC))
+        like_2 = SimpleNamespace(workflow_id=uuid4(), created_at=datetime(2026, 1, 1, tzinfo=UTC))
+        workflow_1 = SimpleNamespace(
+            id=like_1.workflow_id,
+            name="点赞工作流一",
+            icon="https://wf/1.png",
+            description="desc 1",
+            tags=["assistant"],
+            view_count=5,
+            like_count=10,
+            fork_count=1,
+            published_at=datetime(2026, 1, 3, tzinfo=UTC),
+            created_at=datetime(2025, 12, 3, tzinfo=UTC),
+        )
+        workflow_2 = SimpleNamespace(
+            id=like_2.workflow_id,
+            name="点赞工作流二",
+            icon="https://wf/2.png",
+            description="desc 2",
+            tags=["workflow"],
+            view_count=6,
+            like_count=12,
+            fork_count=2,
+            published_at=datetime(2026, 1, 4, tzinfo=UTC),
+            created_at=datetime(2025, 12, 4, tzinfo=UTC),
+        )
+        session = _QueueSession(
+            [
+                _Query(all_result=[like_1, like_2]),
+                _Query(),  # favorite_count_subquery
+                _Query(all_result=[(workflow_1, "Owner A", "https://avatar/1.png", 3), (workflow_2, None, "", 4)]),
+                _Query(all_result=[(like_1.workflow_id,), (like_2.workflow_id,)]),  # liked ids
+                _Query(all_result=[(like_2.workflow_id,)]),  # favorited ids
+                _Query(all_result=[]),  # forked ids
+            ]
+        )
+        service = _build_service(session=session)
+
+        workflows = service.get_my_likes(account)
+
+        assert [workflow["id"] for workflow in workflows] == [
+            str(like_1.workflow_id),
+            str(like_2.workflow_id),
+        ]
+        assert workflows[0]["is_liked"] is True
+        assert workflows[0]["account_name"] == "Owner A"
+        assert workflows[1]["is_favorited"] is True
+        assert workflows[1]["account_name"] == "Unknown"
+
+    def test_get_my_favorites_should_return_serialized_public_workflows(self):
+        account = SimpleNamespace(id=uuid4())
+        favorite_1 = SimpleNamespace(workflow_id=uuid4(), created_at=datetime(2026, 1, 2, tzinfo=UTC))
+        favorite_2 = SimpleNamespace(workflow_id=uuid4(), created_at=datetime(2026, 1, 1, tzinfo=UTC))
+        workflow_1 = SimpleNamespace(
+            id=favorite_1.workflow_id,
+            name="收藏工作流一",
+            icon="https://wf/1.png",
+            description="desc 1",
+            tags=["assistant"],
+            view_count=7,
+            like_count=9,
+            fork_count=3,
+            published_at=datetime(2026, 1, 5, tzinfo=UTC),
+            created_at=datetime(2025, 12, 5, tzinfo=UTC),
+        )
+        workflow_2 = SimpleNamespace(
+            id=favorite_2.workflow_id,
+            name="收藏工作流二",
+            icon="https://wf/2.png",
+            description="desc 2",
+            tags=["workflow"],
+            view_count=8,
+            like_count=13,
+            fork_count=4,
+            published_at=datetime(2026, 1, 6, tzinfo=UTC),
+            created_at=datetime(2025, 12, 6, tzinfo=UTC),
+        )
+        session = _QueueSession(
+            [
+                _Query(all_result=[favorite_1, favorite_2]),
+                _Query(),  # favorite_count_subquery
+                _Query(all_result=[(workflow_1, "Owner B", "https://avatar/2.png", 5), (workflow_2, "Owner C", "", 6)]),
+                _Query(all_result=[]),  # liked ids
+                _Query(all_result=[(favorite_1.workflow_id,), (favorite_2.workflow_id,)]),  # favorited ids
+                _Query(all_result=[(favorite_1.workflow_id,)]),  # forked ids
+            ]
+        )
+        service = _build_service(session=session)
+
+        workflows = service.get_my_favorites(account)
+
+        assert [workflow["id"] for workflow in workflows] == [
+            str(favorite_1.workflow_id),
+            str(favorite_2.workflow_id),
+        ]
+        assert workflows[0]["is_favorited"] is True
+        assert workflows[0]["is_forked"] is True
+        assert workflows[1]["favorite_count"] == 6
+        assert workflows[0]["account_avatar"] == "https://avatar/2.png"
+        assert workflows[0]["tags"] == ["assistant"]
 
     def test_get_public_workflows_with_page_should_cover_most_favorited_sort(self, monkeypatch):
         service = _build_service(session=_QueueSession([_Query(), _Query()]))
@@ -257,14 +378,14 @@ class TestPublicWorkflowService:
         assert records == []
         assert isinstance(paginator, _Paginator)
 
-    def test_get_public_workflows_with_page_should_support_category_search_and_anonymous_user(self, monkeypatch):
+    def test_get_public_workflows_with_page_should_support_tag_search_and_anonymous_user(self, monkeypatch):
         workflow = SimpleNamespace(
             id=uuid4(),
             account_id=uuid4(),
             name="工作流 A",
             icon="https://icon",
             description="支持搜索",
-            category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             view_count=3,
             like_count=1,
             fork_count=0,
@@ -286,12 +407,12 @@ class TestPublicWorkflowService:
 
             def paginate(self, query):
                 assert query is not None
-                return [(workflow, None, 2)]
+                return [(workflow, None, None, 2)]
 
         monkeypatch.setattr("internal.service.public_workflow_service.Paginator", _Paginator)
 
         records, paginator = service.get_public_workflows_with_page(
-            _req(category=AppCategory.GENERAL.value, sort_by="latest", search_word="工作流"),
+            _req(tags=AppCategory.GENERAL.value, sort_by="latest", search_word="工作流"),
             None,
         )
 
@@ -300,6 +421,7 @@ class TestPublicWorkflowService:
         assert records[0]["is_liked"] is False
         assert records[0]["is_favorited"] is False
         assert records[0]["favorite_count"] == 2
+        assert records[0]["tags"] == [AppCategory.GENERAL.value]
 
     def test_fork_public_workflow_should_create_copy_and_update_counters(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
@@ -314,7 +436,7 @@ class TestPublicWorkflowService:
             icon="https://icon",
             description="desc",
             graph={"nodes": [], "edges": []},
-            category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
         )
         session = _QueueSession([_Query(one_or_none_result=source)])
         service = _build_service(session=session)
@@ -330,6 +452,7 @@ class TestPublicWorkflowService:
         assert copied.name.endswith("(副本)")
         assert copied.original_workflow_id == source.id
         assert copied.status == WorkflowStatus.DRAFT.value
+        assert copied.tags == source.tags
         assert source.view_count == 3
         assert source.fork_count == 4
         assert len(session.added) == 1
@@ -419,7 +542,7 @@ class TestPublicWorkflowService:
             name="wf",
             icon="https://icon",
             description="desc",
-            category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             view_count=10,
             like_count=3,
             fork_count=4,
@@ -450,6 +573,7 @@ class TestPublicWorkflowService:
         assert detail["status"] == WorkflowStatus.PUBLISHED.value
         assert detail["is_debug_passed"] is True
         assert detail["favorite_count"] == 7
+        assert detail["tags"] == [AppCategory.GENERAL.value]
         assert detail["is_liked"] is True
         assert detail["is_favorited"] is False
         assert workflow.view_count == 11
@@ -464,7 +588,7 @@ class TestPublicWorkflowService:
             name="wf",
             icon="https://icon",
             description="desc",
-            category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             view_count=1,
             like_count=0,
             fork_count=0,
@@ -490,6 +614,7 @@ class TestPublicWorkflowService:
 
         assert detail["account_name"] == "Unknown"
         assert detail["favorite_count"] == 0
+        assert detail["tags"] == [AppCategory.GENERAL.value]
         assert detail["is_liked"] is False
         assert detail["is_favorited"] is False
 

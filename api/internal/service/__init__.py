@@ -23,6 +23,7 @@ from .openapi_service import OpenAPIService
 from .process_rule_service import ProcessRuleService
 from .retrieval_service import RetrievalService
 from .segment_service import SegmentService
+from .tag_service import TagService
 from .upload_file_service import UploadFileService
 from .vector_database_service import VectorDatabaseService
 from .workflow_service import WorkflowService
@@ -35,6 +36,8 @@ from .audio_service import AudioService
 from .platform_service import PlatformService
 from .wechat_service import WechatService
 from .icon_generator_service import IconGeneratorService
+from .public_agent_a2a_service import PublicAgentA2AService
+from .public_agent_registry_service import PublicAgentRegistryService
 from .public_app_service import PublicAppService
 from .public_workflow_service import PublicWorkflowService
 
@@ -57,6 +60,7 @@ __all__ = [
     "ProcessRuleService",
     "KeywordTableService",
     "SegmentService",
+    "TagService",
     "RetrievalService",
     "ConversationService",
     "JwtService",
@@ -76,6 +80,8 @@ __all__ = [
     "PlatformService",
     "WechatService",
     "IconGeneratorService",
+    "PublicAgentA2AService",
+    "PublicAgentRegistryService",
     "PublicAppService",
     "PublicWorkflowService",
     "NotificationService"

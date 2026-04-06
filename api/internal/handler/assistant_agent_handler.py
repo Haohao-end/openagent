@@ -3,6 +3,7 @@ from uuid import UUID
 from flask import request
 from flask_login import login_required, current_user
 from injector import inject
+from internal.entity.assistant_agent_entity import ASSISTANT_AGENT_DISPLAY_NAME
 from internal.schema.assistant_agent_schema import (
     AssistantAgentChat,
     GetAssistantAgentConversationsReq,
@@ -49,7 +50,7 @@ class AssistantAgentHandler:
     def stop_assistant_agent_chat(self, task_id: UUID):
         """停止与辅助智能体的对话聊天"""
         self.assistant_agent_service.stop_chat(task_id, current_user)
-        return success_message("停止辅助Agent会话成功")
+        return success_message(f"停止{ASSISTANT_AGENT_DISPLAY_NAME}会话成功")
 
     @login_required
     def get_assistant_agent_messages_with_page(self):
@@ -98,4 +99,4 @@ class AssistantAgentHandler:
         self.assistant_agent_service.delete_conversation(current_user)
 
         # 2.清空成功后返回消息响应
-        return success_message("清空辅助Agent会话成功")
+        return success_message(f"清空{ASSISTANT_AGENT_DISPLAY_NAME}会话成功")

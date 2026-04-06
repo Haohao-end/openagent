@@ -2,7 +2,7 @@
 import logging
 from typing import Dict, Set
 from uuid import UUID
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from threading import Lock
 
 
@@ -134,38 +134,43 @@ class WebSocketManager:
 
     def subscribe_notification(self, sid: str, user_id: str) -> None:
         """订阅用户的通知"""
+        from flask_socketio import join_room
+
         with self._lock:
             if user_id not in self._notification_subscribers:
                 self._notification_subscribers[user_id] = set()
             self._notification_subscribers[user_id].add(sid)
-            logging.info(f"[WS] sid={sid} subscribed to notifications for user={user_id}")
+
+        join_room(user_id, sid=sid)
+        logging.info(f"[WS] sid={sid} subscribed to notifications for user={user_id}")
 
     def unsubscribe_notification(self, sid: str, user_id: str) -> None:
         """取消订阅用户的通知"""
+        from flask_socketio import leave_room
+
         with self._lock:
             if user_id in self._notification_subscribers:
                 self._notification_subscribers[user_id].discard(sid)
                 if not self._notification_subscribers[user_id]:
                     del self._notification_subscribers[user_id]
-            logging.info(f"[WS] sid={sid} unsubscribed from notifications for user={user_id}")
+
+        leave_room(user_id, sid=sid)
+        logging.info(f"[WS] sid={sid} unsubscribed from notifications for user={user_id}")
 
     def emit_notification_to_user(self, user_id: str, notification_data: dict, event: str = "document_index_notification") -> None:
         """向指定用户推送通知"""
         from internal.extension.socketio_extension import socketio
 
-        with self._lock:
-            sids = self._notification_subscribers.get(user_id, set()).copy()
-
-        if not sids:
-            logging.debug(f"[WS] No notification subscribers for user {user_id}, skipping emit")
+        if socketio is None:
+            logging.warning(f"[WS] SocketIO not initialized, skipping {event} for user={user_id}")
             return
 
-        for sid in sids:
-            try:
-                socketio.emit(event, notification_data, room=sid)
-                logging.debug(f"[WS] Emitted {event} to sid={sid}, user={user_id}")
-            except Exception as e:
-                logging.error(f"[WS] Failed to emit {event} to sid={sid}: {e}")
+        try:
+            # Use Socket.IO rooms so Celery workers can broadcast through Redis message_queue.
+            socketio.emit(event, notification_data, room=user_id)
+            logging.debug(f"[WS] Emitted {event} to room={user_id}")
+        except Exception as e:
+            logging.error(f"[WS] Failed to emit {event} to room={user_id}: {e}")
 
 
 # 全局单例

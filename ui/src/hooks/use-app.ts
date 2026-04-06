@@ -14,11 +14,14 @@ import {
   getDraftAppConfig,
   getPublishedConfig,
   getPublishHistoriesWithPage,
+  getVersions,
   publish,
+  promptCompareChat,
   regenerateWebAppToken,
   regenerateIcon,
   generateIconPreview,
   stopDebugChat,
+  stopPromptCompareChat,
   updateApp,
   updateDebugConversationSummary,
   updateDraftAppConfig,
@@ -27,9 +30,11 @@ import {
 } from '@/services/app'
 import { Message, Modal } from '@arco-design/web-vue'
 import type {
+  AppVersion,
   CreateAppRequest,
   GetAppsWithPageResponse,
   GetDebugConversationMessagesWithPageResponse,
+  PromptCompareChatRequest,
   UpdateAppRequest,
   UpdateDraftAppConfigRequest,
 } from '@/models/app'
@@ -545,6 +550,40 @@ export const useStopDebugChat = () => {
   return { loading, handleStopDebugChat }
 }
 
+export const usePromptCompareChat = () => {
+  const loading = ref(false)
+
+  const handlePromptCompareChat = async (
+    app_id: string,
+    req: PromptCompareChatRequest,
+    onData: (event_response: Record<string, any>) => void,
+  ) => {
+    try {
+      loading.value = true
+      await promptCompareChat(app_id, req, onData)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, handlePromptCompareChat }
+}
+
+export const useStopPromptCompareChat = () => {
+  const loading = ref(false)
+
+  const handleStopPromptCompareChat = async (app_id: string, task_id: string) => {
+    try {
+      loading.value = true
+      await stopPromptCompareChat(app_id, task_id)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, handleStopPromptCompareChat }
+}
+
 export const useGetPublishedConfig = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
@@ -710,14 +749,14 @@ export const useUnshareAppFromSquare = () => {
 export const useGetVersions = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
-  const versions = ref<Record<string, any>[]>([])
+  const versions = ref<AppVersion[]>([])
 
   // 2.定义加载版本数据函数
   const loadVersions = async (app_id: string) => {
     try {
       loading.value = true
-      // TODO: 实现获取应用版本的 API 调用
-      versions.value = []
+      const resp = await getVersions(app_id)
+      versions.value = resp.data.list
     } finally {
       loading.value = false
     }

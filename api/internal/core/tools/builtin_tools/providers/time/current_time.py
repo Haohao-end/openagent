@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -18,7 +18,7 @@ class CurrentTimeTool(BaseTool):
     def _run(self, **kwargs: Any) -> str:
         """获取当前时间"""
         # 即使有 kwargs，我们也忽略，因为不需要参数
-        return datetime.now().strftime("%Y-%m-%d %H:%M:%S %Z")
+        return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S %Z")
 
     async def _arun(self, **kwargs: Any) -> str:
         """异步获取当前时间"""

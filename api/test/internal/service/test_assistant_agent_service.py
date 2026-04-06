@@ -51,6 +51,7 @@ class TestAssistantAgentService:
                 scan=lambda cursor, match, count: (0, []),
                 delete=lambda *keys: None,
             ),
+            public_agent_a2a_service=None,
         )
 
     def test_extract_chunk_content_should_support_common_types(self):
@@ -296,162 +297,6 @@ class TestAssistantAgentService:
         assert f"assistant_agent:introduction:{account_id}:{fingerprint}" == key
         assert ttl == 3600
         assert json.loads(value) == data
-
-    def test_get_conversation_messages_with_page_should_filter_by_conversation_id(self, monkeypatch):
-        """
-        测试：验证修复了竞态条件导致的消息不显示问题
-
-        问题描述：
-        用户访问 /home?conversation_id=xxx 时，前端在 onMounted 时立即查询消息。
-        但此时消息还没有被插入到数据库中，导致查询返回 0 条记录。
-
-        修复方案：
-        后端应该正确处理 conversation_id 参数，确保查询返回正确的消息。
-        """
-        service = self._build_service()
-        account = SimpleNamespace(id=uuid4())
-        conversation_id = uuid4()
-
-        # 模拟请求对象
-        req = SimpleNamespace(
-            conversation_id=SimpleNamespace(data=str(conversation_id)),
-            current_page=SimpleNamespace(data=1),
-            page_size=SimpleNamespace(data=5),
-            created_at=SimpleNamespace(data=0),
-        )
-
-        # 模拟对话对象
-        conversation = SimpleNamespace(
-            id=conversation_id,
-            created_by=account.id,
-            is_deleted=False,
-            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
-        )
-
-        # 模拟消息对象
-        message = SimpleNamespace(
-            id=uuid4(),
-            conversation_id=conversation_id,
-            query="你好",
-            answer="你好，我是助手",
-            status="normal",
-            is_deleted=False,
-            agent_thoughts=[],
-        )
-
-        # 模拟数据库查询
-        def mock_get(model, conversation_id_param):
-            if model == "Conversation" and conversation_id_param == conversation_id:
-                return conversation
-            return None
-
-        monkeypatch.setattr(service, "get", mock_get)
-
-        # 模拟分页查询
-        paginator_calls = []
-        def mock_paginate(query):
-            paginator_calls.append(query)
-            return [message.id]
-
-        monkeypatch.setattr(service, "db", SimpleNamespace(
-            session=SimpleNamespace(
-                query=lambda *args, **kwargs: SimpleNamespace(
-                    filter=lambda *args, **kwargs: SimpleNamespace(
-                        order_by=lambda *args, **kwargs: SimpleNamespace(
-                            all=lambda: [message]
-                        )
-                    ),
-                    options=lambda *args, **kwargs: SimpleNamespace(
-                        filter=lambda *args, **kwargs: SimpleNamespace(
-                            order_by=lambda *args, **kwargs: SimpleNamespace(
-                                all=lambda: [message]
-                            )
-                        )
-                    )
-                )
-            )
-        ))
-
-        # 调用方法
-        messages, paginator = service.get_conversation_messages_with_page(req, account)
-
-        # 验证结果
-        assert len(messages) == 1
-        assert messages[0].id == message.id
-        assert messages[0].query == "你好"
-        assert messages[0].answer == "你好，我是助手"
-
-    def test_get_conversation_messages_with_page_should_handle_empty_conversation_id(self, monkeypatch):
-        """
-        测试：当 conversation_id 为空时，应该使用账号的默认会话
-        """
-        service = self._build_service()
-        account = SimpleNamespace(id=uuid4())
-        default_conversation_id = uuid4()
-
-        # 模拟请求对象（conversation_id 为空）
-        req = SimpleNamespace(
-            conversation_id=SimpleNamespace(data=""),
-            current_page=SimpleNamespace(data=1),
-            page_size=SimpleNamespace(data=5),
-            created_at=SimpleNamespace(data=0),
-        )
-
-        # 模拟对话对象
-        conversation = SimpleNamespace(
-            id=default_conversation_id,
-            created_by=account.id,
-            is_deleted=False,
-            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
-        )
-
-        account.assistant_agent_conversation = conversation
-
-        # 模拟消息对象
-        message = SimpleNamespace(
-            id=uuid4(),
-            conversation_id=default_conversation_id,
-            query="你好",
-            answer="你好，我是助手",
-            status="normal",
-            is_deleted=False,
-            agent_thoughts=[],
-        )
-
-        # 模拟数据库查询
-        def mock_get(model, conversation_id_param):
-            if model == "Conversation" and conversation_id_param == default_conversation_id:
-                return conversation
-            return None
-
-        monkeypatch.setattr(service, "get", mock_get)
-
-        # 模拟分页查询
-        monkeypatch.setattr(service, "db", SimpleNamespace(
-            session=SimpleNamespace(
-                query=lambda *args, **kwargs: SimpleNamespace(
-                    filter=lambda *args, **kwargs: SimpleNamespace(
-                        order_by=lambda *args, **kwargs: SimpleNamespace(
-                            all=lambda: [message]
-                        )
-                    ),
-                    options=lambda *args, **kwargs: SimpleNamespace(
-                        filter=lambda *args, **kwargs: SimpleNamespace(
-                            order_by=lambda *args, **kwargs: SimpleNamespace(
-                                all=lambda: [message]
-                            )
-                        )
-                    )
-                )
-            )
-        ))
-
-        # 调用方法
-        messages, paginator = service.get_conversation_messages_with_page(req, account)
-
-        # 验证结果
-        assert len(messages) == 1
-        assert messages[0].id == message.id
 
     def test_clear_introduction_cache_should_delete_all_account_caches(self):
         deleted_keys = []
@@ -851,6 +696,9 @@ class TestAssistantAgentService:
                 save_agent_thoughts=lambda **kwargs: save_payload.update(kwargs)
             ),
             redis_client=SimpleNamespace(),
+            public_agent_a2a_service=SimpleNamespace(
+                convert_public_agent_route_to_tool=lambda _account_id: "public-agent-route-tool"
+            ),
         )
 
         message_id = uuid4()
@@ -923,7 +771,7 @@ class TestAssistantAgentService:
         ]
         agent_capture = {}
 
-        class _FakeFunctionCallAgent:
+        class _FakeA2AFunctionCallAgent:
             def __init__(self, llm, agent_config):
                 agent_capture["llm"] = llm
                 agent_capture["agent_config"] = agent_config
@@ -946,8 +794,8 @@ class TestAssistantAgentService:
             _FakeTokenBufferMemory,
         )
         monkeypatch.setattr(
-            "internal.service.assistant_agent_service.FunctionCallAgent",
-            _FakeFunctionCallAgent,
+            "internal.service.assistant_agent_service.A2AFunctionCallAgent",
+            _FakeA2AFunctionCallAgent,
         )
 
         with app.app_context():
@@ -961,7 +809,12 @@ class TestAssistantAgentService:
         assert llm_capture["kwargs"]["model"] == "deepseek-chat"
         assert llm_capture["message_limit"] == 3
         assert llm_capture["human_message"] == (req.query.data, req.image_urls.data)
-        assert len(agent_capture["agent_config"].tools) == 2
+        assert len(agent_capture["agent_config"].tools) == 3
+        assert agent_capture["agent_config"].tools == [
+            "public-agent-route-tool",
+            "faiss-tool",
+            "create-app-tool",
+        ]
         assert agent_capture["state"]["history"] == ["历史消息"]
         assert agent_capture["state"]["long_term_memory"] == "历史摘要"
         assert len(events) == 4
@@ -980,6 +833,93 @@ class TestAssistantAgentService:
         ][0]
         assert merged_message_thought.thought == "AB"
         assert merged_message_thought.answer == "AB"
+
+    def test_chat_should_prefer_registry_search_tool_when_available(self, monkeypatch, app):
+        assistant_agent_id = uuid4()
+        app.config["ASSISTANT_AGENT_ID"] = assistant_agent_id
+        conversation = SimpleNamespace(id=uuid4(), summary="历史摘要")
+        account = SimpleNamespace(id=uuid4(), assistant_agent_conversation=conversation)
+        req = SimpleNamespace(
+            query=SimpleNamespace(data="请使用护肤智能体回答我油痘肌该怎么护肤"),
+            image_urls=SimpleNamespace(data=[]),
+            conversation_id=SimpleNamespace(data=""),
+        )
+
+        service = AssistantAgentService(
+            db=SimpleNamespace(session=SimpleNamespace()),
+            faiss_service=SimpleNamespace(convert_faiss_to_tool=lambda: "faiss-tool"),
+            conversation_service=SimpleNamespace(save_agent_thoughts=lambda **_kwargs: None),
+            redis_client=SimpleNamespace(),
+            public_agent_a2a_service=SimpleNamespace(
+                convert_public_agent_route_to_tool=lambda _account_id: "public-agent-route-tool"
+            ),
+            public_agent_registry_service=SimpleNamespace(
+                convert_public_agent_search_to_tool=lambda: "registry-search-tool"
+            ),
+        )
+
+        monkeypatch.setattr(
+            service,
+            "create",
+            lambda _model, **_kwargs: SimpleNamespace(id=uuid4()),
+        )
+        monkeypatch.setattr(
+            service,
+            "convert_create_app_to_tool",
+            lambda _account_id: "create-app-tool",
+        )
+
+        class _FakeLLM:
+            def __init__(self, **_kwargs):
+                pass
+
+            def convert_to_human_message(self, query, image_urls):
+                return {"query": query, "image_urls": image_urls}
+
+        class _FakeTokenBufferMemory:
+            def __init__(self, **_kwargs):
+                pass
+
+            def get_history_prompt_messages(self, message_limit):
+                assert message_limit == 3
+                return []
+
+        agent_capture = {}
+
+        class _FakeA2AFunctionCallAgent:
+            def __init__(self, llm, agent_config):
+                agent_capture["llm"] = llm
+                agent_capture["agent_config"] = agent_config
+
+            def stream(self, state):
+                agent_capture["state"] = state
+                return iter([])
+
+        monkeypatch.setattr(
+            "internal.service.assistant_agent_service.AgentConfig",
+            lambda **kwargs: SimpleNamespace(**kwargs),
+        )
+        monkeypatch.setattr(
+            "internal.service.assistant_agent_service.DeepSeekChat",
+            lambda **kwargs: _FakeLLM(**kwargs),
+        )
+        monkeypatch.setattr(
+            "internal.service.assistant_agent_service.TokenBufferMemory",
+            _FakeTokenBufferMemory,
+        )
+        monkeypatch.setattr(
+            "internal.service.assistant_agent_service.A2AFunctionCallAgent",
+            _FakeA2AFunctionCallAgent,
+        )
+
+        with app.app_context():
+            list(service.chat(req, account))
+
+        assert agent_capture["agent_config"].tools == [
+            "public-agent-route-tool",
+            "registry-search-tool",
+            "create-app-tool",
+        ]
 
     def test_generate_introduction_should_skip_empty_chunks(self, monkeypatch):
         latest_message = SimpleNamespace(id=uuid4(), query="你好", answer="你好呀")

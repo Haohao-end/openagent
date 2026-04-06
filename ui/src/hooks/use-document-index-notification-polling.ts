@@ -1,6 +1,15 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { getNotifications } from '@/services/notification'
 import type { DocumentIndexNotification } from '@/models/notification'
+
+const isDocumentIndexNotification = (notification: unknown): notification is DocumentIndexNotification => {
+  return (
+    typeof notification === 'object' &&
+    notification !== null &&
+    'dataset_id' in notification &&
+    'document_id' in notification
+  )
+}
 
 export const useDocumentIndexNotificationPolling = () => {
   const notifications = ref<DocumentIndexNotification[]>([])
@@ -21,7 +30,8 @@ export const useDocumentIndexNotificationPolling = () => {
       const notificationList = Array.isArray(response.list) ? response.list : []
 
       return notificationList.filter(
-        (notification: DocumentIndexNotification) =>
+        (notification): notification is DocumentIndexNotification =>
+          isDocumentIndexNotification(notification) &&
           Boolean(notification.dataset_id && notification.document_id) && !notification.is_read,
       )
     } catch (error) {
@@ -37,6 +47,10 @@ export const useDocumentIndexNotificationPolling = () => {
    * 启动轮询
    */
   const startPolling = (callback: (notifications: DocumentIndexNotification[]) => void) => {
+    if (pollTimer) {
+      return
+    }
+
     // 立即拉取一次
     fetchNotifications().then((newNotifications) => {
       if (newNotifications.length > 0) {
@@ -62,10 +76,6 @@ export const useDocumentIndexNotificationPolling = () => {
       pollTimer = null
     }
   }
-
-  onMounted(() => {
-    // 注意：这里不自动启动轮询，由使用者决定何时启动
-  })
 
   onUnmounted(() => {
     stopPolling()

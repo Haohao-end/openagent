@@ -81,7 +81,32 @@ class TestLikeService:
         app_id = uuid4()
         workflow_id = uuid4()
         created_at = datetime(2026, 1, 1, tzinfo=UTC)
-        service = _service(
+        workflow_service = _service(
+            app_items=[
+                {
+                    "id": str(app_id),
+                    "name": "天气应用",
+                    "description": "查询天气",
+                    "creator_name": "Alice",
+                    "creator_avatar": "",
+                    "created_at": 10,
+                }
+            ],
+            workflow_items=[
+                {
+                    "id": str(workflow_id),
+                    "name": "代码工作流",
+                    "description": "自动生成代码",
+                    "account_name": "Bob",
+                    "account_avatar": "",
+                    "created_at": 20,
+                }
+            ],
+            queries=[
+                _Query(all_result=[SimpleNamespace(workflow_id=workflow_id, created_at=created_at)]),
+            ],
+        )
+        app_service = _service(
             app_items=[
                 {
                     "id": str(app_id),
@@ -108,8 +133,8 @@ class TestLikeService:
             ],
         )
 
-        workflow_only = service.get_likes(account, resource_type="workflow")
-        app_search = service.get_likes(account, search_word="天气")
+        workflow_only = workflow_service.get_likes(account, resource_type="workflow")
+        app_search = app_service.get_likes(account, search_word="天气")
 
         assert len(workflow_only) == 1
         assert workflow_only[0]["resource_type"] == "workflow"

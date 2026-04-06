@@ -3,8 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch, inject } from 'vue'
 import { useVueFlow } from '@vue-flow/core'
 import { cloneDeep, debounce } from 'lodash'
 import { getReferencedVariables } from '@/utils/helper'
-import { Message, type ValidatedError } from '@arco-design/web-vue'
-
+import { type ValidatedError, Message } from '@arco-design/web-vue'
 type NodeOutputField = {
   name: string
   type: string

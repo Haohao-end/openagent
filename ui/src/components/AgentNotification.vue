@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import router from '@/router'
 import { markNotificationAsRead } from '@/services/notification'
 import type { AgentNotification } from '@/models/agent-notification'
-
-const router = useRouter()
 
 // 通知列表
 const notifications = ref<AgentNotification[]>([])
@@ -42,7 +40,7 @@ const addNotification = (notification: AgentNotification) => {
 
   notifications.value.push(notification)
 
-  markNotificationAsRead(notification.id).catch((error) => {
+  Promise.resolve(markNotificationAsRead(notification.id)).catch((error) => {
     console.warn('Failed to mark agent notification as read:', error)
   })
 
@@ -146,6 +144,7 @@ defineExpose({
           <!-- 右侧关闭按钮 -->
           <button
             class="flex-shrink-0 text-gray-300 hover:text-gray-500 transition-colors mt-0.5"
+            aria-label="关闭通知"
             @click.stop="handleCloseNotification(notification.id)"
           >
             <icon-close :size="16" />

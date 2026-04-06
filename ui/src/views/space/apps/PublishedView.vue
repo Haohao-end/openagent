@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { useGetPublishedConfig, useRegenerateWebAppToken } from '@/hooks/use-app'
 import { useGetWechatConfig, useUpdateWechatConfig } from '@/hooks/use-platform'
 import { shareAppToSquare, unshareAppFromSquare, getAppTags, type AppTag } from '@/services/public-app'
 import { getErrorMessage } from '@/utils/error'
+
+const props = withDefaults(defineProps<{ publishedRefreshToken?: number }>(), {
+  publishedRefreshToken: 0,
+})
 
 // 1.定义页面所需数据
 const route = useRoute()
@@ -48,6 +52,13 @@ const getFullPath = (name: string, params = {}, query = {}) => {
 
   // 如果需要包括 host 部分，结合 window.location.origin
   return window.location.origin + href
+}
+
+const loadPageData = async (appId: string) => {
+  await Promise.all([
+    loadPublishedConfig(appId),
+    loadWechatConfig(appId),
+  ])
 }
 
 // 3.定义打开微信配置模态窗处理器
@@ -140,9 +151,28 @@ const handleUnshareFromSquare = async () => {
 }
 
 onMounted(() => {
-  loadPublishedConfig(String(route.params?.app_id))
-  loadWechatConfig(String(route.params?.app_id))
+  void loadPageData(String(route.params?.app_id))
 })
+
+watch(
+  () => String(route.params?.app_id),
+  (appId, previousAppId) => {
+    if (!appId || appId === previousAppId) {
+      return
+    }
+    void loadPageData(appId)
+  },
+)
+
+watch(
+  () => props.publishedRefreshToken,
+  (refreshToken, previousRefreshToken) => {
+    if (refreshToken === previousRefreshToken) {
+      return
+    }
+    void loadPublishedConfig(String(route.params?.app_id))
+  },
+)
 </script>
 
 <template>

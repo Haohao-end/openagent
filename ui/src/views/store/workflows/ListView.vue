@@ -12,6 +12,7 @@ import {
 import { getAppTags, type AppTag } from '@/services/public-app'
 import { getErrorMessage } from '@/utils/error'
 import { formatTimestampShort } from '@/utils/time-formatter'
+import ResourceCardDescription from '@/components/ResourceCardDescription.vue'
 
 const router = useRouter()
 const loading = ref(false)
@@ -221,7 +222,7 @@ onMounted(() => {
                 </div>
 
                 <!-- 工作流描述 -->
-                <div class="text-sm text-gray-600 h-[60px] line-clamp-3">{{ workflow.description }}</div>
+                <resource-card-description :text="workflow.description" />
               </button>
 
               <!-- 操作按钮 -->
@@ -265,13 +266,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
 .scrollbar-hide {
   scrollbar-width: none;
   -ms-overflow-style: none;

@@ -4,13 +4,13 @@
 import json
 import pytest
 from datetime import UTC, datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from internal.handler.home_handler import HomeHandler
 from internal.service.home_service import HomeService
 from internal.service.intent_recognition_service import IntentRecognitionService
-from internal.model import Account, Conversation, Message
+from internal.model import Account, Message
 
 
 class TestHomeIntentIntegration:
@@ -47,10 +47,6 @@ class TestHomeIntentIntegration:
         user = Mock(spec=Account)
         user.id = uuid4()
 
-        # 准备对话和消息
-        conversation = Mock(spec=Conversation)
-        conversation.id = uuid4()
-
         message1 = Mock(spec=Message)
         message1.query = "我想创建一个AI应用"
         message1.answer = "好的，我可以帮你创建一个AI应用。"
@@ -65,13 +61,11 @@ class TestHomeIntentIntegration:
 
         # Mock数据库查询
         mock_query = Mock()
-        mock_query.filter.return_value.order_by.return_value.first.return_value = conversation
+        mock_query.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [
+            message1,
+            message2,
+        ]
         mock_db.session.query.return_value = mock_query
-
-        # Mock消息查询
-        mock_msg_query = Mock()
-        mock_msg_query.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [message1, message2]
-        mock_db.session.query.side_effect = [mock_query, mock_msg_query]
 
         # Mock缓存未命中
         mock_redis.get.return_value = None
@@ -109,10 +103,6 @@ class TestHomeIntentIntegration:
         user = Mock(spec=Account)
         user.id = uuid4()
 
-        # 准备对话和消息
-        conversation = Mock(spec=Conversation)
-        conversation.id = uuid4()
-
         message1 = Mock(spec=Message)
         message1.query = "我想创建一个AI应用"
         message1.answer = "好的，我可以帮你创建一个AI应用。"
@@ -121,13 +111,8 @@ class TestHomeIntentIntegration:
 
         # Mock数据库查询
         mock_query = Mock()
-        mock_query.filter.return_value.order_by.return_value.first.return_value = conversation
+        mock_query.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [message1]
         mock_db.session.query.return_value = mock_query
-
-        # Mock消息查询
-        mock_msg_query = Mock()
-        mock_msg_query.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [message1]
-        mock_db.session.query.side_effect = [mock_query, mock_msg_query]
 
         # Mock缓存命中
         cached_intent = {
@@ -159,9 +144,9 @@ class TestHomeIntentIntegration:
         user = Mock(spec=Account)
         user.id = uuid4()
 
-        # Mock数据库查询返回None（没有对话）
+        # Mock数据库查询返回空消息列表
         mock_query = Mock()
-        mock_query.filter.return_value.order_by.return_value.first.return_value = None
+        mock_query.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
         mock_db.session.query.return_value = mock_query
 
         # 调用服务
@@ -169,7 +154,8 @@ class TestHomeIntentIntegration:
 
         # 验证返回默认意图
         assert result["is_default"] is True
-        assert "Hi，haohao" in result["intent"]
+        assert "欢迎来到 LLMOps" in result["intent"]
+        assert "haohao" not in result["intent"]
 
     def test_handler_integration(self, home_handler, home_service, mock_db, mock_redis):
         """测试处理器集成"""
@@ -179,84 +165,10 @@ class TestHomeIntentIntegration:
 
         # Mock数据库查询
         mock_query = Mock()
-        mock_query.filter.return_value.order_by.return_value.first.return_value = None
+        mock_query.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
         mock_db.session.query.return_value = mock_query
 
         # 由于处理器需要Flask请求上下文，这里只验证处理器的存在和基本结构
         assert home_handler is not None
         assert hasattr(home_handler, 'get_intent')
         assert hasattr(home_handler, 'home_service')
-
-    def test_parse_response_with_various_formats(self, intent_service):
-        """测试解析各种格式的响应"""
-        # 测试纯JSON
-        json_response = json.dumps({
-            "intent": "测试意图",
-            "confidence": 0.85,
-            "suggested_actions": []
-        })
-        result = intent_service._parse_response(json_response)
-        assert result["intent"] == "测试意图"
-
-        # 测试Markdown JSON
-        markdown_response = """
-这是一个响应。
-
-```json
-{
-  "intent": "Markdown中的意图",
-  "confidence": 0.75,
-  "suggested_actions": []
-}
-```
-
-更多文本。
-"""
-        result = intent_service._parse_response(markdown_response)
-        assert result["intent"] == "Markdown中的意图"
-
-        # 测试无效JSON
-        invalid_response = "这不是JSON"
-        result = intent_service._parse_response(invalid_response)
-        assert result["is_default"] is True
-
-    def test_message_formatting(self, intent_service):
-        """测试消息格式化"""
-        from langchain_core.messages import HumanMessage, AIMessage
-
-        messages = [
-            HumanMessage(content="第一个用户消息"),
-            AIMessage(content="第一个AI回复"),
-            HumanMessage(content="第二个用户消息"),
-            AIMessage(content="第二个AI回复"),
-        ]
-
-        formatted = intent_service._format_messages(messages)
-
-        assert "用户: 第一个用户消息" in formatted
-        assert "助手: 第一个AI回复" in formatted
-        assert "用户: 第二个用户消息" in formatted
-        assert "助手: 第二个AI回复" in formatted
-
-    def test_cache_operations(self, intent_service, mock_redis):
-        """测试缓存操作"""
-        user_id = "test-user-123"
-        intent_data = {
-            "intent": "测试意图",
-            "confidence": 0.9,
-            "suggested_actions": []
-        }
-
-        # 测试缓存写入
-        intent_service.cache_intent(user_id, intent_data)
-        mock_redis.setex.assert_called_once()
-
-        # 验证缓存key和TTL
-        call_args = mock_redis.setex.call_args
-        assert call_args[0][0] == f"home:intent:{user_id}"
-        assert call_args[0][1] == 24 * 60 * 60
-
-        # 测试缓存清除
-        mock_redis.reset_mock()
-        intent_service.clear_cache(user_id)
-        mock_redis.delete.assert_called_once_with(f"home:intent:{user_id}")

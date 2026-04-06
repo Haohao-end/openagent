@@ -15,6 +15,8 @@ from flask_mail import Mail
 from internal.core.language_model import LanguageModelManager
 from internal.core.tools.builtin_tools.providers import BuiltinProviderManager
 from internal.core.tools.api_tools.providers import ApiProviderManager
+from internal.service.embeddings_service import EmbeddingsService
+from internal.service.faiss_service import FaissService
 from internal.service.notification_service import NotificationService
 
 
@@ -35,6 +37,8 @@ class ExtensionModule(Module):
         binder.bind(ApiProviderManager, to=ApiProviderManager, scope=singleton)
 
         # 注册服务类为单例
+        binder.bind(EmbeddingsService, to=EmbeddingsService, scope=singleton)
+        binder.bind(FaissService, to=FaissService, scope=singleton)
         binder.bind(NotificationService, to=NotificationService, scope=singleton)
 
 injector = Injector([ExtensionModule])

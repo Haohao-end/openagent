@@ -8,7 +8,7 @@ import pytest
 from flask import Flask
 
 from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
-from internal.entity.app_entity import AppStatus
+from internal.entity.app_entity import AppConfigType, AppStatus
 from internal.entity.conversation_entity import InvokeFrom
 from internal.entity.audio_entity import ALLOWED_AUDIO_VOICES
 from internal.core.language_model.entities.model_entity import ModelParameterType
@@ -163,40 +163,20 @@ class TestAppService:
             def __or__(self, _other):
                 return self
 
-        class _ParallelChain:
-            def __init__(self, _mapping):
-                self.mapping = _mapping
-
-            def invoke(self, _payload):
-                return {
-                    "icon": "https://image.example.com/generated-icon.png",
-                    "preset_prompt": "你是一个专业助手",
-                }
+            @staticmethod
+            def invoke(_payload):
+                return "你是一个专业助手"
 
         monkeypatch.setattr("internal.service.app_service.Chat", lambda **_kwargs: object())
-        monkeypatch.setattr("internal.service.app_service.ChatPromptTemplate.from_template", lambda _template: _Pipe())
         monkeypatch.setattr("internal.service.app_service.ChatPromptTemplate.from_messages", lambda _messages: _Pipe())
         monkeypatch.setattr("internal.service.app_service.StrOutputParser", lambda: object())
-        monkeypatch.setattr(
-            "internal.service.app_service.DallEAPIWrapper",
-            lambda **_kwargs: SimpleNamespace(run=lambda _prompt: "https://image.example.com/generated-icon.png"),
-        )
-        monkeypatch.setattr("internal.service.app_service.RunnableParallel", _ParallelChain)
-        monkeypatch.setattr(
-            "internal.service.app_service.requests.get",
-            lambda _url: SimpleNamespace(status_code=200, content=b"icon-bytes"),
-        )
-
-        upload_calls = []
-        cos_service = SimpleNamespace(
-            upload_file=lambda file, only_image, account_obj: upload_calls.append((file.filename, only_image, account_obj))
-            or SimpleNamespace(key="icons/demo.png"),
-            get_file_url=lambda key: f"https://cos.example.com/{key}",
+        mock_icon_generator = SimpleNamespace(
+            generate_icon=Mock(return_value="https://cos.example.com/icons/demo.png")
         )
         service = _new_app_service(
             db=_AutoCreateDB(),
             redis_client=SimpleNamespace(),
-            cos_service=cos_service,
+            cos_service=SimpleNamespace(),
             retrieval_service=SimpleNamespace(),
             app_config_service=SimpleNamespace(),
             api_provider_manager=SimpleNamespace(),
@@ -206,6 +186,7 @@ class TestAppService:
             language_model_manager=SimpleNamespace(),
             language_model_service=SimpleNamespace(),
             builtin_provider_manager=SimpleNamespace(),
+            icon_generator_service=mock_icon_generator,
         )
 
         service.auto_create_app(" 智能助手 ", " 负责回答问题 ", account.id)
@@ -222,9 +203,10 @@ class TestAppService:
         assert draft_config.opening_questions == ["你好", "问题2", "问题3"]
         assert draft_config.speech_to_text["enable"] is True
         assert draft_config.text_to_speech["enable"] is True
-        assert upload_calls[0][0] == "icon.png"
-        assert upload_calls[0][1] is True
-        assert upload_calls[0][2] is account
+        mock_icon_generator.generate_icon.assert_called_once_with(
+            name="智能助手",
+            description="负责回答问题",
+        )
 
     def test_normalize_opening_questions_should_filter_invalid_and_fill_fallback(self):
         questions = AppService._normalize_opening_questions([123, " ", "问题A", "问题A"])
@@ -334,37 +316,21 @@ class TestAppService:
             def __or__(self, _other):
                 return self
 
-        class _ParallelChain:
-            def __init__(self, _mapping):
-                self.mapping = _mapping
-
-            def invoke(self, _payload):
-                return {
-                    "icon": "https://image.example.com/generated-icon.png",
-                    "preset_prompt": "你是一个专业助手",
-                }
+            @staticmethod
+            def invoke(_payload):
+                return "你是一个专业助手"
 
         monkeypatch.setattr("internal.service.app_service.Chat", lambda **_kwargs: object())
-        monkeypatch.setattr("internal.service.app_service.ChatPromptTemplate.from_template", lambda _template: _Pipe())
         monkeypatch.setattr("internal.service.app_service.ChatPromptTemplate.from_messages", lambda _messages: _Pipe())
         monkeypatch.setattr("internal.service.app_service.StrOutputParser", lambda: object())
-        monkeypatch.setattr(
-            "internal.service.app_service.DallEAPIWrapper",
-            lambda **_kwargs: SimpleNamespace(run=lambda _prompt: "https://image.example.com/generated-icon.png"),
-        )
-        monkeypatch.setattr("internal.service.app_service.RunnableParallel", _ParallelChain)
-        monkeypatch.setattr(
-            "internal.service.app_service.requests.get",
-            lambda _url: SimpleNamespace(status_code=200, content=b"icon-bytes"),
+        mock_icon_generator = SimpleNamespace(
+            generate_icon=Mock(return_value="https://cos.example.com/icons/demo.png")
         )
 
         service = _new_app_service(
             db=_AutoCreateDB(),
             redis_client=SimpleNamespace(),
-            cos_service=SimpleNamespace(
-                upload_file=lambda *_args, **_kwargs: SimpleNamespace(key="icons/demo.png"),
-                get_file_url=lambda key: f"https://cos.example.com/{key}",
-            ),
+            cos_service=SimpleNamespace(),
             retrieval_service=SimpleNamespace(),
             app_config_service=SimpleNamespace(),
             api_provider_manager=SimpleNamespace(),
@@ -374,6 +340,7 @@ class TestAppService:
             language_model_manager=SimpleNamespace(),
             language_model_service=SimpleNamespace(),
             builtin_provider_manager=SimpleNamespace(),
+            icon_generator_service=mock_icon_generator,
         )
 
         service.auto_create_app("助手", "", account.id)
@@ -381,36 +348,38 @@ class TestAppService:
         draft_config = service.db.session.added[1]
         assert draft_config.opening_statement.startswith("你好，我是助手")
         assert len(draft_config.opening_questions) == 3
+        mock_icon_generator.generate_icon.assert_called_once_with(
+            name="助手",
+            description="",
+        )
 
     def test_auto_create_app_should_raise_when_icon_generation_failed(self, monkeypatch):
         class _Pipe:
             def __or__(self, _other):
                 return self
 
-        class _ParallelChain:
-            def __init__(self, _mapping):
-                self.mapping = _mapping
-
-            def invoke(self, _payload):
-                return {
-                    "icon": "https://image.example.com/generated-icon.png",
-                    "preset_prompt": "你是一个专业助手",
-                }
+            @staticmethod
+            def invoke(_payload):
+                return "你是一个专业助手"
 
         monkeypatch.setattr("internal.service.app_service.Chat", lambda **_kwargs: object())
-        monkeypatch.setattr("internal.service.app_service.ChatPromptTemplate.from_template", lambda _template: _Pipe())
         monkeypatch.setattr("internal.service.app_service.ChatPromptTemplate.from_messages", lambda _messages: _Pipe())
         monkeypatch.setattr("internal.service.app_service.StrOutputParser", lambda: object())
-        monkeypatch.setattr(
-            "internal.service.app_service.DallEAPIWrapper",
-            lambda **_kwargs: SimpleNamespace(run=lambda _prompt: "https://image.example.com/generated-icon.png"),
+        service = _new_app_service(
+            db=_DummyDB(),
+            redis_client=SimpleNamespace(),
+            cos_service=SimpleNamespace(),
+            retrieval_service=SimpleNamespace(),
+            app_config_service=SimpleNamespace(),
+            api_provider_manager=SimpleNamespace(),
+            conversation_service=SimpleNamespace(generate_suggested_questions=lambda _histories: []),
+            language_model_manager=SimpleNamespace(),
+            language_model_service=SimpleNamespace(),
+            builtin_provider_manager=SimpleNamespace(),
+            icon_generator_service=SimpleNamespace(
+                generate_icon=Mock(side_effect=FailException("icon failed"))
+            ),
         )
-        monkeypatch.setattr("internal.service.app_service.RunnableParallel", _ParallelChain)
-        monkeypatch.setattr(
-            "internal.service.app_service.requests.get",
-            lambda _url: SimpleNamespace(status_code=500, content=b""),
-        )
-        service = _build_service()
         service.conversation_service = SimpleNamespace(generate_suggested_questions=lambda _histories: [])
 
         with pytest.raises(FailException):
@@ -426,7 +395,11 @@ class TestAppService:
 
     def test_cancel_publish_should_update_status_and_delete_joins(self, monkeypatch):
         service = _build_service()
-        app = SimpleNamespace(status=AppStatus.PUBLISHED.value, app_config_id=uuid4())
+        removed_app_ids = []
+        service.public_agent_registry_service = SimpleNamespace(
+            remove_public_app=lambda app_id: removed_app_ids.append(app_id),
+        )
+        app = SimpleNamespace(id=uuid4(), status=AppStatus.PUBLISHED.value, app_config_id=uuid4())
         monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: app)
 
         update_calls = []
@@ -447,6 +420,44 @@ class TestAppService:
         assert service.db.session.query_instance.filtered is False
         assert service.db.session.query_instance.deleted is False
         assert service.db.auto_commit_count == 0
+        assert removed_app_ids == [app.id]
+
+    def test_cancel_publish_should_fallback_to_enqueue_when_remove_public_app_failed(self, monkeypatch):
+        service = _build_service()
+        app = SimpleNamespace(id=uuid4(), status=AppStatus.PUBLISHED.value, app_config_id=uuid4())
+        monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: app)
+        monkeypatch.setattr(service, "update", lambda target, **kwargs: target)
+
+        enqueued_app_ids = []
+        service.public_agent_registry_service = SimpleNamespace(
+            remove_public_app=Mock(side_effect=RuntimeError("faiss down")),
+        )
+        monkeypatch.setattr(
+            service,
+            "_enqueue_public_app_registry_sync",
+            lambda app_id: enqueued_app_ids.append(app_id),
+        )
+
+        result = service.cancel_publish_app_config(uuid4(), SimpleNamespace(id=uuid4()))
+
+        assert result is app
+        assert enqueued_app_ids == [app.id]
+
+    def test_enqueue_public_app_registry_sync_should_use_apply_async_without_result_backend(self, monkeypatch):
+        apply_async = Mock()
+        monkeypatch.setattr(
+            "internal.service.app_service.sync_public_app_registry",
+            SimpleNamespace(apply_async=apply_async),
+        )
+
+        app_id = uuid4()
+        AppService._enqueue_public_app_registry_sync(app_id)
+
+        apply_async.assert_called_once_with(
+            args=(str(app_id),),
+            ignore_result=True,
+            retry=False,
+        )
 
     def test_get_debug_conversation_summary_should_raise_when_long_term_memory_disabled(self, monkeypatch):
         service = _build_service()
@@ -883,6 +894,7 @@ class TestAppService:
 
         delete_query = _DeleteQuery()
         scalar_query = _ScalarQuery(2)
+        synced_app_ids = []
         service = _new_app_service(
             db=_DB(_Session(delete_query, scalar_query)),
             redis_client=SimpleNamespace(),
@@ -894,6 +906,11 @@ class TestAppService:
             language_model_manager=SimpleNamespace(),
             language_model_service=SimpleNamespace(),
             builtin_provider_manager=SimpleNamespace(),
+            public_agent_registry_service=SimpleNamespace(),
+        )
+        monkeypatch.setattr(
+            "internal.service.app_service.sync_public_app_registry",
+            SimpleNamespace(delay=lambda app_id: synced_app_ids.append(app_id)),
         )
         account = SimpleNamespace(id=uuid4())
         app_id = uuid4()
@@ -974,6 +991,7 @@ class TestAppService:
         assert sum(1 for model, _ in create_calls if model.__name__ == "AppDatasetJoin") == 1
         history_call = [payload for model, payload in create_calls if model.__name__ == "AppConfigVersion"][0]
         assert history_call["version"] == 3
+        assert synced_app_ids == [str(app_id)]
 
     def test_publish_draft_app_config_should_skip_public_and_published_at_when_not_shared_and_already_published(self, monkeypatch):
         class _DeleteQuery:
@@ -1131,6 +1149,62 @@ class TestAppService:
         assert captures["db"] is service.db
         assert captures["query"] is not None
         assert isinstance(paginator, _Paginator)
+
+    def test_get_versions_should_return_draft_and_mark_current_published(self, monkeypatch):
+        service = _build_service()
+        account = SimpleNamespace(id=uuid4())
+        app_id = uuid4()
+        display_configs = {}
+        draft_version = SimpleNamespace(
+            id=uuid4(),
+            app_id=app_id,
+            version=0,
+            config_type=AppConfigType.DRAFT.value,
+        )
+        published_latest = SimpleNamespace(
+            id=uuid4(),
+            app_id=app_id,
+            version=3,
+            config_type=AppConfigType.PUBLISHED.value,
+        )
+        published_history = SimpleNamespace(
+            id=uuid4(),
+            app_id=app_id,
+            version=2,
+            config_type=AppConfigType.PUBLISHED.value,
+        )
+        app = SimpleNamespace(
+            id=app_id,
+            status=AppStatus.PUBLISHED.value,
+            draft_app_config=draft_version,
+        )
+        service.app_config_service.get_version_display_config = lambda version: display_configs.setdefault(
+            version.id,
+            {"id": str(version.id), "tools": [{"provider": {"label": "搜索服务"}, "tool": {"label": "天气查询"}}]},
+        )
+        monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: app)
+
+        class _VersionsQuery:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def order_by(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return [published_latest, published_history]
+
+        service.db.session.query = lambda _model: _VersionsQuery()
+
+        versions = service.get_versions(app_id, account)
+
+        assert versions == [draft_version, published_latest, published_history]
+        assert draft_version.is_current_published is False
+        assert draft_version.display_config == display_configs[draft_version.id]
+        assert published_latest.is_current_published is True
+        assert published_latest.display_config == display_configs[published_latest.id]
+        assert published_history.is_current_published is False
+        assert published_history.display_config == display_configs[published_history.id]
 
     def test_fallback_history_to_draft_should_validate_and_update_draft_record(self, monkeypatch):
         service = _build_service()
@@ -1430,6 +1504,93 @@ class TestAppService:
         assert captures["task_id"] == task_id
         assert captures["account_id"] == account.id
 
+    def test_prompt_compare_chat_should_stream_events_with_overridden_prompt_only(self, monkeypatch):
+        service = _build_service()
+        account = SimpleNamespace(id=uuid4())
+        app_id = uuid4()
+        app = SimpleNamespace(id=app_id, debug_conversation_id=uuid4())
+        req = SimpleNamespace(
+            lane_id=SimpleNamespace(data="lane-1"),
+            query=SimpleNamespace(data="你好"),
+            preset_prompt=SimpleNamespace(data="候选提示词"),
+            model_config=SimpleNamespace(
+                data={"provider": "openai", "model": "gpt-4o-mini", "parameters": {}}
+            ),
+            history=SimpleNamespace(data=[{"query": "历史问题", "answer": "历史答案"}]),
+        )
+        draft_config = {
+            "model_config": {"provider": "openai", "model": "gpt-4o-mini", "parameters": {}},
+            "dialog_round": 3,
+            "tools": [],
+            "datasets": [],
+            "workflows": [],
+            "retrieval_config": {},
+            "preset_prompt": "默认提示词",
+            "long_term_memory": {"enable": True},
+            "review_config": {"enable": False},
+        }
+        llm = SimpleNamespace()
+        stream_capture = {}
+        save_guard = []
+
+        monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: app)
+        monkeypatch.setattr(service, "get_draft_app_config", lambda *_args, **_kwargs: draft_config.copy())
+        monkeypatch.setattr(
+            service,
+            "_validate_draft_app_config",
+            lambda payload, _account: payload,
+        )
+        monkeypatch.setattr(
+            service,
+            "_build_compare_history_prompt_messages",
+            lambda **_kwargs: ["history"],
+        )
+        monkeypatch.setattr(
+            service,
+            "_get_debug_long_term_memory_snapshot",
+            lambda *_args, **_kwargs: "memory",
+        )
+        monkeypatch.setattr(
+            service,
+            "_stream_agent_events",
+            lambda **kwargs: stream_capture.update(kwargs) or iter(["event: agent_message\ndata:{}\n\n"]),
+        )
+        service.language_model_service = SimpleNamespace(load_language_model=lambda _config: llm)
+        service.conversation_service = SimpleNamespace(
+            save_agent_thoughts=lambda **_kwargs: save_guard.append("called"),
+        )
+
+        events = list(service.prompt_compare_chat(app_id, req, account))
+
+        assert events == ["event: agent_message\ndata:{}\n\n"]
+        assert stream_capture["query"] == "你好"
+        assert stream_capture["history"] == ["history"]
+        assert stream_capture["long_term_memory"] == "memory"
+        assert stream_capture["conversation_id"] == "lane-1"
+        assert stream_capture["draft_app_config"]["preset_prompt"] == "候选提示词"
+        assert stream_capture["draft_app_config"]["model_config"]["model"] == "gpt-4o-mini"
+        assert stream_capture["llm"] is llm
+        assert save_guard == []
+
+    def test_stop_prompt_compare_chat_should_validate_app_then_set_stop_flag(self, monkeypatch):
+        service = _build_service()
+        account = SimpleNamespace(id=uuid4())
+        app_id = uuid4()
+        task_id = uuid4()
+        monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: SimpleNamespace(id=app_id))
+        captures = {}
+        monkeypatch.setattr(
+            "internal.service.app_service.AgentQueueManager.set_stop_flag",
+            lambda _task_id, invoke_from, account_id: captures.update(
+                {"task_id": _task_id, "invoke_from": invoke_from, "account_id": account_id}
+            ),
+        )
+
+        service.stop_prompt_compare_chat(app_id, task_id, account)
+
+        assert captures["task_id"] == task_id
+        assert captures["account_id"] == account.id
+
     def test_get_debug_conversation_messages_with_page_should_paginate_and_fetch_full_messages(self, monkeypatch):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
@@ -1557,6 +1718,25 @@ class TestAppService:
         assert result == {
             "web_app": {"token": "token-1", "status": AppStatus.PUBLISHED.value},
             "is_public": False,
+            "category": "general",
+        }
+
+    def test_get_published_config_should_fallback_to_default_category_when_app_has_no_category(
+        self, monkeypatch
+    ):
+        service = _build_service()
+        app = SimpleNamespace(
+            token_with_default="token-1",
+            status=AppStatus.PUBLISHED.value,
+            is_public=True,
+        )
+        monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: app)
+
+        result = service.get_published_config(uuid4(), SimpleNamespace(id=uuid4()))
+
+        assert result == {
+            "web_app": {"token": "token-1", "status": AppStatus.PUBLISHED.value},
+            "is_public": True,
             "category": "general",
         }
 
@@ -2434,3 +2614,120 @@ class TestAppServiceDraftConfigValidation:
         update_payload = updates[0][1]
         assert "is_public" not in update_payload
         assert "published_at" not in update_payload
+
+    def test_publish_draft_app_config_should_not_fail_when_public_registry_enqueue_failed(self, monkeypatch):
+        class _DeleteQuery:
+            def filter(self, *_args):
+                return self
+
+            @staticmethod
+            def delete():
+                return None
+
+        class _ScalarQuery:
+            def filter(self, *_args):
+                return self
+
+            @staticmethod
+            def scalar():
+                return 1
+
+        class _Session:
+            def __init__(self):
+                self.calls = 0
+
+            def query(self, _model):
+                self.calls += 1
+                if self.calls == 1:
+                    return _DeleteQuery()
+                return _ScalarQuery()
+
+        class _DB:
+            def __init__(self):
+                self.session = _Session()
+
+            @staticmethod
+            @contextmanager
+            def auto_commit():
+                yield
+
+        service = _new_app_service(
+            db=_DB(),
+            redis_client=SimpleNamespace(),
+            cos_service=SimpleNamespace(),
+            retrieval_service=SimpleNamespace(),
+            app_config_service=SimpleNamespace(),
+            api_provider_manager=SimpleNamespace(),
+            conversation_service=SimpleNamespace(),
+            language_model_manager=SimpleNamespace(),
+            language_model_service=SimpleNamespace(),
+            builtin_provider_manager=SimpleNamespace(),
+            icon_generator_service=SimpleNamespace(),
+            public_agent_registry_service=SimpleNamespace(),
+        )
+        monkeypatch.setattr(
+            "internal.service.app_service.sync_public_app_registry",
+            SimpleNamespace(delay=Mock(side_effect=RuntimeError("queue down"))),
+        )
+
+        app_id = uuid4()
+        account = SimpleNamespace(id=uuid4())
+        app = SimpleNamespace(
+            id=app_id,
+            published_at=None,
+            draft_app_config=SimpleNamespace(
+                id=uuid4(),
+                app_id=app_id,
+                version=0,
+                config_type="draft",
+                updated_at=None,
+                created_at=None,
+                model_config={"provider": "openai", "model": "gpt-4o-mini"},
+                dialog_round=3,
+                preset_prompt="prompt",
+                tools=[],
+                workflows=[],
+                datasets=[],
+                retrieval_config={},
+                long_term_memory={"enable": True},
+                opening_statement="hello",
+                opening_questions=["q1"],
+                speech_to_text={"enable": False},
+                text_to_speech={"enable": False},
+                suggested_after_answer={"enable": True},
+                review_config={"enable": False},
+            ),
+        )
+        monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: app)
+        monkeypatch.setattr(
+            service,
+            "get_draft_app_config",
+            lambda *_args, **_kwargs: {
+                "model_config": {"provider": "openai", "model": "gpt-4o-mini"},
+                "dialog_round": 3,
+                "preset_prompt": "prompt",
+                "tools": [],
+                "workflows": [],
+                "datasets": [],
+                "retrieval_config": {},
+                "long_term_memory": {"enable": True},
+                "opening_statement": "hello",
+                "opening_questions": ["q1"],
+                "speech_to_text": {"enable": False},
+                "text_to_speech": {"enable": False},
+                "suggested_after_answer": {"enable": True},
+                "review_config": {"enable": False},
+            },
+        )
+        monkeypatch.setattr(service, "create", lambda _model, **kwargs: SimpleNamespace(id=uuid4(), **kwargs))
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        result = service.publish_draft_app_config(app_id, account)
+
+        assert result is app
+        assert updates[0][1]["status"] == AppStatus.PUBLISHED.value

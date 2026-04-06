@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from flask import request
+from flask import jsonify, request
 from flask_login import current_user, login_required
 from injector import inject
 
@@ -18,6 +18,7 @@ from internal.schema.public_app_schema import (
 )
 from internal.service.public_app_service import PublicAppService
 from internal.service.analysis_service import AnalysisService
+from internal.service.public_agent_a2a_service import PublicAgentA2AService
 from pkg.paginator import PageModel
 
 
@@ -27,6 +28,7 @@ class PublicAppHandler:
     """公共应用Handler"""
     public_app_service: PublicAppService
     analysis_service: AnalysisService
+    public_agent_a2a_service: PublicAgentA2AService | None = None
 
     @login_required
     def share_app_to_square(self, app_id: UUID):
@@ -126,3 +128,16 @@ class PublicAppHandler:
 
         # 3.返回响应
         return success_json(app_analysis)
+
+    def get_public_app_a2a_card(self, app_id: str):
+        """获取公共应用的A2A Agent Card。"""
+        if not self.public_agent_a2a_service:
+            return jsonify({"error": "A2A service unavailable"}), 503
+        return jsonify(self.public_agent_a2a_service.get_agent_card(app_id))
+
+    def send_public_app_a2a_message(self, app_id: str):
+        """以A2A协议向公共应用发送消息。"""
+        if not self.public_agent_a2a_service:
+            return jsonify({"error": "A2A service unavailable"}), 503
+        payload = request.get_json(force=True, silent=True) or {}
+        return jsonify(self.public_agent_a2a_service.send_message(app_id, payload))

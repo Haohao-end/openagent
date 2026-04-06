@@ -2,8 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useGetVersions } from '@/hooks/use-app'
-import type { AppVersion } from '@/models/app'
 import { formatTimestampLong } from '@/utils/time-formatter'
+import VersionComparisonSectionContent from './components/VersionComparisonSectionContent.vue'
 
 const route = useRoute()
 const props = defineProps({
@@ -41,28 +41,6 @@ const normalizeValue = (value: unknown): unknown => {
 
 const serializeValue = (value: unknown) => JSON.stringify(normalizeValue(value))
 
-const formatValue = (value: unknown) => {
-  if (typeof value === 'string') {
-    return value.trim() ? value : '未设置'
-  }
-
-  if (Array.isArray(value)) {
-    return value.length ? JSON.stringify(normalizeValue(value), null, 2) : '未设置'
-  }
-
-  if (value && typeof value === 'object') {
-    return Object.keys(value as Record<string, unknown>).length
-      ? JSON.stringify(normalizeValue(value), null, 2)
-      : '未设置'
-  }
-
-  if (value === null || value === undefined || value === '') {
-    return '未设置'
-  }
-
-  return String(value)
-}
-
 const leftVersion = computed(
   () => versions.value.find((version: any) => version.id === leftVersionId.value) || null,
 )
@@ -82,8 +60,8 @@ const createSection = (
     key,
     label,
     changed: serializeValue(leftRaw) !== serializeValue(rightRaw),
-    leftDisplay: formatValue(leftRaw),
-    rightDisplay: formatValue(rightRaw),
+    leftValue: leftRaw,
+    rightValue: rightRaw,
   }
 }
 
@@ -91,11 +69,11 @@ const comparisonSections = computed(() => [
   createSection('model_config', '模型配置', (version) => version?.config.model_config),
   createSection('dialog_round', '上下文轮数', (version) => version?.config.dialog_round),
   createSection('preset_prompt', '人设与回复逻辑', (version) => version?.config.preset_prompt),
-  createSection('tools', '工具能力', (version) => version?.config.tools),
-  createSection('workflows', '工作流能力', (version) => version?.config.workflows),
-  createSection('datasets', '知识库能力', (version) => version?.config.datasets),
+  createSection('tools', '扩展插件', (version) => version?.config.tools),
+  createSection('workflows', '工作流', (version) => version?.config.workflows),
+  createSection('datasets', '知识库', (version) => version?.config.datasets),
   createSection('retrieval_config', '检索配置', (version) => version?.config.retrieval_config),
-  createSection('opening', '开场设置', (version) => ({
+  createSection('opening', '对话开场白', (version) => ({
     opening_statement: version?.config.opening_statement || '',
     opening_questions: version?.config.opening_questions || [],
   })),
@@ -119,6 +97,38 @@ const visibleSections = computed(() => {
 const changedSectionCount = computed(
   () => comparisonSections.value.filter((section) => section.changed).length,
 )
+
+const getVersionTagColor = (version: Record<string, any> | null) => {
+  if (!version) {
+    return 'gray'
+  }
+
+  if (version.config_type === 'draft') {
+    return 'arcoblue'
+  }
+
+  return version.is_current_published ? 'green' : 'gray'
+}
+
+const getVersionTagLabel = (version: Record<string, any> | null) => {
+  if (!version) {
+    return '未选择版本'
+  }
+
+  if (version.config_type === 'draft') {
+    return '草稿'
+  }
+
+  return version.is_current_published ? '当前线上版本' : '历史版本'
+}
+
+const getVersionCollectionCount = (
+  version: Record<string, any> | null,
+  key: 'tools' | 'workflows' | 'datasets',
+) => {
+  const value = version?.config?.[key]
+  return Array.isArray(value) ? value.length : 0
+}
 
 const setDefaultSelectedVersions = () => {
   if (!versions.value.length) {
@@ -157,90 +167,80 @@ onMounted(async () => {
 
 <template>
   <div class="bg-gray-50 flex-1 w-full min-h-0 overflow-hidden">
-    <div class="h-full min-h-0 flex flex-col gap-4 p-6">
-      <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <div class="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div class="text-lg font-semibold text-gray-800">版本对比</div>
-            <div class="mt-1 text-sm text-gray-500">
-              对比草稿与历史发布版本的配置差异，快速确认本次改动范围。
-            </div>
-          </div>
-          <div class="flex items-center gap-3 text-sm text-gray-500">
-            <div>共 {{ versions.length }} 个可选版本</div>
-            <div>差异区块 {{ changedSectionCount }}</div>
-            <a-switch v-model:model-value="showOnlyChanged" size="small" />
-            <div>仅看差异</div>
-          </div>
-        </div>
-
-        <div class="mt-5 grid gap-4 lg:grid-cols-2">
-          <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
-            <div class="mb-2 text-xs font-medium tracking-wide text-gray-400">左侧版本</div>
-            <a-select v-model:model-value="leftVersionId" placeholder="请选择版本">
-              <a-option v-for="version in versions" :key="version.id" :value="version.id">
-                {{ version.label }} · {{ version.summary }}
-              </a-option>
-            </a-select>
-            <div v-if="leftVersion" class="mt-3 space-y-2 text-sm text-gray-600">
-              <div class="flex flex-wrap items-center gap-2">
-                <a-tag bordered>{{ leftVersion.label }}</a-tag>
-                <a-tag v-if="leftVersion.config_type === 'draft'" color="arcoblue" bordered>
-                  草稿
-                </a-tag>
-                <a-tag v-else-if="leftVersion.is_current_published" color="green" bordered>
-                  当前线上版本
-                </a-tag>
-                <a-tag v-else color="gray" bordered>历史版本</a-tag>
-              </div>
+    <a-spin :loading="loading" class="h-full min-h-0">
+      <div
+        data-testid="versions-scroll-container"
+        class="h-full min-h-0 overflow-y-auto overflow-x-hidden scrollbar-w-none"
+      >
+        <div class="space-y-4 p-6">
+          <div class="overflow-hidden rounded-[28px] border border-gray-100 bg-white shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
               <div>
-                更新时间：{{ formatTimestampLong(leftVersion.updated_at) }}
+                <div class="text-lg font-semibold text-gray-800">版本对比</div>
+                <div class="mt-1 text-sm text-gray-500">
+                  对比草稿与历史发布版本的配置差异，快速确认本次改动范围。
+                </div>
+                <div v-if="props.app?.name" class="mt-2 text-sm text-gray-500">
+                  当前应用：{{ props.app.name }}
+                </div>
               </div>
-              <div class="text-gray-500">
-                工具 {{ leftVersion.config.tools.length }} 个 · 工作流
-                {{ leftVersion.config.workflows.length }} 个 · 知识库
-                {{ leftVersion.config.datasets.length }} 个
+              <div class="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                <div>共 {{ versions.length }} 个可选版本</div>
+                <div>差异区块 {{ changedSectionCount }}</div>
+                <a-switch v-model:model-value="showOnlyChanged" size="small" />
+                <div>仅看差异</div>
+              </div>
+            </div>
+
+            <div class="grid gap-0 lg:grid-cols-2 lg:divide-x lg:divide-gray-100">
+              <div class="min-w-0 p-6">
+                <div class="mb-3 text-xs font-medium tracking-wide text-gray-400">对比版本 A</div>
+                <a-select v-model:model-value="leftVersionId" placeholder="请选择版本">
+                  <a-option v-for="version in versions" :key="version.id" :value="version.id">
+                    {{ version.label }} · {{ version.summary }}
+                  </a-option>
+                </a-select>
+                <div v-if="leftVersion" class="mt-4 space-y-3 text-sm text-gray-600">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <a-tag bordered>{{ leftVersion.label }}</a-tag>
+                    <a-tag :color="getVersionTagColor(leftVersion)" bordered>
+                      {{ getVersionTagLabel(leftVersion) }}
+                    </a-tag>
+                  </div>
+                  <div>更新时间：{{ formatTimestampLong(leftVersion.updated_at) }}</div>
+                  <div class="text-gray-500">
+                    扩展插件 {{ getVersionCollectionCount(leftVersion, 'tools') }} 个 · 工作流
+                    {{ getVersionCollectionCount(leftVersion, 'workflows') }} 个 · 知识库
+                    {{ getVersionCollectionCount(leftVersion, 'datasets') }} 个
+                  </div>
+                </div>
+              </div>
+
+              <div class="min-w-0 p-6">
+                <div class="mb-3 text-xs font-medium tracking-wide text-gray-400">对比版本 B</div>
+                <a-select v-model:model-value="rightVersionId" placeholder="请选择版本">
+                  <a-option v-for="version in versions" :key="version.id" :value="version.id">
+                    {{ version.label }} · {{ version.summary }}
+                  </a-option>
+                </a-select>
+                <div v-if="rightVersion" class="mt-4 space-y-3 text-sm text-gray-600">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <a-tag bordered>{{ rightVersion.label }}</a-tag>
+                    <a-tag :color="getVersionTagColor(rightVersion)" bordered>
+                      {{ getVersionTagLabel(rightVersion) }}
+                    </a-tag>
+                  </div>
+                  <div>更新时间：{{ formatTimestampLong(rightVersion.updated_at) }}</div>
+                  <div class="text-gray-500">
+                    扩展插件 {{ getVersionCollectionCount(rightVersion, 'tools') }} 个 · 工作流
+                    {{ getVersionCollectionCount(rightVersion, 'workflows') }} 个 · 知识库
+                    {{ getVersionCollectionCount(rightVersion, 'datasets') }} 个
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
-            <div class="mb-2 text-xs font-medium tracking-wide text-gray-400">右侧版本</div>
-            <a-select v-model:model-value="rightVersionId" placeholder="请选择版本">
-              <a-option v-for="version in versions" :key="version.id" :value="version.id">
-                {{ version.label }} · {{ version.summary }}
-              </a-option>
-            </a-select>
-            <div v-if="rightVersion" class="mt-3 space-y-2 text-sm text-gray-600">
-              <div class="flex flex-wrap items-center gap-2">
-                <a-tag bordered>{{ rightVersion.label }}</a-tag>
-                <a-tag v-if="rightVersion.config_type === 'draft'" color="arcoblue" bordered>
-                  草稿
-                </a-tag>
-                <a-tag v-else-if="rightVersion.is_current_published" color="green" bordered>
-                  当前线上版本
-                </a-tag>
-                <a-tag v-else color="gray" bordered>历史版本</a-tag>
-              </div>
-              <div>
-                更新时间：{{ formatTimestampLong(rightVersion.updated_at) }}
-              </div>
-              <div class="text-gray-500">
-                工具 {{ rightVersion.config.tools.length }} 个 · 工作流
-                {{ rightVersion.config.workflows.length }} 个 · 知识库
-                {{ rightVersion.config.datasets.length }} 个
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="props.app?.name" class="mt-4 text-sm text-gray-500">
-          当前应用：{{ props.app.name }}
-        </div>
-      </div>
-
-      <a-spin :loading="loading" class="flex-1 min-h-0">
-        <div class="h-full min-h-0 overflow-auto pr-1">
           <a-empty
             v-if="!versions.length"
             description="当前应用还没有可对比的版本数据"
@@ -257,42 +257,51 @@ onMounted(async () => {
             <div
               v-for="section in visibleSections"
               :key="section.key"
-              class="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
+              :data-testid="`comparison-section-${section.key}`"
+              class="overflow-hidden rounded-[28px] border border-gray-100 bg-white shadow-sm"
             >
               <div
-                class="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-5 py-3"
+                class="flex items-center justify-between border-b border-gray-100 bg-gray-50/80 px-6 py-4"
               >
                 <div class="text-sm font-semibold text-gray-800">{{ section.label }}</div>
                 <a-tag :color="section.changed ? 'arcoblue' : 'green'" bordered>
                   {{ section.changed ? '已变更' : '无变化' }}
                 </a-tag>
               </div>
-              <div class="grid gap-0 lg:grid-cols-2">
-                <div class="border-b border-gray-100 p-5 lg:border-b-0 lg:border-r">
-                  <div class="mb-3 flex items-center gap-2 text-sm text-gray-500">
-                    <span>左侧</span>
-                    <a-tag size="small" bordered>{{ leftVersion?.label || '未选择' }}</a-tag>
+              <div class="grid gap-0 lg:grid-cols-2 lg:divide-x lg:divide-gray-100">
+                <div class="min-w-0 border-b border-gray-100 p-6 lg:border-b-0">
+                  <div class="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+                    <a-tag size="small" bordered>{{ leftVersion?.label || '未选择版本' }}</a-tag>
+                    <a-tag size="small" :color="getVersionTagColor(leftVersion)" bordered>
+                      {{ getVersionTagLabel(leftVersion) }}
+                    </a-tag>
                   </div>
-                  <pre
-                    class="whitespace-pre-wrap break-words rounded-xl bg-gray-50 p-4 font-mono text-xs leading-6 text-gray-700"
-                    >{{ section.leftDisplay }}</pre
-                  >
+                  <version-comparison-section-content
+                    :section-key="section.key"
+                    :value="section.leftValue"
+                    :compare-value="section.rightValue"
+                    side="left"
+                  />
                 </div>
-                <div class="p-5">
-                  <div class="mb-3 flex items-center gap-2 text-sm text-gray-500">
-                    <span>右侧</span>
-                    <a-tag size="small" bordered>{{ rightVersion?.label || '未选择' }}</a-tag>
+                <div class="min-w-0 p-6">
+                  <div class="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+                    <a-tag size="small" bordered>{{ rightVersion?.label || '未选择版本' }}</a-tag>
+                    <a-tag size="small" :color="getVersionTagColor(rightVersion)" bordered>
+                      {{ getVersionTagLabel(rightVersion) }}
+                    </a-tag>
                   </div>
-                  <pre
-                    class="whitespace-pre-wrap break-words rounded-xl bg-gray-50 p-4 font-mono text-xs leading-6 text-gray-700"
-                    >{{ section.rightDisplay }}</pre
-                  >
+                  <version-comparison-section-content
+                    :section-key="section.key"
+                    :value="section.rightValue"
+                    :compare-value="section.leftValue"
+                    side="right"
+                  />
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </a-spin>
-    </div>
+      </div>
+    </a-spin>
   </div>
 </template>

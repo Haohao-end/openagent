@@ -1,12 +1,15 @@
 from dataclasses import dataclass
 from injector import inject
-from flask_login import login_required, logout_user
+from flask import g
+from flask_login import login_required, logout_user, current_user
 from pkg.response import success_message, validate_error_json, success_json
 from internal.schema.auth_schema import (
     PasswordLoginResp,
     PasswordLoginReq,
     SendResetCodeReq,
-    ResetPasswordReq
+    ResetPasswordReq,
+    VerifyLoginChallengeReq,
+    ResendLoginChallengeReq,
 )
 from internal.service import AccountService
 
@@ -34,6 +37,14 @@ class AuthHandler:
     @login_required
     def logout(self):
         """退出登陆 用于提示前端清除授权凭证"""
+        current_session = getattr(g, "current_account_session", None)
+        if current_session is not None:
+            self.account_service.revoke_account_session(
+                current_user,
+                current_session.id,
+                current_session_id=current_session.id,
+                allow_current=True,
+            )
         logout_user()
         return success_message("退出登陆成功")
 
@@ -64,3 +75,27 @@ class AuthHandler:
         )
 
         return success_message("密码重置成功,请使用新密码登录")
+
+    def verify_login_challenge(self):
+        """完成异常登录的二次验证码校验。"""
+        req = VerifyLoginChallengeReq()
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        credential = self.account_service.verify_login_challenge(
+            req.challenge_id.data,
+            req.code.data,
+        )
+
+        resp = PasswordLoginResp()
+        return success_json(resp.dump(credential))
+
+    def resend_login_challenge(self):
+        """重发异常登录的二次验证码。"""
+        req = ResendLoginChallengeReq()
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        self.account_service.resend_login_challenge(req.challenge_id.data)
+
+        return success_message("验证码已发送到您的邮箱,请查收")

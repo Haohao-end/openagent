@@ -1,9 +1,22 @@
 import logging
 from uuid import UUID
 
+import httpx
 from celery import shared_task
+from openai import APIConnectionError
 
 logger = logging.getLogger(__name__)
+
+_PUBLIC_APP_REGISTRY_RETRY_BASE_SECONDS = 30
+_PUBLIC_APP_REGISTRY_RETRY_MAX_SECONDS = 300
+
+
+def _public_app_registry_retry_countdown(retries: int) -> int:
+    normalized_retries = max(int(retries or 0), 0)
+    return min(
+        _PUBLIC_APP_REGISTRY_RETRY_BASE_SECONDS * (2 ** normalized_retries),
+        _PUBLIC_APP_REGISTRY_RETRY_MAX_SECONDS,
+    )
 
 
 @shared_task
@@ -47,4 +60,31 @@ def auto_create_app(
         logger.info("Created and emitted notification for agent %s", app.id)
     except Exception as e:
         logger.exception("Error in auto_create_app task: %s", str(e))
+        raise
+
+
+@shared_task(bind=True, max_retries=3)
+def sync_public_app_registry(self, app_id: str) -> None:
+    """根据应用当前状态同步公共Agent索引。"""
+    from app.http.app import injector
+    from internal.service import PublicAgentRegistryService
+
+    registry_service = injector.get(PublicAgentRegistryService)
+    normalized_app_id = UUID(str(app_id))
+
+    try:
+        logger.info("Starting sync_public_app_registry task, app_id=%s", normalized_app_id)
+        registry_service.sync_public_app(normalized_app_id)
+        logger.info("Finished sync_public_app_registry task, app_id=%s", normalized_app_id)
+    except (APIConnectionError, httpx.TransportError) as exc:
+        countdown = _public_app_registry_retry_countdown(getattr(self.request, "retries", 0))
+        logger.warning(
+            "Transient connection error in sync_public_app_registry task, app_id=%s, retry_in=%ss",
+            normalized_app_id,
+            countdown,
+            exc_info=True,
+        )
+        raise self.retry(exc=exc, countdown=countdown)
+    except Exception as e:
+        logger.exception("Error in sync_public_app_registry task: %s", str(e))
         raise

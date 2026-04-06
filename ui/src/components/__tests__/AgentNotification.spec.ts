@@ -1,13 +1,25 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { markNotificationAsRead } from '@/services/notification'
 import AgentNotification from '../AgentNotification.vue'
 import type { AgentNotification as AgentNotificationType } from '@/models/agent-notification'
+
+vi.mock('@/services/notification', () => ({
+  markNotificationAsRead: vi.fn().mockResolvedValue(undefined),
+}))
 
 describe('AgentNotification.vue', () => {
   let wrapper: any
 
   beforeEach(() => {
-    wrapper = mount(AgentNotification)
+    vi.clearAllMocks()
+    wrapper = mount(AgentNotification, {
+      global: {
+        stubs: {
+          'icon-close': true,
+        },
+      },
+    })
   })
 
   it('should render empty notification list initially', () => {
@@ -29,6 +41,7 @@ describe('AgentNotification.vue', () => {
 
     expect(wrapper.vm.notifications).toHaveLength(1)
     expect(wrapper.vm.notifications[0]).toEqual(notification)
+    expect(markNotificationAsRead).toHaveBeenCalledWith('test-1')
   })
 
   it('should not add duplicate notifications', () => {
