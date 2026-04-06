@@ -15,6 +15,12 @@ class _FakeConf:
     CORS_SUPPORTS_CREDENTIALS = True
 
 
+class _WildcardCorsConf:
+    CELERY = {"broker_url": "redis://example"}
+    CORS_ALLOW_ORIGINS = ["*"]
+    CORS_SUPPORTS_CREDENTIALS = True
+
+
 class _FakeDB:
     def __init__(self):
         self.init_calls = []
@@ -131,6 +137,37 @@ def test_http_init_should_wire_extensions_middleware_and_router(monkeypatch):
     assert cors_calls[0][1]["/*"]["origins"] == ["https://ui.example.com"]
     assert cors_calls[0][1]["/*"]["supports_credentials"] is True
     assert [name for name, _ in ext_calls] == ["logging", "redis", "celery"]
+
+
+def test_http_init_should_fallback_to_localhost_when_wildcard_conflicts_with_credentials(monkeypatch):
+    cors_calls = []
+
+    monkeypatch.setattr(
+        "internal.server.http.CORS",
+        lambda app, resources: cors_calls.append((app, resources)),
+    )
+    monkeypatch.setattr("internal.server.http.logging_extension.init_app", lambda app: None)
+    monkeypatch.setattr("internal.server.http.redis_extension.init_app", lambda app: None)
+    monkeypatch.setattr("internal.server.http.celery_extension.init_app", lambda app: None)
+    monkeypatch.setattr("internal.server.http.init_socketio", lambda app: None)
+
+    Http(
+        "test-http",
+        conf=_WildcardCorsConf(),
+        db=_FakeDB(),
+        weaviate=_FakeWeaviate(),
+        migrate=_FakeMigrate(),
+        login_manager=_FakeLoginManager(),
+        mail=_FakeMail(),
+        middleware=_FakeMiddleware(),
+        router=_FakeRouter(),
+    )
+
+    assert cors_calls[0][1]["/*"]["origins"] == [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    assert cors_calls[0][1]["/*"]["supports_credentials"] is True
 
 
 def test_http_error_handler_should_return_custom_exception_payload(monkeypatch):

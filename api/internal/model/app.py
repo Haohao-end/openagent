@@ -10,8 +10,10 @@ from sqlalchemy import (
     Boolean,
     PrimaryKeyConstraint,
     text,
-    Index
+    Index,
+    ForeignKey,
 )
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from internal.extension.database_extension import db
 from internal.entity.app_entity import AppConfigType, DEFAULT_APP_CONFIG, AppStatus
@@ -34,12 +36,12 @@ class App(db.Model):
         PrimaryKeyConstraint("id", name="pk_app_id"),
         Index("app_account_id_idx", "account_id"),
         Index("app_is_public_idx", "is_public"),
-        Index("app_category_idx", "category"),
+        Index("app_tags_idx", "tags", postgresql_using="gin"),
         Index("app_like_count_idx", "like_count")
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
-    account_id = Column(UUID, nullable=False)  # 创建账号id
+    account_id = Column(UUID, ForeignKey('account.id'), nullable=False)  # 创建账号id
     app_config_id = Column(UUID, nullable=True)  # 发布配置id，当值为空时代表没有发布
     draft_app_config_id = Column(UUID, nullable=True)  # 关联的草稿配置id
     debug_conversation_id = Column(UUID, nullable=True)  # 应用调试会话id，为None则代表没有会话信息
@@ -49,7 +51,7 @@ class App(db.Model):
     token = Column(String(255), nullable=True, server_default=text("''::character varying"))  # 应用凭证
     status = Column(String(255), nullable=False, server_default=text("''::character varying"))  # 应用状态
     is_public = Column(Boolean, nullable=False, server_default=text("false"))  # 是否公开到广场
-    category = Column(String(100), nullable=False, server_default=text("'general'::character varying"))  # 应用分类
+    tags = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))  # 应用标签列表
     published_at = Column(DateTime, nullable=True)  # 发布到广场的时间
     view_count = Column(Integer, nullable=False, server_default=text("0"))  # 浏览次数
     like_count = Column(Integer, nullable=False, server_default=text("0"))  # 点赞数
@@ -63,6 +65,9 @@ class App(db.Model):
         default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, default=_utcnow_naive, server_default=text("CURRENT_TIMESTAMP(0)"))
+
+    # 关系定义
+    account = relationship("Account", foreign_keys=[account_id], lazy="joined")
 
     @property
     def app_config(self) -> "AppConfig":
@@ -259,6 +264,7 @@ class AppConfigVersion(db.Model):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP(0)"),
         server_onupdate=text("CURRENT_TIMESTAMP(0)"),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
 
@@ -280,6 +286,7 @@ class AppDatasetJoin(db.Model):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP(0)"),
         server_onupdate=text("CURRENT_TIMESTAMP(0)"),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
 

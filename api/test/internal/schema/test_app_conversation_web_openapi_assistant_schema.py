@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from internal.entity.app_entity import AppStatus
+from internal.entity.app_entity import AppConfigType, AppStatus
 from internal.schema.app_schema import (
     CreateAppReq,
     DebugChatReq,
@@ -117,6 +117,7 @@ def test_get_apps_with_page_resp_should_select_config_by_status(status, expected
         icon="https://img.example.com/app.png",
         description="desc",
         status=status,
+        account=ns(name="app-owner", avatar="https://img.example.com/app-owner.png"),
         app_config=ns(
             preset_prompt="published-prompt",
             model_config={"provider": "openai", "model": "gpt-4o-mini", "extra": "ignored"},
@@ -133,6 +134,8 @@ def test_get_apps_with_page_resp_should_select_config_by_status(status, expected
     data = GetAppsWithPageResp().dump(app)
     assert data["preset_prompt"] == expected_prompt
     assert data["model_config"] == expected_model
+    assert data["creator_name"] == "app-owner"
+    assert data["creator_avatar"] == "https://img.example.com/app-owner.png"
 
 
 def test_get_app_resp_should_render_empty_debug_conversation_id_when_none():
@@ -156,12 +159,62 @@ def test_get_app_resp_should_render_empty_debug_conversation_id_when_none():
 def test_get_publish_histories_resp_should_dump_version_payload():
     version = ns(
         id=uuid4(),
+        app_id=uuid4(),
         version=2,
+        config_type=AppConfigType.PUBLISHED.value,
+        model_config={"provider": "deepseek", "model": "deepseek-chat"},
+        dialog_round=3,
+        preset_prompt="prompt",
+        tools=[{"type": "builtin_tool", "provider_id": "google", "tool_id": "google_serper", "params": {}}],
+        workflows=["workflow-1"],
+        datasets=["dataset-1"],
+        retrieval_config={"retrieval_strategy": "semantic", "k": 10, "score": 0.5},
+        long_term_memory={"enable": True},
+        opening_statement="hello",
+        opening_questions=["q1"],
+        speech_to_text={"enable": True},
+        text_to_speech={"enable": True, "voice": "alex", "auto_play": True},
+        suggested_after_answer={"enable": True},
+        review_config={"enable": False},
+        updated_at=utc_dt(2024, 1, 1, 1, 0, 0),
         created_at=utc_dt(2024, 1, 1, 0, 0, 0),
+        is_current_published=True,
+        display_config={
+            "model_config": {"provider": "deepseek", "model": "deepseek-chat"},
+            "dialog_round": 3,
+            "preset_prompt": "prompt",
+            "tools": [
+                {
+                    "type": "builtin_tool",
+                    "provider": {"id": "google", "label": "Google 搜索"},
+                    "tool": {"id": "google_serper", "name": "google_serper", "label": "Google 检索"},
+                }
+            ],
+            "workflows": [{"id": "workflow-1", "name": "工作流A"}],
+            "datasets": [{"id": "dataset-1", "name": "知识库A"}],
+            "retrieval_config": {"retrieval_strategy": "semantic", "k": 10, "score": 0.5},
+            "long_term_memory": {"enable": True},
+            "opening_statement": "hello",
+            "opening_questions": ["q1"],
+            "speech_to_text": {"enable": True},
+            "text_to_speech": {"enable": True, "voice": "alex", "auto_play": True},
+            "suggested_after_answer": {"enable": True},
+            "review_config": {"enable": False},
+        },
     )
     data = GetPublishHistoriesWithPageResp().dump(version)
+    assert data["app_id"] == str(version.app_id)
     assert data["version"] == 2
+    assert data["config_type"] == AppConfigType.PUBLISHED.value
+    assert data["config"]["model_config"] == {"provider": "deepseek", "model": "deepseek-chat"}
+    assert data["config"]["tools"][0]["provider"]["label"] == "Google 搜索"
+    assert data["config"]["workflows"][0]["name"] == "工作流A"
+    assert data["config"]["datasets"][0]["name"] == "知识库A"
+    assert data["updated_at"] == int(utc_dt(2024, 1, 1, 1, 0, 0).timestamp())
     assert data["created_at"] == int(utc_dt(2024, 1, 1, 0, 0, 0).timestamp())
+    assert data["is_current_published"] is True
+    assert data["label"] == "版本 #002"
+    assert data["summary"] == "当前线上版本"
 
 
 def test_fallback_history_to_draft_req_should_validate_uuid(form_request):

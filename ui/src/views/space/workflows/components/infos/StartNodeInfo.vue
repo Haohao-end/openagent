@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch, inject } from 'vue'
-import { Message, type ValidatedError } from '@arco-design/web-vue'
+import { type ValidatedError, Message } from '@arco-design/web-vue'
 import { cloneDeep, debounce } from 'lodash'
 
 type StartInputField = {

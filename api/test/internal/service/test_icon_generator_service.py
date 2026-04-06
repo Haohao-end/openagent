@@ -1,7 +1,9 @@
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
+import requests
 
 from internal.exception import FailException
 from internal.service.icon_generator_service import IconGeneratorService
@@ -33,33 +35,26 @@ def _mock_icon_prompt_generation(monkeypatch):
 
 
 class TestIconGeneratorService:
-    """测试图标生成服务"""
-
     def test_generate_icon_with_kolors_success(self, monkeypatch):
-        """测试使用 Kolors 成功生成图标"""
-        # Mock Flask current_app
         mock_app = Mock()
         mock_app.config = {
             "SILICONFLOW_API_KEY": "test-key",
-            "COS_DOMAIN": "https://test.cos.com"
+            "COS_DOMAIN": "https://test.cos.com",
         }
         monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
 
-        # Mock requests.post for Kolors API
         mock_response = Mock()
         mock_response.json.return_value = {
             "images": [{"url": "https://kolors.com/image.png"}]
         }
         mock_response.raise_for_status = Mock()
 
-        # Mock requests.get for image download
         mock_download_response = Mock()
         mock_download_response.content = b"fake-image-data"
         mock_download_response.raise_for_status = Mock()
 
         with patch("internal.service.icon_generator_service.requests.post", return_value=mock_response):
             with patch("internal.service.icon_generator_service.requests.get", return_value=mock_download_response):
-                # Mock COS client
                 mock_cos_client = Mock()
                 mock_cos_service = SimpleNamespace(
                     _get_client=Mock(return_value=mock_cos_client),
@@ -73,197 +68,63 @@ class TestIconGeneratorService:
                 assert "/icons/kolors_" in icon_url
                 mock_cos_client.put_object.assert_called_once()
 
-    def test_generate_icon_fallback_to_qwen(self, monkeypatch):
-        """测试 Kolors 失败后降级到 Qwen"""
-        # Mock Flask current_app
+    def test_generate_icon_should_fallback_to_qwen_when_kolors_rate_limited(self, monkeypatch):
         mock_app = Mock()
-        mock_app.config = {
-            "SILICONFLOW_API_KEY": None,  # Kolors 不可用
-            "DASHSCOPE_API_KEY": "test-qwen-key",
-            "COS_DOMAIN": "https://test.cos.com"
-        }
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
-        # Mock Qwen API responses
-        mock_submit_response = Mock()
-        mock_submit_response.json.return_value = {
-            "output": {"task_id": "test-task-id"}
-        }
-        mock_submit_response.raise_for_status = Mock()
-
-        mock_task_response = Mock()
-        mock_task_response.json.return_value = {
-            "output": {
-                "task_status": "SUCCEEDED",
-                "results": [{"url": "https://qwen.com/image.png"}]
-            }
-        }
-        mock_task_response.raise_for_status = Mock()
-
-        # Mock image download
-        mock_download_response = Mock()
-        mock_download_response.content = b"fake-image-data"
-        mock_download_response.raise_for_status = Mock()
-
-        def mock_requests_post(url, *args, **kwargs):
-            if "text2image" in url:
-                return mock_submit_response
-            return Mock()
-
-        def mock_requests_get(url, *args, **kwargs):
-            if "tasks" in url:
-                return mock_task_response
-            return mock_download_response
-
-        with patch("internal.service.icon_generator_service.requests.post", side_effect=mock_requests_post):
-            with patch("internal.service.icon_generator_service.requests.get", side_effect=mock_requests_get):
-                # Mock COS client
-                mock_cos_client = Mock()
-                mock_cos_service = SimpleNamespace(
-                    _get_client=Mock(return_value=mock_cos_client),
-                    _get_bucket=Mock(return_value="test-bucket"),
-                )
-
-                service = _build_service(cos_service=mock_cos_service)
-                icon_url = service.generate_icon("测试应用", "这是一个测试应用")
-
-                assert icon_url.startswith("https://test.cos.com/")
-                assert "/icons/qwen_" in icon_url
-
-    def test_generate_icon_fallback_to_dalle(self, monkeypatch):
-        """测试 Kolors 和 Qwen 都失败后降级到 DALLE"""
-        # Mock Flask current_app
-        mock_app = Mock()
-        mock_app.config = {
-            "SILICONFLOW_API_KEY": None,  # Kolors 不可用
-            "DASHSCOPE_API_KEY": None,  # Qwen 不可用
-            "OPENAI_API_KEY": "test-openai-key",
-            "COS_DOMAIN": "https://test.cos.com"
-        }
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
-        # Mock DALLE wrapper
-        mock_dalle = Mock()
-        mock_dalle.run.return_value = "https://dalle.com/image.png"
-
-        # Mock image download
-        mock_download_response = Mock()
-        mock_download_response.content = b"fake-image-data"
-        mock_download_response.raise_for_status = Mock()
-
-        with patch("internal.service.icon_generator_service.DallEAPIWrapper", return_value=mock_dalle):
-            with patch("internal.service.icon_generator_service.requests.get", return_value=mock_download_response):
-                # Mock COS client
-                mock_cos_client = Mock()
-                mock_cos_service = SimpleNamespace(
-                    _get_client=Mock(return_value=mock_cos_client),
-                    _get_bucket=Mock(return_value="test-bucket"),
-                )
-
-                service = _build_service(cos_service=mock_cos_service)
-                icon_url = service.generate_icon("测试应用", "这是一个测试应用")
-
-                assert icon_url.startswith("https://test.cos.com/")
-                assert "/icons/dalle_" in icon_url
-
-    def test_generate_icon_all_services_fail(self, monkeypatch):
-        """测试所有服务都失败时抛出异常"""
-        # Mock Flask current_app
-        mock_app = Mock()
-        mock_app.config = {
-            "SILICONFLOW_API_KEY": None,
-            "DASHSCOPE_API_KEY": None,
-            "OPENAI_API_KEY": None,
-        }
+        mock_app.config = {"SILICONFLOW_API_KEY": "test-key", "COS_DOMAIN": "https://test.cos.com"}
         monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
 
         service = _build_service()
-
-        with pytest.raises(FailException) as exc_info:
-            service.generate_icon("测试应用", "这是一个测试应用")
-
-        assert "图标生成服务暂时不可用" in str(exc_info.value)
-
-    def test_generate_icon_prompt_generation(self, monkeypatch):
-        """测试图标提示词生成"""
-        # Mock Flask current_app
-        mock_app = Mock()
-        mock_app.config = {
-            "SILICONFLOW_API_KEY": "test-key",
-            "COS_DOMAIN": "https://test.cos.com"
-        }
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
-        # Mock LLM
-        mock_llm = Mock()
-        mock_chain = Mock()
-        mock_chain.invoke.return_value = "A beautiful icon for test app"
-
-        with patch("internal.service.icon_generator_service.ChatPromptTemplate") as mock_template:
-            mock_template.from_template.return_value.__or__ = Mock(
-                return_value=Mock(__or__=Mock(return_value=mock_chain))
-            )
-
-            mock_language_model_manager = SimpleNamespace(
-                get_default_model=Mock(return_value=mock_llm)
-            )
-
-            service = _build_service(language_model_manager=mock_language_model_manager)
-
-            # Mock the rest of the flow
-            with patch.object(service, "_generate_with_kolors", return_value="https://test.cos.com/icon.png"):
-                icon_url = service.generate_icon("测试应用", "这是一个测试应用")
-                assert icon_url == "https://test.cos.com/icon.png"
-
-    def test_download_and_upload_image(self, monkeypatch):
-        """测试下载图片并上传到 COS"""
-        # Mock Flask current_app
-        mock_app = Mock()
-        mock_app.config = {
-            "COS_DOMAIN": "https://test.cos.com"
-        }
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
-        # Mock image download
-        mock_download_response = Mock()
-        mock_download_response.content = b"fake-image-data"
-        mock_download_response.raise_for_status = Mock()
-
-        with patch("internal.service.icon_generator_service.requests.get", return_value=mock_download_response):
-            # Mock COS client
-            mock_cos_client = Mock()
-            mock_cos_service = SimpleNamespace(
-                _get_client=Mock(return_value=mock_cos_client),
-                _get_bucket=Mock(return_value="test-bucket"),
-            )
-
-            service = _build_service(cos_service=mock_cos_service)
-            icon_url = service._download_and_upload_image("https://example.com/image.png", "test")
-
-            assert icon_url.startswith("https://test.cos.com/")
-            assert "/icons/test_" in icon_url
-            mock_cos_client.put_object.assert_called_once()
-
-            # Verify the call arguments
-            call_args = mock_cos_client.put_object.call_args
-            assert call_args[1]["Bucket"] == "test-bucket"
-            assert call_args[1]["Body"] == b"fake-image-data"
-            assert call_args[1]["ContentType"] == "image/png"
-
-    def test_generate_icon_should_fallback_when_kolors_returns_none(self, monkeypatch):
-        mock_app = Mock()
-        mock_app.config = {}
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
-        service = _build_service()
-        monkeypatch.setattr(service, "_generate_with_kolors", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(
+            service,
+            "_generate_with_kolors",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(FailException("Kolors 服务请求过于频繁，请稍后重试")),
+        )
         monkeypatch.setattr(service, "_generate_with_qwen", lambda *_args, **_kwargs: "https://qwen/icon.png")
 
         icon_url = service.generate_icon("测试应用", "desc")
 
         assert icon_url == "https://qwen/icon.png"
 
-    def test_generate_icon_prompt_should_append_style_suffix_when_llm_succeeds(self, monkeypatch):
+    def test_generate_icon_should_fallback_to_dalle_when_siliconflow_providers_rate_limited(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {
+            "SILICONFLOW_API_KEY": "test-key",
+            "OPENAI_API_KEY": "openai-key",
+            "COS_DOMAIN": "https://test.cos.com",
+        }
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+
+        service = _build_service()
+        monkeypatch.setattr(
+            service,
+            "_generate_with_kolors",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(FailException("Kolors 服务请求过于频繁，请稍后重试")),
+        )
+        monkeypatch.setattr(
+            service,
+            "_generate_with_qwen",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(FailException("Qwen 服务请求过于频繁，请稍后重试")),
+        )
+        monkeypatch.setattr(service, "_generate_with_dalle", lambda *_args, **_kwargs: "https://dalle/icon.png")
+
+        icon_url = service.generate_icon("测试应用", "desc")
+
+        assert icon_url == "https://dalle/icon.png"
+
+    def test_generate_icon_all_services_fail(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {
+            "SILICONFLOW_API_KEY": None,
+            "OPENAI_API_KEY": None,
+        }
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+
+        service = _build_service()
+
+        with pytest.raises(FailException, match="图标生成服务暂时不可用"):
+            service.generate_icon("测试应用", "这是一个测试应用")
+
+    def test_generate_icon_prompt_should_return_llm_output_without_extra_suffix(self, monkeypatch):
         monkeypatch.setattr(
             IconGeneratorService,
             "_generate_icon_prompt",
@@ -276,7 +137,7 @@ class TestIconGeneratorService:
 
             @staticmethod
             def invoke(_payload):
-                return "A polished business logo"
+                return "  A polished business app icon prompt  "
 
         monkeypatch.setattr(
             "internal.service.icon_generator_service.ChatPromptTemplate.from_template",
@@ -290,9 +151,7 @@ class TestIconGeneratorService:
         service = _build_service()
         prompt = service._generate_icon_prompt("测试应用", "desc")
 
-        assert prompt.startswith("A polished business logo")
-        assert "simple icon design" in prompt
-        assert "flat style" in prompt
+        assert prompt == "A polished business app icon prompt"
 
     def test_generate_icon_prompt_should_fallback_to_default_when_llm_raises(self, monkeypatch):
         monkeypatch.setattr(
@@ -312,173 +171,42 @@ class TestIconGeneratorService:
         service = _build_service()
         prompt = service._generate_icon_prompt("测试应用", "desc")
 
-        assert prompt == "A simple and clean icon for 测试应用 application, flat design, minimalist style"
+        assert "mobile app launcher icon" in prompt
+        assert "rounded square app icon composition" in prompt
+        assert "no text, no watermark, no extra elements" in prompt
 
-    def test_generate_with_kolors_should_raise_when_images_empty(self, monkeypatch):
+    def test_download_and_upload_image(self, monkeypatch):
         mock_app = Mock()
-        mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
+        mock_app.config = {"COS_DOMAIN": "https://test.cos.com"}
         monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+        monkeypatch.setattr(
+            "internal.service.icon_generator_service.utc_now_naive",
+            lambda: datetime(2026, 1, 2, 3, 4, 5),
+        )
 
-        mock_response = Mock()
-        mock_response.json.return_value = {"images": []}
-        mock_response.raise_for_status = Mock()
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: mock_response)
+        mock_download_response = Mock()
+        mock_download_response.content = b"fake-image-data"
+        mock_download_response.raise_for_status = Mock()
 
-        service = _build_service()
-        monkeypatch.setattr(service, "_generate_icon_prompt", lambda *_args, **_kwargs: "prompt")
+        with patch("internal.service.icon_generator_service.requests.get", return_value=mock_download_response):
+            mock_cos_client = Mock()
+            mock_cos_service = SimpleNamespace(
+                _get_client=Mock(return_value=mock_cos_client),
+                _get_bucket=Mock(return_value="test-bucket"),
+            )
 
-        with pytest.raises(FailException):
-            service._generate_with_kolors("测试应用", "desc")
+            service = _build_service(cos_service=mock_cos_service)
+            icon_url = service._download_and_upload_image("https://example.com/image.png", "test")
 
-    def test_generate_with_kolors_should_raise_when_image_url_missing(self, monkeypatch):
-        mock_app = Mock()
-        mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+            assert icon_url.startswith("https://test.cos.com/")
+            assert "2026/01/02/icons/" in icon_url
+            assert "/icons/test_" in icon_url
+            mock_cos_client.put_object.assert_called_once()
 
-        mock_response = Mock()
-        mock_response.json.return_value = {"images": [{}]}
-        mock_response.raise_for_status = Mock()
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: mock_response)
-
-        service = _build_service()
-        monkeypatch.setattr(service, "_generate_icon_prompt", lambda *_args, **_kwargs: "prompt")
-
-        with pytest.raises(FailException):
-            service._generate_with_kolors("测试应用", "desc")
-
-    def test_generate_with_qwen_should_raise_when_task_id_missing(self, monkeypatch):
-        mock_app = Mock()
-        mock_app.config = {"DASHSCOPE_API_KEY": "qwen-key"}
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
-        submit_response = Mock()
-        submit_response.json.return_value = {"output": {}}
-        submit_response.raise_for_status = Mock()
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: submit_response)
-
-        service = _build_service()
-        monkeypatch.setattr(service, "_generate_icon_prompt", lambda *_args, **_kwargs: "prompt")
-
-        with pytest.raises(FailException):
-            service._generate_with_qwen("测试应用", "desc")
-
-    def test_generate_with_qwen_should_raise_when_succeeded_but_url_missing(self, monkeypatch):
-        mock_app = Mock()
-        mock_app.config = {"DASHSCOPE_API_KEY": "qwen-key"}
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
-        submit_response = Mock()
-        submit_response.json.return_value = {"output": {"task_id": "task-1"}}
-        submit_response.raise_for_status = Mock()
-        task_response = Mock()
-        task_response.json.return_value = {
-            "output": {"task_status": "SUCCEEDED", "results": [{}]}
-        }
-        task_response.raise_for_status = Mock()
-
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: submit_response)
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.get", lambda *_args, **_kwargs: task_response)
-        monkeypatch.setattr("time.sleep", lambda _sec: None)
-
-        service = _build_service()
-        monkeypatch.setattr(service, "_generate_icon_prompt", lambda *_args, **_kwargs: "prompt")
-
-        with pytest.raises(FailException):
-            service._generate_with_qwen("测试应用", "desc")
-
-    def test_generate_with_qwen_should_raise_when_succeeded_but_results_empty(self, monkeypatch):
-        mock_app = Mock()
-        mock_app.config = {"DASHSCOPE_API_KEY": "qwen-key"}
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
-        submit_response = Mock()
-        submit_response.json.return_value = {"output": {"task_id": "task-1"}}
-        submit_response.raise_for_status = Mock()
-        task_response = Mock()
-        task_response.json.return_value = {
-            "output": {"task_status": "SUCCEEDED", "results": []}
-        }
-        task_response.raise_for_status = Mock()
-
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: submit_response)
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.get", lambda *_args, **_kwargs: task_response)
-        monkeypatch.setattr("time.sleep", lambda _sec: None)
-
-        service = _build_service()
-        monkeypatch.setattr(service, "_generate_icon_prompt", lambda *_args, **_kwargs: "prompt")
-
-        with pytest.raises(FailException):
-            service._generate_with_qwen("测试应用", "desc")
-
-    def test_generate_with_qwen_should_raise_when_task_failed(self, monkeypatch):
-        mock_app = Mock()
-        mock_app.config = {"DASHSCOPE_API_KEY": "qwen-key"}
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
-        submit_response = Mock()
-        submit_response.json.return_value = {"output": {"task_id": "task-2"}}
-        submit_response.raise_for_status = Mock()
-        task_response = Mock()
-        task_response.json.return_value = {
-            "output": {"task_status": "FAILED", "message": "bad prompt"}
-        }
-        task_response.raise_for_status = Mock()
-
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: submit_response)
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.get", lambda *_args, **_kwargs: task_response)
-        monkeypatch.setattr("time.sleep", lambda _sec: None)
-
-        service = _build_service()
-        monkeypatch.setattr(service, "_generate_icon_prompt", lambda *_args, **_kwargs: "prompt")
-
-        with pytest.raises(FailException):
-            service._generate_with_qwen("测试应用", "desc")
-
-    def test_generate_with_qwen_should_raise_when_task_timeout(self, monkeypatch):
-        mock_app = Mock()
-        mock_app.config = {"DASHSCOPE_API_KEY": "qwen-key"}
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
-        submit_response = Mock()
-        submit_response.json.return_value = {"output": {"task_id": "task-3"}}
-        submit_response.raise_for_status = Mock()
-        running_response = Mock()
-        running_response.json.return_value = {"output": {"task_status": "RUNNING"}}
-        running_response.raise_for_status = Mock()
-
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: submit_response)
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.get", lambda *_args, **_kwargs: running_response)
-        monkeypatch.setattr("time.sleep", lambda _sec: None)
-
-        service = _build_service()
-        monkeypatch.setattr(service, "_generate_icon_prompt", lambda *_args, **_kwargs: "prompt")
-
-        with pytest.raises(FailException):
-            service._generate_with_qwen("测试应用", "desc")
-
-    def test_generate_with_dalle_should_raise_when_image_url_empty(self, monkeypatch):
-        mock_app = Mock()
-        mock_app.config = {"OPENAI_API_KEY": "openai-key"}
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
-        service = _build_service()
-        monkeypatch.setattr(service, "_generate_icon_prompt", lambda *_args, **_kwargs: "prompt")
-
-        mock_dalle = Mock()
-        mock_dalle.run.return_value = ""
-        monkeypatch.setattr("internal.service.icon_generator_service.DallEAPIWrapper", lambda **_kwargs: mock_dalle)
-
-        with pytest.raises(FailException):
-            service._generate_with_dalle("测试应用", "desc")
-
-    def test_generate_icon_should_raise_when_all_providers_return_empty_url(self, monkeypatch):
-        service = _build_service()
-        monkeypatch.setattr(service, "_generate_with_kolors", lambda *_args, **_kwargs: None)
-        monkeypatch.setattr(service, "_generate_with_qwen", lambda *_args, **_kwargs: None)
-        monkeypatch.setattr(service, "_generate_with_dalle", lambda *_args, **_kwargs: None)
-
-        with pytest.raises(FailException, match="图标生成服务暂时不可用"):
-            service.generate_icon("测试应用", "desc")
+            call_args = mock_cos_client.put_object.call_args
+            assert call_args[1]["Bucket"] == "test-bucket"
+            assert call_args[1]["Body"] == b"fake-image-data"
+            assert call_args[1]["ContentType"] == "image/png"
 
     def test_download_and_upload_image_should_raise_when_cos_domain_missing(self, monkeypatch):
         mock_app = Mock()
@@ -499,35 +227,109 @@ class TestIconGeneratorService:
         with pytest.raises(FailException):
             service._download_and_upload_image("https://example.com/a.png", "kolors")
 
-    def test_generate_icon_should_fallback_to_dalle_when_qwen_returns_none(self, monkeypatch):
+    def test_generate_with_kolors_should_raise_when_images_empty(self, monkeypatch):
         mock_app = Mock()
-        mock_app.config = {}
+        mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+
+        mock_response = Mock()
+        mock_response.json.return_value = {"images": []}
+        mock_response.raise_for_status = Mock()
+        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: mock_response)
+
+        service = _build_service()
+
+        with pytest.raises(FailException, match="Kolors 返回的图片列表为空"):
+            service._generate_with_kolors("测试应用", "desc")
+
+    def test_generate_with_kolors_should_raise_when_image_url_missing(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+
+        mock_response = Mock()
+        mock_response.json.return_value = {"images": [{}]}
+        mock_response.raise_for_status = Mock()
+        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: mock_response)
+
+        service = _build_service()
+
+        with pytest.raises(FailException, match="Kolors 返回的图片URL为空"):
+            service._generate_with_kolors("测试应用", "desc")
+
+    def test_generate_with_qwen_should_raise_when_images_empty(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+
+        mock_response = Mock()
+        mock_response.json.return_value = {"images": []}
+        mock_response.raise_for_status = Mock()
+        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: mock_response)
+
+        service = _build_service()
+
+        with pytest.raises(FailException, match="Qwen 返回的图片列表为空"):
+            service._generate_with_qwen("测试应用", "desc")
+
+    def test_generate_with_qwen_should_raise_when_image_url_missing(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+
+        mock_response = Mock()
+        mock_response.json.return_value = {"images": [{}]}
+        mock_response.raise_for_status = Mock()
+        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: mock_response)
+
+        service = _build_service()
+
+        with pytest.raises(FailException, match="Qwen 返回的图片URL为空"):
+            service._generate_with_qwen("测试应用", "desc")
+
+    def test_generate_with_kolors_should_raise_when_http_429(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+
+        class _Response:
+            status_code = 429
+
+            @staticmethod
+            def json():
+                return {"error": {"message": "too many requests"}}
+
+            def raise_for_status(self):
+                raise requests.exceptions.HTTPError("too-many-requests", response=self)
+
+        monkeypatch.setattr("internal.service.icon_generator_service.requests.post", lambda *_args, **_kwargs: _Response())
+
+        service = _build_service()
+
+        with pytest.raises(FailException, match="请求过于频繁"):
+            service._generate_with_kolors("测试应用", "desc")
+
+    def test_generate_with_dalle_should_raise_when_image_url_empty(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"OPENAI_API_KEY": "openai-key"}
         monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
 
         service = _build_service()
 
-        def _raise_kolors(*_args, **_kwargs):
-            raise FailException("kolors failed")
+        mock_dalle = Mock()
+        mock_dalle.run.return_value = ""
+        monkeypatch.setattr("internal.service.icon_generator_service.DallEAPIWrapper", lambda **_kwargs: mock_dalle)
 
-        monkeypatch.setattr(service, "_generate_with_kolors", _raise_kolors)
-        monkeypatch.setattr(service, "_generate_with_qwen", lambda *_args, **_kwargs: None)
-        monkeypatch.setattr(service, "_generate_with_dalle", lambda *_args, **_kwargs: "https://dalle/icon.png")
+        with pytest.raises(FailException, match="DALLE 返回的图片URL为空"):
+            service._generate_with_dalle("测试应用", "desc")
 
-        icon_url = service.generate_icon("测试应用", "desc")
-
-        assert icon_url == "https://dalle/icon.png"
-
-    def test_generate_icon_should_raise_when_all_services_return_none(self, monkeypatch):
-        mock_app = Mock()
-        mock_app.config = {}
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
-
+    def test_generate_icon_should_raise_when_all_providers_return_empty_url(self, monkeypatch):
         service = _build_service()
         monkeypatch.setattr(service, "_generate_with_kolors", lambda *_args, **_kwargs: None)
         monkeypatch.setattr(service, "_generate_with_qwen", lambda *_args, **_kwargs: None)
         monkeypatch.setattr(service, "_generate_with_dalle", lambda *_args, **_kwargs: None)
 
-        with pytest.raises(FailException):
+        with pytest.raises(FailException, match="图标生成服务暂时不可用"):
             service.generate_icon("测试应用", "desc")
 
     def test_generate_icon_should_try_providers_in_order_when_all_raise(self, monkeypatch):
@@ -561,7 +363,10 @@ class TestIconGeneratorService:
 
     def test_generate_with_kolors_should_send_expected_request_payload(self, monkeypatch):
         mock_app = Mock()
-        mock_app.config = {"SILICONFLOW_API_KEY": "sf-key"}
+        mock_app.config = {
+            "SILICONFLOW_API_KEY": "sf-key",
+            "SILICONFLOW_API_BASE": "https://api.example.com",
+        }
         monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
 
         request_snapshot = {}
@@ -579,7 +384,6 @@ class TestIconGeneratorService:
         monkeypatch.setattr("internal.service.icon_generator_service.requests.post", _mock_post)
 
         service = _build_service()
-        monkeypatch.setattr(service, "_generate_icon_prompt", lambda *_args, **_kwargs: "ICON-PROMPT")
         monkeypatch.setattr(
             service,
             "_download_and_upload_image",
@@ -589,67 +393,44 @@ class TestIconGeneratorService:
         result = service._generate_with_kolors("测试应用", "desc")
 
         assert result == "https://cos/kolors?url=https://kolors.example/icon.png"
-        assert request_snapshot["url"] == "https://api.siliconflow.cn/v1/images/generations"
+        assert request_snapshot["url"] == "https://api.example.com/v1/images/generations"
         assert request_snapshot["timeout"] == 60
         assert request_snapshot["headers"] == {
             "Authorization": "Bearer sf-key",
             "Content-Type": "application/json",
         }
         assert request_snapshot["json"] == {
-            "model": "black-forest-labs/FLUX.1-schnell",
-            "prompt": "ICON-PROMPT",
-            "image_size": "512x512",
-            "num_inference_steps": 4,
+            "model": "Kwai-Kolors/Kolors",
+            "prompt": "A stable mocked icon prompt",
+            "image_size": "1024x1024",
+            "batch_size": 1,
+            "num_inference_steps": 20,
+            "guidance_scale": 7.5,
         }
 
-    def test_generate_with_qwen_should_poll_task_and_use_expected_auth_header(self, monkeypatch):
+    def test_generate_with_qwen_should_send_expected_request_payload(self, monkeypatch):
         mock_app = Mock()
-        mock_app.config = {"DASHSCOPE_API_KEY": "dash-key"}
+        mock_app.config = {
+            "SILICONFLOW_API_KEY": "sf-key",
+            "SILICONFLOW_API_BASE": "https://api.example.com",
+        }
         monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
 
-        post_snapshot = {}
-        get_snapshots = []
-
-        submit_response = Mock()
-        submit_response.raise_for_status = Mock()
-        submit_response.json.return_value = {"output": {"task_id": "task-xyz"}}
-
-        running_response = Mock()
-        running_response.raise_for_status = Mock()
-        running_response.json.return_value = {"output": {"task_status": "RUNNING"}}
-
-        succeeded_response = Mock()
-        succeeded_response.raise_for_status = Mock()
-        succeeded_response.json.return_value = {
-            "output": {
-                "task_status": "SUCCEEDED",
-                "results": [{"url": "https://qwen.example/icon.png"}],
-            }
-        }
-
-        get_queue = [running_response, succeeded_response]
+        request_snapshot = {}
+        response = Mock()
+        response.raise_for_status = Mock()
+        response.json.return_value = {"images": [{"url": "https://qwen.example/icon.png"}]}
 
         def _mock_post(url, *args, **kwargs):
-            post_snapshot["url"] = url
-            post_snapshot["json"] = kwargs.get("json")
-            post_snapshot["headers"] = kwargs.get("headers")
-            post_snapshot["timeout"] = kwargs.get("timeout")
-            return submit_response
-
-        def _mock_get(url, *args, **kwargs):
-            get_snapshots.append({
-                "url": url,
-                "headers": kwargs.get("headers"),
-                "timeout": kwargs.get("timeout"),
-            })
-            return get_queue.pop(0)
+            request_snapshot["url"] = url
+            request_snapshot["json"] = kwargs.get("json")
+            request_snapshot["headers"] = kwargs.get("headers")
+            request_snapshot["timeout"] = kwargs.get("timeout")
+            return response
 
         monkeypatch.setattr("internal.service.icon_generator_service.requests.post", _mock_post)
-        monkeypatch.setattr("internal.service.icon_generator_service.requests.get", _mock_get)
-        monkeypatch.setattr("time.sleep", lambda _sec: None)
 
         service = _build_service()
-        monkeypatch.setattr(service, "_generate_icon_prompt", lambda *_args, **_kwargs: "ICON-PROMPT")
         monkeypatch.setattr(
             service,
             "_download_and_upload_image",
@@ -659,23 +440,19 @@ class TestIconGeneratorService:
         result = service._generate_with_qwen("测试应用", "desc")
 
         assert result == "https://cos/qwen?url=https://qwen.example/icon.png"
-        assert post_snapshot["url"] == "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis"
-        assert post_snapshot["timeout"] == 30
-        assert post_snapshot["headers"] == {
-            "X-DashScope-Async": "enable",
-            "Authorization": "Bearer dash-key",
+        assert request_snapshot["url"] == "https://api.example.com/v1/images/generations"
+        assert request_snapshot["timeout"] == 60
+        assert request_snapshot["headers"] == {
+            "Authorization": "Bearer sf-key",
             "Content-Type": "application/json",
         }
-        assert post_snapshot["json"] == {
-            "model": "wanx-v1",
-            "input": {"prompt": "ICON-PROMPT"},
-            "parameters": {"size": "1024*1024", "n": 1},
+        assert request_snapshot["json"] == {
+            "model": "Qwen/Qwen-Image",
+            "prompt": "A stable mocked icon prompt",
+            "image_size": "1328x1328",
+            "num_inference_steps": 50,
+            "cfg": 4.0,
         }
-
-        assert len(get_snapshots) == 2
-        assert get_snapshots[0]["url"] == "https://dashscope.aliyuncs.com/api/v1/tasks/task-xyz"
-        assert get_snapshots[0]["headers"] == {"Authorization": "Bearer dash-key"}
-        assert get_snapshots[0]["timeout"] == 10
 
     def test_generate_with_dalle_should_construct_wrapper_with_expected_options(self, monkeypatch):
         mock_app = Mock()
@@ -696,7 +473,6 @@ class TestIconGeneratorService:
         monkeypatch.setattr("internal.service.icon_generator_service.DallEAPIWrapper", _FakeDalle)
 
         service = _build_service()
-        monkeypatch.setattr(service, "_generate_icon_prompt", lambda *_args, **_kwargs: "ICON-PROMPT")
         monkeypatch.setattr(
             service,
             "_download_and_upload_image",
@@ -713,4 +489,4 @@ class TestIconGeneratorService:
             "quality": "standard",
             "n": 1,
         }
-        assert run_payload["prompt"] == "ICON-PROMPT"
+        assert run_payload["prompt"] == "A stable mocked icon prompt"

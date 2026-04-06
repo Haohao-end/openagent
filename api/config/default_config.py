@@ -3,7 +3,7 @@ DEFAULT_CONFIG = {
     # wft配置
     "WTF_CSRF_ENABLED": "True",
     # CORS 配置
-    "CORS_ALLOW_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
+    "CORS_ALLOW_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174",
     "CORS_SUPPORTS_CREDENTIALS": "True",
     # OAuth 回调来源白名单（逗号分隔）
     "OAUTH_ALLOWED_ORIGINS": "",
@@ -49,4 +49,5 @@ DEFAULT_CONFIG = {
     "MAIL_USERNAME": "",
     "MAIL_PASSWORD": "",
     "MAIL_DEFAULT_SENDER": "",
+ "MAIL_TIMEOUT": 10,
 }

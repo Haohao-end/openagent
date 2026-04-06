@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import moment from 'moment'
 import type { ValidatedError } from '@arco-design/web-vue'
 import {
@@ -15,9 +15,11 @@ import { useUploadImage } from '@/hooks/use-upload-file'
 import { useAccountStore } from '@/stores/account'
 import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
 import { Message } from '@arco-design/web-vue'
+import { getUserAvatarUrl } from '@/utils/helper'
 
 // 1.定义页面所需数据
 const route = useRoute()
+const router = useRouter()
 const props = defineProps({
   createType: { type: String, required: true },
 })
@@ -144,19 +146,35 @@ watch(
 onMounted(() => {
   loadDatasets(true, search_word.value)
 })
+
+// 10.定义卡片点击处理器
+const handleCardClick = (datasetId: string) => {
+  router.push({
+    name: 'space-datasets-documents-list',
+    params: { dataset_id: datasetId },
+  })
+}
 </script>
 
 <template>
   <a-spin
     :loading="loading"
-    class="block h-full w-full scrollbar-w-none overflow-scroll"
+    class="block h-full w-full scrollbar-w-none overflow-y-scroll overflow-x-hidden"
     @scroll="handleScroll"
   >
     <!-- 底部知识库列表 -->
-    <a-row :gutter="[20, 20]" class="flex-1">
+    <a-row :gutter="[20, 20]">
       <!-- 有数据的UI状态 -->
-      <a-col v-for="dataset in datasets" :key="dataset.id" :span="6">
-        <a-card hoverable class="cursor-pointer rounded-lg">
+      <a-col
+        v-for="dataset in datasets"
+        :key="dataset.id"
+        :xs="24"
+        :sm="12"
+        :md="8"
+        :lg="6"
+        :xl="6"
+      >
+        <a-card hoverable class="cursor-pointer rounded-lg" @click="handleCardClick(dataset.id)">
           <!-- 顶部知识库名称 -->
           <div class="flex items-center gap-3 mb-3">
             <!-- 左侧图标 -->
@@ -164,14 +182,7 @@ onMounted(() => {
             <!-- 右侧知识库信息 -->
             <div class="flex flex-1 justify-between">
               <div class="flex flex-col">
-                <router-link
-                  :to="{
-                    name: 'space-datasets-documents-list',
-                    params: { dataset_id: dataset.id },
-                  }"
-                  class="text-base text-gray-900 font-bold"
-                  >{{ dataset.name }}
-                </router-link>
+                <div class="text-base text-gray-900 font-bold">{{ dataset.name }}</div>
                 <div class="text-xs text-gray-500 line-clamp-1">
                   {{ dataset.document_count }} 文档 ·
                   {{ Math.round(dataset.character_count / 1000) }} 千字符 ·
@@ -179,7 +190,7 @@ onMounted(() => {
                 </div>
               </div>
               <!-- 操作按钮 -->
-              <a-dropdown position="br">
+              <a-dropdown position="br" @click.stop>
                 <a-button type="text" size="small" class="rounded-lg !text-gray-700">
                   <template #icon>
                     <icon-more />
@@ -203,8 +214,8 @@ onMounted(() => {
           </div>
           <!-- 知识库的归属者信息 -->
           <div class="flex items-center gap-1.5">
-            <a-avatar :size="18" class="bg-blue-700">
-              <icon-user />
+            <a-avatar :size="18" class="bg-blue-700" :image-url="getUserAvatarUrl(accountStore.account.avatar, accountStore.account.name)">
+              {{ (accountStore.account.name || '未知用户')[0] }}
             </a-avatar>
             <div class="text-xs text-gray-400">
               {{ accountStore.account.name }} · 最近编辑
@@ -317,4 +328,9 @@ onMounted(() => {
   </a-spin>
 </template>
 
-<style scoped></style>
+<style scoped>
+:deep(.arco-row) {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+</style>

@@ -34,10 +34,13 @@ export type RecentConversation = {
   source_type: 'assistant_agent' | 'app_debugger'
   app_id: string
   app_name: string
+  agent_name: string
   message_id: string
   is_active: boolean
   latest_message_at: number
   created_at: number
+  human_message: string
+  ai_message: string
 }
 
 export type GetRecentConversationsResponse = BaseResponse<RecentConversation[]>

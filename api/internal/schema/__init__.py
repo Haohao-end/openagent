@@ -1,3 +1,3 @@
-from .schema import ListField
+from .schema import DictField, ListField
 
-__all__ = ["ListField"]
+__all__ = ["ListField", "DictField"]

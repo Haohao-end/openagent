@@ -76,12 +76,17 @@ class TestCosService:
         )
         monkeypatch.setattr(CosService, "_get_client", classmethod(lambda cls: _Client()))
         monkeypatch.setattr(CosService, "_get_bucket", classmethod(lambda cls: "test-bucket"))
+        monkeypatch.setattr(
+            "internal.service.cos_service.utc_now_naive",
+            lambda: datetime(2026, 1, 2, 3, 4, 5),
+        )
         file = FileStorage(stream=BytesIO(b"hello"), filename="demo.txt", content_type="text/plain")
 
         result = service.upload_file(file=file, only_image=False, account=account)
 
         assert captured["bucket"] == "test-bucket"
         assert captured["file_content"] == b"hello"
+        assert captured["upload_filename"].startswith("2026/01/02/")
         assert captured["upload_payload"]["account_id"] == account.id
         assert captured["upload_payload"]["extension"] == "txt"
         assert captured["upload_payload"]["size"] == 5
@@ -248,13 +253,19 @@ class TestCosService:
         monkeypatch.setenv("COS_SECRET_ID", "sid")
         monkeypatch.setenv("COS_SECRET_KEY", "skey")
         monkeypatch.setenv("COS_SCHEME", "https")
+        monkeypatch.setenv("COS_TIMEOUT_SECONDS", "12")
+        monkeypatch.setenv("COS_SDK_RETRY", "2")
+        monkeypatch.setenv("COS_AUTO_SWITCH_DOMAIN_ON_RETRY", "true")
+        monkeypatch.setenv("COS_ENABLE_OLD_DOMAIN", "false")
+        monkeypatch.setenv("COS_ENABLE_INTERNAL_DOMAIN", "false")
 
         def _fake_cos_config(**kwargs):
             captured["config_kwargs"] = kwargs
             return SimpleNamespace(**kwargs)
 
-        def _fake_cos_client(conf):
+        def _fake_cos_client(conf, retry):
             captured["config"] = conf
+            captured["retry"] = retry
             return "cos-client"
 
         monkeypatch.setattr("internal.service.cos_service.CosConfig", _fake_cos_config)
@@ -267,11 +278,28 @@ class TestCosService:
         assert captured["config_kwargs"]["SecretId"] == "sid"
         assert captured["config_kwargs"]["SecretKey"] == "skey"
         assert captured["config_kwargs"]["Scheme"] == "https"
+        assert captured["config_kwargs"]["Timeout"] == 12
+        assert captured["config_kwargs"]["AutoSwitchDomainOnRetry"] is True
+        assert captured["config_kwargs"]["EnableOldDomain"] is False
+        assert captured["config_kwargs"]["EnableInternalDomain"] is False
+        assert captured["retry"] == 2
 
     def test_get_bucket_should_read_env_bucket_name(self, monkeypatch):
         monkeypatch.setenv("COS_BUCKET", "demo-bucket")
 
         assert CosService._get_bucket() == "demo-bucket"
+
+    def test_get_int_env_should_fallback_for_invalid_values(self, monkeypatch):
+        monkeypatch.setenv("COS_TIMEOUT_SECONDS", "invalid")
+        monkeypatch.setenv("COS_SDK_RETRY", "-5")
+
+        assert CosService._get_int_env("COS_TIMEOUT_SECONDS", 10) == 10
+        assert CosService._get_int_env("COS_SDK_RETRY", 1, minimum=0) == 0
+
+    def test_get_bool_env_should_fallback_for_invalid_values(self, monkeypatch):
+        monkeypatch.setenv("COS_AUTO_SWITCH_DOMAIN_ON_RETRY", "maybe")
+
+        assert CosService._get_bool_env("COS_AUTO_SWITCH_DOMAIN_ON_RETRY", True) is True
 
     def test_upload_with_retry_should_return_immediately_when_max_attempts_is_zero(self):
         service = self._build_service()

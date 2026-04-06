@@ -104,6 +104,8 @@ class GetWorkflowsWithPageResp(Schema):
     is_debug_passed = fields.Boolean(dump_default=False)
     is_public = fields.Boolean(dump_default=False)
     node_count = fields.Integer(dump_default=0)
+    creator_name = fields.String(dump_default="")
+    creator_avatar = fields.String(dump_default="")
     published_at = fields.Integer(dump_default=0)
     updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
@@ -120,6 +122,8 @@ class GetWorkflowsWithPageResp(Schema):
             "is_debug_passed": data.is_debug_passed,
             "is_public": data.is_public,
             "node_count": len(data.draft_graph.get("nodes", [])),
+            "creator_name": data.account.name if data.account else "",
+            "creator_avatar": data.account.avatar if data.account else "",
             "published_at": datetime_to_timestamp(data.published_at),
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),

@@ -9,6 +9,8 @@ import type {
   GetDraftAppConfigResponse,
   GetPublishedConfigResponse,
   GetPublishHistoriesWithPageResponse,
+  GetVersionsResponse,
+  PromptCompareChatRequest,
   RegenerateWebAppTokenResponse,
   UpdateAppRequest,
   UpdateDraftAppConfigRequest,
@@ -80,9 +82,23 @@ export const debugChat = (
   )
 }
 
+// 提示词对比调试，该接口为流式事件输出
+export const promptCompareChat = (
+  app_id: string,
+  req: PromptCompareChatRequest,
+  onData: (event_response: Record<string, any>) => void,
+) => {
+  return ssePost(`/apps/${app_id}/prompt-compare/chat`, { body: req }, onData)
+}
+
 // 停止某次应用的调试会话
 export const stopDebugChat = (app_id: string, task_id: string) => {
   return post<BaseResponse<any>>(`/apps/${app_id}/conversations/tasks/${task_id}/stop`)
+}
+
+// 停止某次提示词对比调试会话
+export const stopPromptCompareChat = (app_id: string, task_id: string) => {
+  return post<BaseResponse<any>>(`/apps/${app_id}/prompt-compare/tasks/${task_id}/stop`)
 }
 
 // 获取应用的调试会话消息列表
@@ -116,6 +132,11 @@ export const getPublishHistoriesWithPage = (app_id: string, req: BasePaginatorRe
   return get<GetPublishHistoriesWithPageResponse>(`/apps/${app_id}/publish-histories`, {
     params: req,
   })
+}
+
+// 获取应用版本对比数据（草稿 + 发布历史）
+export const getVersions = (app_id: string) => {
+  return get<GetVersionsResponse>(`/apps/${app_id}/versions`)
 }
 
 // 回退指定的历史配置到草稿

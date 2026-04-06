@@ -9,8 +9,11 @@ const initAccount = {
   email: '',
   avatar: '',
   last_login_ip: '',
+  last_login_location: '',
   last_login_at: 0,
   created_at: 0,
+  password_set: false,
+  oauth_bindings: [] as Array<{ provider: string; bound: boolean; bound_at: number }>,
 }
 
 export const useAccountStore = defineStore('account', () => {

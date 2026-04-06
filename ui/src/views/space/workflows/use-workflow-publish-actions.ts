@@ -1,6 +1,5 @@
 import { computed, type Ref } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
-
 type WorkflowRecord = Record<string, unknown>
 
 type UseWorkflowPublishActionsOptions = {

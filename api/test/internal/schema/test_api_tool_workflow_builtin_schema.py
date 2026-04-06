@@ -106,6 +106,7 @@ def test_api_tool_response_schemas_should_strip_internal_parameter_fields():
         openapi_schema='{"openapi":"3.0.0"}',
         description="provider-desc",
         headers=[{"key": "Authorization", "value": "token"}],
+        account=ns(name="creator", avatar="https://img.example.com/avatar.png"),
         updated_at=utc_dt(2024, 1, 2, 0, 0, 0),
         created_at=utc_dt(2024, 1, 1, 0, 0, 0),
         tools=[],
@@ -135,6 +136,7 @@ def test_api_tool_response_schemas_should_strip_internal_parameter_fields():
         openapi_schema=provider.openapi_schema,
         description=provider.description,
         headers=provider.headers,
+        account=provider.account,
         updated_at=provider.updated_at,
         created_at=provider.created_at,
         tools=[tool],
@@ -142,6 +144,8 @@ def test_api_tool_response_schemas_should_strip_internal_parameter_fields():
     provider_page_payload = GetApiToolProvidersWithPageResp().dump(provider_with_tools)
     assert provider_page_payload["tools"][0]["name"] == "tool"
     assert all("in" not in item for item in provider_page_payload["tools"][0]["inputs"])
+    assert provider_page_payload["creator_name"] == "creator"
+    assert provider_page_payload["creator_avatar"] == "https://img.example.com/avatar.png"
 
 
 def test_workflow_forms_should_validate_pattern_and_description(form_request):
@@ -196,6 +200,7 @@ def test_workflow_response_schemas_should_count_nodes_from_expected_graph():
         is_public=False,
         draft_graph={"nodes": [{}, {}, {}]},
         graph={"nodes": [{}, {}]},
+        account=ns(name="workflow-owner", avatar="https://img.example.com/workflow-owner.png"),
         published_at=utc_dt(2024, 1, 3, 0, 0, 0),
         updated_at=utc_dt(2024, 1, 2, 0, 0, 0),
         created_at=utc_dt(2024, 1, 1, 0, 0, 0),
@@ -204,6 +209,8 @@ def test_workflow_response_schemas_should_count_nodes_from_expected_graph():
     listing = GetWorkflowsWithPageResp().dump(workflow)
     assert detail["node_count"] == 3
     assert listing["node_count"] == 3
+    assert listing["creator_name"] == "workflow-owner"
+    assert listing["creator_avatar"] == "https://img.example.com/workflow-owner.png"
 
 
 def test_workflows_with_page_req_should_validate_status_enum(form_request):
@@ -213,4 +220,3 @@ def test_workflows_with_page_req_should_validate_status_enum(form_request):
     ok, form = _validate_form(form_request, GetWorkflowsWithPageReq, data={"status": "bad"})
     assert not ok
     assert "status" in form.errors
-

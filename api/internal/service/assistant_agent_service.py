@@ -21,9 +21,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, desc
 from sqlalchemy.orm import selectinload
 
-from internal.core.agent.agents import AgentQueueManager, FunctionCallAgent
+from internal.core.agent.agents import A2AFunctionCallAgent, AgentQueueManager
 from internal.core.agent.entities.agent_entity import AgentConfig
 from internal.core.agent.entities.queue_entity import QueueEvent
+from internal.entity.assistant_agent_entity import ASSISTANT_AGENT_DISPLAY_NAME
 from internal.core.language_model.entities.model_entity import ModelFeature
 from internal.core.language_model.providers.deepseek.chat import Chat as DeepSeekChat
 from internal.core.memory import TokenBufferMemory
@@ -43,12 +44,19 @@ from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
 from .conversation_service import ConversationService
 from .faiss_service import FaissService
+from .public_agent_a2a_service import PublicAgentA2AService
+from .public_agent_registry_service import PublicAgentRegistryService
 
 ASSISTANT_AGENT_MARKDOWN_PRESET_PROMPT = """请遵守以下回复规范：
 1. 默认使用Markdown格式输出，优先使用标题、列表、表格、引用和代码块来组织信息。
 2. 涉及代码、命令、配置、SQL、JSON、YAML时，必须使用带语言标识的Markdown代码块。
 3. 如果没有明确结构化内容需求，也请保持清晰的Markdown排版，不要输出纯大段文本。
 4. 当需要调用工具时，优先调用工具；拿到结果后再按上述Markdown规范整理答案。
+5. 当用户明确要求“使用/调用/交给某个智能体回答”，或问题明显更适合由某个已发布公共Agent处理时，必须优先调用 `route_public_agents` 工具。
+6. `route_public_agents` 会自动完成“检索已有公共Agent + 调用对应Agent + 返回结果”，因此当用户直接要答案时，优先使用它，而不是只返回候选列表。
+7. `create_app` 仅用于用户明确要求“我想要/帮我生成/创建/新建/生成/搭建一个新的Agent或应用”等类型的问题时，普通问答场景禁止调用。
+8. 如果用户说“请使用xx智能体回答”“让xxAgent来回答”“帮我解决xx”“帮我解决xx等垂直问题”等这是调用已有Agent，不是创建新Agent，禁止调用 `create_app`。
+9. 当“调用已有Agent”和“创建新Agent”存在歧义时，默认先调用 `route_public_agents`，不要擅自创建新应用。
 """.strip()
 
 
@@ -61,6 +69,8 @@ class AssistantAgentService(BaseService):
     faiss_service: FaissService
     conversation_service: ConversationService
     redis_client: Redis
+    public_agent_a2a_service: PublicAgentA2AService | None = None
+    public_agent_registry_service: PublicAgentRegistryService | None = None
 
     @classmethod
     def _resolve_conversation_id(cls, conversation_id: str) -> UUID | None:
@@ -87,7 +97,7 @@ class AssistantAgentService(BaseService):
             or conversation.is_deleted
             or conversation.invoke_from != InvokeFrom.ASSISTANT_AGENT.value
         ):
-            raise NotFoundException("该辅助Agent会话不存在或已被删除，请核实后重试")
+            raise NotFoundException(f"该{ASSISTANT_AGENT_DISPLAY_NAME}会话不存在或已被删除，请核实后重试")
 
         if sync_active and account.assistant_agent_conversation_id != conversation.id:
             self.update(account, assistant_agent_conversation_id=conversation.id)
@@ -138,13 +148,21 @@ class AssistantAgentService(BaseService):
         history = token_buffer_memory.get_history_prompt_messages(message_limit=3)
 
         # 6.将草稿配置中的tools转换成LangChain工具
-        tools = [
-            self.faiss_service.convert_faiss_to_tool(),
+        search_public_agents_tool = (
+            self.public_agent_registry_service.convert_public_agent_search_to_tool()
+            if self.public_agent_registry_service
+            else self.faiss_service.convert_faiss_to_tool()
+        )
+        tools = []
+        if self.public_agent_a2a_service:
+            tools.append(self.public_agent_a2a_service.convert_public_agent_route_to_tool(account.id))
+        tools.extend([
+            search_public_agents_tool,
             self.convert_create_app_to_tool(account.id),
-        ]
+        ])
 
-        # 7.构建Agent智能体，使用FunctionCallAgent
-        agent = FunctionCallAgent(
+        # 7.构建辅助Agent专用智能体，避免工具调用前的过渡文案直接暴露给用户
+        agent = A2AFunctionCallAgent(
             llm=llm,
             agent_config=AgentConfig(
                 user_id=account.id,
@@ -412,7 +430,7 @@ class AssistantAgentService(BaseService):
         filters = [
             Message.conversation_id == conversation.id,
             Message.status.in_([MessageStatus.STOP.value, MessageStatus.NORMAL.value]),
-            Message.answer != "",
+            Message.query != "",  # 只过滤用户提问不为空的消息，允许答案为空（正在生成中）
             ~Message.is_deleted,
         ]
 
@@ -429,10 +447,22 @@ class AssistantAgentService(BaseService):
         )
 
         # 5. 加载完整的消息及其关联数据，避免 N+1 查询
+        if not paginated_ids:
+            return [], paginator
+
+        # Extract IDs from paginated_ids (handle Row objects from SQLAlchemy)
+        id_list = []
+        for item in paginated_ids:
+            # Row objects can be indexed like tuples
+            if hasattr(item, '__getitem__'):
+                id_list.append(item[0])
+            else:
+                id_list.append(item)
+
         messages = (
             self.db.session.query(Message)
             .options(selectinload(Message.agent_thoughts))
-            .filter(Message.id.in_(paginated_ids))
+            .filter(Message.id.in_(id_list))
             .order_by(desc(Message.created_at))
             .all()
         )
@@ -457,7 +487,7 @@ class AssistantAgentService(BaseService):
                     Message.status.in_(
                         [MessageStatus.STOP.value, MessageStatus.NORMAL.value]
                     ),
-                    Message.answer != "",
+                    Message.query != "",  # 只过滤用户提问不为空的消息
                     ~Message.is_deleted,
                 )
             )
@@ -564,7 +594,7 @@ class AssistantAgentService(BaseService):
         prompt_messages = [
             SystemMessage(
                 content=f"""
-你是LLMOps平台中的"辅助Agent"，你的输出将直接展示在首页开场介绍中。
+你是LLMOps平台中的"{ASSISTANT_AGENT_DISPLAY_NAME}"，你的输出将直接展示在首页开场介绍中。
 请基于用户历史信息生成一段"个性化欢迎介绍"，要求如下：
 1. 开头必须包含问候语：Hi，{display_name}
 2. 先识别该用户近期意图与关注方向，再给出针对性引导；不要编造不存在的信息。
@@ -687,7 +717,7 @@ class AssistantAgentService(BaseService):
 
         @tool("create_app", args_schema=CreateAppInput)
         def create_app(name: str, description: str) -> str:
-            """如果用户提出了需要创建一个Agent/应用，你可以调用此工具，参数的输入是应用的名称+描述，返回的数据是创建后的成功提示"""
+            """仅当用户明确要求你创建/新建/生成/搭建一个新的Agent或应用时，才调用此工具。不要将其用于普通问答，不要用于“请使用某个智能体回答”这类场景，也不要因为一时未检索到合适的公共Agent就自动创建新应用。"""
             # 1.调用celery异步任务在后端创建应用
             auto_create_app.delay(name, description, account_id)
 

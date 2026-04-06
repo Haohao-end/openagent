@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { authorize, provider } from '@/services/oauth'
 import { Message } from '@arco-design/web-vue'
+import { type LoginAuthorizationData } from '@/models/auth'
 
 export const useProvider = () => {
   // 1.定义hooks所需数据
@@ -24,18 +25,26 @@ export const useProvider = () => {
 export const useAuthorize = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
-  const authorization = ref<Record<string, any>>({})
+  const authorization = ref<LoginAuthorizationData>({})
 
   // 2.定义第三方授权认证处理器
-  const handleAuthorize = async (provider_name: string, code: string) => {
-    try {
-      loading.value = true
-      const resp = await authorize(provider_name, code)
-      Message.success('登录成功，正在跳转')
-      authorization.value = resp.data
-    } finally {
-      loading.value = false
-    }
+  const handleAuthorize = async (
+    provider_name: string,
+    code: string,
+    intent: 'login' | 'bind' = 'login',
+    ) => {
+      try {
+        loading.value = true
+        const resp = await authorize(provider_name, code, intent)
+        authorization.value = resp.data
+        if (intent === 'bind') {
+          Message.success('绑定成功，正在返回设置中心')
+        } else if (!resp.data.challenge_required) {
+          Message.success('登录成功，正在跳转')
+        }
+      } finally {
+        loading.value = false
+      }
   }
 
   return { loading, authorization, handleAuthorize }

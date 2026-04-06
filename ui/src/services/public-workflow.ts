@@ -9,7 +9,7 @@ export interface PublicWorkflow {
   name: string
   icon: string
   description: string
-  category: string
+  tags: string[]
   view_count: number
   like_count: number
   fork_count: number
@@ -18,13 +18,15 @@ export interface PublicWorkflow {
   created_at: number
   is_liked: boolean
   is_favorited: boolean
+  is_forked?: boolean  // 是否已fork
   account_name: string  // 新增发布者名称
+  account_avatar: string  // 新增发布者头像
 }
 
 export interface GetPublicWorkflowsParams {
   current_page?: number
   page_size?: number
-  category?: string
+  tags?: string
   sort_by?: 'latest' | 'popular' | 'most_liked' | 'most_forked' | 'most_favorited'
   search_word?: string
 }
@@ -39,8 +41,8 @@ export function getPublicWorkflows(params: GetPublicWorkflowsParams) {
 /**
  * 共享工作流到广场
  */
-export function shareWorkflowToSquare(workflowId: string, category: string) {
-  return post<BaseResponse<any>>(`/workflows/${workflowId}/share-to-square`, { body: { category } })
+export function shareWorkflowToSquare(workflowId: string, tags: string) {
+  return post<BaseResponse<any>>(`/workflows/${workflowId}/share-to-square`, { body: { tags } })
 }
 
 /**

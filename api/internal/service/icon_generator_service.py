@@ -1,8 +1,6 @@
-import io
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Optional
 
 import requests
@@ -15,6 +13,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from internal.core.language_model import LanguageModelManager
 from internal.entity.app_entity import GENERATE_ICON_PROMPT_TEMPLATE
 from internal.exception import FailException
+from internal.lib.helper import utc_now_naive
 from .base_service import BaseService
 from .cos_service import CosService
 
@@ -104,115 +103,115 @@ class IconGeneratorService(BaseService):
                 "description": description or f"一个名为{name}的应用"
             })
 
-            # 添加图标风格约束
-            icon_prompt = f"{icon_prompt}, simple icon design, flat style, clean background, professional"
-
-            return icon_prompt
+            return str(icon_prompt).strip()
         except Exception as e:
             logging.warning(f"生成图标提示词失败，使用默认提示词: {str(e)}")
-            # 降级到简单的英文描述
-            return f"A simple and clean icon for {name} application, flat design, minimalist style"
+            return (
+                f"A premium mobile app launcher icon for {name}, single centered subject, "
+                f"rounded square app icon composition, modern polished visual style, distinctive color palette, "
+                f"premium material finish, soft studio lighting, clean plain background, crisp silhouette, "
+                f"high recognizability at small sizes, no text, no watermark, no extra elements"
+            )
 
-    def _generate_with_kolors(self, name: str, description: str) -> Optional[str]:
-        """使用 Kolors (硅基流动) 生成图标"""
+    def _raise_request_error(self, provider_name: str, error: Exception) -> None:
+        """将上游 HTTP 异常转换为统一的业务异常"""
+        if isinstance(error, requests.exceptions.Timeout):
+            raise FailException(f"{provider_name} 服务请求超时，请稍后重试")
+
+        if isinstance(error, requests.exceptions.HTTPError):
+            status_code = getattr(error.response, "status_code", None)
+            error_detail = ""
+            try:
+                error_data = error.response.json() if error.response else {}
+                error_detail = (
+                    error_data.get("error", {}).get("message")
+                    or error_data.get("message")
+                    or str(error)
+                )
+            except Exception:
+                error_detail = str(error)
+
+            if status_code == 429:
+                raise FailException(f"{provider_name} 服务请求过于频繁，请稍后重试")
+
+            if status_code:
+                raise FailException(f"{provider_name} 服务请求失败: HTTP {status_code}: {error_detail}")
+
+            raise FailException(f"{provider_name} 服务请求失败: {error_detail}")
+
+        if isinstance(error, requests.exceptions.RequestException):
+            raise FailException(f"{provider_name} 服务请求失败，请稍后重试")
+
+        raise error
+
+    def _request_siliconflow_image(
+            self,
+            provider_name: str,
+            model: str,
+            prompt: str,
+            source: str,
+            **payload: object,
+    ) -> str:
+        """请求 SiliconFlow 文生图并返回上传后的 COS 地址"""
         api_key = current_app.config.get("SILICONFLOW_API_KEY")
         if not api_key:
             raise FailException("SILICONFLOW_API_KEY 未配置")
 
-        # 生成图标描述
-        prompt = self._generate_icon_prompt(name, description)
-
-        # 调用硅基流动 API
-        url = "https://api.siliconflow.cn/v1/images/generations"
+        api_base = current_app.config.get("SILICONFLOW_API_BASE", "https://api.siliconflow.cn")
+        url = f"{str(api_base).rstrip('/')}/v1/images/generations"
         headers = {
             "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
-        payload = {
-            "model": "black-forest-labs/FLUX.1-schnell",  # 使用快速模型
+        body = {
+            "model": model,
             "prompt": prompt,
-            "image_size": "512x512",  # 图标尺寸
-            "num_inference_steps": 4,  # 快速生成
+            **payload,
         }
 
-        response = requests.post(url, json=payload, headers=headers, timeout=60)
-        response.raise_for_status()
+        try:
+            response = requests.post(url, json=body, headers=headers, timeout=60)
+            response.raise_for_status()
+        except Exception as e:
+            self._raise_request_error(provider_name, e)
 
         result = response.json()
-        if not result.get("images") or len(result["images"]) == 0:
-            raise FailException("Kolors 返回的图片列表为空")
+        images = result.get("images") or []
+        if not images:
+            raise FailException(f"{provider_name} 返回的图片列表为空")
 
-        # 获取图片URL并下载
-        image_url = result["images"][0].get("url")
+        image_url = images[0].get("url")
         if not image_url:
-            raise FailException("Kolors 返回的图片URL为空")
+            raise FailException(f"{provider_name} 返回的图片URL为空")
 
-        # 下载图片并上传到COS
-        return self._download_and_upload_image(image_url, "kolors")
+        return self._download_and_upload_image(image_url, source)
+
+    def _generate_with_kolors(self, name: str, description: str) -> Optional[str]:
+        """使用 Kolors (硅基流动) 生成图标"""
+        prompt = self._generate_icon_prompt(name, description)
+        return self._request_siliconflow_image(
+            "Kolors",
+            "Kwai-Kolors/Kolors",
+            prompt,
+            "kolors",
+            image_size="1024x1024",
+            batch_size=1,
+            num_inference_steps=20,
+            guidance_scale=7.5,
+        )
 
     def _generate_with_qwen(self, name: str, description: str) -> Optional[str]:
-        """使用 Qwen (通义万相) 生成图标"""
-        api_key = current_app.config.get("DASHSCOPE_API_KEY")
-        if not api_key:
-            raise FailException("DASHSCOPE_API_KEY 未配置")
-
-        # 生成图标描述
+        """使用 Qwen (SiliconFlow) 生成图标"""
         prompt = self._generate_icon_prompt(name, description)
-
-        # 调用通义万相 API
-        url = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis"
-        headers = {
-            "X-DashScope-Async": "enable",
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": "wanx-v1",
-            "input": {
-                "prompt": prompt
-            },
-            "parameters": {
-                "size": "1024*1024",  # 修改为支持的尺寸
-                "n": 1
-            }
-        }
-
-        # 提交任务
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
-        response.raise_for_status()
-
-        result = response.json()
-        task_id = result.get("output", {}).get("task_id")
-        if not task_id:
-            raise FailException("Qwen 未返回任务ID")
-
-        # 轮询任务状态
-        task_url = f"https://dashscope.aliyuncs.com/api/v1/tasks/{task_id}"
-        task_headers = {
-            "Authorization": f"Bearer {api_key}"
-        }
-
-        import time
-        max_retries = 30  # 最多等待30秒
-        for _ in range(max_retries):
-            time.sleep(1)
-            task_response = requests.get(task_url, headers=task_headers, timeout=10)
-            task_response.raise_for_status()
-
-            task_result = task_response.json()
-            status = task_result.get("output", {}).get("task_status")
-
-            if status == "SUCCEEDED":
-                results = task_result.get("output", {}).get("results", [])
-                if results and len(results) > 0:
-                    image_url = results[0].get("url")
-                    if image_url:
-                        return self._download_and_upload_image(image_url, "qwen")
-                raise FailException("Qwen 返回的图片URL为空")
-            elif status == "FAILED":
-                raise FailException(f"Qwen 任务失败: {task_result.get('output', {}).get('message', '未知错误')}")
-
-        raise FailException("Qwen 任务超时")
+        return self._request_siliconflow_image(
+            "Qwen",
+            "Qwen/Qwen-Image",
+            prompt,
+            "qwen",
+            image_size="1328x1328",
+            num_inference_steps=50,
+            cfg=4.0,
+        )
 
     def _generate_with_dalle(self, name: str, description: str) -> Optional[str]:
         """使用 DALLE 生成图标"""
@@ -264,7 +263,7 @@ class IconGeneratorService(BaseService):
 
         # 3. 生成文件名
         random_filename = f"{uuid.uuid4()}.png"
-        now = datetime.now()
+        now = utc_now_naive()
         upload_filename = f"{now.year}/{now.month:02d}/{now.day:02d}/icons/{source}_{random_filename}"
 
         # 4. 上传到COS

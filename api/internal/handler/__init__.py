@@ -7,9 +7,14 @@ from .auth_handler import AuthHandler
 from .builtin_tool_handler import BuiltinToolHandler
 from .dataset_handler import DatasetHandler
 from .document_handler import DocumentHandler
+from .favorite_handler import FavoriteHandler
+from .home_handler import HomeHandler
+from .like_handler import LikeHandler
+from .notification_handler import NotificationHandler
 from .oauth_handler import OAuthHandler
 from .openapi_handler import OpenAPIHandler
 from .segment_handler import SegmentHandler
+from .tag_handler import TagHandler
 from .upload_file_handler import UploadFileHandler
 from .workflow_handler import WorkflowHandler
 from .language_model_handler import LanguageModelHandler
@@ -31,7 +36,9 @@ __all__ = [
     "UploadFileHandler",
     "DatasetHandler",
     "DocumentHandler",
+    "FavoriteHandler",
     "SegmentHandler",
+    "TagHandler",
     "OAuthHandler",
     "AccountHandler",
     "AuthHandler",
@@ -48,5 +55,8 @@ __all__ = [
     "PlatformHandler",
     "WechatHandler",
     "PublicAppHandler",
-    "PublicWorkflowHandler"
+    "PublicWorkflowHandler",
+    "HomeHandler",
+    "LikeHandler",
+    "NotificationHandler",
 ]

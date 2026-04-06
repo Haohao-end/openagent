@@ -4,6 +4,20 @@ import {
   type BaseResponse,
 } from '@/models/base' // 获取应用信息响应结构
 
+// 应用版本类型
+export type AppVersion = {
+  id: string
+  app_id: string
+  version: number
+  config_type: string
+  config: Record<string, any>
+  is_current_published: boolean
+  label: string
+  summary: string
+  created_at: number
+  updated_at: number
+}
+
 // 获取应用信息响应结构
 export type GetAppResponse = BaseResponse<{
   id: string
@@ -40,6 +54,8 @@ export type GetAppsWithPageResponse = BasePaginatorResponse<{
     model: string
   }
   status: string
+  creator_name: string
+  creator_avatar: string
   draft_updated_at: number
   updated_at: number
   created_at: number
@@ -104,6 +120,19 @@ export type UpdateDraftAppConfigRequest = {
   }
 }
 
+export type PromptCompareHistoryItem = {
+  query: string
+  answer: string
+}
+
+export type PromptCompareChatRequest = {
+  lane_id: string
+  query: string
+  preset_prompt: string
+  model_config: { provider: string; model: string; parameters: Record<string, any> }
+  history: PromptCompareHistoryItem[]
+}
+
 // 获取应用的调试会话消息列表响应结构
 export type GetDebugConversationMessagesWithPageResponse = BasePaginatorResponse<{
   id: string
@@ -130,8 +159,19 @@ export type GetDebugConversationMessagesWithPageResponse = BasePaginatorResponse
 // 获取应用的发布历史配置列表分页响应结构
 export type GetPublishHistoriesWithPageResponse = BasePaginatorResponse<{
   id: string
+  app_id: string
   version: number
+  config_type: string
+  config: Record<string, any>
+  updated_at: number
   created_at: number
+  is_current_published: boolean
+  label: string
+  summary: string
+}>
+
+export type GetVersionsResponse = BaseResponse<{
+  list: AppVersion[]
 }>
 
 // 获取应用的调试会话消息列表请求结构

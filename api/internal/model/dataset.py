@@ -9,13 +9,21 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
     text,
     func,
-    Index
+    Index,
+    ForeignKey,
 )
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
+from datetime import UTC, datetime
 
 from internal.extension.database_extension import db
 from .app import AppDatasetJoin
 from .upload_file import UploadFile
+
+
+def _utcnow_naive() -> datetime:
+    """返回无时区的 UTC 时间，兼容数据库 DateTime 列且避免 utcnow 退化警告。"""
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class Dataset(db.Model):
@@ -28,7 +36,7 @@ class Dataset(db.Model):
     )
 
     id = Column(UUID, nullable=False, server_default=text("uuid_generate_v4()"))
-    account_id = Column(UUID, nullable=False)
+    account_id = Column(UUID, ForeignKey('account.id'), nullable=False)
     name = Column(String(255), nullable=False, server_default=text("''::character varying"))
     icon = Column(String(255), nullable=False, server_default=text("''::character varying"))
     description = Column(Text, nullable=False, server_default=text("''::text"))
@@ -37,8 +45,12 @@ class Dataset(db.Model):
         nullable=False,
         server_default=text('CURRENT_TIMESTAMP(0)'),
         server_onupdate=text('CURRENT_TIMESTAMP(0)'),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))
+
+    # 关系定义
+    account = relationship("Account", foreign_keys=[account_id], lazy="joined")
 
     @property
     def document_count(self) -> int:
@@ -116,6 +128,7 @@ class Document(db.Model):
         nullable=False,
         server_default=text('CURRENT_TIMESTAMP(0)'),
         server_onupdate=text('CURRENT_TIMESTAMP(0)'),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))
 
@@ -179,6 +192,7 @@ class Segment(db.Model):
         nullable=False,
         server_default=text('CURRENT_TIMESTAMP(0)'),
         server_onupdate=text('CURRENT_TIMESTAMP(0)'),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))
 
@@ -203,6 +217,7 @@ class KeywordTable(db.Model):
         nullable=False,
         server_default=text('CURRENT_TIMESTAMP(0)'),
         server_onupdate=text('CURRENT_TIMESTAMP(0)'),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))
 
@@ -228,6 +243,7 @@ class DatasetQuery(db.Model):
         nullable=False,
         server_default=text('CURRENT_TIMESTAMP(0)'),
         server_onupdate=text('CURRENT_TIMESTAMP(0)'),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))
 
@@ -251,5 +267,6 @@ class ProcessRule(db.Model):
         nullable=False,
         server_default=text('CURRENT_TIMESTAMP(0)'),
         server_onupdate=text('CURRENT_TIMESTAMP(0)'),
+        default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))

@@ -13,8 +13,17 @@
     display: none;
   }
 
-  html,
+  html {
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+  }
+
   body {
-    @apply h-full w-full;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
   }
 }

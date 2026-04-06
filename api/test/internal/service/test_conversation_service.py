@@ -179,6 +179,12 @@ class TestConversationServiceSaveAgentThoughts:
 
 
 class TestConversationServiceBasics:
+    @pytest.fixture
+    def app_ctx(self, app):
+        app.config["ASSISTANT_AGENT_ID"] = uuid4()
+        with app.app_context():
+            yield app
+
     def _build_service(self) -> ConversationService:
         return ConversationService(db=SimpleNamespace(session=SimpleNamespace()))
 
@@ -788,6 +794,69 @@ class TestConversationServiceBasics:
         assert isinstance(paginator, _Paginator)
         assert paginator.paginate_called is True
         assert len(id_query.filter_calls[0]) == 5
+        assert message_query.filter_calls[0][0].right.value == [message_1.id, message_2.id]
+
+    def test_get_conversation_messages_with_page_should_normalize_row_like_paginated_ids(
+        self, monkeypatch
+    ):
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        conversation_id = uuid4()
+        conversation = SimpleNamespace(id=conversation_id, created_by=account.id, is_deleted=False)
+        message = SimpleNamespace(id=uuid4())
+
+        class _RowLike:
+            def __init__(self, value):
+                self._mapping = {"id": value}
+
+        class _Query:
+            def __init__(self, all_result=None):
+                self._all_result = all_result if all_result is not None else []
+                self.filter_calls = []
+
+            def filter(self, *args, **_kwargs):
+                self.filter_calls.append(args)
+                return self
+
+            def order_by(self, *_args, **_kwargs):
+                return self
+
+            def options(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return self._all_result
+
+        id_query = _Query()
+        message_query = _Query(all_result=[message])
+
+        class _Session:
+            def query(self, model):
+                if getattr(model, "key", "") == "id":
+                    return id_query
+                return message_query
+
+        class _Paginator:
+            def __init__(self, db, req):
+                pass
+
+            def paginate(self, query):
+                assert query is id_query
+                return [_RowLike(message.id)]
+
+        service.db = SimpleNamespace(session=_Session())
+        req = SimpleNamespace(created_at=SimpleNamespace(data=None))
+        monkeypatch.setattr(service, "get_conversation", lambda *_args, **_kwargs: conversation)
+        monkeypatch.setattr("internal.service.conversation_service.Paginator", _Paginator)
+
+        messages, _paginator = service.get_conversation_messages_with_page(
+            conversation_id=conversation_id,
+            req=req,
+            account=account,
+        )
+
+        assert messages == [message]
+        assert message_query.filter_calls[0][0].right.value == [message.id]
 
     def test_get_conversation_messages_with_page_should_skip_created_at_filter_when_absent(self, monkeypatch):
         service = self._build_service()
@@ -868,7 +937,7 @@ class TestConversationServiceBasics:
         assert result is conversation
         assert updates == [(conversation, {"is_deleted": True})]
 
-    def test_get_recent_conversations_should_return_assistant_and_debugger_items(self):
+    def test_get_recent_conversations_should_return_assistant_and_debugger_items(self, app_ctx):
         service = self._build_service()
         account_id = uuid4()
         now = datetime(2026, 3, 1, tzinfo=UTC)
@@ -897,6 +966,8 @@ class TestConversationServiceBasics:
             conversation_id=assistant_conversation.id,
             invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
             app_id=None,
+            query="你好",
+            answer="你好，我是助手",
             created_at=now,
         )
         message_debugger = SimpleNamespace(
@@ -904,6 +975,8 @@ class TestConversationServiceBasics:
             conversation_id=debugger_conversation.id,
             invoke_from=InvokeFrom.DEBUGGER.value,
             app_id=app.id,
+            query="调试问题",
+            answer="调试结果",
             created_at=now,
         )
         duplicated_old_message = SimpleNamespace(
@@ -911,6 +984,8 @@ class TestConversationServiceBasics:
             conversation_id=assistant_conversation.id,
             invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
             app_id=None,
+            query="旧问题",
+            answer="旧答案",
             created_at=now,
         )
 
@@ -979,14 +1054,14 @@ class TestConversationServiceBasics:
 
         assert service.get_recent_conversations(account, limit=20) == []
 
-    def test_get_recent_conversations_should_break_after_reaching_limit(self):
+    def test_get_recent_conversations_should_break_after_reaching_limit(self, app_ctx):
         service = self._build_service()
         account_id = uuid4()
         now = datetime(2026, 3, 1, tzinfo=UTC)
         conversation_a = SimpleNamespace(id=uuid4(), name="A", created_at=now, created_by=account_id, is_deleted=False)
         conversation_b = SimpleNamespace(id=uuid4(), name="B", created_at=now, created_by=account_id, is_deleted=False)
-        message_a = SimpleNamespace(id=uuid4(), conversation_id=conversation_a.id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, created_at=now)
-        message_b = SimpleNamespace(id=uuid4(), conversation_id=conversation_b.id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, created_at=now)
+        message_a = SimpleNamespace(id=uuid4(), conversation_id=conversation_a.id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, query="A", answer="A-answer", created_at=now)
+        message_b = SimpleNamespace(id=uuid4(), conversation_id=conversation_b.id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, query="B", answer="B-answer", created_at=now)
 
         class _Query:
             def __init__(self, all_result):
@@ -1021,9 +1096,9 @@ class TestConversationServiceBasics:
         conversations = service.get_recent_conversations(account, limit=1)
 
         assert len(conversations) == 1
-        assert conversations[0]["id"] == conversation_a.id
+        assert conversations[0]["id"] == str(conversation_a.id)
 
-    def test_get_recent_conversations_should_skip_message_when_conversation_not_found(self):
+    def test_get_recent_conversations_should_skip_message_when_conversation_not_found(self, app_ctx):
         service = self._build_service()
         account_id = uuid4()
         now = datetime(2026, 3, 1, tzinfo=UTC)
@@ -1032,6 +1107,8 @@ class TestConversationServiceBasics:
             conversation_id=uuid4(),
             invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
             app_id=None,
+            query="missing",
+            answer="missing-answer",
             created_at=now,
         )
 
@@ -1067,7 +1144,7 @@ class TestConversationServiceBasics:
 
         assert service.get_recent_conversations(account, limit=20) == []
 
-    def test_get_recent_conversations_should_skip_debugger_message_when_app_not_found(self):
+    def test_get_recent_conversations_should_skip_debugger_message_when_app_not_found(self, app_ctx):
         service = self._build_service()
         account_id = uuid4()
         now = datetime(2026, 3, 1, tzinfo=UTC)
@@ -1077,6 +1154,8 @@ class TestConversationServiceBasics:
             conversation_id=conversation.id,
             invoke_from=InvokeFrom.DEBUGGER.value,
             app_id=uuid4(),
+            query="debug",
+            answer="debug-answer",
             created_at=now,
         )
 
@@ -1248,7 +1327,7 @@ class TestConversationServiceBasics:
 
         assert service.get_recent_conversations(account, limit=10) == []
 
-    def test_get_recent_conversations_should_break_when_reach_limit(self):
+    def test_get_recent_conversations_should_break_when_reach_limit(self, app_ctx):
         service = self._build_service()
         account_id = uuid4()
         now = datetime(2026, 3, 1, tzinfo=UTC)
@@ -1259,6 +1338,8 @@ class TestConversationServiceBasics:
             conversation_id=conversation_1.id,
             invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
             app_id=None,
+            query="会话1",
+            answer="会话1-answer",
             created_at=now,
         )
         message_2 = SimpleNamespace(
@@ -1266,6 +1347,8 @@ class TestConversationServiceBasics:
             conversation_id=conversation_2.id,
             invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
             app_id=None,
+            query="会话2",
+            answer="会话2-answer",
             created_at=now,
         )
 
@@ -1302,9 +1385,9 @@ class TestConversationServiceBasics:
         conversations = service.get_recent_conversations(account, limit=1)
 
         assert len(conversations) == 1
-        assert conversations[0]["id"] == conversation_1.id
+        assert conversations[0]["id"] == str(conversation_1.id)
 
-    def test_get_recent_conversations_should_skip_missing_conversation_and_missing_debugger_app(self):
+    def test_get_recent_conversations_should_skip_missing_conversation_and_missing_debugger_app(self, app_ctx):
         service = self._build_service()
         account_id = uuid4()
         now = datetime(2026, 3, 1, tzinfo=UTC)
@@ -1321,6 +1404,8 @@ class TestConversationServiceBasics:
             conversation_id=missing_conversation_id,
             invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
             app_id=None,
+            query="missing-conversation",
+            answer="missing-conversation-answer",
             created_at=now,
         )
         message_missing_app = SimpleNamespace(
@@ -1328,6 +1413,8 @@ class TestConversationServiceBasics:
             conversation_id=existing_conversation.id,
             invoke_from=InvokeFrom.DEBUGGER.value,
             app_id=uuid4(),
+            query="missing-app",
+            answer="missing-app-answer",
             created_at=now,
         )
 
@@ -1389,3 +1476,114 @@ class TestConversationServiceBasics:
         service.delete_conversation(conversation.id, account)
 
         assert updates == [(conversation, {"is_deleted": True})]
+
+    def test_delete_conversation_removes_from_list(self, monkeypatch):
+        """测试删除对话后不再出现在列表中"""
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4(), assistant_agent_conversation_id=None)
+
+        # 创建两个对话
+        conv1 = SimpleNamespace(
+            id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            app_id=None,
+        )
+        conv2 = SimpleNamespace(
+            id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            app_id=None,
+        )
+
+        # Mock get_conversation
+        def mock_get_conversation(conv_id, _account):
+            if conv_id == conv1.id:
+                return conv1
+            if conv_id == conv2.id:
+                return conv2
+            raise NotFoundException()
+
+        monkeypatch.setattr(service, "get_conversation", mock_get_conversation)
+        monkeypatch.setattr(service, "_clear_cached_conversation_name", lambda *_args, **_kwargs: None)
+
+        updates = []
+        def mock_update(target, **kwargs):
+            updates.append((target, kwargs))
+            return target
+
+        monkeypatch.setattr(service, "update", mock_update)
+
+        # 删除第一个对话
+        service.delete_conversation(conv1.id, account)
+
+        # 验证删除标记
+        assert len(updates) == 1
+        assert updates[0][1] == {"is_deleted": True}
+
+    def test_update_conversation_name(self, monkeypatch):
+        """测试更新对话名称"""
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        conversation = SimpleNamespace(
+            id=uuid4(),
+            created_by=account.id,
+            name="旧名称",
+        )
+
+        monkeypatch.setattr(service, "get_conversation", lambda *_args, **_kwargs: conversation)
+        monkeypatch.setattr(service, "_clear_cached_conversation_name", lambda *_args, **_kwargs: None)
+
+        updates = []
+        def mock_update(target, **kwargs):
+            updates.append((target, kwargs))
+            for key, value in kwargs.items():
+                setattr(target, key, value)
+            return target
+
+        monkeypatch.setattr(service, "update", mock_update)
+
+        # 更新名称
+        service.update_conversation(conversation.id, account, name="新名称")
+
+        # 验证更新
+        assert len(updates) == 1
+        assert updates[0][1] == {"name": "新名称"}
+        assert conversation.name == "新名称"
+
+    def test_rename_and_delete_workflow(self, monkeypatch):
+        """测试重命名和删除的完整流程"""
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4(), assistant_agent_conversation_id=None)
+        conversation = SimpleNamespace(
+            id=uuid4(),
+            created_by=account.id,
+            name="原始名称",
+            is_deleted=False,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            app_id=None,
+        )
+
+        monkeypatch.setattr(service, "get_conversation", lambda *_args, **_kwargs: conversation)
+        monkeypatch.setattr(service, "_clear_cached_conversation_name", lambda *_args, **_kwargs: None)
+
+        updates = []
+        def mock_update(target, **kwargs):
+            updates.append((target, kwargs))
+            for key, value in kwargs.items():
+                setattr(target, key, value)
+            return target
+
+        monkeypatch.setattr(service, "update", mock_update)
+
+        # 1. 重命名
+        service.update_conversation(conversation.id, account, name="新名称")
+        assert conversation.name == "新名称"
+        assert len(updates) == 1
+
+        # 2. 删除
+        service.delete_conversation(conversation.id, account)
+        assert len(updates) == 2
+        assert updates[1][1] == {"is_deleted": True}

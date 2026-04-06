@@ -2,22 +2,22 @@
 from flask_wtf import FlaskForm
 from marshmallow import Schema, fields
 from wtforms import StringField
-from wtforms.validators import DataRequired, Length, Optional
+from wtforms.validators import Length, Optional
 
 from pkg.paginator import PaginatorReq
 
 
 class ShareWorkflowToSquareReq(FlaskForm):
     """共享工作流到广场请求"""
-    category = StringField(
-        "category",
-        validators=[DataRequired(message="分类不能为空"), Length(max=100)]
+    tags = StringField(
+        "tags",
+        validators=[Optional(), Length(max=500)]
     )
 
 
 class GetPublicWorkflowsWithPageReq(PaginatorReq):
     """获取公共工作流列表请求"""
-    category = StringField("category", default="all", validators=[Optional()])
+    tags = StringField("tags", default="", validators=[Optional()])
     sort_by = StringField("sort_by", default="latest", validators=[Optional()])
     search_word = StringField("search_word", default="", validators=[Optional()])
 
@@ -28,7 +28,7 @@ class PublicWorkflowResp(Schema):
     name = fields.String()
     icon = fields.String()
     description = fields.String()
-    category = fields.String()
+    tags = fields.List(fields.String())
     view_count = fields.Integer()
     like_count = fields.Integer()
     fork_count = fields.Integer()
@@ -37,7 +37,9 @@ class PublicWorkflowResp(Schema):
     created_at = fields.Integer()
     is_liked = fields.Boolean()
     is_favorited = fields.Boolean()
+    is_forked = fields.Boolean()  # 是否已fork
     account_name = fields.String()  # 新增发布者名称
+    account_avatar = fields.String()  # 新增发布者头像
 
 
 class LikeWorkflowResp(Schema):

@@ -1,7 +1,7 @@
 import importlib
 import random
 import string
-from datetime import datetime
+from datetime import UTC, datetime, time as dt_time
 from enum import Enum
 from hashlib import sha3_256
 from typing import Any
@@ -38,7 +38,37 @@ def datetime_to_timestamp(dt: datetime) -> int:
     """将传入的datetime时间转换成时间戳，如果数据不存在则返回0"""
     if dt is None:
         return 0
+    # 数据库中的 datetime 是 UTC 时间（无时区信息），需要明确指定为 UTC
+    from datetime import timezone
+    if dt.tzinfo is None:
+        # 如果没有时区信息，假设为 UTC
+        dt = dt.replace(tzinfo=timezone.utc)
     return int(dt.timestamp())
+
+
+def utc_now() -> datetime:
+    """返回带 UTC 时区的当前时间。"""
+    return datetime.now(UTC)
+
+
+def utc_now_naive() -> datetime:
+    """返回无时区的 UTC 时间，兼容当前项目的 DateTime 列。"""
+    return utc_now().replace(tzinfo=None)
+
+
+def ensure_utc_naive(dt: datetime | None) -> datetime | None:
+    """将任意 datetime 归一化为无时区的 UTC 时间。"""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt
+    return dt.astimezone(UTC).replace(tzinfo=None)
+
+
+def utc_midnight_naive(reference: datetime | None = None) -> datetime:
+    """返回指定时间所在 UTC 自然日的 00:00:00（无时区）。"""
+    normalized = ensure_utc_naive(reference or utc_now())
+    return datetime.combine(normalized.date(), dt_time.min)
 
 
 def combine_documents(documents: list[Document]) -> str:

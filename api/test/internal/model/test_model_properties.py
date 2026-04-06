@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from types import SimpleNamespace
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from flask import Flask
@@ -118,6 +119,24 @@ class TestAccountModel:
         assert isinstance(result, _Conversation)
         assert session.added == [result]
         assert account.assistant_agent_conversation_id == result.id
+
+    def test_account_session_is_active_should_reflect_expired_and_revoked_state(self):
+        active_session = account_model.AccountSession(
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=10),
+            revoked_at=None,
+        )
+        revoked_session = account_model.AccountSession(
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=10),
+            revoked_at=datetime.now(UTC).replace(tzinfo=None),
+        )
+        expired_session = account_model.AccountSession(
+            expires_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=1),
+            revoked_at=None,
+        )
+
+        assert active_session.is_active is True
+        assert revoked_session.is_active is False
+        assert expired_session.is_active is False
 
 
 class TestAppModel:

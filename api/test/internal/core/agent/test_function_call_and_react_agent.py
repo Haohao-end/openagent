@@ -5,6 +5,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, SystemMessage
 from langchain_core.outputs import LLMResult
 
+from internal.core.agent.agents.a2a_function_call_agent import A2AFunctionCallAgent
 from internal.core.agent.agents.function_call_agent import FunctionCallAgent
 from internal.core.agent.agents.react_agent import ReACTAgent
 from internal.core.agent.entities.agent_entity import DATASET_RETRIEVAL_TOOL_NAME, AgentConfig, MAX_ITERATION_RESPONSE
@@ -110,6 +111,12 @@ def _new_function_call_agent(llm, config=None):
     return agent
 
 
+def _new_a2a_function_call_agent(llm, config=None):
+    agent = A2AFunctionCallAgent.model_construct(llm=llm, agent_config=config or _build_agent_config())
+    agent._agent_queue_manager = _FakeQueueManager()
+    return agent
+
+
 def _new_react_agent(llm, config=None):
     agent = ReACTAgent.model_construct(llm=llm, agent_config=config or _build_agent_config())
     agent._agent_queue_manager = _FakeQueueManager()
@@ -145,6 +152,37 @@ def test_function_call_agent_build_agent_should_register_graph(monkeypatch):
     compiled = FunctionCallAgent._build_agent(agent)
 
     assert compiled == "compiled-agent"
+
+
+def test_a2a_function_call_agent_build_agent_should_register_graph(monkeypatch):
+    class _FakeGraph:
+        def __init__(self, _state):
+            self.nodes = []
+            self.edges = []
+            self.conditional_edges = []
+            self.entry = None
+
+        def add_node(self, name, fn):
+            self.nodes.append((name, fn))
+
+        def add_edge(self, source, target):
+            self.edges.append((source, target))
+
+        def add_conditional_edges(self, source, fn):
+            self.conditional_edges.append((source, fn))
+
+        def set_entry_point(self, name):
+            self.entry = name
+
+        def compile(self):
+            return "compiled-a2a-agent"
+
+    monkeypatch.setattr("internal.core.agent.agents.a2a_function_call_agent.StateGraph", _FakeGraph)
+    agent = object.__new__(A2AFunctionCallAgent)
+
+    compiled = A2AFunctionCallAgent._build_agent(agent)
+
+    assert compiled == "compiled-a2a-agent"
 
 
 def test_function_call_agent_preset_operation_should_short_circuit_when_keyword_hit():
@@ -331,6 +369,50 @@ def test_function_call_agent_llm_node_should_stop_when_iteration_limit_reached()
         QueueEvent.AGENT_MESSAGE,
         QueueEvent.AGENT_END,
     ]
+
+
+def test_a2a_function_call_agent_llm_node_should_buffer_final_answer_until_no_tool_call(monkeypatch):
+    monkeypatch.setattr("internal.core.agent.agents.a2a_function_call_agent.tiktoken.get_encoding", lambda _name: _FakeEncoding())
+    task_id = uuid4()
+
+    llm_tool = _NodeLLM(
+        features=[ModelFeature.TOOL_CALL.value],
+        metadata={"pricing": {"input": 0.1, "output": 0.2, "unit": 0.001}},
+        stream_chunks=[
+            _Chunk("我来帮您寻找适合的护肤智能体"),
+            _Chunk("", tool_calls=[{"id": "1", "name": "route_public_agents", "args": {"query": "油痘肌"}}]),
+        ],
+    )
+    agent_tool = _new_a2a_function_call_agent(
+        llm_tool,
+        _build_agent_config(tools=[SimpleNamespace(name="route_public_agents")]),
+    )
+    tool_result = agent_tool._llm_node({"task_id": task_id, "messages": [HumanMessage(content="油痘肌怎么护肤")], "iteration_count": 0})
+
+    tool_events = [thought.event for _, thought in agent_tool.agent_queue_manager.published]
+    assert tool_result["iteration_count"] == 1
+    assert tool_result["messages"][0].tool_calls[0]["name"] == "route_public_agents"
+    assert tool_events == [QueueEvent.AGENT_THOUGHT]
+
+    llm_message = _NodeLLM(
+        features=[ModelFeature.TOOL_CALL.value],
+        metadata={"pricing": {"input": 0.1, "output": 0.2, "unit": 0.001}},
+        stream_chunks=[_Chunk("建议早晚温和清洁"), _Chunk("，避免厚重封闭型产品")],
+    )
+    agent_message = _new_a2a_function_call_agent(llm_message, _build_agent_config())
+    message_result = agent_message._llm_node({"task_id": task_id, "messages": [HumanMessage(content="怎么护肤")], "iteration_count": 0})
+
+    published_thoughts = [thought for _, thought in agent_message.agent_queue_manager.published]
+    message_events = [thought.event for thought in published_thoughts]
+    assert message_result["messages"][0].content == "建议早晚温和清洁，避免厚重封闭型产品"
+    assert message_events == [
+        QueueEvent.AGENT_MESSAGE,
+        QueueEvent.AGENT_MESSAGE,
+        QueueEvent.AGENT_MESSAGE,
+        QueueEvent.AGENT_END,
+    ]
+    visible_chunks = [thought.thought for thought in published_thoughts if thought.event == QueueEvent.AGENT_MESSAGE]
+    assert visible_chunks == ["建议早晚温和清洁", "，避免厚重封闭型产品", ""]
 
 
 def test_function_call_agent_tools_node_and_conditions_should_cover_branches():

@@ -13,6 +13,7 @@ class TestRouterContract:
             ("/apps", frozenset({"GET"})),
             ("/apps", frozenset({"POST"})),
             ("/apps/<uuid:app_id>/conversations", frozenset({"POST"})),
+            ("/apps/<uuid:app_id>/prompt-compare/chat", frozenset({"POST"})),
             ("/api-tools/validate-openapi-schema", frozenset({"POST"})),
             ("/datasets/<uuid:dataset_id>/hit", frozenset({"POST"})),
             ("/openapi/chat", frozenset({"POST"})),

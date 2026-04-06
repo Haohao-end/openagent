@@ -17,9 +17,9 @@ def _field(value):
     return SimpleNamespace(data=value)
 
 
-def _req(*, category="all", sort_by="latest", search_word="", current_page=1, page_size=20):
+def _req(*, tags="", sort_by="latest", search_word="", current_page=1, page_size=20):
     return SimpleNamespace(
-        category=_field(category),
+        tags=_field(tags),
         sort_by=_field(sort_by),
         search_word=_field(search_word),
         current_page=_field(current_page),
@@ -71,6 +71,9 @@ class _Query:
         return self
 
     def one_or_none(self):
+        return self._one_or_none_result
+
+    def first(self):
         return self._one_or_none_result
 
     def all(self):
@@ -146,16 +149,18 @@ def _build_service(
     *,
     session=None,
     builtin_provider_manager=None,
+    public_agent_registry_service=None,
 ):
     session = session or _QueueSession()
     return PublicAppService(
         db=_DB(session),
         builtin_provider_manager=builtin_provider_manager or SimpleNamespace(get_provider=lambda _provider_id: None),
+        public_agent_registry_service=public_agent_registry_service,
     )
 
 
 class TestPublicAppService:
-    def test_share_app_to_square_should_validate_exists_owner_status_and_category(self):
+    def test_share_app_to_square_should_validate_exists_owner_status_and_accept_tags(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         app_id = uuid4()
         service = _build_service(session=_QueueSession([_Query(one_or_none_result=None)]))
@@ -172,19 +177,41 @@ class TestPublicAppService:
         with pytest.raises(ValidateErrorException):
             service.share_app_to_square(app_id, AppCategory.GENERAL.value, account)
 
-        published_app = SimpleNamespace(id=app_id, account_id=account.id, status=AppStatus.PUBLISHED.value)
+        published_app = SimpleNamespace(
+            id=app_id,
+            account_id=account.id,
+            status=AppStatus.PUBLISHED.value,
+            is_public=False,
+            tags=[],
+            published_at=None,
+        )
         service = _build_service(session=_QueueSession([_Query(one_or_none_result=published_app)]))
-        with pytest.raises(ValidateErrorException):
-            service.share_app_to_square(app_id, "invalid-category", account)
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: target.__dict__.update(kwargs) or target,
+        )
+
+        shared = service.share_app_to_square(app_id, AppCategory.GENERAL.value, account)
+
+        assert shared.tags == [AppCategory.GENERAL.value]
+        assert shared.is_public is True
+        assert shared.published_at is not None
 
     def test_share_and_unshare_app_should_update_public_fields(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         app = SimpleNamespace(id=uuid4(), account_id=account.id, status=AppStatus.PUBLISHED.value)
+        queued_app_ids = []
         service = _build_service(
             session=_QueueSession([
                 _Query(one_or_none_result=app),
                 _Query(one_or_none_result=app),
-            ])
+            ]),
+            public_agent_registry_service=SimpleNamespace(),
+        )
+        monkeypatch.setattr(
+            "internal.service.public_app_service.sync_public_app_registry",
+            SimpleNamespace(delay=lambda app_id: queued_app_ids.append(app_id)),
         )
         updates = []
 
@@ -202,9 +229,10 @@ class TestPublicAppService:
         assert shared is app
         assert unshared is app
         assert updates[0][1]["is_public"] is True
-        assert updates[0][1]["category"] == AppCategory.GENERAL.value
+        assert updates[0][1]["tags"] == [AppCategory.GENERAL.value]
         assert updates[0][1]["published_at"] is not None
         assert updates[1][1] == {"is_public": False, "published_at": None}
+        assert queued_app_ids == [str(app.id), str(app.id)]
 
     def test_unshare_app_from_square_should_validate_exists_and_owner(self):
         account = SimpleNamespace(id=uuid4())
@@ -239,19 +267,21 @@ class TestPublicAppService:
             icon="https://user/icon.png",
             description="user app",
             category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             view_count=12,
             like_count=7,
             fork_count=3,
             published_at=datetime(2026, 1, 1, tzinfo=UTC),
             created_at=datetime(2025, 12, 31, tzinfo=UTC),
         )
-        creator = SimpleNamespace(id=user_app.account_id, name="Alice")
+        creator = SimpleNamespace(id=user_app.account_id, name="Alice", avatar="https://creator/icon.png")
         session = _QueueSession(
             [
                 _Query(),  # favorite_count_subquery
-                _Query(all_result=[(user_app, creator.name, 5)], count_result=1),
+                _Query(all_result=[(user_app, creator.name, creator.avatar, 5)], count_result=1),
                 _Query(all_result=[(user_app.id,)]),
                 _Query(all_result=[]),
+                _Query(all_result=[(user_app.id,)]),
             ]
         )
         service = _build_service(session=session)
@@ -273,9 +303,12 @@ class TestPublicAppService:
         assert len(apps) == 1
         assert apps[0]["id"] == str(user_app.id)
         assert apps[0]["creator_name"] == "Alice"
+        assert apps[0]["creator_avatar"] == creator.avatar
         assert apps[0]["favorite_count"] == 5
         assert apps[0]["is_liked"] is True
         assert apps[0]["is_favorited"] is False
+        assert apps[0]["is_forked"] is True
+        assert apps[0]["tags"] == [AppCategory.GENERAL.value]
 
     def test_get_public_apps_with_page_should_keep_default_like_flags_when_account_absent(self, monkeypatch):
         user_app = SimpleNamespace(
@@ -285,6 +318,7 @@ class TestPublicAppService:
             icon="https://user/icon.png",
             description="user app",
             category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             view_count=12,
             like_count=7,
             fork_count=3,
@@ -295,7 +329,7 @@ class TestPublicAppService:
         session = _QueueSession(
             [
                 _Query(),
-                _Query(all_result=[(user_app, creator.name, 3)], count_result=1),
+                _Query(all_result=[(user_app, creator.name, "", 3)], count_result=1),
             ]
         )
         service = _build_service(session=session)
@@ -322,6 +356,7 @@ class TestPublicAppService:
             icon="https://user/icon.png",
             description="user app",
             category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             view_count=1,
             like_count=1,
             fork_count=1,
@@ -332,7 +367,7 @@ class TestPublicAppService:
         session = _QueueSession(
             [
                 _Query(),
-                _Query(all_result=[(user_app, creator.name, 0)], count_result=1),
+                _Query(all_result=[(user_app, creator.name, "", 0)], count_result=1),
             ]
         )
         service = _build_service(session=session)
@@ -360,6 +395,7 @@ class TestPublicAppService:
             icon="https://user/icon.png",
             description="translate helper",
             category=AppCategory.GENERAL.value,
+            tags=["translation"],
             view_count=3,
             like_count=2,
             fork_count=1,
@@ -369,7 +405,7 @@ class TestPublicAppService:
         session = _QueueSession(
             [
                 _Query(),
-                _Query(all_result=[(user_app, None, 0)], count_result=1),
+                _Query(all_result=[(user_app, None, None, 0)], count_result=1),
             ]
         )
         service = _build_service(session=session)
@@ -390,8 +426,8 @@ class TestPublicAppService:
         assert apps[0]["is_liked"] is False
         assert apps[0]["is_favorited"] is False
 
-    def test_get_public_apps_with_page_should_filter_by_category(self, monkeypatch):
-        """测试按分类筛选应用"""
+    def test_get_public_apps_with_page_should_filter_by_tags(self, monkeypatch):
+        """测试按标签筛选应用"""
         user_app = SimpleNamespace(
             id=uuid4(),
             account_id=uuid4(),
@@ -399,6 +435,7 @@ class TestPublicAppService:
             icon="https://user/icon.png",
             description="coding helper",
             category=AppCategory.PROGRAMMING.value,
+            tags=["coding"],
             view_count=5,
             like_count=3,
             fork_count=2,
@@ -409,7 +446,7 @@ class TestPublicAppService:
         session = _QueueSession(
             [
                 _Query(),  # favorite_count_subquery
-                _Query(all_result=[(user_app, creator.name, 2)], count_result=1),
+                _Query(all_result=[(user_app, creator.name, "", 2)], count_result=1),
             ]
         )
         service = _build_service(session=session)
@@ -420,14 +457,14 @@ class TestPublicAppService:
 
         monkeypatch.setattr("internal.service.public_app_service.Paginator", _Paginator)
         apps, paginator = service.get_public_apps_with_page(
-            _req(category=AppCategory.PROGRAMMING.value, sort_by="latest"),
+            _req(tags="coding", sort_by="latest"),
             None,
         )
 
         assert paginator.total == 1
         assert len(apps) == 1
         assert apps[0]["id"] == str(user_app.id)
-        assert apps[0]["category"] == AppCategory.PROGRAMMING.value
+        assert apps[0]["tags"] == ["coding"]
 
     def test_fork_public_app_should_support_public_path(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
@@ -457,6 +494,7 @@ class TestPublicAppService:
             icon="https://x",
             description="desc",
             category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             app_config=app_config,
         )
         session = _QueueSession([_Query(one_or_none_result=public_app)])
@@ -473,6 +511,7 @@ class TestPublicAppService:
 
         assert copied.name.endswith("(副本)")
         assert copied.original_app_id == public_app.id
+        assert copied.tags == public_app.tags
         assert public_app.view_count == 2
         assert public_app.fork_count == 3
         assert len(session.added) == 2
@@ -505,6 +544,7 @@ class TestPublicAppService:
             icon="https://x",
             description="desc",
             category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             app_config=app_config,
         )
         session = _QueueSession([_Query(one_or_none_result=public_app)])
@@ -544,6 +584,7 @@ class TestPublicAppService:
             icon="i",
             description="d",
             category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             app_config=None,
         )
         service = _build_service(
@@ -585,6 +626,7 @@ class TestPublicAppService:
             icon="https://x",
             description="desc",
             category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             app_config=app_config,
         )
         session = _QueueSession([_Query(one_or_none_result=public_app)])
@@ -637,6 +679,7 @@ class TestPublicAppService:
             icon="https://x",
             description="desc",
             category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             app_config=app_config,
         )
         session = _QueueSession([_Query(one_or_none_result=public_app)])
@@ -730,22 +773,102 @@ class TestPublicAppService:
         with pytest.raises(NotFoundException):
             service.favorite_app(uuid4(), SimpleNamespace(id=uuid4()))
 
-    def test_get_my_favorites_should_return_public_apps(self):
+    def test_get_my_favorites_should_return_serialized_public_apps(self):
         account = SimpleNamespace(id=uuid4())
-        favorite_1 = SimpleNamespace(app_id=uuid4())
-        favorite_2 = SimpleNamespace(app_id=uuid4())
-        expected_apps = [SimpleNamespace(id=favorite_1.app_id), SimpleNamespace(id=favorite_2.app_id)]
+        favorite_1 = SimpleNamespace(app_id=uuid4(), created_at=datetime(2026, 1, 2, tzinfo=UTC))
+        favorite_2 = SimpleNamespace(app_id=uuid4(), created_at=datetime(2026, 1, 1, tzinfo=UTC))
+        app_1 = SimpleNamespace(
+            id=favorite_1.app_id,
+            name="收藏应用一",
+            icon="https://a.com/1.png",
+            description="desc 1",
+            tags=["assistant"],
+            view_count=3,
+            like_count=5,
+            fork_count=2,
+            published_at=datetime(2026, 1, 1, tzinfo=UTC),
+            created_at=datetime(2025, 12, 1, tzinfo=UTC),
+        )
+        app_2 = SimpleNamespace(
+            id=favorite_2.app_id,
+            name="收藏应用二",
+            icon="https://a.com/2.png",
+            description="desc 2",
+            tags=["workflow"],
+            view_count=4,
+            like_count=6,
+            fork_count=3,
+            published_at=datetime(2026, 1, 2, tzinfo=UTC),
+            created_at=datetime(2025, 12, 2, tzinfo=UTC),
+        )
         session = _QueueSession(
             [
                 _Query(all_result=[favorite_1, favorite_2]),
-                _Query(all_result=expected_apps),
+                _Query(),  # favorite_count_subquery
+                _Query(all_result=[(app_1, "Alice", "https://avatar/1.png", 7), (app_2, "Bob", "", 8)]),
+                _Query(all_result=[]),  # liked ids
+                _Query(all_result=[(favorite_1.app_id,), (favorite_2.app_id,)]),  # favorited ids
+                _Query(all_result=[(favorite_1.app_id,)]),  # forked ids
             ]
         )
         service = _build_service(session=session)
 
         apps = service.get_my_favorites(account)
 
-        assert apps == expected_apps
+        assert [app["id"] for app in apps] == [str(favorite_1.app_id), str(favorite_2.app_id)]
+        assert apps[0]["creator_name"] == "Alice"
+        assert apps[0]["is_favorited"] is True
+        assert apps[0]["is_forked"] is True
+        assert apps[1]["creator_name"] == "Bob"
+        assert apps[1]["favorite_count"] == 8
+
+    def test_get_my_likes_should_return_serialized_public_apps(self):
+        account = SimpleNamespace(id=uuid4())
+        like_1 = SimpleNamespace(app_id=uuid4(), created_at=datetime(2026, 1, 2, tzinfo=UTC))
+        like_2 = SimpleNamespace(app_id=uuid4(), created_at=datetime(2026, 1, 1, tzinfo=UTC))
+        app_1 = SimpleNamespace(
+            id=like_1.app_id,
+            name="点赞应用一",
+            icon="https://a.com/1.png",
+            description="desc 1",
+            tags=["assistant"],
+            view_count=8,
+            like_count=11,
+            fork_count=4,
+            published_at=datetime(2026, 1, 3, tzinfo=UTC),
+            created_at=datetime(2025, 12, 3, tzinfo=UTC),
+        )
+        app_2 = SimpleNamespace(
+            id=like_2.app_id,
+            name="点赞应用二",
+            icon="https://a.com/2.png",
+            description="desc 2",
+            tags=["workflow"],
+            view_count=6,
+            like_count=9,
+            fork_count=2,
+            published_at=datetime(2026, 1, 4, tzinfo=UTC),
+            created_at=datetime(2025, 12, 4, tzinfo=UTC),
+        )
+        session = _QueueSession(
+            [
+                _Query(all_result=[like_1, like_2]),
+                _Query(),  # favorite_count_subquery
+                _Query(all_result=[(app_1, "Alice", "https://avatar/1.png", 3), (app_2, None, "", 4)]),
+                _Query(all_result=[(like_1.app_id,), (like_2.app_id,)]),  # liked ids
+                _Query(all_result=[(like_2.app_id,)]),  # favorited ids
+                _Query(all_result=[]),  # forked ids
+            ]
+        )
+        service = _build_service(session=session)
+
+        apps = service.get_my_likes(account)
+
+        assert [app["id"] for app in apps] == [str(like_1.app_id), str(like_2.app_id)]
+        assert apps[0]["is_liked"] is True
+        assert apps[0]["is_favorited"] is False
+        assert apps[1]["creator_name"] == "未知用户"
+        assert apps[1]["is_favorited"] is True
 
     def test_get_public_app_detail_should_support_public_app(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
@@ -758,6 +881,7 @@ class TestPublicAppService:
             icon="https://icon",
             description="desc",
             category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             view_count=3,
             like_count=2,
             fork_count=1,
@@ -800,6 +924,7 @@ class TestPublicAppService:
         detail = service.get_public_app_detail(str(app.id), account)
 
         assert detail["creator_name"] == "Owner"
+        assert detail["tags"] == [AppCategory.GENERAL.value]
         assert detail["is_liked"] is True
         assert detail["is_favorited"] is False
         assert detail["draft_app_config"]["tools"] == [{"type": "enriched"}]
@@ -826,6 +951,7 @@ class TestPublicAppService:
             icon="https://icon",
             description="desc",
             category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             view_count=3,
             like_count=2,
             fork_count=1,
@@ -850,6 +976,7 @@ class TestPublicAppService:
 
         detail = service.get_public_app_detail(str(app.id), None)
 
+        assert detail["tags"] == [AppCategory.GENERAL.value]
         assert detail["is_liked"] is False
         assert detail["is_favorited"] is False
         assert "draft_app_config" not in detail
@@ -864,6 +991,7 @@ class TestPublicAppService:
             icon="https://icon",
             description="desc",
             category=AppCategory.GENERAL.value,
+            tags=[AppCategory.GENERAL.value],
             view_count=0,
             like_count=0,
             fork_count=0,
@@ -888,6 +1016,7 @@ class TestPublicAppService:
         detail = service.get_public_app_detail(str(app.id), None)
 
         assert detail["creator_name"] == "未知用户"
+        assert detail["tags"] == [AppCategory.GENERAL.value]
         assert detail["is_liked"] is False
         assert detail["is_favorited"] is False
         assert "draft_app_config" not in detail
@@ -1087,9 +1216,10 @@ class TestPublicAppService:
         app = SimpleNamespace(id=uuid4(), is_public=True, status=AppStatus.PUBLISHED.value)
         session = _QueueSession([_Query(one_or_none_result=app)])
         service = _build_service(session=session)
+        time_ranges = []
 
         analysis_service = SimpleNamespace(
-            get_messages_by_time_range=lambda *_args, **_kwargs: ["m1", "m2"],
+            get_messages_by_time_range=lambda *_args, **_kwargs: time_ranges.append((_args[1], _args[2])) or ["m1", "m2"],
             calculate_overview_indicators_by_messages=lambda messages: {
                 "total_messages": len(messages),
                 "active_accounts": 1,
@@ -1108,12 +1238,18 @@ class TestPublicAppService:
         )
         fake_module = SimpleNamespace(injector=SimpleNamespace(get=lambda _cls: analysis_service))
         monkeypatch.setitem(sys.modules, "app.http.module", fake_module)
+        monkeypatch.setattr(
+            "internal.service.public_app_service.utc_now_naive",
+            lambda: datetime(2024, 1, 8, 18, 30, 0),
+        )
 
         result = service.get_public_app_analysis(str(app.id), None)
 
         assert result["total_messages"]["data"] == 2
         assert result["total_messages"]["pop"] == 10
         assert result["total_messages_trend"] == [1, 2, 3]
+        assert time_ranges[0] == (datetime(2024, 1, 1, 0, 0, 0), datetime(2024, 1, 8, 18, 30, 0))
+        assert time_ranges[1] == (datetime(2023, 12, 25, 0, 0, 0), datetime(2024, 1, 1, 0, 0, 0))
 
         service = _build_service(
             session=_QueueSession([_Query(one_or_none_result=None)]),

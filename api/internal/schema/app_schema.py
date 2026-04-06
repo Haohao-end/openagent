@@ -5,11 +5,11 @@ from marshmallow import Schema, fields, pre_dump
 from wtforms import StringField, IntegerField
 from wtforms.validators import DataRequired, Length, URL, ValidationError, Optional, NumberRange
 
-from internal.entity.app_entity import AppStatus
+from internal.entity.app_entity import AppConfigType, AppStatus
 from internal.lib.helper import datetime_to_timestamp
 from internal.model import App, AppConfigVersion, Message
 from pkg.paginator import PaginatorReq
-from internal.schema import ListField
+from internal.schema import DictField, ListField
 
 
 class CreateAppReq(FlaskForm):
@@ -56,6 +56,8 @@ class GetAppsWithPageResp(Schema):
     preset_prompt = fields.String(dump_default="")
     model_config = fields.Dict(dump_default={})
     status = fields.String(dump_default="")
+    creator_name = fields.String(dump_default="")
+    creator_avatar = fields.String(dump_default="")
     draft_updated_at = fields.Integer(dump_default=0)
     updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
@@ -74,6 +76,8 @@ class GetAppsWithPageResp(Schema):
                 "model": app_config.model_config.get("model", "")
             },
             "status": data.status,
+            "creator_name": data.account.name if data.account else "",
+            "creator_avatar": data.account.avatar if data.account else "",
             "draft_updated_at": datetime_to_timestamp(data.draft_app_config.updated_at),
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),
@@ -104,7 +108,7 @@ class GetAppResp(Schema):
             "description": data.description,
             "status": data.status,
             "is_public": data.is_public,
-            "category": data.category,
+            "category": "general",
             "draft_updated_at": datetime_to_timestamp(data.draft_app_config.updated_at),
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),
@@ -119,15 +123,54 @@ class GetPublishHistoriesWithPageReq(PaginatorReq):
 class GetPublishHistoriesWithPageResp(Schema):
     """获取应用发布历史配置列表分页数据"""
     id = fields.UUID(dump_default="")
+    app_id = fields.UUID(dump_default="")
     version = fields.Integer(dump_default=0)
+    config_type = fields.String(dump_default="")
+    config = fields.Dict(dump_default={})
+    updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
+    is_current_published = fields.Boolean(dump_default=False)
+    label = fields.String(dump_default="")
+    summary = fields.String(dump_default="")
 
     @pre_dump
     def process_data(self, data: AppConfigVersion, **kwargs):
+        config_type = getattr(data, "config_type", "")
+        is_current_published = bool(getattr(data, "is_current_published", False))
+        display_config = getattr(data, "display_config", None) or {}
+        label = "草稿" if config_type == AppConfigType.DRAFT.value else f"版本 #{str(data.version).zfill(3)}"
+        if config_type == AppConfigType.DRAFT.value:
+            summary = "当前草稿版本"
+        elif is_current_published:
+            summary = "当前线上版本"
+        else:
+            summary = "历史发布版本"
         return {
             "id": data.id,
+            "app_id": data.app_id,
             "version": data.version,
+            "config_type": config_type,
+            "config": {
+                "model_config": display_config.get("model_config", data.model_config),
+                "dialog_round": display_config.get("dialog_round", data.dialog_round),
+                "preset_prompt": display_config.get("preset_prompt", data.preset_prompt),
+                "tools": display_config.get("tools", data.tools),
+                "workflows": display_config.get("workflows", data.workflows),
+                "datasets": display_config.get("datasets", data.datasets),
+                "retrieval_config": display_config.get("retrieval_config", data.retrieval_config),
+                "long_term_memory": display_config.get("long_term_memory", data.long_term_memory),
+                "opening_statement": display_config.get("opening_statement", data.opening_statement),
+                "opening_questions": display_config.get("opening_questions", data.opening_questions),
+                "speech_to_text": display_config.get("speech_to_text", data.speech_to_text),
+                "text_to_speech": display_config.get("text_to_speech", data.text_to_speech),
+                "suggested_after_answer": display_config.get("suggested_after_answer", data.suggested_after_answer),
+                "review_config": display_config.get("review_config", data.review_config),
+            },
+            "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),
+            "is_current_published": is_current_published,
+            "label": label,
+            "summary": summary,
         }
 
 
@@ -182,6 +225,61 @@ class DebugChatReq(FlaskForm):
             result = urlparse(image_url)
             if not all([result.scheme, result.netloc]):
                 raise ValidationError("上传的图片URL地址格式错误，请核实后重试")
+
+
+class PromptCompareChatReq(FlaskForm):
+    """提示词对比调试请求结构体"""
+    lane_id = StringField("lane_id", default="", validators=[Optional(), Length(max=64)])
+    query = StringField("query", validators=[
+        DataRequired("用户提问query不能为空"),
+        Length(max=4000, message="用户提问长度不能超过4000个字符"),
+    ])
+    preset_prompt = StringField("preset_prompt", validators=[
+        DataRequired("提示词不能为空"),
+        Length(max=5000, message="提示词长度不能超过5000个字符"),
+    ])
+    model_config = DictField("model_config")
+    history = ListField("history", default=[])
+
+    def validate_model_config(self, field: DictField) -> None:
+        """校验传递的模型配置是否为字典"""
+        if not isinstance(field.data, dict):
+            raise ValidationError("模型配置格式错误 请核实后重试")
+
+    def validate_history(self, field: ListField) -> None:
+        """校验对比调试历史记录"""
+        if field.data is None:
+            field.data = []
+            return
+
+        if not isinstance(field.data, list):
+            raise ValidationError("历史记录格式错误，请核实后重试")
+
+        if len(field.data) > 20:
+            raise ValidationError("历史记录条数不能超过20条，请核实后重试")
+
+        normalized_history = []
+        for item in field.data:
+            if not isinstance(item, dict):
+                raise ValidationError("历史记录格式错误，请核实后重试")
+
+            if set(item.keys()) - {"query", "answer"}:
+                raise ValidationError("历史记录字段出错，请核实后重试")
+
+            query = item.get("query", "")
+            answer = item.get("answer", "")
+            if not isinstance(query, str) or not isinstance(answer, str):
+                raise ValidationError("历史记录内容必须为字符串")
+
+            if len(query) > 4000 or len(answer) > 20000:
+                raise ValidationError("历史记录内容长度超出限制，请核实后重试")
+
+            normalized_history.append({
+                "query": query,
+                "answer": answer,
+            })
+
+        field.data = normalized_history
 
 
 class GetDebugConversationMessagesWithPageReq(PaginatorReq):

@@ -117,19 +117,26 @@ class LanguageModelService(BaseService):
 
     def load_default_language_model(self) -> BaseLanguageModel:
         """加载默认的大语言模型，在模型管理器中获取不到模型或者出错时使用默认模型进行兜底"""
-        # 1.获取openai服务提供者与模型类
-        provider = self.language_model_manager.get_provider("openai")
-        model_entity = provider.get_model_entity("gpt-4o-mini")
+        # 1.获取DeepSeek服务提供者与模型类
+        provider = self.language_model_manager.get_provider("deepseek")
+        model_entity = provider.get_model_entity("deepseek-chat")
         model_class = provider.get_model_class(model_entity.model_type)
+        metadata = getattr(model_entity, "metadata", {}) or {}
+        max_tokens = (
+            getattr(model_entity, "max_output_tokens", 0)
+            or getattr(model_entity, "context_window", 0)
+            or metadata.get("ctx", 0)
+            or metadata.get("context_window", 0)
+            or 8000
+        )
 
         # bug:原先写法使用的是LangChain封装的LLM类，需要替换成自定义封装的类，否则会识别到模型不存在features
-        # return ChatOpenAI(model="gpt-4o-mini", temperature=1, max_tokens=8192)
 
         # 2.实例化模型并返回
         return model_class(
             **model_entity.attributes,
             temperature=1,
-            max_tokens=8192,
+            max_tokens=max_tokens,
             features=model_entity.features,
-            metadata=model_entity.metadata,
+            metadata=metadata,
         )

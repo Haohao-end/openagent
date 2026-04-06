@@ -22,9 +22,9 @@ def _assert_health(data: dict):
     assert "status_code" in data["metrics"]
 
 
-def _assert_categories(data: dict):
-    assert "categories" in data
-    assert isinstance(data["categories"], list)
+def _assert_tags(data: dict):
+    assert "tags" in data
+    assert isinstance(data["tags"], list)
 
 
 def _page_paginator():
@@ -69,12 +69,6 @@ BATCH_A_VALIDATE_CASES = [
         "kwargs": {"json": {}},
     },
     {
-        "name": "share_app_to_square_missing_category",
-        "method": "post",
-        "url": f"/apps/{APP_ID}/share-to-square",
-        "kwargs": {"json": {}},
-    },
-    {
         "name": "app_icon_preview_missing_name",
         "method": "post",
         "url": "/apps/generate-icon-preview",
@@ -99,12 +93,6 @@ BATCH_A_VALIDATE_CASES = [
         "kwargs": {"json": {}},
     },
     {
-        "name": "share_workflow_to_square_missing_category",
-        "method": "post",
-        "url": f"/workflows/{WORKFLOW_ID}/share-to-square",
-        "kwargs": {"json": {}},
-    },
-    {
         "name": "workflow_icon_preview_missing_name",
         "method": "post",
         "url": "/workflows/generate-icon-preview",
@@ -123,12 +111,12 @@ BATCH_B_SUCCESS_CASES = [
         "assertion": _assert_health,
     },
     {
-        "name": "public_app_categories_success",
+        "name": "public_app_tags_success",
         "method": "get",
-        "url": "/public/apps/categories",
+        "url": "/public/apps/tags",
         "kwargs": {},
         "patches": [],
-        "assertion": _assert_categories,
+        "assertion": _assert_tags,
     },
     {
         "name": "ai_chat_success",
@@ -205,6 +193,30 @@ BATCH_B_SUCCESS_CASES = [
             (
                 "internal.service.account_service.AccountService.send_reset_code",
                 None,
+            )
+        ],
+    },
+    {
+        "name": "auth_verify_login_challenge_success",
+        "method": "post",
+        "url": "/auth/login-challenge/verify",
+        "kwargs": {"json": {"challenge_id": "challenge-1", "code": "123456"}},
+        "patches": [
+            (
+                "internal.service.account_service.AccountService.verify_login_challenge",
+                {"access_token": "token", "expire_at": 123},
+            )
+        ],
+    },
+    {
+        "name": "auth_resend_login_challenge_success",
+        "method": "post",
+        "url": "/auth/login-challenge/resend",
+        "kwargs": {"json": {"challenge_id": "challenge-1"}},
+        "patches": [
+            (
+                "internal.service.account_service.AccountService.resend_login_challenge",
+                {"challenge_required": True},
             )
         ],
     },
@@ -575,3 +587,30 @@ class TestRouteGapBatchMatrix:
         assert resp.status_code == 200
         assert resp.json["code"] == HttpCode.SUCCESS
         assert resp.json["data"]["list"] == []
+
+    def test_public_app_a2a_agent_card_should_delegate_to_service(self, http_client, monkeypatch):
+        monkeypatch.setattr(
+            "internal.service.public_agent_a2a_service.PublicAgentA2AService.get_agent_card",
+            lambda *_args, **_kwargs: {"name": "public-agent", "version": "1.0.0"},
+        )
+
+        resp = http_client.get(f"/public/apps/{PUBLIC_STRING_APP_ID}/a2a/agent-card")
+
+        assert resp.status_code == 200
+        assert resp.json["name"] == "public-agent"
+        assert resp.json["version"] == "1.0.0"
+
+    def test_public_app_a2a_messages_should_delegate_to_service(self, http_client, monkeypatch):
+        monkeypatch.setattr(
+            "internal.service.public_agent_a2a_service.PublicAgentA2AService.send_message",
+            lambda *_args, **_kwargs: {"id": "msg-1", "status": "completed"},
+        )
+
+        resp = http_client.post(
+            f"/public/apps/{PUBLIC_STRING_APP_ID}/a2a/messages",
+            json={"message": {"role": "user", "content": [{"type": "text", "text": "hello"}]}},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["id"] == "msg-1"
+        assert resp.json["status"] == "completed"

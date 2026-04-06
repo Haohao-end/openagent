@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { getReferencedVariables } from '@/utils/helper'
 import { validatePythonSyntax } from '@/utils/python-validator'
-import { Message, type ValidatedError } from '@arco-design/web-vue'
+import { type ValidatedError, Message } from '@arco-design/web-vue'
 import { useVueFlow } from '@vue-flow/core'
 import { cloneDeep, debounce } from 'lodash'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch, inject } from 'vue'

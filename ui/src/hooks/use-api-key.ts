@@ -13,7 +13,6 @@ import {
   updateApiKeyIsActive,
 } from '@/services/api-key'
 import { Message, Modal } from '@arco-design/web-vue'
-
 const parsePositiveIntegerQuery = (value: unknown, fallbackValue: number): number => {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed <= 0) return fallbackValue

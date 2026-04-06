@@ -45,6 +45,13 @@ def _uuid(value: str) -> UUID:
     return UUID(value)
 
 
+def _account_obj(name: str = "tester"):
+    return SimpleNamespace(
+        name=name,
+        avatar=f"https://a.com/{name}.png",
+    )
+
+
 def _paginator():
     paginator = Paginator(db=SimpleNamespace())
     paginator.total_page = 1
@@ -102,6 +109,7 @@ def _app_obj():
             preset_prompt="published prompt",
             model_config={"provider": "openai", "model": "gpt-4o"},
         ),
+        account=_account_obj("app-owner"),
         updated_at=_dt(),
         created_at=_dt(),
     )
@@ -110,8 +118,96 @@ def _app_obj():
 def _history_obj():
     return SimpleNamespace(
         id=_uuid("00000000-0000-0000-0000-000000000010"),
+        app_id=_uuid(APP_ID),
         version=3,
+        config_type="published",
+        model_config={"provider": "deepseek", "model": "deepseek-chat"},
+        dialog_round=3,
+        preset_prompt="published prompt",
+        tools=[],
+        workflows=[],
+        datasets=[],
+        retrieval_config={"retrieval_strategy": "semantic", "k": 10, "score": 0.5},
+        long_term_memory={"enable": True},
+        opening_statement="hello",
+        opening_questions=["q1"],
+        speech_to_text={"enable": True},
+        text_to_speech={"enable": True, "voice": "alex", "auto_play": True},
+        suggested_after_answer={"enable": True},
+        review_config={"enable": False},
+        updated_at=_dt(),
         created_at=_dt(),
+        is_current_published=True,
+        display_config={
+            "model_config": {"provider": "deepseek", "model": "deepseek-chat"},
+            "dialog_round": 3,
+            "preset_prompt": "published prompt",
+            "tools": [
+                {
+                    "type": "builtin_tool",
+                    "provider": {"id": "google", "label": "Google 搜索"},
+                    "tool": {"id": "google_serper", "name": "google_serper", "label": "Google 检索"},
+                }
+            ],
+            "workflows": [],
+            "datasets": [],
+            "retrieval_config": {"retrieval_strategy": "semantic", "k": 10, "score": 0.5},
+            "long_term_memory": {"enable": True},
+            "opening_statement": "hello",
+            "opening_questions": ["q1"],
+            "speech_to_text": {"enable": True},
+            "text_to_speech": {"enable": True, "voice": "alex", "auto_play": True},
+            "suggested_after_answer": {"enable": True},
+            "review_config": {"enable": False},
+        },
+    )
+
+
+def _draft_version_obj():
+    return SimpleNamespace(
+        id=_uuid("00000000-0000-0000-0000-000000000012"),
+        app_id=_uuid(APP_ID),
+        version=0,
+        config_type="draft",
+        model_config={"provider": "deepseek", "model": "deepseek-chat"},
+        dialog_round=3,
+        preset_prompt="draft prompt",
+        tools=[],
+        workflows=[],
+        datasets=[],
+        retrieval_config={"retrieval_strategy": "semantic", "k": 10, "score": 0.5},
+        long_term_memory={"enable": True},
+        opening_statement="draft hello",
+        opening_questions=["draft q1"],
+        speech_to_text={"enable": True},
+        text_to_speech={"enable": True, "voice": "alex", "auto_play": True},
+        suggested_after_answer={"enable": True},
+        review_config={"enable": False},
+        updated_at=_dt(),
+        created_at=_dt(),
+        is_current_published=False,
+        display_config={
+            "model_config": {"provider": "deepseek", "model": "deepseek-chat"},
+            "dialog_round": 3,
+            "preset_prompt": "draft prompt",
+            "tools": [
+                {
+                    "type": "builtin_tool",
+                    "provider": {"id": "google", "label": "Google 搜索"},
+                    "tool": {"id": "google_serper", "name": "google_serper", "label": "Google 检索"},
+                }
+            ],
+            "workflows": [],
+            "datasets": [],
+            "retrieval_config": {"retrieval_strategy": "semantic", "k": 10, "score": 0.5},
+            "long_term_memory": {"enable": True},
+            "opening_statement": "draft hello",
+            "opening_questions": ["draft q1"],
+            "speech_to_text": {"enable": True},
+            "text_to_speech": {"enable": True, "voice": "alex", "auto_play": True},
+            "suggested_after_answer": {"enable": True},
+            "review_config": {"enable": False},
+        },
     )
 
 
@@ -127,6 +223,7 @@ def _workflow_obj():
         is_public=False,
         draft_graph={"nodes": [{}, {}]},
         graph={"nodes": [{}]},
+        account=_account_obj("workflow-owner"),
         published_at=_dt(),
         updated_at=_dt(),
         created_at=_dt(),
@@ -143,6 +240,7 @@ def _dataset_obj():
         hit_count=9,
         related_app_count=2,
         character_count=1024,
+        account=_account_obj("dataset-owner"),
         updated_at=_dt(),
         created_at=_dt(),
     )
@@ -205,6 +303,7 @@ def _api_tool_provider_obj():
         description="天气工具提供者",
         openapi_schema="{}",
         headers=[{"key": "Authorization", "value": "Bearer demo"}],
+        account=_account_obj("provider-owner"),
         tools=[
             SimpleNamespace(
                 id=_uuid("00000000-0000-0000-0000-000000000012"),
@@ -275,7 +374,20 @@ def _assert_get_apps_with_page(data: dict):
 def _assert_publish_histories_with_page(data: dict):
     _assert_page_model(data)
     assert data["list"][0]["version"] == 3
+    assert data["list"][0]["config_type"] == "published"
+    assert data["list"][0]["config"]["model_config"]["provider"] == "deepseek"
+    assert data["list"][0]["is_current_published"] is True
     assert data["list"][0]["created_at"] > 0
+
+
+def _assert_get_versions(data: dict):
+    assert len(data["list"]) == 2
+    assert data["list"][0]["config_type"] == "draft"
+    assert data["list"][0]["label"] == "草稿"
+    assert data["list"][0]["config"]["tools"][0]["provider"]["label"] == "Google 搜索"
+    assert data["list"][1]["config_type"] == "published"
+    assert data["list"][1]["is_current_published"] is True
+    assert data["list"][1]["label"] == "版本 #003"
 
 
 def _assert_message_page(data: dict):
@@ -463,6 +575,37 @@ CASES = [
         ],
     },
     {
+        "name": "prompt_compare_chat_success",
+        "method": "post",
+        "url": f"/apps/{APP_ID}/prompt-compare/chat",
+        "kwargs": {
+            "json": {
+                "lane_id": "lane-1",
+                "query": "hello",
+                "preset_prompt": "你是一个助手",
+                "model_config": {
+                    "provider": "openai",
+                    "model": "gpt-4o-mini",
+                    "parameters": {},
+                },
+                "history": [],
+            }
+        },
+        "patches": [
+            (
+                "internal.service.app_service.AppService.prompt_compare_chat",
+                Response(code=HttpCode.SUCCESS, data={"answer": "ok"}),
+            )
+        ],
+    },
+    {
+        "name": "stop_prompt_compare_chat_success",
+        "method": "post",
+        "url": f"/apps/{APP_ID}/prompt-compare/tasks/{TASK_ID}/stop",
+        "kwargs": {"json": {}},
+        "patches": [("internal.service.app_service.AppService.stop_prompt_compare_chat", None)],
+    },
+    {
         "name": "delete_app_success",
         "method": "post",
         "url": f"/apps/{APP_ID}/delete",
@@ -517,8 +660,28 @@ CASES = [
         "name": "update_account_password_success",
         "method": "post",
         "url": "/account/password",
-        "kwargs": {"json": {"password": "Abcd1234"}},
-        "patches": [("internal.service.account_service.AccountService.update_password", None)],
+        "kwargs": {"json": {"current_password": "OldPass123", "new_password": "Abcd1234"}},
+        "patches": [("internal.service.account_service.AccountService.change_password", None)],
+    },
+    {
+        "name": "send_change_email_code_success",
+        "method": "post",
+        "url": "/account/email/send-code",
+        "kwargs": {"json": {"email": "next@example.com"}},
+        "patches": [("internal.service.account_service.AccountService.send_change_email_code", None)],
+    },
+    {
+        "name": "update_account_email_success",
+        "method": "post",
+        "url": "/account/email",
+        "kwargs": {
+            "json": {
+                "email": "next@example.com",
+                "code": "123456",
+                "current_password": "OldPass123",
+            }
+        },
+        "patches": [("internal.service.account_service.AccountService.update_email", None)],
     },
     {
         "name": "update_account_name_success",
@@ -542,6 +705,20 @@ CASES = [
         "patches": [("internal.service.account_service.AccountService.password_login", {"access_token": "t", "expire_at": 1})],
     },
     {
+        "name": "verify_login_challenge_success",
+        "method": "post",
+        "url": "/auth/login-challenge/verify",
+        "kwargs": {"json": {"challenge_id": "challenge-1", "code": "123456"}},
+        "patches": [("internal.service.account_service.AccountService.verify_login_challenge", {"access_token": "t", "expire_at": 1})],
+    },
+    {
+        "name": "resend_login_challenge_success",
+        "method": "post",
+        "url": "/auth/login-challenge/resend",
+        "kwargs": {"json": {"challenge_id": "challenge-1"}},
+        "patches": [("internal.service.account_service.AccountService.resend_login_challenge", {"challenge_required": True})],
+    },
+    {
         "name": "oauth_provider_success",
         "method": "get",
         "url": "/oauth/github",
@@ -554,6 +731,27 @@ CASES = [
         "url": "/oauth/authorize/github",
         "kwargs": {"json": {"code": "abc"}},
         "patches": [("internal.service.oauth_service.OAuthService.oauth_login", {"access_token": "t", "expire_at": 1})],
+    },
+    {
+        "name": "unbind_account_oauth_success",
+        "method": "post",
+        "url": "/account/oauth/github/unbind",
+        "kwargs": {"json": {}},
+        "patches": [("internal.service.oauth_service.OAuthService.unbind_oauth", None)],
+    },
+    {
+        "name": "revoke_account_session_success",
+        "method": "post",
+        "url": f"/account/sessions/{MESSAGE_ID}/revoke",
+        "kwargs": {"json": {}},
+        "patches": [("internal.service.account_service.AccountService.revoke_account_session", None)],
+    },
+    {
+        "name": "revoke_other_account_sessions_success",
+        "method": "post",
+        "url": "/account/sessions/revoke-others",
+        "kwargs": {"json": {}},
+        "patches": [("internal.service.account_service.AccountService.revoke_other_account_sessions", None)],
     },
     # dataset/document/segment
     {
@@ -888,6 +1086,14 @@ CASES += [
         "kwargs": {},
         "patches": [("internal.service.app_service.AppService.get_publish_histories_with_page", ([_history_obj()], _paginator()))],
         "assertion": _assert_publish_histories_with_page,
+    },
+    {
+        "name": "get_versions_success",
+        "method": "get",
+        "url": f"/apps/{APP_ID}/versions",
+        "kwargs": {},
+        "patches": [("internal.service.app_service.AppService.get_versions", [_draft_version_obj(), _history_obj()])],
+        "assertion": _assert_get_versions,
     },
     {
         "name": "get_debug_messages_with_page_serialization_success",

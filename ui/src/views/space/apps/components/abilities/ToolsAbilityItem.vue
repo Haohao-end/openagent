@@ -6,7 +6,6 @@ import { useGetApiTool, useGetApiToolProvidersWithPage } from '@/hooks/use-tool'
 import { useGetBuiltinTool, useGetBuiltinTools, useGetCategories } from '@/hooks/use-builtin-tool'
 import { apiPrefix, typeMap } from '@/config'
 import { Message } from '@arco-design/web-vue'
-
 type ToolProvider = {
   id: string
   name: string
