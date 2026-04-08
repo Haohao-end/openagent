@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   passwordLogin,
+  prepareRegister,
   resendLoginChallenge,
   resetPassword,
   sendResetCode,
   verifyLoginChallenge,
+  verifyRegister,
 } from '@/services/auth'
 import * as request from '@/utils/request'
 
@@ -26,6 +28,25 @@ describe('auth service', () => {
       body: {
         email: 'tester@example.com',
         password: 'Abcd1234',
+      },
+    })
+  })
+
+  it('posts register prepare and verify requests to the expected endpoints', async () => {
+    await prepareRegister('tester@example.com', 'Abcd1234')
+    await verifyRegister('tester@example.com', 'Abcd1234', '123456')
+
+    expect(request.post).toHaveBeenNthCalledWith(1, '/auth/register/prepare', {
+      body: {
+        email: 'tester@example.com',
+        password: 'Abcd1234',
+      },
+    })
+    expect(request.post).toHaveBeenNthCalledWith(2, '/auth/register/verify', {
+      body: {
+        email: 'tester@example.com',
+        password: 'Abcd1234',
+        code: '123456',
       },
     })
   })

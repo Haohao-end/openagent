@@ -67,7 +67,7 @@ export const useAgentNotificationWebSocket = () => {
       return
     }
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001'
+    const apiUrl = import.meta.env.VITE_API_PREFIX || 'http://localhost:5001'
 
     socket.value = io(apiUrl, {
       auth: (callback) => {

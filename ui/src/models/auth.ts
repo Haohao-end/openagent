@@ -13,4 +13,8 @@ export type LoginAuthorizationData = {
 // 账号密码登录响应结构
 export type PasswordLoginResponse = BaseResponse<LoginAuthorizationData>
 
+export type PrepareRegisterResponse = BaseResponse<Record<string, never>>
+
+export type VerifyRegisterResponse = BaseResponse<LoginAuthorizationData>
+
 export type VerifyLoginChallengeResponse = BaseResponse<LoginAuthorizationData>
