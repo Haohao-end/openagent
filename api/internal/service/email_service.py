@@ -20,6 +20,7 @@ class EmailService:
     PASSWORD_RESET_SCENE = "password_reset"
     CHANGE_EMAIL_SCENE = "change_email"
     LOGIN_CHALLENGE_SCENE = "login_challenge"
+    REGISTER_SCENE = "register"
     CODE_TTL_SECONDS = 5 * 60
     SEND_COOLDOWN_SECONDS = 60
     SEND_WINDOW_SECONDS = 60 * 60
@@ -80,6 +81,13 @@ class EmailService:
                 "【OpenAgent】异常登录验证验证码",
                 "异常登录验证",
                 "如果这不是您本人的操作，请立即修改密码，并在设置中心下线其他登录设备。",
+            )
+
+        if scene == cls.REGISTER_SCENE:
+            return (
+                "【OpenAgent】注册验证码",
+                "注册",
+                "如果这不是您本人的操作，请忽略此邮件，系统不会在未完成验证码校验前创建账号。",
             )
 
         return (
@@ -292,6 +300,10 @@ GitHub：https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Mu
         """发送异常登录二次验证验证码。"""
         return self.send_verification_code(email, scene=self.LOGIN_CHALLENGE_SCENE)
 
+    def send_register_code(self, email: str) -> str:
+        """发送注册验证码。"""
+        return self.send_verification_code(email, scene=self.REGISTER_SCENE)
+
     def send_login_alert_email(
         self,
         email: str,
@@ -416,3 +428,7 @@ OpenAgent AI Agent 平台
     def verify_login_challenge_code(self, email: str, code: str) -> bool:
         """验证异常登录二次验证码。"""
         return self.verify_code(email, code, scene=self.LOGIN_CHALLENGE_SCENE)
+
+    def verify_register_code(self, email: str, code: str) -> bool:
+        """验证注册验证码。"""
+        return self.verify_code(email, code, scene=self.REGISTER_SCENE)
