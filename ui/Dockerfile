@@ -13,8 +13,8 @@ RUN npm install
 # 将项目代码拷贝到容器中
 COPY . .
 
-# 构建时注入前端 API 前缀，默认保持本地开发地址
-ARG VITE_API_PREFIX=http://127.0.0.1:5001
+# 构建时注入前端 API 前缀（由 Compose 前置步骤显式生成）
+ARG VITE_API_PREFIX
 ENV VITE_API_PREFIX=${VITE_API_PREFIX}
 
 # 构建/编译项目
