@@ -12,9 +12,9 @@ const messages = ref<Message[]>([
   {
     id: '1',
     type: 'ai',
-    content: 'Hello! I\'m your AI assistant. How can I help you today?',
-    timestamp: new Date()
-  }
+    content: "Hello! I'm your AI assistant. How can I help you today?",
+    timestamp: new Date(),
+  },
 ])
 
 const inputValue = ref('')
@@ -22,11 +22,11 @@ const isLoading = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 
 const demoResponses = [
-  'That\'s a great question! Let me help you with that.',
-  'I can definitely assist you with that. Here\'s what I recommend...',
+  "That's a great question! Let me help you with that.",
+  "I can definitely assist you with that. Here's what I recommend...",
   'Interesting! Based on your input, I suggest considering these options.',
   'I understand. Let me provide you with some insights on this topic.',
-  'That\'s a common question. Here\'s what works best in most cases.'
+  "That's a common question. Here's what works best in most cases.",
 ]
 
 const scrollToBottom = async () => {
@@ -44,7 +44,7 @@ const handleSendMessage = async () => {
     id: Date.now().toString(),
     type: 'user',
     content: inputValue.value,
-    timestamp: new Date()
+    timestamp: new Date(),
   }
 
   messages.value.push(userMessage)
@@ -53,13 +53,13 @@ const handleSendMessage = async () => {
 
   // Simulate AI response
   isLoading.value = true
-  await new Promise(resolve => setTimeout(resolve, 1000))
+  await new Promise((resolve) => setTimeout(resolve, 1000))
 
   const aiMessage: Message = {
     id: (Date.now() + 1).toString(),
     type: 'ai',
     content: demoResponses[Math.floor(Math.random() * demoResponses.length)],
-    timestamp: new Date()
+    timestamp: new Date(),
   }
 
   messages.value.push(aiMessage)
@@ -79,11 +79,13 @@ const messageCount = computed(() => messages.value.length)
 
 <template>
   <div class="w-full max-w-2xl mx-auto">
-    <div class="rounded-2xl bg-white/40 backdrop-blur-md border border-white/60 overflow-hidden flex flex-col h-96">
+    <div
+      class="rounded-2xl bg-white/40 backdrop-blur-md border border-white/60 overflow-hidden flex flex-col h-96"
+    >
       <!-- Header -->
       <div class="px-6 py-4 border-b border-white/40 bg-white/20">
         <h3 class="text-lg font-bold text-gray-900">Try Our AI Assistant</h3>
-        <p class="text-sm text-gray-600">Experience the power of LLMOps in action</p>
+        <p class="text-sm text-gray-600">Experience the power of OpenAgent in action</p>
       </div>
 
       <!-- Messages -->
@@ -96,12 +98,14 @@ const messageCount = computed(() => messages.value.length)
           :key="message.id"
           :class="[
             'flex gap-3 animate-fade-in',
-            message.type === 'user' ? 'justify-end' : 'justify-start'
+            message.type === 'user' ? 'justify-end' : 'justify-start',
           ]"
         >
           <!-- AI Avatar -->
           <div v-if="message.type === 'ai'" class="flex-shrink-0">
-            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-cyan-400 flex items-center justify-center text-white text-sm font-bold">
+            <div
+              class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-cyan-400 flex items-center justify-center text-white text-sm font-bold"
+            >
               AI
             </div>
           </div>
@@ -112,7 +116,7 @@ const messageCount = computed(() => messages.value.length)
               'max-w-xs px-4 py-2 rounded-lg',
               message.type === 'user'
                 ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-br-none'
-                : 'bg-white/60 text-gray-900 rounded-bl-none'
+                : 'bg-white/60 text-gray-900 rounded-bl-none',
             ]"
           >
             <p class="text-sm leading-relaxed">{{ message.content }}</p>
@@ -120,7 +124,9 @@ const messageCount = computed(() => messages.value.length)
 
           <!-- User Avatar -->
           <div v-if="message.type === 'user'" class="flex-shrink-0">
-            <div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-700 text-sm font-bold">
+            <div
+              class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-700 text-sm font-bold"
+            >
               U
             </div>
           </div>
@@ -128,13 +134,24 @@ const messageCount = computed(() => messages.value.length)
 
         <!-- Loading Indicator -->
         <div v-if="isLoading" class="flex gap-3">
-          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-cyan-400 flex items-center justify-center">
+          <div
+            class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-cyan-400 flex items-center justify-center"
+          >
             <div class="w-2 h-2 rounded-full bg-white animate-pulse" />
           </div>
           <div class="flex gap-1 items-center">
-            <div class="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 0s" />
-            <div class="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 0.1s" />
-            <div class="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 0.2s" />
+            <div
+              class="w-2 h-2 rounded-full bg-gray-400 animate-bounce"
+              style="animation-delay: 0s"
+            />
+            <div
+              class="w-2 h-2 rounded-full bg-gray-400 animate-bounce"
+              style="animation-delay: 0.1s"
+            />
+            <div
+              class="w-2 h-2 rounded-full bg-gray-400 animate-bounce"
+              style="animation-delay: 0.2s"
+            />
           </div>
         </div>
       </div>
@@ -156,7 +173,12 @@ const messageCount = computed(() => messages.value.length)
             class="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+              />
             </svg>
           </button>
         </div>

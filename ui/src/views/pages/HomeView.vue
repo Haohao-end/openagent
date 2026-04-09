@@ -143,11 +143,11 @@ const defaultAssistantIntroduction = computed(() => {
   return [
     `### Hi，${userDisplayName.value}`,
     '',
-    '你好，欢迎来到 **LLMOps** 🎉',
+    '你好，欢迎来到 **OpenAgent** 🎉',
     '',
     '- 我可以帮你从想法出发，快速创建专属 AI 应用。',
     '- 我支持根据你的需求执行 `function call`，自动调用工具并生成垂直 Agent 的后端能力代码与配置。',
-    '- 你可以把应用一键发布到 LLMOps 平台、微信等多个渠道，也可以部署到你自己的网站。',
+    '- 你可以把应用一键发布到 OpenAgent 平台、微信等多个渠道，也可以部署到你自己的网站。',
     '',
     '**试试这些问题：**',
     '- 我想做一个应用',
@@ -1337,7 +1337,7 @@ onUnmounted(() => {
             开发平台
           </div>
           <div class="text-base text-gray-700">
-            说出你的创意，我可以快速帮你创建专属应用，一键轻松分享给朋友，也可以一键发布到 LLMOps
+            说出你的创意，我可以快速帮你创建专属应用，一键轻松分享给朋友，也可以一键发布到 OpenAgent
             平台、微信等多个渠道。
           </div>
         </div>

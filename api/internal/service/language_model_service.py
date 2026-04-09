@@ -20,7 +20,7 @@ class LanguageModelService(BaseService):
     language_model_manager: LanguageModelManager
 
     def get_language_models(self) -> list[dict[str, Any]]:
-        """获取LLMOps项目中的所有模型列表信息"""
+        """获取 OpenAgent 项目中的所有模型列表信息"""
         # 1.调用语言模型管理器获取提供商列表
         providers = self.language_model_manager.get_providers()
 

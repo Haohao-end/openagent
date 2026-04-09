@@ -152,7 +152,7 @@ class TestHomeIntentIntegration:
 
         # 验证返回默认意图
         assert result["is_default"] is True
-        assert "欢迎来到 LLMOps" in result["intent"]
+        assert "欢迎来到 OpenAgent" in result["intent"]
         assert "haohao" not in result["intent"]
 
     def test_handler_integration(self, home_handler, home_service, mock_db, mock_redis):

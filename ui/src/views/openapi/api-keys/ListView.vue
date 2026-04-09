@@ -111,9 +111,7 @@ watch(
         <icon-user class="text-5xl text-gray-400" />
       </div>
       <h3 class="text-lg font-semibold text-gray-900 mb-2">请先登录</h3>
-      <p class="text-gray-500 mb-6 text-center max-w-md">
-        登录后即可查看、创建和管理您的 API 密钥
-      </p>
+      <p class="text-gray-500 mb-6 text-center max-w-md">登录后即可查看、创建和管理您的 API 密钥</p>
       <a-button
         type="primary"
         size="large"
@@ -134,9 +132,14 @@ watch(
       </div>
       <h3 class="text-lg font-semibold text-gray-900 mb-2">暂无 API 密钥</h3>
       <p class="text-gray-500 mb-6 text-center max-w-md">
-        创建您的第一个 API 密钥以开始使用 LLMOps 开放 API
+        创建您的第一个 API 密钥以开始使用 OpenAgent 开放 API
       </p>
-      <a-button type="primary" size="large" class="!rounded-lg !bg-gray-900 hover:!bg-gray-800" @click="emits('update:create_api_key', true)">
+      <a-button
+        type="primary"
+        size="large"
+        class="!rounded-lg !bg-gray-900 hover:!bg-gray-800"
+        @click="emits('update:create_api_key', true)"
+      >
         <template #icon>
           <icon-plus />
         </template>
@@ -178,7 +181,9 @@ watch(
           >
             <template #cell="{ record }">
               <div class="flex items-center gap-3">
-                <div class="flex-shrink-0 w-8 h-8 bg-blue-500 rounded flex items-center justify-center">
+                <div
+                  class="flex-shrink-0 w-8 h-8 bg-blue-500 rounded flex items-center justify-center"
+                >
                   <icon-safe class="text-white text-sm" />
                 </div>
                 <div class="flex-1 min-w-0">
@@ -237,7 +242,13 @@ watch(
           >
             <template #cell="{ record }">
               <div class="text-sm text-gray-700" :title="record.remark">
-                {{ record.remark ? (record.remark.length > 35 ? record.remark.substring(0, 35) + '...' : record.remark) : '暂无备注' }}
+                {{
+                  record.remark
+                    ? record.remark.length > 35
+                      ? record.remark.substring(0, 35) + '...'
+                      : record.remark
+                    : '暂无备注'
+                }}
               </div>
             </template>
           </a-table-column>

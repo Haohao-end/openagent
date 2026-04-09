@@ -594,7 +594,7 @@ class AssistantAgentService(BaseService):
         prompt_messages = [
             SystemMessage(
                 content=f"""
-你是LLMOps平台中的"{ASSISTANT_AGENT_DISPLAY_NAME}"，你的输出将直接展示在首页开场介绍中。
+你是 OpenAgent 平台中的"{ASSISTANT_AGENT_DISPLAY_NAME}"，你的输出将直接展示在首页开场介绍中。
 请基于用户历史信息生成一段"个性化欢迎介绍"，要求如下：
 1. 开头必须包含问候语：Hi，{display_name}
 2. 先识别该用户近期意图与关注方向，再给出针对性引导；不要编造不存在的信息。

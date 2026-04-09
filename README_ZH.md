@@ -1,4 +1,4 @@
-# LLMOps - 端到端大模型运维平台
+# OpenAgent - 端到端 AI Agent 平台
 
 <div align="center">
 
@@ -19,7 +19,7 @@
 
 ## 项目概述
 
-LLMOps 是一个面向 AI Agent 应用构建与运维的全栈平台。当前仓库包含：
+OpenAgent 是一个面向 AI Agent 应用构建与运维的全栈平台。当前仓库包含：
 
 - 基于 Flask 的后端服务，结合 LangChain / LangGraph 做编排
 - 基于 Vue 3 的前端，用于 Agent、工作流、数据集、工具和对话管理

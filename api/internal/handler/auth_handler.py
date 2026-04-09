@@ -18,7 +18,7 @@ from internal.service import AccountService
 @inject
 @dataclass
 class AuthHandler:
-    """LLMOps平台自有授权认证处理器"""
+    """OpenAgent 平台自有授权认证处理器"""
     account_service: AccountService
 
     def password_login(self):

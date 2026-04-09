@@ -10,7 +10,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yaml"
 
 echo "=========================================="
-echo "  LLMOps 安全检查"
+echo "  OpenAgent 安全检查"
 echo "=========================================="
 echo ""
 

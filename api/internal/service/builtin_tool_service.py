@@ -17,7 +17,7 @@ class BuiltinToolService:
     builtin_category_manager: BuiltinCategoryManager
 
     def get_builtin_tools(self) -> list:
-        """获取LLMOps项目中的所有内置提供商+工具对应的信息"""
+        """获取 OpenAgent 项目中的所有内置提供商和工具信息"""
         # 1.获取所有的提供商
         providers = self.builtin_provider_manager.get_providers()
         # 2.遍历所有的提供商并提取工具信息

@@ -173,7 +173,7 @@ class EmailService:
                     <tr>
                         <td style="background-color: #f8f9fa; padding: 30px; text-align: center; border-top: 1px solid #e9ecef;">
                             <p style="margin: 0 0 15px 0; color: #666666; font-size: 14px; font-weight: 600;">
-                                OpenAgent - 端到端 LLMOps 平台
+                                OpenAgent - 端到端 AI Agent 平台
                             </p>
                             <p style="margin: 0 0 20px 0; color: #999999; font-size: 13px; line-height: 1.6;">
                                 多模型 AI Agent 开发与管理平台

@@ -11,7 +11,7 @@ class BuiltinToolHandler:
     """内置工具处理器"""
     builtin_tool_service:BuiltinToolService
     def get_builtin_tools(self):
-        """获取LLMOps所以内置工具信息+提供商信息"""
+        """获取 OpenAgent 所有内置工具信息和提供商信息"""
         builtin_tools = self.builtin_tool_service.get_builtin_tools()
         return success_json(builtin_tools)
 

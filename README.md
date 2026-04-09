@@ -1,4 +1,4 @@
-# LLMOps - End-to-End LLM Operations Platform
+# OpenAgent - End-to-End AI Agent Platform
 
 <div align="center">
 
@@ -19,7 +19,7 @@
 
 ## Overview
 
-LLMOps is a full-stack platform for building and operating AI agent applications. The repository contains:
+OpenAgent is a full-stack platform for building and operating AI agent applications. The repository contains:
 
 - A Flask backend with LangChain and LangGraph orchestration
 - A Vue 3 frontend for agent, workflow, dataset, tool, and conversation management

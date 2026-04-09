@@ -34,7 +34,7 @@ onMounted(() => {
       <HeroSection
         title="Hi，朋友"
         subtitle="你的专属 AI 原生应用开发平台"
-        description="说出你的创意，我可以快速帮你创建专属应用，一键轻松分享给朋友，也可以一键发布到 LLMOps 平台、微信等多个渠道。"
+        description="说出你的创意，我可以快速帮你创建专属应用，一键轻松分享给朋友，也可以一键发布到 OpenAgent 平台、微信等多个渠道。"
         ctaText="开始创建"
         ctaSecondaryText="了解更多"
       />
@@ -110,7 +110,7 @@ onMounted(() => {
             </div>
             <h3 class="text-xl font-bold text-gray-900 mb-2">一键发布</h3>
             <p class="text-gray-600">
-              支持一键发布到多个渠道，包括 LLMOps 平台、微信、网站等。
+              支持一键发布到多个渠道，包括 OpenAgent 平台、微信、网站等。
             </p>
           </GlassCard>
 
@@ -158,7 +158,7 @@ onMounted(() => {
             准备好开始了吗？
           </h2>
           <p class="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-            加入数千名开发者和企业，使用 LLMOps 平台创建和部署强大的 AI 应用。
+            加入数千名开发者和企业，使用 OpenAgent 平台创建和部署强大的 AI 应用。
           </p>
 
           <div class="flex flex-col sm:flex-row gap-4 justify-center">
@@ -229,7 +229,7 @@ onMounted(() => {
         </div>
 
         <div class="border-t border-white/20 pt-8 flex flex-col sm:flex-row justify-between items-center text-sm text-gray-600">
-          <p>&copy; 2026 LLMOps. 保留所有权利。</p>
+          <p>&copy; 2026 OpenAgent. 保留所有权利。</p>
           <div class="flex gap-6 mt-4 sm:mt-0">
             <a href="#" class="hover:text-gray-900 transition">隐私政策</a>
             <a href="#" class="hover:text-gray-900 transition">服务条款</a>

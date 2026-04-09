@@ -21,4 +21,4 @@ def test_docker_compose_should_pass_vite_api_prefix_to_ui_build():
     compose_path = Path(__file__).resolve().parents[4] / "docker" / "docker-compose.yaml"
     compose_text = compose_path.read_text(encoding="utf-8")
 
-    assert "VITE_API_PREFIX: ${VITE_API_PREFIX:-http://127.0.0.1:5001}" in compose_text
+    assert "VITE_API_PREFIX: ${VITE_API_PREFIX:?VITE_API_PREFIX is required in docker/.ui-build.env. Run ./prepare-ui-build-env.sh first}" in compose_text
