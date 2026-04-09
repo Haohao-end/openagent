@@ -26,6 +26,35 @@ class PasswordLoginResp(Schema):
     masked_email = fields.String(allow_none=True)
     risk_reason = fields.String(allow_none=True)
 
+class PrepareRegisterReq(FlaskForm):
+    """准备注册请求结构"""
+    email = StringField('email', validators=[
+        DataRequired("邮箱不能为空"),
+        Email("邮箱格式错误"),
+        Length(min=3, max=254, message="邮箱长度在3~254之间")
+    ])
+    password = StringField('password', validators=[
+        DataRequired("密码不能为空"),
+        regexp(regex=password_pattern, message="密码最少包含一个字母,一个数字,并且长度在8~16")
+    ])
+
+
+class VerifyRegisterReq(FlaskForm):
+    """验证码注册请求结构"""
+    email = StringField('email', validators=[
+        DataRequired("邮箱不能为空"),
+        Email("邮箱格式错误"),
+        Length(min=3, max=254, message="邮箱长度在3~254之间")
+    ])
+    password = StringField('password', validators=[
+        DataRequired("密码不能为空"),
+        regexp(regex=password_pattern, message="密码最少包含一个字母,一个数字,并且长度在8~16")
+    ])
+    code = StringField('code', validators=[
+        DataRequired("验证码不能为空"),
+        Length(min=6, max=6, message="验证码必须是6位数字")
+    ])
+
 class SendResetCodeReq(FlaskForm):
     """发送重置验证码请求结构"""
     email = StringField('email', validators=[

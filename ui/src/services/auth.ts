@@ -1,11 +1,30 @@
 import { post } from '@/utils/request'
 import { type BaseResponse } from '@/models/base'
-import { type PasswordLoginResponse, type VerifyLoginChallengeResponse } from '@/models/auth'
+import {
+  type PasswordLoginResponse,
+  type VerifyLoginChallengeResponse,
+  type PrepareRegisterResponse,
+  type VerifyRegisterResponse,
+} from '@/models/auth'
 
 // 账号密码登录请求
 export const passwordLogin = (email: string, password: string) => {
   return post<PasswordLoginResponse>(`/auth/password-login`, {
     body: { email, password },
+  })
+}
+
+// 发送注册验证码
+export const prepareRegister = (email: string, password: string) => {
+  return post<PrepareRegisterResponse>(`/auth/register/prepare`, {
+    body: { email, password },
+  })
+}
+
+// 校验注册验证码并完成注册
+export const verifyRegister = (email: string, password: string, code: string) => {
+  return post<VerifyRegisterResponse>(`/auth/register/verify`, {
+    body: { email, password, code },
   })
 }
 

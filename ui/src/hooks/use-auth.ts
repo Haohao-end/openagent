@@ -1,5 +1,12 @@
 import { ref } from 'vue'
-import { logout, passwordLogin, resendLoginChallenge, verifyLoginChallenge } from '@/services/auth'
+import {
+  logout,
+  passwordLogin,
+  prepareRegister,
+  resendLoginChallenge,
+  verifyLoginChallenge,
+  verifyRegister,
+} from '@/services/auth'
 import { Message } from '@arco-design/web-vue'
 import { type LoginAuthorizationData } from '@/models/auth'
 
@@ -38,6 +45,39 @@ export const usePasswordLogin = () => {
   }
 
   return { loading, authorization, handlePasswordLogin }
+}
+
+export const usePrepareRegister = () => {
+  const loading = ref(false)
+
+  const handlePrepareRegister = async (email: string, password: string) => {
+    try {
+      loading.value = true
+      const resp = await prepareRegister(email, password)
+      return resp
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, handlePrepareRegister }
+}
+
+export const useVerifyRegister = () => {
+  const loading = ref(false)
+  const authorization = ref<LoginAuthorizationData>({})
+
+  const handleVerifyRegister = async (email: string, password: string, code: string) => {
+    try {
+      loading.value = true
+      const resp = await verifyRegister(email, password, code)
+      authorization.value = resp.data
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { loading, authorization, handleVerifyRegister }
 }
 
 export const useVerifyLoginChallenge = () => {

@@ -343,6 +343,16 @@ class Router:
             view_func=self.auth_handler.password_login,
         )
         bp.add_url_rule(
+            "/auth/register/prepare",
+            methods=["POST"],
+            view_func=self.auth_handler.prepare_register,
+        )
+        bp.add_url_rule(
+            "/auth/register/verify",
+            methods=["POST"],
+            view_func=self.auth_handler.verify_register,
+        )
+        bp.add_url_rule(
             "/auth/logout",
             methods=["POST"],
             view_func=self.auth_handler.logout,

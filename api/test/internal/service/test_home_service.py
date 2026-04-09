@@ -1,11 +1,12 @@
 import pytest
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import Mock
 from uuid import uuid4
 
 from internal.service.intent_recognition_service import IntentRecognitionService
 from internal.service.home_service import HomeService
-from internal.model import Account, Message
+from internal.model import Message
 
 
 class TestHomeService:
@@ -29,8 +30,7 @@ class TestHomeService:
 
     def test_get_recent_messages_no_messages(self, service, mock_db):
         """测试没有消息时返回空列表"""
-        user = Mock(spec=Account)
-        user.id = uuid4()
+        user = SimpleNamespace(id=uuid4())
 
         mock_query = Mock()
         mock_query.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
@@ -41,8 +41,7 @@ class TestHomeService:
 
     def test_get_recent_messages_with_messages(self, service, mock_db):
         """测试获取消息"""
-        user = Mock(spec=Account)
-        user.id = uuid4()
+        user = SimpleNamespace(id=uuid4())
 
         # Mock消息
         message1 = Mock(spec=Message)
@@ -64,8 +63,7 @@ class TestHomeService:
 
     def test_get_user_intent_insufficient_messages(self, service, mock_intent_service):
         """测试消息不足时返回默认意图"""
-        user = Mock(spec=Account)
-        user.id = uuid4()
+        user = SimpleNamespace(id=uuid4())
 
         # Mock获取消息返回空列表
         service._get_recent_messages = Mock(return_value=[])
@@ -75,8 +73,7 @@ class TestHomeService:
 
     def test_get_user_intent_cache_hit(self, service, mock_intent_service):
         """测试缓存命中"""
-        user = Mock(spec=Account)
-        user.id = uuid4()
+        user = SimpleNamespace(id=uuid4())
 
         # Mock消息
         messages = [
@@ -100,8 +97,7 @@ class TestHomeService:
 
     def test_get_user_intent_cache_miss(self, service, mock_intent_service):
         """测试缓存未命中，调用模型"""
-        user = Mock(spec=Account)
-        user.id = uuid4()
+        user = SimpleNamespace(id=uuid4())
 
         # Mock消息
         messages = [

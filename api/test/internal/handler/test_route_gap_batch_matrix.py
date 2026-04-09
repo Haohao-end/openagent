@@ -167,6 +167,30 @@ BATCH_B_SUCCESS_CASES = [
         ],
     },
     {
+        "name": "auth_prepare_register_success",
+        "method": "post",
+        "url": "/auth/register/prepare",
+        "kwargs": {"json": {"email": "tester@example.com", "password": "Abcd1234"}},
+        "patches": [
+            (
+                "internal.service.account_service.AccountService.prepare_register",
+                None,
+            )
+        ],
+    },
+    {
+        "name": "auth_verify_register_success",
+        "method": "post",
+        "url": "/auth/register/verify",
+        "kwargs": {"json": {"email": "tester@example.com", "password": "Abcd1234", "code": "123456"}},
+        "patches": [
+            (
+                "internal.service.account_service.AccountService.register_by_email_code",
+                {"access_token": "token", "expire_at": 123},
+            )
+        ],
+    },
+    {
         "name": "auth_reset_password_success",
         "method": "post",
         "url": "/auth/reset-password",
