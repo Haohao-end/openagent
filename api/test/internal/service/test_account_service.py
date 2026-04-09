@@ -815,7 +815,7 @@ class TestAccountService:
             with pytest.raises(FailException) as exc_info:
                 service.password_login("demo@example.com", "new-pwd")
 
-        assert "该账号尚未设置密码，请使用Google登录" in str(exc_info.value)
+        assert "账号不存在或者密码错误" in str(exc_info.value)
 
     def test_password_login_should_return_token_and_update_login_info(self, monkeypatch):
         redis_stub = _RedisStub()
@@ -985,7 +985,7 @@ class TestAccountService:
             with pytest.raises(FailException) as exc_info:
                 service.password_login(email, "pwd")
 
-        assert "账号不存在" in str(exc_info.value)
+        assert "账号不存在或者密码错误" in str(exc_info.value)
         assert len(redis_stub.setex_calls) == 0
 
     def test_is_login_locked_should_fallback_to_false_when_redis_unavailable(self, monkeypatch):
@@ -1052,7 +1052,7 @@ class TestAccountService:
             with pytest.raises(FailException) as exc_info:
                 service.password_login(email, "wrong")
 
-        assert "密码错误" in str(exc_info.value)
+        assert "账号不存在或者密码错误" in str(exc_info.value)
 
     def test_send_reset_code_should_return_silently_when_email_not_registered(self, monkeypatch):
         service = self._build_service()
