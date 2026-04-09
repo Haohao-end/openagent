@@ -1045,14 +1045,15 @@ class AccountService(BaseService):
     def password_login(self, email: str, password: str) -> dict[str, Any]:
         """根据传递的密码 + 邮箱登录特定的账号"""
         normalized_email = self._normalize_email(email)
+        generic_error_message = "账号不存在或者密码错误"
 
         # 1.根据传递的邮箱查询账号是否存在
         account = self.get_account_by_email(normalized_email)
         if not account:
-            raise FailException("账号不存在")
+            raise FailException(generic_error_message)
 
         if not account.is_password_set:
-            raise FailException(self._build_oauth_only_login_message(account))
+            raise FailException(generic_error_message)
 
         # 2.校验账号密码是否正确
         if not compare_password(
@@ -1060,7 +1061,7 @@ class AccountService(BaseService):
             account.password,
             account.password_salt
         ):
-            raise FailException("密码错误")
+            raise FailException(generic_error_message)
 
         # 3.根据登录风险返回授权凭证或二次验证挑战
         return self.begin_login(account)
