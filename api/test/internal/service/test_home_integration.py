@@ -4,13 +4,14 @@
 import json
 import pytest
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from internal.handler.home_handler import HomeHandler
 from internal.service.home_service import HomeService
 from internal.service.intent_recognition_service import IntentRecognitionService
-from internal.model import Account, Message
+from internal.model import Message
 
 
 class TestHomeIntentIntegration:
@@ -44,8 +45,7 @@ class TestHomeIntentIntegration:
     def test_complete_flow_with_cache_miss(self, home_service, intent_service, mock_db, mock_redis):
         """测试完整流程：缓存未命中，调用模型"""
         # 准备用户
-        user = Mock(spec=Account)
-        user.id = uuid4()
+        user = SimpleNamespace(id=uuid4())
 
         message1 = Mock(spec=Message)
         message1.query = "我想创建一个AI应用"
@@ -100,8 +100,7 @@ class TestHomeIntentIntegration:
     def test_complete_flow_with_cache_hit(self, home_service, intent_service, mock_db, mock_redis):
         """测试完整流程：缓存命中"""
         # 准备用户
-        user = Mock(spec=Account)
-        user.id = uuid4()
+        user = SimpleNamespace(id=uuid4())
 
         message1 = Mock(spec=Message)
         message1.query = "我想创建一个AI应用"
@@ -141,8 +140,7 @@ class TestHomeIntentIntegration:
     def test_complete_flow_insufficient_messages(self, home_service, mock_db):
         """测试消息不足时返回默认意图"""
         # 准备用户
-        user = Mock(spec=Account)
-        user.id = uuid4()
+        user = SimpleNamespace(id=uuid4())
 
         # Mock数据库查询返回空消息列表
         mock_query = Mock()
@@ -160,8 +158,7 @@ class TestHomeIntentIntegration:
     def test_handler_integration(self, home_handler, home_service, mock_db, mock_redis):
         """测试处理器集成"""
         # 准备用户
-        user = Mock(spec=Account)
-        user.id = uuid4()
+        user = SimpleNamespace(id=uuid4())
 
         # Mock数据库查询
         mock_query = Mock()

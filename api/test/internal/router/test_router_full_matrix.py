@@ -77,6 +77,8 @@ class TestRouterFullMatrix:
             '/auth/login-challenge/resend': {'POST'},
             '/auth/login-challenge/verify': {'POST'},
             '/auth/password-login': {'POST'},
+            '/auth/register/prepare': {'POST'},
+            '/auth/register/verify': {'POST'},
             '/auth/reset-password': {'POST'},
             '/auth/send-reset-code': {'POST'},
             '/builtin-tools': {'GET'},
@@ -185,4 +187,4 @@ class TestRouterFullMatrix:
         assert by_blueprint["openapi"] == 1
         assert by_blueprint["llmops"] == len(rules) - 1
         # 当前系统的接口总量是一个重要契约，避免漏挂导致线上能力消失。
-        assert len(rules) == 168
+        assert len(rules) == 170
