@@ -14,11 +14,14 @@ export NGINX_DOMAIN_NAME=${NGINX_DOMAIN_NAME:-${DOMAIN_NAME:-localhost}}
 export NGINX_SSL_CERT_FILE=${NGINX_SSL_CERT_FILE:-server.crt}
 export NGINX_SSL_KEY_FILE=${NGINX_SSL_KEY_FILE:-server.key}
 export NGINX_ENABLE_HTTPS=${NGINX_ENABLE_HTTPS:-${ENABLE_HTTPS:-false}}
+export NGINX_CONF_DIR=${NGINX_CONF_DIR:-/etc/nginx/conf.d}
+export NGINX_SSL_DIR=${NGINX_SSL_DIR:-/etc/ssl}
 ENABLE_HTTPS_NORMALIZED="$(echo "$NGINX_ENABLE_HTTPS" | tr '[:upper:]' '[:lower:]')"
 export API_UPSTREAM_HOST=${API_UPSTREAM_HOST:-llmops-api}
 export API_UPSTREAM_PORT=${API_UPSTREAM_PORT:-5001}
 export UI_UPSTREAM_HOST=${UI_UPSTREAM_HOST:-llmops-ui}
 export UI_UPSTREAM_PORT=${UI_UPSTREAM_PORT:-3000}
+DEFAULT_CONF_PATH="${NGINX_CONF_DIR}/default.conf"
 
 echo "域名: $NGINX_DOMAIN_NAME"
 echo "SSL 证书: $NGINX_SSL_CERT_FILE"
@@ -30,14 +33,14 @@ echo ""
 
 # 检查 SSL 证书文件是否存在
 if [ "$ENABLE_HTTPS_NORMALIZED" = "true" ]; then
-    if [ ! -f "/etc/ssl/$NGINX_SSL_CERT_FILE" ]; then
-        echo "❌ 错误: SSL 证书文件不存在: /etc/ssl/$NGINX_SSL_CERT_FILE"
+    if [ ! -f "${NGINX_SSL_DIR}/$NGINX_SSL_CERT_FILE" ]; then
+        echo "❌ 错误: SSL 证书文件不存在: ${NGINX_SSL_DIR}/$NGINX_SSL_CERT_FILE"
         echo "请将 SSL 证书上传到服务器的 docker/nginx/ssl/ 目录"
         exit 1
     fi
 
-    if [ ! -f "/etc/ssl/$NGINX_SSL_KEY_FILE" ]; then
-        echo "❌ 错误: SSL 私钥文件不存在: /etc/ssl/$NGINX_SSL_KEY_FILE"
+    if [ ! -f "${NGINX_SSL_DIR}/$NGINX_SSL_KEY_FILE" ]; then
+        echo "❌ 错误: SSL 私钥文件不存在: ${NGINX_SSL_DIR}/$NGINX_SSL_KEY_FILE"
         echo "请将 SSL 私钥上传到服务器的 docker/nginx/ssl/ 目录"
         exit 1
     fi
@@ -47,8 +50,14 @@ fi
 
 # 生成 Nginx 配置
 echo "正在生成 Nginx 配置..."
+mkdir -p "$NGINX_CONF_DIR"
 if [ "$ENABLE_HTTPS_NORMALIZED" = "true" ]; then
-    cat > /etc/nginx/conf.d/default.conf <<EOF
+    cat > "$DEFAULT_CONF_PATH" <<EOF
+map \$http_upgrade \$connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
 server {
     listen 80;
     server_name ${NGINX_DOMAIN_NAME};
@@ -65,6 +74,13 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
 
+    location /api/socket.io/ {
+        proxy_pass http://${API_UPSTREAM_HOST}:${API_UPSTREAM_PORT}/socket.io/;
+        include /etc/nginx/proxy.conf;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+    }
+
     location /api/ {
         proxy_pass http://${API_UPSTREAM_HOST}:${API_UPSTREAM_PORT}/;
         include /etc/nginx/proxy.conf;
@@ -77,10 +93,22 @@ server {
 }
 EOF
 else
-    cat > /etc/nginx/conf.d/default.conf <<EOF
+    cat > "$DEFAULT_CONF_PATH" <<EOF
+map \$http_upgrade \$connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
 server {
     listen 80;
     server_name ${NGINX_DOMAIN_NAME};
+
+    location /api/socket.io/ {
+        proxy_pass http://${API_UPSTREAM_HOST}:${API_UPSTREAM_PORT}/socket.io/;
+        include /etc/nginx/proxy.conf;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+    }
 
     location /api/ {
         proxy_pass http://${API_UPSTREAM_HOST}:${API_UPSTREAM_PORT}/;
@@ -100,7 +128,7 @@ echo ""
 echo "=========================================="
 echo "  生成的配置:"
 echo "=========================================="
-cat /etc/nginx/conf.d/default.conf
+cat "$DEFAULT_CONF_PATH"
 echo ""
 echo "=========================================="
 

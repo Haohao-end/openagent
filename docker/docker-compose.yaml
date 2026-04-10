@@ -1,13 +1,9 @@
 services:
   llmops-ui:
     image: llmops-ui:${IMAGE_VERSION:-0.1.0}
-    env_file:
-      - ./.ui-build.env
     build:
-      context: ../ui
-      dockerfile: Dockerfile
-      args:
-        VITE_API_PREFIX: ${VITE_API_PREFIX:?VITE_API_PREFIX is required in docker/.ui-build.env. Run ./prepare-ui-build-env.sh first}
+      context: ..
+      dockerfile: ui/Dockerfile
     container_name: llmops-ui
     restart: always
     ports:

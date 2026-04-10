@@ -38,19 +38,19 @@ vi.mock('@/stores/credential', () => ({
 
 const createHarness = async () => {
   vi.resetModules()
-  const { useDocumentIndexNotificationWebSocket } = await import('@/hooks/use-document-index-notification-websocket')
+  const { useAgentNotificationWebSocket } = await import('@/hooks/use-agent-notification-websocket')
 
   return mount(
     defineComponent({
       setup() {
-        return useDocumentIndexNotificationWebSocket()
+        return useAgentNotificationWebSocket()
       },
       template: '<div />',
     }),
   )
 }
 
-describe('useDocumentIndexNotificationWebSocket', () => {
+describe('useAgentNotificationWebSocket', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     handlers.clear()
@@ -83,7 +83,7 @@ describe('useDocumentIndexNotificationWebSocket', () => {
     vi.unstubAllGlobals()
   })
 
-  it('creates a socket client, becomes ready after ack, and unsubscribes on cleanup', async () => {
+  it('creates a socket client with the direct local api origin, becomes ready after ack, and unsubscribes on cleanup', async () => {
     const wrapper = await createHarness()
     wrapper.vm.subscribeToNotifications(vi.fn())
 
@@ -99,33 +99,43 @@ describe('useDocumentIndexNotificationWebSocket', () => {
     )
 
     expect(wrapper.vm.isEnabled).toBe(true)
-    expect(wrapper.vm.isConnected).toBe(false)
 
     socketInstance.connect()
     await nextTick()
 
     expect(wrapper.vm.isConnected).toBe(true)
     expect(timeoutEmit).toHaveBeenCalledWith(
-      'subscribe_document_index_notification',
+      'subscribe_agent_notification',
       expect.any(Function),
     )
 
     const acknowledgeSubscription = timeoutEmit.mock.calls[0][1]
     acknowledgeSubscription(null, {
       ok: true,
-      channel: 'document:channel-1',
+      channel: 'agent:channel-1',
     })
     await nextTick()
 
     expect(wrapper.vm.isReady).toBe(true)
 
     wrapper.unmount()
-    expect(socketInstance.off).toHaveBeenCalledWith('document_index_notification', expect.any(Function))
-    expect(socketInstance.emit).toHaveBeenCalledWith('unsubscribe_document_index_notification')
+    expect(socketInstance.off).toHaveBeenCalledWith('agent_notification', expect.any(Function))
+    expect(socketInstance.emit).toHaveBeenCalledWith('unsubscribe_agent_notification')
     expect(socketInstance.disconnect).toHaveBeenCalled()
   })
 
-  it('derives a proxied socket.io path when the configured api prefix contains /api', async () => {
+  it('replaces the previous message listener when subscribeToNotifications is called again', async () => {
+    const wrapper = await createHarness()
+
+    wrapper.vm.subscribeToNotifications(vi.fn())
+    wrapper.vm.subscribeToNotifications(vi.fn())
+
+    expect(socketInstance.off).toHaveBeenCalledWith('agent_notification', expect.any(Function))
+
+    wrapper.unmount()
+  })
+
+  it('derives a socket.io path under /api when the configured api prefix includes the proxy prefix', async () => {
     vi.stubEnv('VITE_API_PREFIX', 'https://openllm.cloud/api')
 
     const wrapper = await createHarness()
@@ -149,7 +159,7 @@ describe('useDocumentIndexNotificationWebSocket', () => {
     const firstAcknowledgeSubscription = timeoutEmit.mock.calls[0][1]
     firstAcknowledgeSubscription(null, {
       ok: true,
-      channel: 'document:channel-1',
+      channel: 'agent:channel-1',
     })
     await nextTick()
 
@@ -165,6 +175,7 @@ describe('useDocumentIndexNotificationWebSocket', () => {
     expect(socketInstance.disconnect).toHaveBeenCalledTimes(1)
     expect(socketInstance.connect).toHaveBeenCalledTimes(2)
     expect(timeoutEmit).toHaveBeenCalledTimes(2)
+    expect(wrapper.vm.isConnected).toBe(true)
 
     wrapper.unmount()
   })
@@ -185,7 +196,7 @@ describe('useDocumentIndexNotificationWebSocket', () => {
 
     expect(wrapper.vm.isReady).toBe(false)
     expect(warnSpy).toHaveBeenCalledWith(
-      '[WebSocket] Failed to subscribe document notifications:',
+      '[WebSocket] Failed to subscribe agent notifications:',
       { ok: false, error: 'unauthorized' },
     )
 
@@ -195,8 +206,6 @@ describe('useDocumentIndexNotificationWebSocket', () => {
 
   it('disconnects when the credential becomes unavailable', async () => {
     const wrapper = await createHarness()
-
-    expect(wrapper.vm.isEnabled).toBe(true)
 
     credentialState.credential = {
       access_token: '',

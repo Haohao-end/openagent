@@ -40,7 +40,7 @@ api/
 - LangSmith 追踪配置
 - 邮件服务配置
 
-**这些配置通过 `env_file` 直接注入到容器中**
+**这些配置通过 `env_file` 注入后端容器,`VITE_API_PREFIX` 还会被 UI Docker 构建直接读取**
 
 ### 3. Docker Compose 环境变量覆盖
 
@@ -51,31 +51,30 @@ api/
 
 ## 配置流程
 
-### 方式一: 使用 api/.env (推荐)
+### 方式一: 直接使用 `docker compose` (推荐)
 
-1. 确保 `api/.env` 文件存在并配置完整
-2. 运行前置步骤,从 `api/.env` 生成前端构建环境文件:
+1. 确保 `api/.env` 文件存在并配置完整,尤其是 `VITE_API_PREFIX`
+2. 启动服务:
    ```bash
    cd docker
-   ./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
+   docker compose up -d --build
    ```
-3. 启动服务:
+3. 查看状态:
    ```bash
-   docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml up -d --build
+   docker compose ps
    ```
 
-**优点**:
-- `api/.env` 作为后端运行时配置和前端构建参数的唯一来源
-- 前置步骤会显式生成 `docker/.ui-build.env`,避免前端构建回退到错误默认值
-- 缺少 `VITE_API_PREFIX` 时会在构建前直接失败
+**说明**:
+- `api/.env` 是后端运行配置和 UI 构建时 `VITE_API_PREFIX` 的唯一来源
+- `llmops-ui` 构建时会直接读取 `../api/.env`,不再需要 `.ui-build.env`
+- 缺少 `VITE_API_PREFIX` 时,UI 镜像会在构建阶段直接失败
 
-### 方式二: 仅使用默认配置
+### 方式二: 使用启动脚本
 
-如果 `api/.env` 不存在或某些变量未设置:
-
-1. 容器启动时会使用 `entrypoint.sh` 中的默认值
-2. 默认值包含了所有必需的配置(使用示例 API Keys)
-3. 服务可以正常启动,但建议配置真实的 API Keys
+```bash
+cd docker
+./start.sh
+```
 
 ## 环境变量说明
 
@@ -103,6 +102,7 @@ api/
 参考 `api/.env.example` 或项目文档中的完整说明。
 
 主要包括:
+- 前端构建配置 (`VITE_API_PREFIX`)
 - Flask 配置 (FLASK_DEBUG, FLASK_ENV)
 - JWT 密钥
 - 数据库连接 (本地开发时使用 localhost)
@@ -121,10 +121,9 @@ api/
 # 编辑 api/.env
 OPENAI_API_KEY=your-new-key
 
-# 重新生成前端构建环境文件并重启相关服务
+# 重启相关服务
 cd docker
-./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml restart llmops-api llmops-celery
+docker compose restart llmops-api llmops-celery
 ```
 
 ### 场景 2: 修改数据库密码
@@ -137,9 +136,8 @@ REDIS_PASSWORD=new-password
 
 # 重新创建容器
 cd docker
-./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml down
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml up -d --build
+docker compose down
+docker compose up -d --build
 ```
 
 ### 场景 3: 修改端口映射
@@ -152,9 +150,8 @@ UI_PORT=8080
 
 # 重新创建容器
 cd docker
-./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml down
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml up -d --build
+docker compose down
+docker compose up -d --build
 ```
 
 ### 场景 4: 本地开发 + Docker 基础设施
@@ -162,8 +159,7 @@ docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compo
 1. 启动 Docker 基础设施(数据库、Redis、Weaviate):
    ```bash
    cd docker
-   ./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
-   docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml up -d llmops-db llmops-redis llmops-weaviate
+   docker compose up -d llmops-db llmops-redis llmops-weaviate
    ```
 
 2. 本地运行 API 和 UI:
@@ -184,11 +180,11 @@ docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compo
 ## 注意事项
 
 1. **网络隔离**: Docker 容器内部使用服务名通信(如 `llmops-db`),本地开发使用 `localhost`
-2. **配置同步**: 修改 `api/.env` 中的 `VITE_API_PREFIX` 后,需要重新运行 `./prepare-ui-build-env.sh ../api/.env ./.ui-build.env` 并重新 build `llmops-ui`
+2. **配置同步**: 修改 `api/.env` 中的 `VITE_API_PREFIX` 后,需要重新 build `llmops-ui`
 3. **密钥安全**: 不要将包含真实密钥的 `.env` 文件提交到 Git
 4. **健康检查**: 数据库和 Redis 配置了健康检查,API 和 Celery 会等待它们就绪后再启动
 5. **数据持久化**: 数据库、Redis、Weaviate 的数据都挂载到 `docker/volumes/` 目录
-6. **前端构建约束**: `llmops-ui` 现在要求先生成 `docker/.ui-build.env`,未生成时 Compose 会直接报错
+6. **前端构建约束**: `llmops-ui` 构建时会直接读取 `api/.env` 中的 `VITE_API_PREFIX`
 
 ## 故障排查
 
@@ -196,11 +192,11 @@ docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compo
 
 ```bash
 # 查看容器日志
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml logs llmops-api
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml logs llmops-celery
+docker compose logs llmops-api
+docker compose logs llmops-celery
 
 # 查看所有容器状态
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml ps
+docker compose ps
 ```
 
 ### 数据库连接失败
@@ -209,23 +205,21 @@ docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compo
 
 ### API Key 无效
 
-检查 `api/.env` 中的 API Key 是否正确配置,并在更新前端 API 前缀后重新生成构建环境文件:
+检查 `api/.env` 中的 API Key 是否正确配置:
 ```bash
 cd docker
-./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml restart llmops-api llmops-celery
+docker compose restart llmops-api llmops-celery
 ```
 
 ## 清理与重置
 
 ```bash
 # 停止所有服务
-./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml down
+docker compose down
 
 # 删除所有数据(谨慎操作!)
 sudo rm -rf volumes/
 
 # 重新启动
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml up -d --build
+docker compose up -d --build
 ```

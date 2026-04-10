@@ -4,24 +4,24 @@ FROM node:18-alpine AS builder
 # 设置工作目录
 WORKDIR /app/web
 
-# 将 package.json 拷贝到镜像内
-COPY package.json .
+# 将依赖定义拷贝到镜像内
+COPY ui/package*.json ./
 
 # 使用 npm 安装依赖
 RUN npm install
 
-# 将项目代码拷贝到容器中
-COPY . .
+# 将项目代码和 api/.env 拷贝到容器中
+COPY ui/ ./
+COPY api/.env* /app/api/
 
-# 构建时注入前端 API 前缀（由 Compose 前置步骤显式生成）
-ARG VITE_API_PREFIX
-ENV VITE_API_PREFIX=${VITE_API_PREFIX}
-
-# 构建/编译项目
-RUN npm run build
+# Docker 化构建时直接从 api/.env 读取前端 API 前缀
+RUN test -f /app/api/.env || (echo "ERROR: missing api/.env. Copy api/.env.example to api/.env and set VITE_API_PREFIX before building." >&2 && exit 1)
+RUN VITE_API_PREFIX="$(node ./scripts/read-dotenv-value.mjs /app/api/.env VITE_API_PREFIX)" \
+    && export VITE_API_PREFIX \
+    && npm run build
 
 # 二阶段使用 Nginx 来部署 Vue 静态页面+
-FROM nginx:alpine as production
+FROM nginx:alpine AS production
 COPY --from=builder /app/web/dist /usr/share/nginx/html
 COPY --from=builder /app/web/docker/nginx/nginx.conf /etc/nginx/conf.d/default.conf
 

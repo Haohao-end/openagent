@@ -8,8 +8,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yaml"
 ENV_FILE="$PROJECT_ROOT/api/.env"
 ENV_EXAMPLE="$PROJECT_ROOT/api/.env.example"
-UI_BUILD_ENV_FILE="$SCRIPT_DIR/.ui-build.env"
-PREPARE_UI_ENV_SCRIPT="$SCRIPT_DIR/prepare-ui-build-env.sh"
+DOCKER_ENV_FILE="$SCRIPT_DIR/.env"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "ERROR: docker is not installed"
@@ -22,29 +21,22 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 
 if [ ! -f "$ENV_FILE" ]; then
-  if [ ! -f "$ENV_EXAMPLE" ]; then
-    echo "ERROR: missing $ENV_FILE and $ENV_EXAMPLE"
-    exit 1
-  fi
-  cp "$ENV_EXAMPLE" "$ENV_FILE"
-  echo "Created $ENV_FILE from $ENV_EXAMPLE"
+  echo "ERROR: missing $ENV_FILE"
+  echo "Copy $ENV_EXAMPLE to $ENV_FILE and set VITE_API_PREFIX before starting Docker services."
+  exit 1
 fi
 
-if [ ! -x "$PREPARE_UI_ENV_SCRIPT" ]; then
-  chmod +x "$PREPARE_UI_ENV_SCRIPT"
-fi
-
-"$PREPARE_UI_ENV_SCRIPT" "$ENV_FILE" "$UI_BUILD_ENV_FILE"
-
-if ! docker compose --env-file "$ENV_FILE" --env-file "$UI_BUILD_ENV_FILE" -f "$COMPOSE_FILE" config --quiet; then
+if ! docker compose -f "$COMPOSE_FILE" config --quiet; then
   echo "ERROR: docker-compose.yaml is invalid"
   exit 1
 fi
 
 # shellcheck disable=SC1090
 source "$ENV_FILE"
-# shellcheck disable=SC1090
-source "$UI_BUILD_ENV_FILE"
+if [ -f "$DOCKER_ENV_FILE" ]; then
+  # shellcheck disable=SC1090
+  source "$DOCKER_ENV_FILE"
+fi
 
 echo "Frontend:   http://localhost:${UI_PORT:-3000}"
 echo "API:        http://localhost:${API_PORT:-5001}"
@@ -58,14 +50,13 @@ if [[ ! "$REPLY" =~ ^[Yy]$ ]] && [[ -n "$REPLY" ]]; then
   exit 0
 fi
 
-docker compose --env-file "$ENV_FILE" --env-file "$UI_BUILD_ENV_FILE" -f "$COMPOSE_FILE" build
-docker compose --env-file "$ENV_FILE" --env-file "$UI_BUILD_ENV_FILE" -f "$COMPOSE_FILE" up -d
+docker compose -f "$COMPOSE_FILE" build
+docker compose -f "$COMPOSE_FILE" up -d
 
 echo ""
-docker compose --env-file "$ENV_FILE" --env-file "$UI_BUILD_ENV_FILE" -f "$COMPOSE_FILE" ps
+docker compose -f "$COMPOSE_FILE" ps
 
 echo ""
 echo "Use these commands:"
-echo "  ./prepare-ui-build-env.sh ../api/.env ./.ui-build.env"
-echo "  docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml logs -f [service]"
-echo "  docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml down"
+echo "  docker compose -f docker-compose.yaml logs -f [service]"
+echo "  docker compose -f docker-compose.yaml down"

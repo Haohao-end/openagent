@@ -82,6 +82,7 @@ class _FakeRouter:
 def _new_http_app(monkeypatch):
     cors_calls = []
     ext_calls = []
+    socketio_calls = []
 
     monkeypatch.setattr(
         "internal.server.http.CORS",
@@ -98,6 +99,10 @@ def _new_http_app(monkeypatch):
     monkeypatch.setattr(
         "internal.server.http.celery_extension.init_app",
         lambda app: ext_calls.append(("celery", app)),
+    )
+    monkeypatch.setattr(
+        "internal.server.http.init_socketio",
+        lambda app: socketio_calls.append(app),
     )
 
     db = _FakeDB()
@@ -119,11 +124,11 @@ def _new_http_app(monkeypatch):
         middleware=middleware,
         router=router,
     )
-    return app, db, weaviate, migrate, login_manager, mail, router, cors_calls, ext_calls
+    return app, db, weaviate, migrate, login_manager, mail, router, cors_calls, ext_calls, socketio_calls
 
 
 def test_http_init_should_wire_extensions_middleware_and_router(monkeypatch):
-    app, db, weaviate, migrate, login_manager, mail, router, cors_calls, ext_calls = _new_http_app(monkeypatch)
+    app, db, weaviate, migrate, login_manager, mail, router, cors_calls, ext_calls, socketio_calls = _new_http_app(monkeypatch)
 
     assert app.config["CELERY"] == {"broker_url": "redis://example"}
     assert db.init_calls == [app]
@@ -137,6 +142,7 @@ def test_http_init_should_wire_extensions_middleware_and_router(monkeypatch):
     assert cors_calls[0][1]["/*"]["origins"] == ["https://ui.example.com"]
     assert cors_calls[0][1]["/*"]["supports_credentials"] is True
     assert [name for name, _ in ext_calls] == ["logging", "redis", "celery"]
+    assert socketio_calls == [app]
 
 
 def test_http_init_should_fallback_to_localhost_when_wildcard_conflicts_with_credentials(monkeypatch):

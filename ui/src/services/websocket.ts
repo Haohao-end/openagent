@@ -1,6 +1,8 @@
+import { socketConnectionUrl, socketPath } from '@/config'
 import { io } from 'socket.io-client'
 
-const socket = io(import.meta.env.VITE_API_PREFIX || 'http://localhost:5001', {
+const socket = io(socketConnectionUrl, {
+  path: socketPath,
   reconnection: true,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,

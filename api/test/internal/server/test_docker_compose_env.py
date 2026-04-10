@@ -17,8 +17,25 @@ def test_docker_compose_should_keep_api_env_file_as_single_source_of_truth():
     assert "../api/.env" in compose_text
 
 
-def test_docker_compose_should_pass_vite_api_prefix_to_ui_build():
+def test_docker_compose_should_not_require_ui_build_env_file():
     compose_path = Path(__file__).resolve().parents[4] / "docker" / "docker-compose.yaml"
     compose_text = compose_path.read_text(encoding="utf-8")
 
-    assert "VITE_API_PREFIX: ${VITE_API_PREFIX:?VITE_API_PREFIX is required in docker/.ui-build.env. Run ./prepare-ui-build-env.sh first}" in compose_text
+    assert ".ui-build.env" not in compose_text
+    assert "context: .." in compose_text
+    assert "dockerfile: ui/Dockerfile" in compose_text
+
+
+def test_ui_dockerfile_should_read_vite_api_prefix_from_api_env():
+    dockerfile_path = Path(__file__).resolve().parents[4] / "ui" / "Dockerfile"
+    dockerfile_text = dockerfile_path.read_text(encoding="utf-8")
+
+    assert "COPY api/.env* /app/api/" in dockerfile_text
+    assert "read-dotenv-value.mjs /app/api/.env VITE_API_PREFIX" in dockerfile_text
+
+
+def test_api_env_example_should_document_vite_api_prefix():
+    env_example_path = Path(__file__).resolve().parents[4] / "api" / ".env.example"
+    env_example_text = env_example_path.read_text(encoding="utf-8")
+
+    assert "VITE_API_PREFIX=" in env_example_text

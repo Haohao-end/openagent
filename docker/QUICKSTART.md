@@ -5,7 +5,6 @@
 | 文件 | 状态 | 说明 |
 |------|------|------|
 | `docker/.env` | ✨ 新增 | Docker 基础设施配置 |
-| `docker/.env.example` | ✨ 新增 | 配置模板 |
 | `docker/docker-compose.yaml` | 🔄 重构 | 简化为 150 行(原 265 行) |
 | `docker/README.md` | ✨ 新增 | 详细使用文档 |
 | `docker/MIGRATION.md` | ✨ 新增 | 迁移指南 |
@@ -24,17 +23,11 @@
 │  - 业务配置                          │
 │  - 前端构建参数唯一来源              │
 └─────────────────────────────────────┘
-           ↓ 显式前置步骤
-┌─────────────────────────────────────┐
-│  prepare-ui-build-env.sh            │
-│  - 校验 VITE_API_PREFIX             │
-│  - 生成 docker/.ui-build.env        │
-└─────────────────────────────────────┘
-           ↓ Compose 引用
+           ↓ Docker 构建直接读取
 ┌─────────────────────────────────────┐
 │  docker-compose.yaml                │
 │  - 服务编排                          │
-│  - 消费 .ui-build.env 构建前端       │
+│  - 直接构建 llmops-ui                │
 └─────────────────────────────────────┘
            ↓ 引用
 ┌─────────────────────────────────────┐
@@ -90,39 +83,33 @@ cd docker
 ```bash
 cd docker
 
-# 1. 从 api/.env 显式生成前端构建环境文件
-./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
+# 1. 启动服务
+docker compose up -d --build
 
-# 2. 启动服务
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml up -d --build
-
-# 3. 查看状态
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml ps
+# 2. 查看状态
+docker compose ps
 ```
 
 ## 📝 常用命令
 
 ```bash
-# 先生成前端构建环境文件
-./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
-
 # 查看配置(验证变量替换)
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml config
+docker compose config
 
 # 查看日志
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml logs -f llmops-api
+docker compose logs -f llmops-api
 
 # 重启服务
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml restart llmops-api
+docker compose restart llmops-api
 
 # 停止服务
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml stop
+docker compose stop
 
 # 删除服务(保留数据)
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml down
+docker compose down
 
 # 删除服务和数据
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml down -v
+docker compose down -v
 ```
 
 ## 🔧 配置修改
@@ -133,11 +120,8 @@ docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compo
 # 编辑 api/.env
 vim ../api/.env
 
-# 重新生成前端构建环境文件
-./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
-
 # 重启容器
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml restart llmops-api llmops-celery
+docker compose restart llmops-api llmops-celery
 ```
 
 ### 修改端口
@@ -147,9 +131,8 @@ docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compo
 vim .env
 
 # 重新创建容器
-./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml down
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml up -d --build
+docker compose down
+docker compose up -d --build
 ```
 
 ### 修改数据库密码
@@ -159,9 +142,8 @@ docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compo
 vim .env
 
 # 删除数据并重新创建
-./prepare-ui-build-env.sh ../api/.env ./.ui-build.env
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml down -v
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml up -d --build
+docker compose down -v
+docker compose up -d --build
 ```
 
 ## 🎨 配置示例
@@ -178,6 +160,7 @@ UI_PORT=8080
 ### api/.env
 ```bash
 # 业务配置
+VITE_API_PREFIX=http://127.0.0.1:5001
 OPENAI_API_KEY=sk-your-real-key
 DEEPSEEK_API_KEY=sk-your-deepseek-key
 GITHUB_CLIENT_ID=your-github-client-id
@@ -194,9 +177,9 @@ GITHUB_CLIENT_SECRET=your-github-secret
    ```
    docker-compose.yaml environment (最高)
    ↓
-   docker/.ui-build.env（由 api/.env 显式生成，用于前端构建）
-   ↓
    api/.env
+   ↓
+   docker/.env
    ↓
    entrypoint.sh 默认值 (最低)
    ```
@@ -216,36 +199,36 @@ GITHUB_CLIENT_SECRET=your-github-secret
 
 ```bash
 # 查看日志
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml logs llmops-api
+docker compose logs llmops-api
 
 # 检查配置
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml config
+docker compose config
 
 # 查看容器状态
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml ps
+docker compose ps
 ```
 
 ### 数据库连接失败
 
 ```bash
 # 检查数据库是否就绪
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml ps llmops-db
+docker compose ps llmops-db
 
 # 查看数据库日志
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml logs llmops-db
+docker compose logs llmops-db
 
 # 测试连接
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml exec llmops-db pg_isready -U postgres
+docker compose exec llmops-db pg_isready -U postgres
 ```
 
 ### API Key 无效
 
 ```bash
 # 检查环境变量是否正确注入
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml exec llmops-api env | grep API_KEY
+docker compose exec llmops-api env | grep API_KEY
 
 # 重启容器
-docker compose --env-file ../api/.env --env-file ./.ui-build.env -f docker-compose.yaml restart llmops-api
+docker compose restart llmops-api
 ```
 
 ## 📚 文档索引
