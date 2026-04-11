@@ -9,11 +9,10 @@ class PasswordLoginReq(FlaskForm):
     email = StringField('email', validators=[
         DataRequired(),
         Email("登陆邮箱格式错误"),
-        Length(min=3, max=254, message="登陆邮箱长度在5~254之间")
+        Length(min=3, max=254, message="登录邮箱长度在3~254之间")
     ])
     password = StringField('password', validators=[
         DataRequired("密码不能为空"),
-        regexp(regex=password_pattern, message="密码最少包含一个字母,一个数字,并且长度在8~16")
     ])
 
 class PasswordLoginResp(Schema):

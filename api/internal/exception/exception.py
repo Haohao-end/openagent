@@ -9,12 +9,19 @@ class CustomException(Exception):
     message: str = ""
     data: Any = field(default_factory=dict)
 
-    def __init__(self, message: str = None, data: Any = None):
+    def __init__(self, message: str = None, data: Any = None, *, reason_code: str | None = None):
         # 把 message 透传给 Exception，保证 str(exc) 与业务 message 一致。
         normalized_message = message or ""
+        normalized_data = data
+        if reason_code:
+            if normalized_data is None:
+                normalized_data = {}
+            if isinstance(normalized_data, dict):
+                normalized_data = dict(normalized_data)
+                normalized_data.setdefault("reason_code", reason_code)
         super().__init__(normalized_message)
         self.message = normalized_message
-        self.data = data
+        self.data = normalized_data
 
     def __str__(self) -> str:
         return self.message
