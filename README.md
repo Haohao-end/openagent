@@ -109,8 +109,8 @@ The current codebase focuses on:
 ### Start with Docker
 
 ```bash
-git clone https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents.git
-cd LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents
+git clone https://github.com/Haohao-end/openagent.git
+cd openagent
 
 cp api/.env.example api/.env
 # edit api/.env and fill in the required API keys

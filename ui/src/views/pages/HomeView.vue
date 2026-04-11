@@ -1415,7 +1415,7 @@ onUnmounted(() => {
               <span>桂公网安备45010202000868号</span>
             </a>
             <a
-              href="https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents"
+              href="https://github.com/Haohao-end/openagent"
               target="_blank"
               rel="noopener noreferrer"
               class="inline-flex items-center justify-center leading-none hover:opacity-80 transition-opacity"

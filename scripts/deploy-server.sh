@@ -18,7 +18,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 配置
-REPO_URL="https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents.git"
+REPO_URL="https://github.com/Haohao-end/openagent.git"
 INSTALL_DIR="/opt/llmops"
 
 # 1. 检查是否为 root 用户

@@ -109,8 +109,8 @@ OpenAgent 是一个面向 AI Agent 应用构建与运维的全栈平台。当前
 ### Docker 启动
 
 ```bash
-git clone https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents.git
-cd LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents
+git clone https://github.com/Haohao-end/openagent.git
+cd openagent
 
 cp api/.env.example api/.env
 # 编辑 api/.env，填入必要的 API Key

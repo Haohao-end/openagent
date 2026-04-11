@@ -22,7 +22,7 @@
 sudo bash scripts/deploy-server.sh
 
 # 或者远程执行
-bash <(curl -fsSL https://raw.githubusercontent.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents/main/scripts/deploy-server.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Haohao-end/openagent/main/scripts/deploy-server.sh)
 ```
 
 **注意事项**:
