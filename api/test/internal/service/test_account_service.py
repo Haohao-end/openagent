@@ -771,8 +771,10 @@ class TestAccountService:
 
         app = Flask(__name__)
         with app.test_request_context("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}):
-            with pytest.raises(FailException):
+            with pytest.raises(FailException) as exc_info:
                 service.password_login("demo@example.com", "pwd")
+
+        assert exc_info.value.data["reason_code"] == service.INVALID_CREDENTIALS_REASON_CODE
 
     def test_password_login_should_raise_when_password_invalid(self, monkeypatch):
         service = self._build_service()
@@ -791,8 +793,10 @@ class TestAccountService:
 
         app = Flask(__name__)
         with app.test_request_context("/", environ_base={"REMOTE_ADDR": "127.0.0.1"}):
-            with pytest.raises(FailException):
+            with pytest.raises(FailException) as exc_info:
                 service.password_login("demo@example.com", "bad-pwd")
+
+        assert exc_info.value.data["reason_code"] == service.INVALID_CREDENTIALS_REASON_CODE
 
     def test_password_login_should_raise_when_password_not_initialized(self, monkeypatch):
         service = self._build_service()
@@ -816,6 +820,47 @@ class TestAccountService:
                 service.password_login("demo@example.com", "new-pwd")
 
         assert "账号不存在或者密码错误" in str(exc_info.value)
+        assert exc_info.value.data["reason_code"] == service.INVALID_CREDENTIALS_REASON_CODE
+
+    def test_prepare_register_should_raise_account_exists_reason_code_for_password_account(self, monkeypatch):
+        service = self._build_service()
+        account = SimpleNamespace(
+            id=uuid4(),
+            email="demo@example.com",
+            is_password_set=True,
+        )
+        monkeypatch.setattr(service, "get_account_by_email", lambda _email: account)
+
+        with pytest.raises(FailException) as exc_info:
+            service.prepare_register("demo@example.com", "Abcd1234")
+
+        assert str(exc_info.value) == "账号已存在，请直接登录"
+        assert exc_info.value.data["reason_code"] == service.ACCOUNT_EXISTS_REASON_CODE
+
+    def test_prepare_register_should_raise_oauth_only_reason_code_with_providers(self, monkeypatch):
+        service = self._build_service()
+        account = SimpleNamespace(
+            id=uuid4(),
+            email="oauth@example.com",
+            is_password_set=False,
+        )
+        monkeypatch.setattr(service, "get_account_by_email", lambda _email: account)
+        monkeypatch.setattr(
+            service,
+            "get_account_oauths_by_account_id",
+            lambda _account_id: [
+                SimpleNamespace(provider="google"),
+                SimpleNamespace(provider="google"),
+                SimpleNamespace(provider="github"),
+            ],
+        )
+
+        with pytest.raises(FailException) as exc_info:
+            service.prepare_register("oauth@example.com", "Abcd1234")
+
+        assert str(exc_info.value) == "该账号尚未设置密码，请使用Google / GitHub登录"
+        assert exc_info.value.data["reason_code"] == service.OAUTH_ONLY_ACCOUNT_REASON_CODE
+        assert exc_info.value.data["providers"] == ["google", "github"]
 
     def test_password_login_should_return_token_and_update_login_info(self, monkeypatch):
         redis_stub = _RedisStub()

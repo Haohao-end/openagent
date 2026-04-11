@@ -84,7 +84,7 @@ class AuthHandler:
         # 2.调用服务发送验证码
         self.account_service.send_reset_code(req.email.data)
 
-        return success_message("验证码已发送到您的邮箱,请查收")
+        return success_message("如果该邮箱已注册，验证码已发送，请查收")
 
     def reset_password(self):
         """重置密码"""

@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from internal.exception import FailException
 from pkg.paginator import Paginator
 from pkg.response import HttpCode, Response
 
@@ -638,3 +639,64 @@ class TestRouteGapBatchMatrix:
         assert resp.status_code == 200
         assert resp.json["id"] == "msg-1"
         assert resp.json["status"] == "completed"
+
+    def test_auth_send_reset_code_should_return_generic_success_message(self, http_client, monkeypatch):
+        monkeypatch.setattr(
+            "internal.service.account_service.AccountService.send_reset_code",
+            lambda *_args, **_kwargs: None,
+        )
+
+        resp = http_client.post(
+            "/auth/send-reset-code",
+            json={"email": "tester@example.com"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.SUCCESS
+        assert resp.json["message"] == "如果该邮箱已注册，验证码已发送，请查收"
+
+    def test_auth_password_login_should_serialize_reason_code(self, http_client, monkeypatch):
+        def _raise_invalid_credentials(*_args, **_kwargs):
+            raise FailException(
+                "账号不存在或者密码错误",
+                reason_code="INVALID_CREDENTIALS",
+            )
+
+        monkeypatch.setattr(
+            "internal.service.account_service.AccountService.password_login",
+            _raise_invalid_credentials,
+        )
+
+        resp = http_client.post(
+            "/auth/password-login",
+            json={"email": "tester@example.com", "password": "Abcd1234"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.FAIL
+        assert resp.json["message"] == "账号不存在或者密码错误"
+        assert resp.json["data"]["reason_code"] == "INVALID_CREDENTIALS"
+
+    def test_auth_prepare_register_should_serialize_oauth_only_providers(self, http_client, monkeypatch):
+        def _raise_oauth_only(*_args, **_kwargs):
+            raise FailException(
+                "该账号尚未设置密码，请使用Google登录",
+                data={"providers": ["google"]},
+                reason_code="OAUTH_ONLY_ACCOUNT",
+            )
+
+        monkeypatch.setattr(
+            "internal.service.account_service.AccountService.prepare_register",
+            _raise_oauth_only,
+        )
+
+        resp = http_client.post(
+            "/auth/register/prepare",
+            json={"email": "tester@example.com", "password": "Abcd1234"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.FAIL
+        assert resp.json["message"] == "该账号尚未设置密码，请使用Google登录"
+        assert resp.json["data"]["reason_code"] == "OAUTH_ONLY_ACCOUNT"
+        assert resp.json["data"]["providers"] == ["google"]
