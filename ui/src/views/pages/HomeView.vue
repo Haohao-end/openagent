@@ -841,10 +841,11 @@ const canScrollWithDelta = (element: HTMLElement, deltaY: number) => {
 const handleHomePageWheel = (event: WheelEvent) => {
   const pageElement = homePageRef.value
   if (!pageElement) return
-  if (event.target !== pageElement) return
 
   const scrollHost = getPrimaryScrollHost()
   if (!scrollHost) return
+  const target = event.target
+  if (target instanceof Node && scrollHost.contains(target)) return
   if (!canScrollWithDelta(scrollHost, event.deltaY)) return
 
   event.preventDefault()

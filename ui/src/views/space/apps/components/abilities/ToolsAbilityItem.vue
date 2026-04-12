@@ -422,7 +422,7 @@ onMounted(() => {
           class="flex items-center justify-between bg-white p-3 rounded-lg cursor-pointer hover:shadow-sm group"
         >
           <!-- 左侧工具信息 -->
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 min-w-0">
             <!-- 图标 -->
             <a-avatar
               :size="36"
@@ -431,11 +431,11 @@ onMounted(() => {
               :image-url="normalizeIconUrl(tool.provider.icon)"
             />
             <!-- 名称与描述信息 -->
-            <div class="flex flex-col gap-1 h-9">
-              <div class="text-gray-700 font-bold leading-[18px] line-clamp-1 break-all">
+            <div class="flex flex-col gap-1 h-9 min-w-0">
+              <div class="text-gray-700 font-bold leading-[18px] line-clamp-1 min-w-0">
                 {{ tool.provider.label }} / {{ tool.tool.label }}
               </div>
-              <div class="text-gray-500 text-xs line-clamp-1 break-all">
+              <div class="text-gray-500 text-xs line-clamp-1 min-w-0">
                 {{ tool.tool.description }}
               </div>
             </div>
@@ -488,7 +488,7 @@ onMounted(() => {
           <!-- 工具信息 -->
           <div class="flex items-center gap-2">
             <a-avatar :size="24" shape="circle" :image-url="normalizeIconUrl(toolInfo?.provider?.icon)" />
-            <div class="text-gray-700 font-bold max-w-[140px] sm:max-w-[200px] line-clamp-1 break-all">
+            <div class="text-gray-700 font-bold max-w-[140px] sm:max-w-[200px] line-clamp-1 min-w-0">
               {{ toolInfo?.tool?.label }}
             </div>
           </div>

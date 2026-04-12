@@ -1,7 +1,7 @@
 /**
  * 公共应用广场API服务
  */
-import { get, post } from '@/utils/request'
+import { get, post, ssePost } from '@/utils/request'
 import type { BaseResponse, BasePaginatorResponse } from '@/models/base'
 
 export interface PublicApp {
@@ -111,4 +111,53 @@ export function getPublicAppDetail(appId: string) {
  */
 export function getPublicAppAnalysis(appId: string) {
   return get<BaseResponse<any>>(`/public/apps/${appId}/analysis`)
+}
+
+/**
+ * 通过公开A2A接口向应用发送消息
+ */
+export function sendPublicAppA2aMessage(
+  appId: string,
+  message: string,
+  contextId: string = '',
+  onData?: Parameters<typeof ssePost>[2],
+) {
+  const req = {
+    message: {
+      role: 'user',
+      parts: [{ type: 'text', text: message }],
+    },
+    contextId,
+  }
+  if (onData) {
+    return ssePost(`/public/apps/${appId}/a2a/messages`, { body: req }, onData)
+  }
+  return post<BaseResponse<{
+    contextId: string
+    message: {
+      role: string
+      parts: Array<{ type: string; text: string }>
+    }
+    artifacts: unknown[]
+    metadata: Record<string, unknown>
+  }>>(`/public/apps/${appId}/a2a/messages`, { body: req })
+}
+
+export function getPublicAppA2aConversationMessages(appId: string, conversationId: string) {
+  return get<BaseResponse<Array<{
+    id: string
+    conversation_id: string
+    query: string
+    image_urls: string[]
+    answer: string
+    total_token_count: number
+    latency: number
+    suggested_questions: string[]
+  }>>>(`/public/apps/${appId}/a2a/conversations/${conversationId}/messages`)
+}
+
+export function getLatestPublicAppA2aConversation(appId: string) {
+  return get<BaseResponse<{ conversation_id: string }>>(
+    `/public/apps/${appId}/a2a/conversations/latest`,
+  )
 }

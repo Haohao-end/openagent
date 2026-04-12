@@ -181,8 +181,10 @@ const handleCardClick = (datasetId: string) => {
             <a-avatar :size="40" shape="square" :image-url="dataset.icon" />
             <!-- 右侧知识库信息 -->
             <div class="flex flex-1 justify-between">
-              <div class="flex flex-col">
-                <div class="text-base text-gray-900 font-bold">{{ dataset.name }}</div>
+              <div class="flex flex-col min-w-0">
+                <div class="text-base text-gray-900 font-bold line-clamp-1 min-w-0">
+                  {{ dataset.name }}
+                </div>
                 <div class="text-xs text-gray-500 line-clamp-1">
                   {{ dataset.document_count }} 文档 ·
                   {{ Math.round(dataset.character_count / 1000) }} 千字符 ·

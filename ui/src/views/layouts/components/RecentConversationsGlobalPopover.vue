@@ -85,6 +85,14 @@ const handleCardClick = async (conversation: RecentConversation) => {
       path: '/home',
       query: { conversation_id: conversation.id },
     })
+  } else if (conversation.source_type === 'public_app' && conversation.app_id) {
+    await router.push({
+      path: `/store/public-apps/${conversation.app_id}/preview`,
+      query: {
+        conversation_id: conversation.id,
+        message_id: conversation.message_id,
+      },
+    })
   } else if (conversation.source_type === 'app_debugger' && conversation.app_id) {
     await router.push({
       path: `/space/apps/${conversation.app_id}`,

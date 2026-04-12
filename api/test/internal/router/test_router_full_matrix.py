@@ -132,6 +132,8 @@ class TestRouterFullMatrix:
             '/public/apps': {'GET'},
             '/public/apps/<string:app_id>': {'GET'},
             '/public/apps/<string:app_id>/a2a/agent-card': {'GET'},
+            '/public/apps/<string:app_id>/a2a/conversations/latest': {'GET'},
+            '/public/apps/<string:app_id>/a2a/conversations/<string:conversation_id>/messages': {'GET'},
             '/public/apps/<string:app_id>/a2a/messages': {'POST'},
             '/public/apps/<string:app_id>/analysis': {'GET'},
             '/public/apps/<string:app_id>/fork': {'POST'},
@@ -187,4 +189,4 @@ class TestRouterFullMatrix:
         assert by_blueprint["openapi"] == 1
         assert by_blueprint["llmops"] == len(rules) - 1
         # 当前系统的接口总量是一个重要契约，避免漏挂导致线上能力消失。
-        assert len(rules) == 170
+        assert len(rules) == 172

@@ -3,7 +3,7 @@ import logging
 import re
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Generator
 from uuid import UUID
 
 from flask import Flask, current_app, has_app_context
@@ -13,13 +13,17 @@ from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
 from internal.entity.app_entity import AppStatus
+from internal.entity.conversation_entity import InvokeFrom, MessageStatus
 from internal.exception import NotFoundException, ValidateErrorException
-from internal.model import App
+from internal.model import App, Conversation, Message, MessageAgentThought
+from internal.core.agent.entities.queue_entity import QueueEvent
+from sqlalchemy import desc
 from pkg.sqlalchemy import SQLAlchemy
 
 from .app_config_service import AppConfigService
 from .app_service import AppService
 from .base_service import BaseService
+from .conversation_service import ConversationService
 from .language_model_service import LanguageModelService
 from .public_agent_registry_service import PublicAgentRegistryService
 
@@ -34,6 +38,7 @@ class PublicAgentA2AService(BaseService):
     app_config_service: AppConfigService
     language_model_service: LanguageModelService
     public_agent_registry_service: PublicAgentRegistryService
+    conversation_service: ConversationService | None = None
 
     def convert_public_agent_route_to_tool(self, account_id: UUID) -> BaseTool:
         """将公共Agent路由能力转换成LangChain工具。"""
@@ -536,6 +541,124 @@ class PublicAgentA2AService(BaseService):
             },
         }
 
+    def stream_message(
+        self,
+        app_id: UUID | str,
+        payload: dict[str, Any] | None,
+        flask_app: Flask | None = None,
+    ) -> Generator[str, None, None]:
+        """以A2A消息格式流式调用指定公开Agent。"""
+        app = self._get_public_app(app_id)
+        request_payload = payload or {}
+        query = self._extract_query_from_payload(request_payload)
+        if not query:
+            raise ValidateErrorException("A2A消息中缺少可用的文本内容")
+
+        context_id = (
+            str(request_payload.get("contextId", "")).strip()
+            or str(request_payload.get("context_id", "")).strip()
+            or ""
+        )
+        yield from self._stream_public_agent_events(
+            app=app,
+            query=query,
+            context_id=context_id,
+            flask_app=flask_app,
+            request_payload=request_payload,
+        )
+
+    def _stream_public_agent_events(
+        self,
+        app: App,
+        query: str,
+        context_id: str,
+        request_payload: dict[str, Any],
+        flask_app: Flask | None = None,
+    ) -> Generator[str, None, None]:
+        """流式输出公开Agent事件。"""
+        app_config = self.app_config_service.get_app_config(app)
+        llm = self.language_model_service.load_language_model(app_config.get("model_config", {}))
+        owner_account = SimpleNamespace(id=app.account_id)
+        tools = self.app_service._build_runtime_tools(
+            app.id,
+            owner_account,
+            app_config,
+            flask_app=flask_app,
+        )
+        agent = self.app_service._create_runtime_agent(llm, owner_account, app_config, tools)
+        conversation = self._resolve_public_conversation(app, context_id)
+        message = self.create(
+            Message,
+            app_id=app.id,
+            conversation_id=conversation.id,
+            invoke_from=InvokeFrom.SERVICE_API.value,
+            created_by=app.account_id,
+            query=query,
+            image_urls=[],
+            status=MessageStatus.NORMAL.value,
+        )
+        conversation_id = str(conversation.id)
+        message_id = str(message.id)
+        task_id = conversation_id
+        agent_thoughts: dict[str, Any] = {}
+
+        for agent_thought in agent.stream({
+            "messages": [llm.convert_to_human_message(query, [])],
+            "history": [],
+            "long_term_memory": conversation.summary,
+        }):
+            event_id = str(agent_thought.id)
+
+            if agent_thought.event != QueueEvent.PING.value:
+                if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
+                    if event_id not in agent_thoughts:
+                        agent_thoughts[event_id] = agent_thought
+                    else:
+                        agent_thoughts[event_id] = agent_thoughts[event_id].model_copy(update={
+                            "thought": agent_thoughts[event_id].thought + agent_thought.thought,
+                            "message": agent_thought.message,
+                            "message_token_count": agent_thought.message_token_count,
+                            "message_unit_price": agent_thought.message_unit_price,
+                            "message_price_unit": agent_thought.message_price_unit,
+                            "answer": agent_thoughts[event_id].answer + agent_thought.answer,
+                            "answer_token_count": agent_thought.answer_token_count,
+                            "answer_unit_price": agent_thought.answer_unit_price,
+                            "answer_price_unit": agent_thought.answer_price_unit,
+                            "total_token_count": agent_thought.total_token_count,
+                            "total_price": agent_thought.total_price,
+                            "latency": agent_thought.latency,
+                        })
+                else:
+                    agent_thoughts[event_id] = agent_thought
+
+            data = {
+                **agent_thought.model_dump(include={
+                    "event", "thought", "observation", "tool", "tool_input", "answer",
+                    "total_token_count", "total_price", "latency",
+                }),
+                "id": event_id,
+                "conversation_id": conversation_id,
+                "message_id": message_id,
+                "task_id": task_id,
+            }
+            yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data, ensure_ascii=False)}\n\n"
+
+        self._save_public_agent_thoughts(
+            app=app,
+            conversation=conversation,
+            message=message,
+            agent_thoughts=list(agent_thoughts.values()),
+        )
+
+        if conversation.name == "New Conversation" and self.conversation_service is not None:
+            try:
+                generated_name = self.conversation_service.generate_conversation_name(query)
+                self.update(conversation, name=generated_name)
+            except Exception as exc:
+                logging.exception(
+                    f"生成公开会话名称失败: conversation_id={conversation.id}, error={exc}"
+                )
+
     def _invoke_public_agent(
         self,
         app: App,
@@ -560,6 +683,142 @@ class PublicAgentA2AService(BaseService):
                 "long_term_memory": "",
             }
         )
+
+    def _resolve_public_conversation(self, app: App, context_id: str) -> Conversation:
+        """获取或创建公开广场会话。"""
+        conversation: Conversation | None = None
+        normalized_context_id = str(context_id or "").strip()
+        owner_id = app.account_id
+        if normalized_context_id:
+            try:
+                conversation = self.db.session.query(Conversation).filter(
+                    Conversation.id == UUID(normalized_context_id),
+                    Conversation.app_id == app.id,
+                    Conversation.invoke_from == InvokeFrom.SERVICE_API.value,
+                    Conversation.created_by == owner_id,
+                    Conversation.is_deleted == False,
+                ).one_or_none()
+            except Exception:
+                conversation = None
+
+        if conversation:
+            return conversation
+
+        return self.create(
+            Conversation,
+            app_id=app.id,
+            name="New Conversation",
+            invoke_from=InvokeFrom.SERVICE_API.value,
+            created_by=owner_id,
+        )
+
+    def _save_public_agent_thoughts(
+        self,
+        app: App,
+        conversation: Conversation,
+        message: Message,
+        agent_thoughts: list[Any],
+    ) -> None:
+        """把公开广场消息写入现有历史表。"""
+        position = 0
+        latency = 0
+        for agent_thought in agent_thoughts:
+            if agent_thought.event in [
+                QueueEvent.LONG_TERM_MEMORY_RECALL.value,
+                QueueEvent.AGENT_THOUGHT.value,
+                QueueEvent.AGENT_MESSAGE.value,
+                QueueEvent.AGENT_ACTION.value,
+                QueueEvent.DATASET_RETRIEVAL.value,
+            ]:
+                position += 1
+                latency += agent_thought.latency
+                self.create(
+                    MessageAgentThought,
+                    app_id=app.id,
+                    conversation_id=conversation.id,
+                    message_id=message.id,
+                    invoke_from=InvokeFrom.SERVICE_API.value,
+                    created_by=app.account_id,
+                    position=position,
+                    event=agent_thought.event,
+                    thought=agent_thought.thought,
+                    observation=agent_thought.observation,
+                    tool=agent_thought.tool,
+                    tool_input=agent_thought.tool_input,
+                    message=agent_thought.message,
+                    message_token_count=agent_thought.message_token_count,
+                    message_unit_price=agent_thought.message_unit_price,
+                    message_price_unit=agent_thought.message_price_unit,
+                    answer=agent_thought.answer,
+                    answer_token_count=agent_thought.answer_token_count,
+                    answer_unit_price=agent_thought.answer_unit_price,
+                    answer_price_unit=agent_thought.answer_price_unit,
+                    total_token_count=agent_thought.total_token_count,
+                    total_price=agent_thought.total_price,
+                    latency=agent_thought.latency,
+                )
+            if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
+                self.update(
+                    message,
+                    message=agent_thought.message,
+                    message_token_count=agent_thought.message_token_count,
+                    message_unit_price=agent_thought.message_unit_price,
+                    message_price_unit=agent_thought.message_price_unit,
+                    answer=agent_thought.answer,
+                    answer_token_count=agent_thought.answer_token_count,
+                    answer_unit_price=agent_thought.answer_unit_price,
+                    answer_price_unit=agent_thought.answer_price_unit,
+                    total_token_count=agent_thought.total_token_count,
+                    total_price=agent_thought.total_price,
+                    latency=latency,
+                )
+            if agent_thought.event in [QueueEvent.TIMEOUT.value, QueueEvent.STOP.value, QueueEvent.ERROR.value]:
+                self.update(message, status=agent_thought.event, error=agent_thought.observation)
+                break
+
+    def list_public_app_conversation_messages(self, app_id: UUID | str, conversation_id: UUID | str) -> list[dict[str, Any]]:
+        """读取公开广场会话消息。"""
+        app = self._get_public_app(app_id)
+        conversation_uuid = UUID(str(conversation_id))
+        conversation = self.db.session.query(Conversation).filter(
+            Conversation.id == conversation_uuid,
+            Conversation.app_id == app.id,
+            Conversation.invoke_from == InvokeFrom.SERVICE_API.value,
+            Conversation.created_by == app.account_id,
+            Conversation.is_deleted == False,
+        ).one_or_none()
+        if not conversation:
+            return []
+        messages = self.db.session.query(Message).filter(
+            Message.conversation_id == conversation.id,
+            Message.app_id == app.id,
+            Message.status.in_([MessageStatus.NORMAL.value, MessageStatus.STOP.value]),
+            Message.is_deleted == False,
+        ).order_by(desc(Message.created_at)).all()
+        return [
+            {
+                "id": str(message.id),
+                "conversation_id": str(message.conversation_id),
+                "query": message.query,
+                "image_urls": message.image_urls or [],
+                "answer": message.answer,
+                "total_token_count": message.total_token_count,
+                "latency": message.latency,
+                "suggested_questions": message.suggested_questions or [],
+            }
+            for message in messages
+        ]
+
+    def get_latest_public_app_conversation_id(self, app_id: UUID | str) -> str:
+        """获取公开应用最近一次会话ID。"""
+        app = self._get_public_app(app_id)
+        conversation = self.db.session.query(Conversation).filter(
+            Conversation.app_id == app.id,
+            Conversation.invoke_from == InvokeFrom.SERVICE_API.value,
+            Conversation.created_by == app.account_id,
+            Conversation.is_deleted == False,
+        ).order_by(desc(Conversation.updated_at)).first()
+        return str(conversation.id) if conversation else ""
 
     def _get_public_app(self, app_id: UUID | str) -> App:
         """获取已发布且公开的应用。"""

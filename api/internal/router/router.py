@@ -652,6 +652,16 @@ class Router:
             view_func=self.public_app_handler.send_public_app_a2a_message,
         )
         bp.add_url_rule(
+            "/public/apps/<string:app_id>/a2a/conversations/<string:conversation_id>/messages",
+            methods=["GET"],
+            view_func=self.public_app_handler.get_public_app_a2a_conversation_messages,
+        )
+        bp.add_url_rule(
+            "/public/apps/<string:app_id>/a2a/conversations/latest",
+            methods=["GET"],
+            view_func=self.public_app_handler.get_latest_public_app_a2a_conversation,
+        )
+        bp.add_url_rule(
             "/public/apps/<string:app_id>/analysis",
             view_func=self.public_app_handler.get_public_app_analysis,
         )
@@ -757,4 +767,3 @@ class Router:
         # 24.在应用上注册蓝图
         app.register_blueprint(bp)
         app.register_blueprint(openapi_bp)
-

@@ -152,7 +152,7 @@ const highlightText = (text: string) => {
   return safeText.replace(regex, '<span class="gradient-highlight">$1</span>')
 }
 
-const truncateText = (text: string, maxLength: number = 100) => {
+const truncateText = (text: string, maxLength: number = 20) => {
   if (!text) return ''
 
   const normalizedText = String(text).replace(/\s+/g, ' ').trim()
@@ -161,14 +161,14 @@ const truncateText = (text: string, maxLength: number = 100) => {
   const keyword = searchQuery.value.trim().toLowerCase()
   if (!keyword) {
     return normalizedText.length > maxLength
-      ? `${normalizedText.substring(0, maxLength)}...`
+      ? normalizedText.substring(0, maxLength) + '...'
       : normalizedText
   }
 
   const keywordIndex = normalizedText.toLowerCase().indexOf(keyword)
   if (keywordIndex === -1) {
     return normalizedText.length > maxLength
-      ? `${normalizedText.substring(0, maxLength)}...`
+      ? normalizedText.substring(0, maxLength) + '...'
       : normalizedText
   }
 
@@ -184,7 +184,7 @@ const truncateText = (text: string, maxLength: number = 100) => {
   return `${start > 0 ? '...' : ''}${snippet}${end < normalizedText.length ? '...' : ''}`
 }
 
-const highlightAndTruncateText = (text: string, maxLength: number =100) => {
+const highlightAndTruncateText = (text: string, maxLength: number = 20) => {
  return highlightText(truncateText(text, maxLength))
 }
 
@@ -309,6 +309,17 @@ const changeConversation = async (conversation: SearchableConversation) => {
     await router.push({
       path: '/home',
       query: { conversation_id: conversation.id },
+    })
+    return
+  }
+
+  if (conversation.source_type === 'public_app' && 'app_id' in conversation && conversation.app_id) {
+    await router.push({
+      path: `/store/public-apps/${conversation.app_id}/preview`,
+      query: {
+        conversation_id: conversation.id,
+        message_id: 'message_id' in conversation ? conversation.message_id : undefined,
+      },
     })
     return
   }
@@ -451,7 +462,7 @@ onMounted(() => {
               <div style="display: flex; align-items: center; height: 100%; white-space: nowrap; overflow: hidden; padding-right: 80px;">
                 <h3
                   style="flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; font-weight: 600; color: #111827;"
-                  v-html="highlightAndTruncateText(conversation.name, conversation.source_type === 'assistant_agent' && conversation.agent_name ? 30 : 50)"
+                  v-html="highlightAndTruncateText(conversation.name, 20)"
                 />
                 <span
                   v-if="conversation.source_type === 'assistant_agent' && conversation.agent_name"
@@ -466,7 +477,7 @@ onMounted(() => {
                   {{ formatDate(conversation.latest_message_at) }}
                 </div>
                 <!-- 菜单按钮 - hover时显示 -->
-                <div v-show="isMenuIconVisible(conversation.id)" style="display: flex;">
+                <div v-show="conversation.source_type !== 'public_app' && isMenuIconVisible(conversation.id)" style="display: flex;">
                   <a-dropdown :popup-visible="openMenuId === conversation.id" position="br" @click.stop @mousedown.stop>
                     <a-button
                       size="small"

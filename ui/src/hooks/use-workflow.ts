@@ -23,6 +23,7 @@ import {
 import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import { getErrorMessage } from '@/utils/error'
+import { isValidWorkflowToolCallName } from '@/utils/workflow'
 
 export const useGetWorkflowsWithPage = () => {
   // 1.定义hooks所需数据
@@ -89,6 +90,10 @@ export const useCreateWorkflow = () => {
 
   // 2.定义创建工作流处理器
   const handleCreateWorkflow = async (req: CreateWorkflowRequest) => {
+    if (!isValidWorkflowToolCallName(req.tool_call_name)) {
+      throw new Error('英文名称仅支持字母、数字和下划线，且以字母/下划线为开头')
+    }
+
     try {
       // 3.调用API接口创建工作流
       loading.value = true
@@ -116,6 +121,10 @@ export const useUpdateWorkflow = () => {
 
   // 2.定义更新工作流处理器
   const handleUpdateWorkflow = async (workflow_id: string, req: UpdateWorkflowRequest) => {
+    if (!isValidWorkflowToolCallName(req.tool_call_name)) {
+      throw new Error('英文名称仅支持字母、数字和下划线，且以字母/下划线为开头')
+    }
+
     try {
       // 3.调用api接口更新工作流
       loading.value = true

@@ -67,6 +67,17 @@ const changeConversation = async (conversation: RecentConversation) => {
     return
   }
 
+  if (conversation.source_type === 'public_app' && conversation.app_id) {
+    await router.push({
+      path: `/store/public-apps/${conversation.app_id}/preview`,
+      query: {
+        conversation_id: conversation.id,
+        message_id: conversation.message_id,
+      },
+    })
+    return
+  }
+
   if (conversation.source_type === 'app_debugger' && conversation.app_id) {
     await router.push({
       path: `/space/apps/${conversation.app_id}`,
@@ -89,6 +100,10 @@ const isConversationActive = (conversation: RecentConversation) => {
 
   if (currentAppId.value) {
     return conversation.source_type === 'app_debugger' && conversation.app_id === currentAppId.value
+  }
+
+  if (route.path.startsWith('/store/public-apps/')) {
+    return conversation.source_type === 'public_app' && conversation.app_id === String(route.params?.app_id || '').trim()
   }
 
   return false
@@ -116,13 +131,15 @@ const deleteRecentConversation = (conversation: RecentConversation) => {
       (item) => item.id !== conversation.id,
     )
 
-    if (selectedConversationId.value === conversation.id) {
-      if (conversation.source_type === 'assistant_agent') {
-        await router.replace({ path: '/home' })
-      } else if (conversation.source_type === 'app_debugger' && conversation.app_id) {
-        await router.replace({ path: `/space/apps/${conversation.app_id}` })
+      if (selectedConversationId.value === conversation.id) {
+        if (conversation.source_type === 'assistant_agent') {
+          await router.replace({ path: '/home' })
+        } else if (conversation.source_type === 'public_app' && conversation.app_id) {
+          await router.replace({ path: `/store/public-apps/${conversation.app_id}/preview` })
+        } else if (conversation.source_type === 'app_debugger' && conversation.app_id) {
+          await router.replace({ path: `/space/apps/${conversation.app_id}` })
+        }
       }
-    }
     await loadRecentConversations()
   })
 }

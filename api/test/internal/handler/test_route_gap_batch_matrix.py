@@ -11,7 +11,7 @@ APP_ID = "00000000-0000-0000-0000-000000000001"
 WORKFLOW_ID = "00000000-0000-0000-0000-000000000002"
 DATASET_ID = "00000000-0000-0000-0000-000000000003"
 PROVIDER_ID = "00000000-0000-0000-0000-000000000004"
-PUBLIC_STRING_APP_ID = "builtin-assistant"
+PUBLIC_STRING_APP_ID = "00000000-0000-0000-0000-00000000aa01"
 
 
 def _assert_health(data: dict):
@@ -639,6 +639,32 @@ class TestRouteGapBatchMatrix:
         assert resp.status_code == 200
         assert resp.json["id"] == "msg-1"
         assert resp.json["status"] == "completed"
+
+    def test_public_app_a2a_conversation_messages_should_delegate_to_service(self, http_client, monkeypatch):
+        monkeypatch.setattr(
+            "internal.service.public_agent_a2a_service.PublicAgentA2AService.list_public_app_conversation_messages",
+            lambda *_args, **_kwargs: [{"id": "msg-1", "conversation_id": "conv-1"}],
+        )
+
+        resp = http_client.get(
+            f"/public/apps/{PUBLIC_STRING_APP_ID}/a2a/conversations/conv-1/messages",
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.SUCCESS
+        assert resp.json["data"] == [{"id": "msg-1", "conversation_id": "conv-1"}]
+
+    def test_public_app_a2a_latest_conversation_should_delegate_to_service(self, http_client, monkeypatch):
+        monkeypatch.setattr(
+            "internal.service.public_agent_a2a_service.PublicAgentA2AService.get_latest_public_app_conversation_id",
+            lambda *_args, **_kwargs: "conv-1",
+        )
+
+        resp = http_client.get(f"/public/apps/{PUBLIC_STRING_APP_ID}/a2a/conversations/latest")
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.SUCCESS
+        assert resp.json["data"]["conversation_id"] == "conv-1"
 
     def test_auth_send_reset_code_should_return_generic_success_message(self, http_client, monkeypatch):
         monkeypatch.setattr(

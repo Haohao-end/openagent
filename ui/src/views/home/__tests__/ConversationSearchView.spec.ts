@@ -205,7 +205,7 @@ describe('ConversationSearchView', () => {
  expect(wrapper.text()).not.toContain('这个回答也没有命中词')
  })
 
- it('uses OpenAgent as the assistant match label', async () => {
+  it('uses OpenAgent as the assistant match label', async () => {
  vi.mocked(conversationSearchService.searchConversations).mockResolvedValue({
  data: [
  buildConversation({
@@ -225,9 +225,24 @@ describe('ConversationSearchView', () => {
 
  expect(wrapper.text()).toContain('关键词命中OpenAgent')
  expect(wrapper.text()).toContain('OpenAgent')
- })
+  })
 
- it('shows menu items only after clicking the more icon', async () => {
+  it('truncates long conversation titles with ellipsis', async () => {
+    vi.mocked(conversationHooks.useGetRecentConversations).mockReturnValue({
+      loading: ref(false),
+      conversations: ref([buildConversation({ name: '1234567890123456789012345' })]),
+      loadRecentConversations: vi.fn(),
+    } as never)
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    expect(vm.truncateText('12345678901234567890')).toBe('12345678901234567890')
+    expect(vm.truncateText('123456789012345678901')).toBe('12345678901234567890...')
+  })
+
+  it('shows menu items only after clicking the more icon', async () => {
  vi.mocked(conversationSearchService.searchConversations).mockResolvedValue({
  data: [
  buildConversation({

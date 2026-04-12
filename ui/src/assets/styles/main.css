@@ -16,13 +16,17 @@
   html {
     height: 100vh;
     width: 100%;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-x: none;
   }
 
   body {
     height: 100vh;
     width: 100%;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-x: none;
     margin: 0;
     padding: 0;
   }
