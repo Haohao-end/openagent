@@ -1,139 +1,123 @@
-# OpenAgent - 端到端 AI Agent 平台
+<a id="readme-top"></a>
 
 <div align="center">
+  <img src="https://github.com/user-attachments/assets/15024f52-cb4d-4222-bd8e-b7aa385a6f3e" alt="OpenAgent Logo" width="360" />
+  <h1 align="center">OpenAgent</h1>
 
-![AI Agent](https://github.com/user-attachments/assets/f4cad915-411e-4e0f-95bc-8f8afdcf1019)
+  <p align="center">
+    一个面向 AI 应用构建、编排、发布与运营的端到端 Agent 平台。
+    <br />
+    基于 Flask + LangChain/LangGraph 的后端，配合 Vue 3 工作台、可视化工作流、数据集、工具与 OpenAPI 交付能力。
+  </p>
 
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
-[![Docker](https://img.shields.io/badge/docker-20.10+-blue.svg)](https://www.docker.com/)
+  <p align="center">
+    <a href="https://openllm.cloud">访问官网</a>
+    ·
+    <a href="https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417">API 文档</a>
+    ·
+    <a href="README.md">English</a>
+    ·
+    <a href="https://github.com/Haohao-end/openagent">GitHub</a>
+  </p>
 
-[English](README.md) | [中文](README_ZH.md)
-
-**在线演示**: http://82.157.66.198/
-
-**API 文档**: https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417
-
+  <p align="center">
+    <img src="https://img.shields.io/badge/python-3.11+-3776AB?logo=python&logoColor=white" alt="Python 3.11+" />
+    <img src="https://img.shields.io/badge/flask-3.x-000000?logo=flask&logoColor=white" alt="Flask" />
+    <img src="https://img.shields.io/badge/vue-3-4FC08D?logo=vue.js&logoColor=white" alt="Vue 3" />
+    <img src="https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white" alt="Docker Compose" />
+    <img src="https://img.shields.io/badge/weaviate-vector%20db-00C6A7" alt="Weaviate" />
+  </p>
 </div>
 
----
+## 目录
 
-## 项目概述
+- [项目简介](#项目简介)
+- [技术栈](#技术栈)
+- [快速开始](#快速开始)
+- [功能展示](#功能展示)
+- [项目结构](#项目结构)
+- [文档与说明](#文档与说明)
+- [测试](#测试)
+- [Roadmap](#roadmap)
+- [安全致谢](#安全致谢)
+- [许可证](#许可证)
+- [联系方式](#联系方式)
+- [鸣谢](#鸣谢)
 
-OpenAgent 是一个面向 AI Agent 应用构建与运维的全栈平台。当前仓库包含：
+## 项目简介
 
-- 基于 Flask 的后端服务，结合 LangChain / LangGraph 做编排
-- 基于 Vue 3 的前端，用于 Agent、工作流、数据集、工具和对话管理
-- 用于后台任务的 Celery
-- Docker 方案里包含 PostgreSQL、Redis、Weaviate 和 Nginx
+<img width="2560" height="1599" alt="OpenAgent Workflow Overview" src="https://github.com/user-attachments/assets/23b510e2-1232-4f52-9262-812a7523ae21" />
 
-当前代码库主要覆盖这些能力：
+OpenAgent 不是单一的聊天 Demo，而是一个面向团队和产品化场景的全栈 AI Agent 平台。当前仓库同时包含 Flask 后端、Celery 后台任务、Vue 3 前端工作台、可视化工作流编排、数据集与文档管理、公共应用发布，以及基于 OpenAPI 的对外调用能力。
 
-- 多模型接入
-- 工作流编排和执行
-- 对话管理与搜索
-- 应用和工作流发布
-- 知识库、文档和数据集管理
-- 内置工具与通知链路
+当前代码库已经覆盖这些核心能力：
 
----
+- 在独立工作台中创建和管理 AI 应用，支持草稿、发布、分析、版本对比和提示词对比。
+- 通过可视化节点编排工作流，节点涵盖 LLM、工具调用、知识库检索、代码执行、HTTP 请求、条件分支、文本处理、模板转换和参数提取。
+- 管理数据集、上传文档、查看切片，并把检索能力接入工作流或应用。
+- 通过类似应用商店的页面浏览公共应用、工具和工作流。
+- 通过 `POST /api/openapi/chat` 以 REST 或流式方式调用已发布应用。
 
-## 项目结构
+### 技术栈
 
-```text
-.
-├── api/        # Flask 后端、服务层、处理器、任务、测试
-├── ui/         # Vue 3 前端、组件、页面、测试
-├── docker/     # Docker Compose 和部署配置
-├── docs/       # 文档索引与部署说明
-└── README_ZH.md
-```
+- 后端：Flask、SQLAlchemy、Celery、Flask-SocketIO、LangChain、LangGraph
+- 前端：Vue 3、Vite、TypeScript、Pinia、Vue Flow、Arco Design
+- 基础设施：PostgreSQL、Redis、Weaviate、Nginx、Docker Compose
+- 模型接入：OpenAI、DeepSeek、Grok、Google、Moonshot、Tongyi、Wenxin、Ollama、Zhipu
 
----
-
-## 功能特性
-
-### 后端
-
-- Flask REST API
-- 服务层分层结构
-- JWT、OAuth 和账号权限流程
-- SSE / WebSocket 实时通知
-- 基于 Celery 的后台任务
-
-### 前端
-
-- Vue 3 + Vite + TypeScript
-- 工作流编辑器和应用管理页面
-- 对话历史、搜索和发布页面
-- 通知组件和实时 UI 更新
-
-### 基础设施
-
-- Docker Compose 一键部署
-- PostgreSQL 持久化存储
-- Redis 作为缓存和任务队列
-- Weaviate 向量检索
-- Nginx 反向代理
-
----
-
-## 系统架构
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                         前端 (Vue 3)                          │
-│   Agent 构建器   工作流编辑器   数据集管理   工具界面         │
-└─────────────────────────────────────────────────────────────┘
-                            ↕ HTTP / SSE / WebSocket
-┌─────────────────────────────────────────────────────────────┐
-│                      后端 (Flask + Celery)                    │
-│   API 层   服务层   LangChain / LangGraph   后台任务          │
-└─────────────────────────────────────────────────────────────┘
-                            ↕
-┌─────────────────────────────────────────────────────────────┐
-│                         基础设施                              │
-│      PostgreSQL      Redis      Weaviate      Nginx          │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
+<p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
 ## 快速开始
 
 ### 环境要求
 
 - Docker 20.10+
-- Docker Compose 2.0+
-- 推荐 8GB+ 内存运行完整栈
+- Docker Compose 2.x
+- 推荐 8 GB+ 内存运行完整栈
+- 至少准备一个可用的模型提供商 API Key
 
-### Docker 启动
+### 安装与启动
 
-```bash
-git clone https://github.com/Haohao-end/openagent.git
-cd openagent
+1. 克隆仓库。
 
-cp api/.env.example api/.env
-# 编辑 api/.env，填入必要的 API Key
+   ```bash
+   git clone https://github.com/Haohao-end/openagent.git
+   cd openagent
+   ```
 
-cd docker
-docker compose up -d --build
-```
+2. 创建运行时环境文件。
 
-### 服务地址
+   ```bash
+   cp api/.env.example api/.env
+   ```
 
-| 服务 | 地址 | 说明 |
-|---|---|---|
-| 前端 | http://localhost:3000 | Vue 3 Web 界面 |
-| API | http://localhost:5001 | Flask REST API |
-| Nginx | http://localhost | 反向代理 |
+3. 检查 `api/.env` 中的最小必填项。
 
-更多部署细节请查看 [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) 和 [docker/README.md](docker/README.md)。
+   - `JWT_SECRET_KEY`
+   - `POSTGRES_PASSWORD`
+   - `REDIS_PASSWORD`
+   - `WEAVIATE_API_KEY`
+   - `VITE_API_PREFIX`
+   - 至少一个模型提供商 Key，例如 `OPENAI_API_KEY`、`DEEPSEEK_API_KEY` 或 `DASHSCOPE_API_KEY`
 
----
+4. 启动 Docker 编排。
 
-## 本地开发
+   ```bash
+   cd docker
+   docker compose up -d --build
+   ```
 
-### 后端
+5. 打开本地服务。
+
+   | 服务 | 地址 | 说明 |
+   | --- | --- | --- |
+   | 前端 | http://localhost:3000 | Vue 3 Web 界面 |
+   | API | http://localhost:5001 | Flask REST API |
+   | Nginx | http://localhost | 反向代理 |
+
+### 本地开发
+
+后端：
 
 ```bash
 cd api
@@ -141,14 +125,7 @@ pip install -r requirements.txt
 flask run --port 5001
 ```
 
-运行测试：
-
-```bash
-cd api
-pytest
-```
-
-### 前端
+前端：
 
 ```bash
 cd ui
@@ -156,9 +133,14 @@ npm install
 npm run serve
 ```
 
-Vite 默认在 `5173` 端口提供服务，并将 `/api` 代理到 `http://localhost:5001`。
+Vite 默认在 `5173` 端口提供服务。前端会基于 `VITE_API_PREFIX` 解析 API 地址，在本地开发时通常通过 `/api` 代理到 Flask 后端。
 
-常用前端命令：
+常用命令：
+
+```bash
+cd api
+pytest
+```
 
 ```bash
 cd ui
@@ -168,47 +150,93 @@ npm run build
 npm run test:unit -- --run
 ```
 
----
+<p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
-## 配置说明
+## 功能展示
 
-### 后端配置
+### 1. 首页助手体验
 
-先将 `api/.env.example` 复制为 `api/.env`，并至少配置一个模型提供商的 Key，以及数据库和 Redis 的必要参数。
+<img width="2560" height="1418" alt="OpenAgent Home Assistant" src="https://github.com/user-attachments/assets/7ebb7827-838b-4bd2-b522-9f544f32416a" />
 
-### Docker 配置
+首页可以作为默认的 AI 助手入口，用于想法探索、多轮对话、推荐问题、图片上传、语音输入，以及从需求出发引导你创建应用。
 
-如果你需要修改端口、容器密码或其他基础设施参数，请查看 [docker/README.md](docker/README.md)。
+### 2. 应用工作台
 
-### 重要参考
+<img width="2560" height="1418" alt="OpenAgent Apps Workspace" src="https://github.com/user-attachments/assets/ec6f6bdb-70d6-4803-8b53-e60185b23da0" />
 
-- [api/.env.example](api/.env.example)
-- [docker/README.md](docker/README.md)
-- [docker/SECURITY.md](docker/SECURITY.md)
-- [CLAUDE.md](CLAUDE.md)
+在应用工作台中可以管理草稿、发布版本、分析页、提示词对比、复制应用以及发布相关操作。
 
----
+### 3. 可视化工作流编辑器
 
-## 文档
+<img width="2560" height="1599" alt="OpenAgent Workflow Editor" src="https://github.com/user-attachments/assets/23b510e2-1232-4f52-9262-812a7523ae21" />
 
-- [docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md) - 部署指南
-- [docs/deployment/QUICKSTART_GUIDE.md](docs/deployment/QUICKSTART_GUIDE.md) - 快速开始指南
+工作流支持通过节点方式编排，包括 LLM、工具调用、数据集检索、代码执行、HTTP 请求、模板转换、文本处理、变量赋值、参数提取、条件分支、开始节点和结束节点。
+
+### 4. 数据集与检索
+
+<img width="2560" height="1418" alt="OpenAgent Dataset Management" src="https://github.com/user-attachments/assets/6f000681-db56-461a-bac9-a2dd5d6cd009" />
+
+你可以创建数据集、上传文档、查看文档切片，并将检索能力接入工作流或 AI 应用，实现知识增强行为。
+
+### 5. OpenAPI 交付
+
+<img width="2560" height="1418" alt="OpenAgent OpenAPI" src="https://github.com/user-attachments/assets/40769d35-89e1-4b76-9686-a431a77a42c7" />
+
+应用发布后，可以通过 `POST /api/openapi/chat` 进行标准调用或流式调用，并支持多轮对话所需的会话标识。
+
+<p align="right">(<a href="#readme-top">返回顶部</a>)</p>
+
+## 项目结构
+
+```text
+.
+├── api/          # Flask 后端、服务、处理器、任务、迁移和测试
+├── ui/           # Vue 3 前端、路由、页面、组件和测试
+├── docker/       # Docker Compose、nginx、postgres 初始化和部署配置
+├── README.md     # 英文项目说明
+└── README_ZH.md  # 中文项目说明
+```
+
+## 文档与说明
+
+- [README.md](README.md) - English project overview
 - [api/README.md](api/README.md) - 后端说明
 - [ui/README.md](ui/README.md) - 前端说明
-- [docker/README.md](docker/README.md) - Docker 配置
-- [docker/SECURITY.md](docker/SECURITY.md) - 安全说明
-
----
+- [docker/README.md](docker/README.md) - Docker 说明
+- [api/.env.example](api/.env.example) - 环境变量参考
 
 ## 测试
 
-仓库已经包含较完整的自动化测试。
+仓库已经包含自动化的后端与前端测试能力。
 
 - 后端：`cd api && pytest`
-- 前端：`cd ui && npm run test:unit -- --run`
+- 前端单元测试：`cd ui && npm run test:unit -- --run`
+- 前端类型检查：`cd ui && npm run type-check`
+- 前端构建校验：`cd ui && npm run build`
 
----
+## Roadmap
+
+- [ ] 保持 `README.md` 与 `README_ZH.md` 结构同步
+- [ ] 补充仓库根目录 `LICENSE` 文件
+- [ ] 增加更完整的自托管部署和生产运行说明
+
+## 安全致谢
+
+感谢 Rui Yang 和 Haoyu Wang（Johns Hopkins University）以负责任披露的方式报告了内置工具图标 URL 构造中的 Host Header poisoning 问题，帮助项目进一步改进安全性。
 
 ## 许可证
 
-当前仓库根目录还没有单独的 `LICENSE` 文件。如果你需要显式声明许可证，建议补充该文件并同步更新这里。
+当前仓库根目录尚未提供独立的 `LICENSE` 文件。如果你希望对使用者、贡献者和下游项目明确许可证边界，建议补充该文件。
+
+## 联系方式
+
+- 项目地址：https://github.com/Haohao-end/openagent
+- 官网：https://openllm.cloud
+- API 文档：https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417
+
+## 鸣谢
+
+- README 结构参考了 [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
+- 感谢 OpenAgent 贡献者以及帮助改进项目与文档的安全研究人员
+
+<p align="right">(<a href="#readme-top">返回顶部</a>)</p>
