@@ -284,7 +284,7 @@ class AppHandler:
         return success_json(PageModel(list=resp.dump(messages), paginator=paginator))
 
     def health(self):
-        """健康检查接口(无需认证)"""
+        """健康检查接口(无需认证) - 公开端点仅返回聚合状态，不暴露内部组件拓扑"""
         components = {
             "database": self._probe_database(),
             "redis": self._probe_redis(),
@@ -307,8 +307,6 @@ class AppHandler:
         return success_json({
             "status": status,
             "service": "llmops-api",
-            "components": components,
-            "metrics": metrics,
         })
 
     @classmethod

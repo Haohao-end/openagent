@@ -111,6 +111,7 @@ class OAuthService(BaseService):
                     email=oauth_user_info.email,
                 )
             # 7.添加授权认证记录
+            # TODO: encrypted_token 当前以明文存储，应使用对称加密（如 Fernet）加密后再入库
             account_oauth = self.create(
                 AccountOAuth,
                 account_id=account.id,
