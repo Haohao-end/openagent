@@ -52,6 +52,7 @@ OpenAgent is a full-stack platform for teams building AI applications rather tha
 
 What the current codebase already supports:
 
+- Use the home assistant to route user requests to published public agents through A2A, or turn natural-language requirements into new AI app creation flows.
 - Build and manage AI apps from a dedicated workspace with draft, publish, analysis, version comparison, and prompt comparison flows.
 - Design workflows visually with nodes for LLMs, tool calls, dataset retrieval, code execution, HTTP requests, branching, text processing, template transforms, and structured parameter extraction.
 - Manage datasets, upload documents, inspect segments, and connect retrieval to agents and workflows.
@@ -168,7 +169,7 @@ npm run test:unit -- --run
 
 <img width="2560" height="1418" alt="OpenAgent Home Assistant" src="https://github.com/user-attachments/assets/7ebb7827-838b-4bd2-b522-9f544f32416a" />
 
-Use the home page as the default assistant entry point for idea exploration, multi-turn chat, suggested prompts, image upload, audio input, and agent-guided app creation.
+Use the home page as the default assistant entry point to route user questions to the most relevant published public agents through A2A, or describe a new idea in natural language and trigger AI app creation. The same surface also supports multi-turn chat, suggested prompts, image upload, and audio input.
 
 ### 2. App Workspace
 
