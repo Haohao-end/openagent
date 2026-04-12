@@ -46,7 +46,7 @@
 
 ## About The Project
 
-<img width="2560" height="1599" alt="OpenAgent Workflow Overview" src="https://github.com/user-attachments/assets/23b510e2-1232-4f52-9262-812a7523ae21" />
+<img width="2560" height="1418" alt="OpenAgent Product Overview" src="https://github.com/user-attachments/assets/0f8f7517-1622-46ea-9554-fb13af4841a1" />
 
 OpenAgent is a full-stack platform for teams building AI applications rather than a single chat demo. The repository combines a Flask backend, Celery workers, a Vue 3 frontend, visual workflow authoring, dataset and document management, public app and workflow publishing, and OpenAPI-based delivery.
 

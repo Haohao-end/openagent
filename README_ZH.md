@@ -46,7 +46,7 @@
 
 ## 项目简介
 
-<img width="2560" height="1599" alt="OpenAgent Workflow Overview" src="https://github.com/user-attachments/assets/23b510e2-1232-4f52-9262-812a7523ae21" />
+<img width="2560" height="1418" alt="OpenAgent Product Overview" src="https://github.com/user-attachments/assets/0f8f7517-1622-46ea-9554-fb13af4841a1" />
 
 OpenAgent 不是单一的聊天 Demo，而是一个面向团队和产品化场景的全栈 AI Agent 平台。当前仓库同时包含 Flask 后端、Celery 后台任务、Vue 3 前端工作台、可视化工作流编排、数据集与文档管理、公共应用发布，以及基于 OpenAPI 的对外调用能力。
 
