@@ -2,7 +2,6 @@
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/15024f52-cb4d-4222-bd8e-b7aa385a6f3e" alt="OpenAgent Logo" width="360" />
-  <h1 align="center">OpenAgent</h1>
 
   <p align="center">
     An end-to-end AI agent platform for building, orchestrating, publishing, and operating AI applications.
@@ -32,6 +31,7 @@
 ## Table of Contents
 
 - [About The Project](#about-the-project)
+- [Architecture](#architecture)
 - [Built With](#built-with)
 - [Getting Started](#getting-started)
 - [Usage](#usage)
@@ -58,11 +58,21 @@ What the current codebase already supports:
 - Browse public apps, tools, and workflows through store-style views.
 - Expose published apps over REST and SSE through `POST /api/openapi/chat`.
 
+## Architecture
+
+<a href="https://github.com/user-attachments/assets/f6bdccf2-a6ff-4924-b68b-ec4d3581796e">
+  <img src="https://github.com/user-attachments/assets/f6bdccf2-a6ff-4924-b68b-ec4d3581796e" alt="Basic chatbot architecture" width="100%" />
+</a>
+
+Click the diagram to view the full-resolution architecture image.
+
 ### Built With
 
-- Backend: Flask, SQLAlchemy, Celery, Flask-SocketIO, LangChain, LangGraph
-- Frontend: Vue 3, Vite, TypeScript, Pinia, Vue Flow, Arco Design
-- Infrastructure: PostgreSQL, Redis, Weaviate, Nginx, Docker Compose
+- AI framework and orchestration: LangChain, LangGraph, workflow orchestration, tool calling, A2A delegation, skills, memory
+- Knowledge and retrieval: RAG, semantic retrieval, full-text retrieval, hybrid retrieval, Weaviate, FAISS
+- Backend: Python, Flask, SQLAlchemy, Celery, Flask-SocketIO, Redis, PostgreSQL
+- Frontend: Vue 3, JavaScript / TypeScript, Vite, TailwindCSS, Pinia, Vue Flow, Arco Design
+- Infrastructure and delivery: Docker Compose, Nginx, OpenAPI, SSE
 - Model integrations: OpenAI, DeepSeek, Grok, Google, Moonshot, Tongyi, Wenxin, Ollama, Zhipu
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -237,6 +247,6 @@ No root `LICENSE` file is currently included in the repository. Add one if you w
 ## Acknowledgments
 
 - README structure inspired by [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
-- Thanks to the OpenAgent contributors and responsible disclosure reporters who improved the project and documentation
+- Rui Yang and Haoyu Wang (Johns Hopkins University) for responsibly reporting a Host Header poisoning issue in the built-in tool icon URL construction and helping improve the security of this project.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
