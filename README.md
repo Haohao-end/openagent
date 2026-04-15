@@ -223,10 +223,6 @@ The repository already includes automated backend and frontend tests.
 - Frontend type check: `cd ui && npm run type-check`
 - Frontend build validation: `cd ui && npm run build`
 
-## Security
-
-Special thanks to Rui Yang and Haoyu Wang (Johns Hopkins University) for responsibly reporting a Host Header poisoning issue in the built-in tool icon URL construction and helping improve the security of this project.
-
 ## Contact
 
 - Project Link: https://github.com/Haohao-end/openagent
@@ -234,5 +230,7 @@ Special thanks to Rui Yang and Haoyu Wang (Johns Hopkins University) for respons
 - API Docs: https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417
 
 ## Acknowledgments
+
+- Special thanks to Rui Yang and Haoyu Wang (Johns Hopkins University) for responsibly reporting a Host Header poisoning issue in the built-in tool icon URL construction and helping improve the security of this project.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
