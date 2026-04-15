@@ -38,9 +38,6 @@
 - [项目结构](#项目结构)
 - [文档与说明](#文档与说明)
 - [测试](#测试)
-- [Roadmap](#roadmap)
-- [安全致谢](#安全致谢)
-- [许可证](#许可证)
 - [联系方式](#联系方式)
 - [鸣谢](#鸣谢)
 
@@ -225,20 +222,6 @@ npm run test:unit -- --run
 - 前端类型检查：`cd ui && npm run type-check`
 - 前端构建校验：`cd ui && npm run build`
 
-## Roadmap
-
-- [ ] 保持 `README.md` 与 `README_ZH.md` 结构同步
-- [ ] 补充仓库根目录 `LICENSE` 文件
-- [ ] 增加更完整的自托管部署和生产运行说明
-
-## 安全致谢
-
-感谢 Rui Yang 和 Haoyu Wang（Johns Hopkins University）以负责任披露的方式报告了内置工具图标 URL 构造中的 Host Header poisoning 问题，帮助项目进一步改进安全性。
-
-## 许可证
-
-当前仓库根目录尚未提供独立的 `LICENSE` 文件。如果你希望对使用者、贡献者和下游项目明确许可证边界，建议补充该文件。
-
 ## 联系方式
 
 - 项目地址：https://github.com/Haohao-end/openagent
@@ -246,8 +229,5 @@ npm run test:unit -- --run
 - API 文档：https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417
 
 ## 鸣谢
-
-- README 结构参考了 [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
-- 感谢 Rui Yang 和 Haoyu Wang（Johns Hopkins University）以负责任披露的方式报告了内置工具图标 URL 构造中的 Host Header poisoning 问题，帮助项目进一步改进安全性。
 
 <p align="right">(<a href="#readme-top">返回顶部</a>)</p>

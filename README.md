@@ -38,9 +38,7 @@
 - [Project Structure](#project-structure)
 - [Documentation](#documentation)
 - [Testing](#testing)
-- [Roadmap](#roadmap)
 - [Security](#security)
-- [License](#license)
 - [Contact](#contact)
 - [Acknowledgments](#acknowledgments)
 
@@ -225,19 +223,9 @@ The repository already includes automated backend and frontend tests.
 - Frontend type check: `cd ui && npm run type-check`
 - Frontend build validation: `cd ui && npm run build`
 
-## Roadmap
-
-- [ ] Keep `README.md` and `README_ZH.md` structurally aligned
-- [ ] Add an explicit root `LICENSE` file
-- [ ] Expand self-hosted deployment and production runbook examples
-
 ## Security
 
 Special thanks to Rui Yang and Haoyu Wang (Johns Hopkins University) for responsibly reporting a Host Header poisoning issue in the built-in tool icon URL construction and helping improve the security of this project.
-
-## License
-
-No root `LICENSE` file is currently included in the repository. Add one if you want the licensing terms to be explicit for users, contributors, and downstream adopters.
 
 ## Contact
 
@@ -246,8 +234,5 @@ No root `LICENSE` file is currently included in the repository. Add one if you w
 - API Docs: https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417
 
 ## Acknowledgments
-
-- README structure inspired by [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
-- Rui Yang and Haoyu Wang (Johns Hopkins University) for responsibly reporting a Host Header poisoning issue in the built-in tool icon URL construction and helping improve the security of this project.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
