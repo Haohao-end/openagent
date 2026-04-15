@@ -25,6 +25,7 @@
     <img src="https://img.shields.io/badge/vue-3-4FC08D?logo=vue.js&logoColor=white" alt="Vue 3" />
     <img src="https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white" alt="Docker Compose" />
     <img src="https://img.shields.io/badge/weaviate-vector%20db-00C6A7" alt="Weaviate" />
+    <a href="https://deepwiki.com/Haohao-end/openagent"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki" /></a>
   </p>
 </div>
 
@@ -227,6 +228,7 @@ npm run test:unit -- --run
 - 项目地址：https://github.com/Haohao-end/openagent
 - 官网：https://openllm.cloud
 - API 文档：https://s.apifox.cn/c76bd530-fd50-429c-94cc-f0e41c2675d1/api-305434417
+- DeepWiki: https://deepwiki.com/Haohao-end/openagent
 
 ## 鸣谢
 
