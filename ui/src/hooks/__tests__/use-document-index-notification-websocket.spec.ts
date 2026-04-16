@@ -91,6 +91,7 @@ describe('useDocumentIndexNotificationWebSocket', () => {
       'http://localhost:5001',
       expect.objectContaining({
         path: '/socket.io',
+        transports: ['websocket'],
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
@@ -134,6 +135,7 @@ describe('useDocumentIndexNotificationWebSocket', () => {
       'https://openllm.cloud',
       expect.objectContaining({
         path: '/api/socket.io',
+        transports: ['websocket'],
       }),
     )
 

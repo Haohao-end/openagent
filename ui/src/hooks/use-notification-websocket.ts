@@ -99,6 +99,8 @@ export const createNotificationWebSocket = <TNotification>(
           })
         },
         path: socketPath,
+        // Avoid polling->websocket upgrade races; App.vue already falls back to HTTP polling.
+        transports: ['websocket'],
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,

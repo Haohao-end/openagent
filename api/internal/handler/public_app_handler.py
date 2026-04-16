@@ -140,7 +140,7 @@ class PublicAppHandler:
         if not self.public_agent_a2a_service:
             return jsonify({"error": "A2A service unavailable"}), 503
         payload = request.get_json(force=True, silent=True) or {}
-        return jsonify(self.public_agent_a2a_service.send_message(app_id, payload))
+        return compact_generate_response(self.public_agent_a2a_service.stream_message(app_id, payload))
 
     def get_public_app_a2a_conversation_messages(self, app_id: str, conversation_id: str):
         """读取公共应用会话消息历史。"""

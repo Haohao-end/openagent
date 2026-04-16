@@ -125,10 +125,11 @@ class PublicWorkflowService(BaseService):
 
     @staticmethod
     def _resolve_public_workflow_tags(workflow: Workflow) -> list[str]:
-        """优先使用已保存标签；缺失时根据名称和描述自动兜底。"""
+        """优先使用已保存标签；缺失时仅做轻量关键词兜底，避免列表接口触发慢路径。"""
         if workflow.tags:
             return sort_tags_by_priority(list(workflow.tags))
-        return TagAssignmentService.auto_assign_tags(workflow.name, workflow.description)
+        tags = TagAssignmentService.match_tags_by_keywords(workflow.name, workflow.description)
+        return tags if tags else ["other"]
 
     def share_workflow_to_square(self, workflow_id: UUID, tags: str, account: Account) -> Workflow:
         """将工作流共享到广场"""
@@ -198,6 +199,9 @@ class PublicWorkflowService(BaseService):
         ]
         requested_tags = [t.strip() for t in req.tags.data.split(',') if t.strip()] if req.tags.data else []
 
+        if requested_tags:
+            filters.append(or_(*[Workflow.tags.contains([tag]) for tag in requested_tags]))
+
         # 搜索词筛选
         if req.search_word.data:
             filters.append(
@@ -241,14 +245,6 @@ class PublicWorkflowService(BaseService):
         order_by = order_by_map.get(req.sort_by.data, desc(Workflow.like_count))
         query = query.order_by(order_by, desc(Workflow.created_at))
         workflow_rows = paginator.paginate(query)
-        if requested_tags:
-            workflow_rows = [
-                row for row in workflow_rows
-                if set(requested_tags) & set(self._resolve_public_workflow_tags(row[0]))
-            ]
-        total = len(workflow_rows)
-        start = (req.current_page.data - 1) * req.page_size.data
-        workflow_rows = workflow_rows[start:start + req.page_size.data]
 
         workflow_ids = [workflow.id for workflow, _account_name, _account_avatar, _favorite_count in workflow_rows]
         liked_workflow_ids: set[UUID] = set()
@@ -301,13 +297,6 @@ class PublicWorkflowService(BaseService):
                 "account_name": account_name or "Unknown",
                 "account_avatar": account_avatar or "",
             })
-
-        if hasattr(paginator, "total_record"):
-            paginator.total_record = total
-        if hasattr(paginator, "total_page"):
-            paginator.total_page = (total + req.page_size.data - 1) // req.page_size.data if req.page_size.data else 0
-        if hasattr(paginator, "total"):
-            paginator.total = total
 
         return result, paginator
 

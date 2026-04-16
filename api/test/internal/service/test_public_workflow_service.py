@@ -423,6 +423,111 @@ class TestPublicWorkflowService:
         assert records[0]["favorite_count"] == 2
         assert records[0]["tags"] == [AppCategory.GENERAL.value]
 
+    def test_get_public_workflows_with_page_should_apply_tag_filter_in_sql_and_not_slice_twice(self, monkeypatch):
+        workflow = SimpleNamespace(
+            id=uuid4(),
+            account_id=uuid4(),
+            name="工作流 B",
+            icon="https://icon",
+            description="分页回归测试",
+            tags=[AppCategory.GENERAL.value],
+            view_count=8,
+            like_count=5,
+            fork_count=1,
+            published_at=datetime(2026, 2, 2, tzinfo=UTC),
+            created_at=datetime(2026, 1, 2, tzinfo=UTC),
+        )
+        session = _QueueSession(
+            [
+                _Query(),  # favorite_count_subquery
+                _Query(),  # query(Workflow, Account.name, favorite_count)
+            ]
+        )
+        service = _build_service(session=session)
+        captures = {}
+
+        class _Paginator:
+            def __init__(self, db, req):
+                captures["req"] = req
+
+            def paginate(self, query):
+                captures["query"] = query
+                return [(workflow, "Owner", "https://avatar", 3)]
+
+        monkeypatch.setattr("internal.service.public_workflow_service.Paginator", _Paginator)
+
+        records, paginator = service.get_public_workflows_with_page(
+            _req(tags=AppCategory.GENERAL.value, current_page=2, page_size=1),
+            None,
+        )
+
+        assert isinstance(paginator, _Paginator)
+        assert len(captures["query"].filter_args) == 3
+        assert records == [
+            {
+                "id": str(workflow.id),
+                "name": "工作流 B",
+                "icon": "https://icon",
+                "description": "分页回归测试",
+                "tags": [AppCategory.GENERAL.value],
+                "view_count": 8,
+                "like_count": 5,
+                "fork_count": 1,
+                "favorite_count": 3,
+                "published_at": int(workflow.published_at.timestamp()),
+                "created_at": int(workflow.created_at.timestamp()),
+                "is_liked": False,
+                "is_favorited": False,
+                "is_forked": False,
+                "account_name": "Owner",
+                "account_avatar": "https://avatar",
+            }
+        ]
+
+    def test_get_public_workflows_with_page_should_not_trigger_deepseek_when_tags_missing(self, monkeypatch):
+        workflow = SimpleNamespace(
+            id=uuid4(),
+            account_id=uuid4(),
+            name="未知工作流",
+            icon="https://icon",
+            description="没有明显关键词",
+            tags=[],
+            view_count=1,
+            like_count=0,
+            fork_count=0,
+            published_at=datetime(2026, 2, 3, tzinfo=UTC),
+            created_at=datetime(2026, 1, 3, tzinfo=UTC),
+        )
+        session = _QueueSession(
+            [
+                _Query(),  # favorite_count_subquery
+                _Query(),  # query(Workflow, Account.name, favorite_count)
+            ]
+        )
+        service = _build_service(session=session)
+
+        monkeypatch.setattr(
+            "internal.service.public_workflow_service.TagAssignmentService.match_tags_by_keywords",
+            lambda *_args, **_kwargs: [],
+        )
+        monkeypatch.setattr(
+            "internal.service.public_workflow_service.TagAssignmentService.assign_tags_by_deepseek",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("deepseek should not be called")),
+        )
+
+        class _Paginator:
+            def __init__(self, db, req):
+                pass
+
+            def paginate(self, query):
+                return [(workflow, None, None, 0)]
+
+        monkeypatch.setattr("internal.service.public_workflow_service.Paginator", _Paginator)
+
+        records, _ = service.get_public_workflows_with_page(_req(), None)
+
+        assert records[0]["tags"] == ["other"]
+
     def test_fork_public_workflow_should_create_copy_and_update_counters(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         source = SimpleNamespace(
