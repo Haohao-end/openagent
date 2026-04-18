@@ -7,6 +7,7 @@ from flask_login import current_user, login_required
 from injector import inject
 
 from pkg.response import success_json, success_message, validate_error_json, compact_generate_response
+from internal.exception import NotFoundException, ValidateErrorException
 from internal.schema.public_app_schema import (
     ShareAppToSquareReq,
     GetPublicAppsWithPageReq,
@@ -146,10 +147,17 @@ class PublicAppHandler:
         """读取公共应用会话消息历史。"""
         if not self.public_agent_a2a_service:
             return jsonify({"error": "A2A service unavailable"}), 503
-        messages = self.public_agent_a2a_service.list_public_app_conversation_messages(
-            app_id,
-            conversation_id,
-        )
+        try:
+            messages = self.public_agent_a2a_service.list_public_app_conversation_messages(
+                app_id,
+                conversation_id,
+            )
+        except NotFoundException as exc:
+            return jsonify({"error": str(exc) or "App or conversation not found"}), 404
+        except ValidateErrorException as exc:
+            return jsonify({"error": str(exc) or "Invalid request parameters"}), 400
+        except Exception:
+            return jsonify({"error": "Failed to retrieve conversation messages"}), 500
         return success_json(messages)
 
     def get_latest_public_app_a2a_conversation(self, app_id: str):

@@ -779,7 +779,10 @@ class PublicAgentA2AService(BaseService):
     def list_public_app_conversation_messages(self, app_id: UUID | str, conversation_id: UUID | str) -> list[dict[str, Any]]:
         """读取公开广场会话消息。"""
         app = self._get_public_app(app_id)
-        conversation_uuid = UUID(str(conversation_id))
+        try:
+            conversation_uuid = UUID(str(conversation_id))
+        except (ValueError, AttributeError) as exc:
+            raise ValidateErrorException("会话ID格式无效") from exc
         conversation = self.db.session.query(Conversation).filter(
             Conversation.id == conversation_uuid,
             Conversation.app_id == app.id,
