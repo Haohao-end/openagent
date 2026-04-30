@@ -60,7 +60,7 @@ class PublicAppHandler:
         # 2.调用服务获取列表(如果用户已登录则传入current_user,否则传None)
         try:
             account = current_user if current_user.is_authenticated else None
-        except:
+        except Exception:
             account = None
 
         apps, paginator = self.public_app_service.get_public_apps_with_page(req, account)
@@ -106,7 +106,7 @@ class PublicAppHandler:
         # 1.判断用户是否登录
         try:
             account = current_user if current_user.is_authenticated else None
-        except:
+        except Exception:
             account = None
 
         # 2.获取应用详情
@@ -120,7 +120,7 @@ class PublicAppHandler:
         # 1.判断用户是否登录
         try:
             account = current_user if current_user.is_authenticated else None
-        except:
+        except Exception:
             account = None
 
         # 2.获取应用统计分析数据
@@ -135,6 +135,7 @@ class PublicAppHandler:
             return jsonify({"error": "A2A service unavailable"}), 503
         return jsonify(self.public_agent_a2a_service.get_agent_card(app_id))
 
+    @login_required
     def send_public_app_a2a_message(self, app_id: str):
         """以A2A协议向公共应用发送消息。"""
         if not self.public_agent_a2a_service:
@@ -142,6 +143,7 @@ class PublicAppHandler:
         payload = request.get_json(force=True, silent=True) or {}
         return compact_generate_response(self.public_agent_a2a_service.stream_message(app_id, payload))
 
+    @login_required
     def get_public_app_a2a_conversation_messages(self, app_id: str, conversation_id: str):
         """读取公共应用会话消息历史。"""
         if not self.public_agent_a2a_service:
@@ -152,6 +154,7 @@ class PublicAppHandler:
         )
         return success_json(messages)
 
+    @login_required
     def get_latest_public_app_a2a_conversation(self, app_id: str):
         """获取公共应用最近一次会话。"""
         if not self.public_agent_a2a_service:
