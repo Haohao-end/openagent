@@ -188,6 +188,85 @@ def test_deepseek_provider_should_expose_latest_models(monkeypatch):
     assert pro.attributes["model"] == "deepseek-v4-pro"
 
 
+def test_provider_pricing_should_be_rmb_across_all_models():
+    repo_root = Path(__file__).resolve().parents[5]
+    providers_root = repo_root / "api/internal/core/language_model/providers"
+
+    def assert_all_currency_fields_are_rmb(node, rel_path: str):
+        if isinstance(node, dict):
+            if "currency" in node:
+                assert node["currency"] == "RMB", f"{rel_path} has non-RMB currency {node['currency']}"
+            for key, value in node.items():
+                assert_all_currency_fields_are_rmb(value, f"{rel_path}.{key}")
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                assert_all_currency_fields_are_rmb(value, f"{rel_path}[{index}]")
+
+    for yaml_path in providers_root.rglob("*.yaml"):
+        if yaml_path.name in {"providers.yaml", "positions.yaml"}:
+            continue
+
+        data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            continue
+
+        metadata = data.get("metadata")
+        if isinstance(metadata, dict):
+            assert_all_currency_fields_are_rmb(
+                metadata, yaml_path.relative_to(providers_root).as_posix()
+            )
+
+    deepseek_v4_pro = yaml.safe_load(
+        (providers_root / "deepseek/deepseek-v4-pro.yaml").read_text(encoding="utf-8")
+    )
+    assert deepseek_v4_pro["metadata"]["pricing"]["currency"] == "RMB"
+    assert deepseek_v4_pro["metadata"]["pricing"]["input"] == pytest.approx(0.000992)
+    assert deepseek_v4_pro["metadata"]["pricing"]["output"] == pytest.approx(0.00595)
+    assert deepseek_v4_pro["metadata"]["pricing_cache_hit"]["input"] == pytest.approx(
+        0.000248
+    )
+    assert deepseek_v4_pro["metadata"]["pricing_cache_hit"]["output"] == pytest.approx(
+        0.00595
+    )
+
+    gemini_pro = yaml.safe_load(
+        (providers_root / "google/gemini-2.5-pro.yaml").read_text(encoding="utf-8")
+    )
+    assert gemini_pro["metadata"]["pricing"]["currency"] == "RMB"
+    assert gemini_pro["metadata"]["pricing"]["input"] == pytest.approx(0.008548)
+    assert gemini_pro["metadata"]["pricing"]["output"] == pytest.approx(0.068386)
+    assert gemini_pro["metadata"]["pricing_tiered"]["long_context"]["currency"] == "RMB"
+    assert gemini_pro["metadata"]["pricing_tiered"]["long_context"]["input"] == pytest.approx(
+        0.017097
+    )
+    assert gemini_pro["metadata"]["pricing_tiered"]["long_context"]["output"] == pytest.approx(
+        0.102579
+    )
+
+    grok_4 = yaml.safe_load((providers_root / "grok/grok-4.yaml").read_text(encoding="utf-8"))
+    assert grok_4["metadata"]["pricing"]["currency"] == "RMB"
+    assert grok_4["metadata"]["pricing"]["input"] == pytest.approx(0.020516)
+    assert grok_4["metadata"]["pricing"]["output"] == pytest.approx(0.102579)
+    assert grok_4["metadata"]["pricing_long_context"]["currency"] == "RMB"
+    assert grok_4["metadata"]["pricing_long_context"]["input"] == pytest.approx(0.041032)
+    assert grok_4["metadata"]["pricing_long_context"]["output"] == pytest.approx(0.205158)
+    assert grok_4["metadata"]["pricing_cache_hit"]["currency"] == "RMB"
+    assert grok_4["metadata"]["pricing_cache_hit"]["input"] == pytest.approx(0.005129)
+    assert grok_4["metadata"]["pricing_cache_hit"]["output"] == pytest.approx(0.102579)
+
+    gpt_5_2_pro = yaml.safe_load(
+        (providers_root / "openai/gpt-5.2-pro.yaml").read_text(encoding="utf-8")
+    )
+    assert gpt_5_2_pro["metadata"]["pricing"]["currency"] == "RMB"
+    assert gpt_5_2_pro["metadata"]["pricing"]["input"] == pytest.approx(0.136772)
+    assert gpt_5_2_pro["metadata"]["pricing"]["output"] == pytest.approx(0.547089)
+
+    glm_5 = yaml.safe_load((providers_root / "zhipu/glm-5.yaml").read_text(encoding="utf-8"))
+    assert glm_5["metadata"]["pricing"]["currency"] == "RMB"
+    assert glm_5["metadata"]["pricing"]["input"] == pytest.approx(0.004103)
+    assert glm_5["metadata"]["pricing"]["output"] == pytest.approx(0.015045)
+
+
 def test_language_model_manager_should_load_and_delegate(monkeypatch, tmp_path):
     providers_dir = tmp_path / "providers"
     providers_dir.mkdir()

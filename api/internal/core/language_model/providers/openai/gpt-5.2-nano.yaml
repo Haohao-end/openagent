@@ -2,32 +2,32 @@ model: gpt-5.2-nano
 label: gpt-5.2-nano
 model_type: chat
 features:
-  - tool_call
-  - agent_thought
-  - image_input
+- tool_call
+- agent_thought
+- image_input
 context_window: 400000
 max_output_tokens: 128000
 attributes:
   model: gpt-5.2-nano
 parameters:
-  - name: temperature
-    use_template: temperature
-    default: 1
-  - name: top_p
-    use_template: top_p
-    default: 1
-  - name: max_tokens
-    use_template: max_tokens
-    default: 8192
-    max: 128000
+- name: temperature
+  use_template: temperature
+  default: 1
+- name: top_p
+  use_template: top_p
+  default: 1
+- name: max_tokens
+  use_template: max_tokens
+  default: 8192
+  max: 128000
 metadata:
   pricing:
-    input: 0.0001
-    output: 0.0004
+    input: 0.000684
+    output: 0.002735
     unit: 0.001
-    currency: USD
+    currency: RMB
   pricing_cache_hit:
-    input: 0.000025
-    output: 0.0004
+    input: 0.000171
+    output: 0.002735
     unit: 0.001
-    currency: USD
+    currency: RMB
