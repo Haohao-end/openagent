@@ -1,0 +1,38 @@
+model: deepseek-v4-pro
+label: deepseek-v4-pro
+model_type: chat
+features:
+  - tool_call
+  - agent_thought
+context_window: 1000000
+max_output_tokens: 384000
+attributes:
+  model: deepseek-v4-pro
+parameters:
+  - name: temperature
+    use_template: temperature
+    default: 1
+  - name: top_p
+    use_template: top_p
+    default: 1
+  - name: presence_penalty
+    use_template: presence_penalty
+    default: 0.0
+  - name: frequency_penalty
+    use_template: frequency_penalty
+    default: 0.0
+  - name: max_tokens
+    use_template: max_tokens
+    default: 8192
+    max: 384000
+metadata:
+  pricing:
+    input: 0.000145
+    output: 0.00087
+    unit: 0.001
+    currency: USD
+  pricing_cache_hit:
+    input: 0.00003625
+    output: 0.00087
+    unit: 0.001
+    currency: USD

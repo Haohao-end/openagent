@@ -161,7 +161,6 @@ class HomeService(BaseService):
                 "role": str(message.get("role") or ""),
                 "content": str(message.get("content") or ""),
                 "created_at": str(message.get("created_at") or ""),
-                "updated_at": str(message.get("updated_at") or ""),
             }
             for message in messages
         ]

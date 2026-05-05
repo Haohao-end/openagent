@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
 import yaml
@@ -144,6 +145,47 @@ def test_provider_should_raise_when_positions_yaml_is_not_list(monkeypatch, tmp_
                 supported_model_types=[ModelType.CHAT],
             ),
         )
+
+
+def test_deepseek_provider_should_expose_latest_models(monkeypatch):
+    repo_root = Path(__file__).resolve().parents[5]
+    provider_entity_path = repo_root / "api/internal/core/language_model/entities/provider_entity.py"
+
+    monkeypatch.setattr(
+        "internal.core.language_model.entities.provider_entity.os.path.abspath",
+        lambda _path: str(provider_entity_path),
+    )
+    monkeypatch.setattr(
+        "internal.core.language_model.entities.provider_entity.dynamic_import",
+        lambda module, symbol: f"{module}:{symbol}",
+    )
+
+    provider = Provider(
+        name="deepseek",
+        position=1,
+        provider_entity=ProviderEntity(
+            name="deepseek",
+            label="DeepSeek",
+            description="DeepSeek provider",
+            icon="icon.png",
+            background="#FFFFFF",
+            supported_model_types=[ModelType.CHAT],
+        ),
+    )
+
+    model_names = [model.model_name for model in provider.get_model_entities()]
+    assert model_names[:2] == ["deepseek-v4-flash", "deepseek-v4-pro"]
+    assert "deepseek-reasoner" in model_names
+    assert "deepseek-chat" in model_names
+
+    flash = provider.get_model_entity("deepseek-v4-flash")
+    pro = provider.get_model_entity("deepseek-v4-pro")
+    assert flash.context_window == 1_000_000
+    assert flash.max_output_tokens == 384_000
+    assert flash.attributes["model"] == "deepseek-v4-flash"
+    assert pro.context_window == 1_000_000
+    assert pro.max_output_tokens == 384_000
+    assert pro.attributes["model"] == "deepseek-v4-pro"
 
 
 def test_language_model_manager_should_load_and_delegate(monkeypatch, tmp_path):

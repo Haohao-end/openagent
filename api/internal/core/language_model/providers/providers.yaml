@@ -29,7 +29,7 @@
     - chat
 - name: deepseek
   label: DeepSeek
-  description: DeepSeek提供的模型，例如deepseek-v3、deepseek-r1等。
+  description: DeepSeek提供的模型，例如deepseek-v4-flash、deepseek-v4-pro、deepseek-chat、deepseek-reasoner等。
   icon: icon.png
   background: "#FFFFFF"
   supported_model_types:

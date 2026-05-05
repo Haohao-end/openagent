@@ -2,7 +2,6 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import LayoutSidebar from '@/views/layouts/components/LayoutSidebar.vue'
-import { HOME_NEW_CONVERSATION_QUERY_KEY } from '@/views/pages/home-new-conversation'
 
 const mocks = vi.hoisted(() => ({
   loggedIn: true,
@@ -101,20 +100,13 @@ describe('LayoutSidebar home navigation', () => {
     mocks.recentConversations = []
   })
 
-  it('starts a new home conversation when a logged-in user clicks Home', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(1710835200000)
-
+  it('navigates to plain home when a logged-in user clicks Home', async () => {
     const wrapper = mountSidebar()
     await flushPromises()
 
     await wrapper.get('[data-testid="sidebar-home-new-conversation"]').trigger('click')
 
-    expect(mocks.routerPush).toHaveBeenCalledWith({
-      path: '/home',
-      query: {
-        [HOME_NEW_CONVERSATION_QUERY_KEY]: '1710835200000',
-      },
-    })
+    expect(mocks.routerPush).toHaveBeenCalledWith('/home')
   })
 
   it('keeps anonymous Home clicks as plain home navigation', async () => {

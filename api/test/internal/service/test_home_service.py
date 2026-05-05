@@ -97,6 +97,24 @@ class TestHomeService:
         changed_messages[1]["content"] = "更新后的回答"
         assert signature != service._build_message_signature(changed_messages)
 
+    def test_build_message_signature_should_ignore_updated_at_changes(self, service):
+        """测试消息签名不应因为同一条用户消息的 updated_at 变化而变化"""
+        messages = [
+            {
+                "id": "message-1",
+                "role": "user",
+                "content": "我想创建应用",
+                "created_at": "2026-03-17T10:00:00Z",
+                "updated_at": "2026-03-17T10:00:01Z",
+            }
+        ]
+
+        signature = service._build_message_signature(messages)
+        mutated_messages = [dict(item) for item in messages]
+        mutated_messages[0]["updated_at"] = "2026-03-17T10:05:00Z"
+
+        assert signature == service._build_message_signature(mutated_messages)
+
     def test_get_user_intent_insufficient_messages(self, service, mock_intent_service):
         """测试消息不足时返回默认意图"""
         user = SimpleNamespace(id=uuid4())

@@ -18,7 +18,6 @@ import IconStorage from '@/components/icons/IconStorage.vue'
 import IconStorageFull from '@/components/icons/IconStorageFull.vue'
 import IconOpenApi from '@/components/icons/IconOpenApi.vue'
 import IconOpenApiFull from '@/components/icons/IconOpenApiFull.vue'
-import { buildHomeNewConversationQuery } from '@/views/pages/home-new-conversation'
 
 interface Props {
   collapsed?: boolean
@@ -96,10 +95,7 @@ const handleHomeNavigation = async () => {
     return
   }
 
-  await router.push({
-    path: '/home',
-    query: buildHomeNewConversationQuery(),
-  })
+  await router.push('/home')
 }
 
 const isConversationActive = (conversation: RecentConversation) => {
