@@ -111,6 +111,7 @@ class TestRouterFullMatrix:
             '/datasets/<uuid:dataset_id>/regenerate-icon': {'POST'},
             '/datasets/generate-icon-preview': {'POST'},
             '/health': {'GET'},
+            '/healthz': {'GET'},
             '/home/intent': {'GET'},
             '/language-models': {'GET'},
             '/language-models/<string:provider_name>/<string:model_name>': {'GET'},
@@ -189,4 +190,4 @@ class TestRouterFullMatrix:
         assert by_blueprint["openapi"] == 1
         assert by_blueprint["llmops"] == len(rules) - 1
         # 当前系统的接口总量是一个重要契约，避免漏挂导致线上能力消失。
-        assert len(rules) == 172
+        assert len(rules) == 173

@@ -21,6 +21,9 @@ def init_app(app: Flask):
         "db": app.config.get("REDIS_DB", 0),
         "encoding": "utf-8",
         "decode_responses": False,
+        "socket_connect_timeout": app.config.get("REDIS_SOCKET_CONNECT_TIMEOUT", 5),
+        "socket_timeout": app.config.get("REDIS_SOCKET_TIMEOUT", 5),
+        "health_check_interval": app.config.get("REDIS_HEALTH_CHECK_INTERVAL", 30),
     }, connection_class=connection_class)
 
     app.extensions["redis"] = redis_client

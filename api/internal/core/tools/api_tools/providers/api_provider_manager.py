@@ -6,6 +6,8 @@ from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel,create_model, Field
 from internal.core.tools.api_tools.entities import ToolEntity,ParameterTypeMap, ParameterIn
 
+DEFAULT_API_TOOL_TIMEOUT_SECONDS = 30
+
 @inject
 @dataclass
 class ApiProviderManager(BaseModel):
@@ -45,7 +47,8 @@ class ApiProviderManager(BaseModel):
                 params=parameters[ParameterIn.QUERY],
                 json=parameters[ParameterIn.REQUEST_BODY],
                 headers={**header_map,**parameters[ParameterIn.HEADER]},
-                cookies=parameters[ParameterIn.COOKIE]
+                cookies=parameters[ParameterIn.COOKIE],
+                timeout=DEFAULT_API_TOOL_TIMEOUT_SECONDS,
             ).text
 
         return tool_func
@@ -73,4 +76,3 @@ class ApiProviderManager(BaseModel):
             description=tool_entity.description,
             args_schema=self._create_model_from_parameters(tool_entity.parameters)
         )
-

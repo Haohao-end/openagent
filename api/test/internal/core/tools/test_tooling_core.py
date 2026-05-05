@@ -4,14 +4,26 @@ from uuid import uuid4
 import pytest
 import yaml
 
-from internal.core.tools.api_tools.entities import OpenAPISchema, ParameterIn, ParameterType, ToolEntity
-from internal.core.tools.api_tools.providers.api_provider_manager import ApiProviderManager
+from internal.core.tools.api_tools.entities import (
+    OpenAPISchema,
+    ParameterIn,
+    ParameterType,
+    ToolEntity,
+)
+from internal.core.tools.api_tools.providers.api_provider_manager import (
+    ApiProviderManager,
+)
 from internal.core.tools.builtin_tools.categories.builtin_category_manager import (
     BuiltinCategoryManager,
 )
 from internal.core.tools.builtin_tools.entities.category_entity import CategoryEntity
-from internal.core.tools.builtin_tools.entities.provider_entity import Provider, ProviderEntity
-from internal.core.tools.builtin_tools.entities.tool_entity import ToolEntity as BuiltinToolEntity
+from internal.core.tools.builtin_tools.entities.provider_entity import (
+    Provider,
+    ProviderEntity,
+)
+from internal.core.tools.builtin_tools.entities.tool_entity import (
+    ToolEntity as BuiltinToolEntity,
+)
 from internal.core.tools.builtin_tools.providers.builtin_provider_manager import (
     BuiltinProviderManager,
 )
@@ -21,9 +33,24 @@ from internal.exception import FailException, NotFoundException, ValidateErrorEx
 def test_api_provider_manager_should_create_dynamic_model_from_parameters():
     model_cls = ApiProviderManager._create_model_from_parameters(
         [
-            {"name": "keyword", "type": ParameterType.STR, "required": True, "description": "search word"},
-            {"name": "page", "type": ParameterType.INT, "required": False, "description": "page no"},
-            {"name": "fallback", "type": "unknown", "required": True, "description": "fallback as str"},
+            {
+                "name": "keyword",
+                "type": ParameterType.STR,
+                "required": True,
+                "description": "search word",
+            },
+            {
+                "name": "page",
+                "type": ParameterType.INT,
+                "required": False,
+                "description": "page no",
+            },
+            {
+                "name": "fallback",
+                "type": "unknown",
+                "required": True,
+                "description": "fallback as str",
+            },
         ]
     )
     fields = model_cls.model_fields
@@ -37,19 +64,25 @@ def test_api_provider_manager_should_create_dynamic_model_from_parameters():
     assert fields["fallback"].annotation is str
 
 
-def test_api_provider_manager_should_create_tool_function_and_dispatch_parameters(monkeypatch):
+def test_api_provider_manager_should_create_tool_function_and_dispatch_parameters(
+    monkeypatch,
+):
     captured = {}
 
-    def _fake_request(method, url, params, json, headers, cookies):
+    def _fake_request(method, url, params, json, headers, cookies, timeout=None):
         captured["method"] = method
         captured["url"] = url
         captured["params"] = params
         captured["json"] = json
         captured["headers"] = headers
         captured["cookies"] = cookies
+        captured["timeout"] = timeout
         return SimpleNamespace(text="tool-response")
 
-    monkeypatch.setattr("internal.core.tools.api_tools.providers.api_provider_manager.requests.request", _fake_request)
+    monkeypatch.setattr(
+        "internal.core.tools.api_tools.providers.api_provider_manager.requests.request",
+        _fake_request,
+    )
 
     tool_entity = ToolEntity(
         id=str(uuid4()),
@@ -63,7 +96,11 @@ def test_api_provider_manager_should_create_tool_function_and_dispatch_parameter
             {"name": "keyword", "in": ParameterIn.QUERY, "type": ParameterType.STR},
             {"name": "auth", "in": ParameterIn.HEADER, "type": ParameterType.STR},
             {"name": "sid", "in": ParameterIn.COOKIE, "type": ParameterType.STR},
-            {"name": "payload", "in": ParameterIn.REQUEST_BODY, "type": ParameterType.STR},
+            {
+                "name": "payload",
+                "in": ParameterIn.REQUEST_BODY,
+                "type": ParameterType.STR,
+            },
         ],
     )
 
@@ -84,6 +121,7 @@ def test_api_provider_manager_should_create_tool_function_and_dispatch_parameter
     assert captured["json"] == {"payload": {"k": "v"}}
     assert captured["headers"] == {"x-api-key": "fixed", "auth": "Bearer 123"}
     assert captured["cookies"] == {"sid": "cookie-1"}
+    assert captured["timeout"] == 30
 
 
 def test_api_provider_manager_get_tool_should_delegate_to_structured_tool(monkeypatch):
@@ -162,9 +200,22 @@ def test_openapi_schema_should_keep_only_get_and_post_interfaces():
 @pytest.mark.parametrize(
     "payload, message",
     [
-        ({"server": "", "description": "d", "paths": _valid_openapi_paths()}, "server不能为空"),
-        ({"server": "https://a.com", "description": "", "paths": _valid_openapi_paths()}, "description不能为空"),
-        ({"server": "https://a.com", "description": "d", "paths": {}}, "paths不能为空且必须为字典"),
+        (
+            {"server": "", "description": "d", "paths": _valid_openapi_paths()},
+            "server不能为空",
+        ),
+        (
+            {
+                "server": "https://a.com",
+                "description": "",
+                "paths": _valid_openapi_paths(),
+            },
+            "description不能为空",
+        ),
+        (
+            {"server": "https://a.com", "description": "d", "paths": {}},
+            "paths不能为空且必须为字典",
+        ),
     ],
 )
 def test_openapi_schema_should_raise_for_empty_required_fields(payload, message):
@@ -175,15 +226,21 @@ def test_openapi_schema_should_raise_for_empty_required_fields(payload, message)
 def test_openapi_schema_should_raise_for_operation_level_type_errors():
     base = _valid_openapi_paths()
 
-    bad_desc = {"/items": {"get": {"description": 1, "operationId": "op_1", "parameters": []}}}
+    bad_desc = {
+        "/items": {"get": {"description": 1, "operationId": "op_1", "parameters": []}}
+    }
     with pytest.raises(ValidateErrorException, match="description为字符串且不能为空"):
         OpenAPISchema(server="https://a.com", description="d", paths=bad_desc)
 
-    bad_operation_id = {"/items": {"get": {"description": "d", "operationId": 1, "parameters": []}}}
+    bad_operation_id = {
+        "/items": {"get": {"description": "d", "operationId": 1, "parameters": []}}
+    }
     with pytest.raises(ValidateErrorException, match="operationId为字符串且不能为空"):
         OpenAPISchema(server="https://a.com", description="d", paths=bad_operation_id)
 
-    bad_parameters = {"/items": {"get": {"description": "d", "operationId": "op_1", "parameters": {}}}}
+    bad_parameters = {
+        "/items": {"get": {"description": "d", "operationId": "op_1", "parameters": {}}}
+    }
     with pytest.raises(ValidateErrorException, match="parameters必须是列表或者为空"):
         OpenAPISchema(server="https://a.com", description="d", paths=bad_parameters)
 
@@ -201,11 +258,56 @@ def test_openapi_schema_should_raise_for_operation_level_type_errors():
 @pytest.mark.parametrize(
     "parameter, message",
     [
-        ({"name": 1, "in": ParameterIn.QUERY, "description": "d", "required": True, "type": ParameterType.STR}, "parameter.name为字符串"),
-        ({"name": "q", "in": ParameterIn.QUERY, "description": 1, "required": True, "type": ParameterType.STR}, "parameter.description为字符串"),
-        ({"name": "q", "in": ParameterIn.QUERY, "description": "d", "required": "yes", "type": ParameterType.STR}, "parameter.required为布尔值"),
-        ({"name": "q", "in": 123, "description": "d", "required": True, "type": ParameterType.STR}, "parameter.in参数必须为"),
-        ({"name": "q", "in": ParameterIn.QUERY, "description": "d", "required": True, "type": 123}, "parameter.type参数必须为"),
+        (
+            {
+                "name": 1,
+                "in": ParameterIn.QUERY,
+                "description": "d",
+                "required": True,
+                "type": ParameterType.STR,
+            },
+            "parameter.name为字符串",
+        ),
+        (
+            {
+                "name": "q",
+                "in": ParameterIn.QUERY,
+                "description": 1,
+                "required": True,
+                "type": ParameterType.STR,
+            },
+            "parameter.description为字符串",
+        ),
+        (
+            {
+                "name": "q",
+                "in": ParameterIn.QUERY,
+                "description": "d",
+                "required": "yes",
+                "type": ParameterType.STR,
+            },
+            "parameter.required为布尔值",
+        ),
+        (
+            {
+                "name": "q",
+                "in": 123,
+                "description": "d",
+                "required": True,
+                "type": ParameterType.STR,
+            },
+            "parameter.in参数必须为",
+        ),
+        (
+            {
+                "name": "q",
+                "in": ParameterIn.QUERY,
+                "description": "d",
+                "required": True,
+                "type": 123,
+            },
+            "parameter.type参数必须为",
+        ),
     ],
 )
 def test_openapi_schema_should_raise_for_parameter_shape_errors(parameter, message):
@@ -228,7 +330,9 @@ def test_category_entity_should_raise_when_icon_extension_is_not_svg():
         CategoryEntity(category="search", name="Search", icon="icon.png")
 
 
-def test_builtin_category_manager_should_load_categories_and_icons(tmp_path, monkeypatch):
+def test_builtin_category_manager_should_load_categories_and_icons(
+    tmp_path, monkeypatch
+):
     categories_yaml = tmp_path / "categories.yaml"
     icons_dir = tmp_path / "icons"
     icons_dir.mkdir()
@@ -255,10 +359,15 @@ def test_builtin_category_manager_should_load_categories_and_icons(tmp_path, mon
     assert category_map["search"]["icon"] == "<svg>search</svg>"
 
 
-def test_builtin_category_manager_should_raise_when_icon_file_missing(tmp_path, monkeypatch):
+def test_builtin_category_manager_should_raise_when_icon_file_missing(
+    tmp_path, monkeypatch
+):
     categories_yaml = tmp_path / "categories.yaml"
     categories_yaml.write_text(
-        yaml.safe_dump([{"category": "search", "name": "Search", "icon": "search.svg"}], allow_unicode=True),
+        yaml.safe_dump(
+            [{"category": "search", "name": "Search", "icon": "search.svg"}],
+            allow_unicode=True,
+        ),
         encoding="utf-8",
     )
     monkeypatch.setattr(
@@ -270,8 +379,12 @@ def test_builtin_category_manager_should_raise_when_icon_file_missing(tmp_path, 
         BuiltinCategoryManager()
 
 
-def test_builtin_category_manager_should_skip_reinit_when_map_already_exists(monkeypatch):
-    manager = BuiltinCategoryManager.model_construct(category_map={"existing": {"entity": "x", "icon": "y"}})
+def test_builtin_category_manager_should_skip_reinit_when_map_already_exists(
+    monkeypatch,
+):
+    manager = BuiltinCategoryManager.model_construct(
+        category_map={"existing": {"entity": "x", "icon": "y"}}
+    )
     monkeypatch.setattr(
         "internal.core.tools.builtin_tools.categories.builtin_category_manager.os.path.abspath",
         lambda _path: (_ for _ in ()).throw(RuntimeError("should not call abspath")),
@@ -281,7 +394,9 @@ def test_builtin_category_manager_should_skip_reinit_when_map_already_exists(mon
     assert "existing" in manager.category_map
 
 
-def test_builtin_provider_manager_should_load_provider_map_and_delegate_methods(tmp_path, monkeypatch):
+def test_builtin_provider_manager_should_load_provider_map_and_delegate_methods(
+    tmp_path, monkeypatch
+):
     providers_yaml = tmp_path / "providers.yaml"
     providers_yaml.write_text(
         yaml.safe_dump(
@@ -330,9 +445,15 @@ def test_builtin_provider_manager_should_load_provider_map_and_delegate_methods(
     assert manager.get_tool("missing", "search") is None
 
 
-def test_builtin_provider_manager_should_skip_init_when_provider_map_not_empty(monkeypatch):
+def test_builtin_provider_manager_should_skip_init_when_provider_map_not_empty(
+    monkeypatch,
+):
     manager = BuiltinProviderManager.model_construct(
-        provider_map={"provider_a": SimpleNamespace(provider_entity=SimpleNamespace(name="provider_a"))}
+        provider_map={
+            "provider_a": SimpleNamespace(
+                provider_entity=SimpleNamespace(name="provider_a")
+            )
+        }
     )
     monkeypatch.setattr(
         "internal.core.tools.builtin_tools.providers.builtin_provider_manager.os.path.abspath",
