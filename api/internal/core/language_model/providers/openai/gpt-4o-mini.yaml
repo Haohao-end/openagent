@@ -2,33 +2,33 @@ model: gpt-4o-mini
 label: gpt-4o-mini
 model_type: chat
 features:
-  - tool_call
-  - agent_thought
-  - image_input
+- tool_call
+- agent_thought
+- image_input
 context_window: 128000
 max_output_tokens: 16384
 attributes:
   model: gpt-4o-mini
 parameters:
-  - name: temperature
-    use_template: temperature
-  - name: top_p
-    use_template: top_p
-  - name: presence_penalty
-    use_template: presence_penalty
-  - name: frequency_penalty
-    use_template: frequency_penalty
-  - name: max_tokens
-    use_template: max_tokens
-    default: 4096
+- name: temperature
+  use_template: temperature
+- name: top_p
+  use_template: top_p
+- name: presence_penalty
+  use_template: presence_penalty
+- name: frequency_penalty
+  use_template: frequency_penalty
+- name: max_tokens
+  use_template: max_tokens
+  default: 4096
 metadata:
   pricing:
-    input: 0.00015
-    output: 0.0006
+    input: 0.001026
+    output: 0.004103
     unit: 0.001
-    currency: USD
+    currency: RMB
   pricing_cache_hit:
-    input: 0.000075
-    output: 0.0006
+    input: 0.000513
+    output: 0.004103
     unit: 0.001
-    currency: USD
+    currency: RMB

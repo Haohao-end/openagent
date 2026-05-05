@@ -2,24 +2,24 @@ model: deepseek-reasoner
 label: deepseek-reasoner
 model_type: chat
 features:
-  - agent_thought
+- agent_thought
 context_window: 128000
 max_output_tokens: 64000
 attributes:
   model: deepseek-reasoner
 parameters:
-  - name: max_tokens
-    use_template: max_tokens
-    default: 8192
-    max: 64000
+- name: max_tokens
+  use_template: max_tokens
+  default: 8192
+  max: 64000
 metadata:
   pricing:
-    input: 0.00055
-    output: 0.00219
+    input: 0.003761
+    output: 0.014977
     unit: 0.001
-    currency: USD
+    currency: RMB
   pricing_cache_hit:
-    input: 0.00014
-    output: 0.00219
+    input: 0.000957
+    output: 0.014977
     unit: 0.001
-    currency: USD
+    currency: RMB

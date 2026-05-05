@@ -2,42 +2,43 @@ model: gemini-2.5-pro
 label: gemini-2.5-pro
 model_type: chat
 features:
-  - tool_call
-  - agent_thought
-  - image_input
+- tool_call
+- agent_thought
+- image_input
 context_window: 1048576
 max_output_tokens: 65536
 attributes:
   model: gemini-2.5-pro
 parameters:
-  - name: temperature
-    use_template: temperature
-    default: 1
-  - name: top_p
-    use_template: top_p
-    default: 0.95
-  - name: top_k
-    label: Top K
-    type: int
-    help: 仅从最高概率的前K个候选中采样。
-    required: false
-    default: 64
-    min: 1
-    max: 64
-    precision: 0
-    options: []
-  - name: max_tokens
-    use_template: max_tokens
-    default: 8192
-    max: 65536
+- name: temperature
+  use_template: temperature
+  default: 1
+- name: top_p
+  use_template: top_p
+  default: 0.95
+- name: top_k
+  label: Top K
+  type: int
+  help: 仅从最高概率的前K个候选中采样。
+  required: false
+  default: 64
+  min: 1
+  max: 64
+  precision: 0
+  options: []
+- name: max_tokens
+  use_template: max_tokens
+  default: 8192
+  max: 65536
 metadata:
   pricing:
-    input: 0.00125
-    output: 0.01
+    input: 0.008548
+    output: 0.068386
     unit: 0.001
-    currency: USD
+    currency: RMB
   pricing_tiered:
     long_context:
-      input: 0.0025
-      output: 0.015
+      input: 0.017097
+      output: 0.102579
       threshold_tokens: 200000
+      currency: RMB
