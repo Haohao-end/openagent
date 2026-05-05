@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# LLMOps Docker 容器启动脚本
+# OpenAgent Docker 容器启动脚本
 # 注意：所有敏感信息（API Keys、密钥等）必须通过 api/.env 或 docker-compose environment 提供
 # 本脚本仅设置非敏感的默认配置
 
@@ -24,8 +24,9 @@ set_default_if_unset "FLASK_DEBUG" "0"
 set_default_if_unset "HF_ENDPOINT" "https://hf-mirror.com"
 
 # 服务器配置
-set_default_if_unset "SERVER_WORKER_AMOUNT" "4"
-set_default_if_unset "SERVER_THREAD_AMOUNT" "4"
+set_default_if_unset "SERVER_WORKER_AMOUNT" "1"
+set_default_if_unset "SERVER_THREAD_AMOUNT" "32"
+set_default_if_unset "GUNICORN_TIMEOUT" "120"
 set_default_if_unset "CELERY_WORKER_AMOUNT" "4"
 
 # 数据库连接池配置
@@ -64,6 +65,7 @@ set_default_if_unset "COS_ENABLE_OLD_DOMAIN" "True"
 set_default_if_unset "COS_ENABLE_INTERNAL_DOMAIN" "False"
 
 # API 基础地址（非敏感）
+set_default_if_unset "LLM_REQUEST_TIMEOUT" "120"
 set_default_if_unset "OPENAI_API_BASE" "https://api.openai.com/v1"
 set_default_if_unset "DEEPSEEK_API_BASE" "https://api.deepseek.com/v1"
 set_default_if_unset "SILICONFLOW_API_BASE" "https://api.siliconflow.cn"
@@ -122,6 +124,14 @@ if [[ "${MODE}" == "celery" ]]; then
   # 7.运行Celery命令
   celery -A app.http.app.celery worker -P ${CELERY_WORKER_CLASS:-prefork} -c ${CELERY_WORKER_AMOUNT:-1} --loglevel DEBUG
 else
+  GUNICORN_WORKER_CLASS="${SERVER_WORKER_CLASS:-gthread}"
+  GUNICORN_WORKER_AMOUNT="${SERVER_WORKER_AMOUNT:-1}"
+
+  if [[ "${GUNICORN_WORKER_CLASS}" == "gthread" && "${GUNICORN_WORKER_AMOUNT}" != "1" ]]; then
+    echo "WARNING: forcing SERVER_WORKER_AMOUNT=1 because Flask-SocketIO with gthread/simple-websocket requires a single gunicorn worker."
+    GUNICORN_WORKER_AMOUNT="1"
+  fi
+
   # 8.判断当前API环境是开发环境还是生产环境 以执行不同的脚本
   if [[ "${FLASK_ENV}" == "development" ]]; then
     # 9.开发环境使用flask内置服务器
@@ -130,8 +140,8 @@ else
       # 10.生产环境使用gunicorn服务器进行部署 并配置worker worker_class 超时时间 预加载等
       gunicorn \
         --bind "${LLMOPS_BIND_ADDRESS:-0.0.0.0}:${LLMOPS_PORT:-5001}" \
-        --workers ${SERVER_WORKER_AMOUNT:-1} \
-        --worker-class ${SERVER_WORKER_CLASS:-gthread} \
+        --workers ${GUNICORN_WORKER_AMOUNT} \
+        --worker-class ${GUNICORN_WORKER_CLASS} \
         --threads ${SERVER_THREAD_AMOUNT:-2} \
         --timeout ${GUNICORN_TIMEOUT:-600} \
         --preload \

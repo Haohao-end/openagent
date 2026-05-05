@@ -24,7 +24,7 @@ class IntentRecognitionService(BaseService):
     INTENT_CACHE_TTL = 24 * 60 * 60  # 24小时
     MAX_TOKENS = 4000
     DEFAULT_INTENT = {
-        "intent": "你好，欢迎来到 LLMOps 🎉\n\n我可以帮你从想法出发，快速创建专属 AI 应用。\n我支持根据你的需求执行 function call，自动调用工具并生成垂直 Agent 的后端能力代码与配置。\n你可以把应用一键发布到 LLMOps 平台、微信等多个渠道，也可以部署到你自己的网站。",
+        "intent": "你好，欢迎来到 OpenAgent 🎉\n\n我可以帮你从想法出发，快速创建专属 AI 应用。\n我支持根据你的需求执行 function call，自动调用工具并生成垂直 Agent 的后端能力代码与配置。\n你可以把应用一键发布到 OpenAgent 平台、微信等多个渠道，也可以部署到你自己的网站。",
         "confidence": 0,
         "suggested_actions": [
             {

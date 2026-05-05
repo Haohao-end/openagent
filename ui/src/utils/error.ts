@@ -45,6 +45,14 @@ const getNestedResponseMessage = (error: UnknownRecord): string | null => {
   return data.message
 }
 
+const getNestedResponseData = (error: UnknownRecord): UnknownRecord | null => {
+  const response = error.response
+  if (!isRecord(response)) return null
+  const data = response.data
+  if (!isRecord(data)) return null
+  return data
+}
+
 export const getErrorMessage = (error: unknown, fallback: string): string => {
   if (isRequestError(error)) {
     return error.message || fallback
@@ -64,4 +72,38 @@ export const getErrorMessage = (error: unknown, fallback: string): string => {
   }
 
   return fallback
+}
+
+export const getErrorResponseData = (error: unknown): UnknownRecord | null => {
+  if (isRequestError(error)) {
+    const response = error.response
+    if (!isRecord(response)) return null
+    const data = response.data
+    if (!isRecord(data)) return null
+    return data
+  }
+
+  if (!isRecord(error)) {
+    return null
+  }
+
+  return getNestedResponseData(error)
+}
+
+export const getErrorReasonCode = (error: unknown): string | null => {
+  const data = getErrorResponseData(error)
+  if (!data) return null
+  return typeof data.reason_code === 'string' ? data.reason_code : null
+}
+
+export const getErrorCode = (error: unknown): string | null => {
+  if (isRequestError(error)) {
+    return typeof error.code === 'string' ? error.code : null
+  }
+
+  if (!isRecord(error)) {
+    return null
+  }
+
+  return typeof error.code === 'string' ? error.code : null
 }

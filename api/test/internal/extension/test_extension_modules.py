@@ -208,6 +208,36 @@ def test_socketio_extension_should_align_cors_settings_with_http_defaults(monkey
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
+    assert socketio_calls[0][1]["async_mode"] == "threading"
     assert socketio_calls[0][1]["cors_credentials"] is True
+    assert socketio_calls[0][1]["logger"] is False
+    assert socketio_calls[0][1]["engineio_logger"] is False
     assert socketio_calls[0][1]["message_queue"] == "redis://example"
     assert register_calls == [socketio]
+
+
+def test_socketio_extension_should_keep_default_socketio_path_for_edge_prefix_rewrite(monkeypatch):
+    socketio_calls = []
+
+    class _FakeSocketIO:
+        def __init__(self, app, **kwargs):
+            socketio_calls.append((app, kwargs))
+
+    monkeypatch.setattr("flask_socketio.SocketIO", _FakeSocketIO)
+    monkeypatch.setattr(
+        "internal.handler.websocket_handler.register_socketio_handlers",
+        lambda _socketio: None,
+    )
+
+    app = SimpleNamespace(
+        config={
+            "CORS_ALLOW_ORIGINS": ["http://localhost:5173"],
+            "CORS_SUPPORTS_CREDENTIALS": True,
+            "REDIS_URL": None,
+        }
+    )
+
+    socketio_extension.init_socketio(app)
+
+    assert socketio_calls[0][1]["message_queue"] is None
+    assert "path" not in socketio_calls[0][1]

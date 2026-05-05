@@ -31,7 +31,7 @@ export type GetConversationMessagesWithPageResponse = BasePaginatorResponse<{
 export type RecentConversation = {
   id: string
   name: string
-  source_type: 'assistant_agent' | 'app_debugger'
+  source_type: 'assistant_agent' | 'app_debugger' | 'public_app'
   app_id: string
   app_name: string
   agent_name: string

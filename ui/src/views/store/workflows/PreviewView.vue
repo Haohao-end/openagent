@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { markRaw, onMounted, ref, nextTick, provide, defineAsyncComponent, computed } from 'vue'
+import { markRaw, onMounted, ref, nextTick, provide, defineAsyncComponent, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ConnectionMode, Panel, useVueFlow, VueFlow, type Edge, type Node } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
@@ -46,6 +46,45 @@ const router = useRouter()
 const workflowId = ref<string>(String(route.params?.workflow_id ?? ''))
 const isPreviewMode = ref(true)
 const loading = ref(false)
+const normalizeIconUrl = (icon: string = '') => {
+  if (!icon) return ''
+  if (icon.startsWith('data:') || /^https?:\/\//.test(icon)) return icon
+  const fallbackOrigin = globalThis.location?.origin ?? 'http://localhost'
+  const apiUrl = new URL(import.meta.env.VITE_API_PREFIX || '/api', fallbackOrigin)
+  const basePath = apiUrl.pathname.replace(/\/+$/, '')
+  let path = icon.startsWith('/') ? icon : `/${icon}`
+
+  if (path.startsWith('/api/') && !basePath.startsWith('/api')) {
+    path = path.replace(/^\/api/, '')
+  }
+
+  if (basePath && basePath !== '/' && !path.startsWith(`${basePath}/`)) {
+    if (path.startsWith('/api/')) {
+      path = path.replace(/^\/api/, '')
+    }
+    return `${apiUrl.origin}${basePath}${path}`
+  }
+
+  return `${apiUrl.origin}${path}`
+}
+const workflowIconSrc = ref('')
+const accountAvatarSrc = ref('')
+const workflowIconCandidates = ref<string[]>([])
+const accountAvatarCandidates = ref<string[]>([])
+const workflowIconIndex = ref(0)
+const accountAvatarIndex = ref(0)
+const getIconCandidates = (icon: string = '') => {
+  const trimmed = String(icon || '').trim()
+  if (!trimmed) return []
+
+  const candidates = [trimmed]
+  const normalized = normalizeIconUrl(trimmed)
+  if (normalized && !candidates.includes(normalized)) candidates.push(normalized)
+  if (trimmed.startsWith('/api/') && !candidates.includes(trimmed.slice(4))) {
+    candidates.push(trimmed.slice(4))
+  }
+  return candidates
+}
 type PreviewWorkflow = {
   id: string
   name: string
@@ -131,11 +170,47 @@ const loadWorkflow = async () => {
     loading.value = true
     const res = await getPublicWorkflowDetail(workflowId.value)
     workflow.value = res.data
+    workflowIconCandidates.value = getIconCandidates(res.data.icon)
+    workflowIconIndex.value = 0
+    workflowIconSrc.value = workflowIconCandidates.value[0] || ''
+    accountAvatarCandidates.value = getIconCandidates(res.data.account_avatar)
+    accountAvatarIndex.value = 0
+    accountAvatarSrc.value = accountAvatarCandidates.value[0] || ''
   } catch (error: unknown) {
     Message.error(getErrorMessage(error, '加载工作流失败'))
   } finally {
     loading.value = false
   }
+}
+
+watch(
+  () => workflow.value?.icon,
+  (icon) => {
+    workflowIconCandidates.value = getIconCandidates(icon)
+    workflowIconIndex.value = 0
+    workflowIconSrc.value = workflowIconCandidates.value[0] || ''
+  },
+  { immediate: true },
+)
+
+watch(
+  () => workflow.value?.account_avatar,
+  (avatar) => {
+    accountAvatarCandidates.value = getIconCandidates(avatar)
+    accountAvatarIndex.value = 0
+    accountAvatarSrc.value = accountAvatarCandidates.value[0] || ''
+  },
+  { immediate: true },
+)
+
+const onWorkflowIconError = () => {
+  workflowIconIndex.value += 1
+  workflowIconSrc.value = workflowIconCandidates.value[workflowIconIndex.value] || ''
+}
+
+const onAccountAvatarError = () => {
+  accountAvatarIndex.value += 1
+  accountAvatarSrc.value = accountAvatarCandidates.value[accountAvatarIndex.value] || ''
 }
 
 // 加载工作流图
@@ -253,8 +328,16 @@ onMounted(async () => {
         <!-- 工作流容器 -->
         <div class="flex items-center gap-3">
           <!-- 工作流图标 -->
-          <a-avatar v-if="workflow" :size="40" shape="square" class="rounded-lg" :image-url="workflow.icon" />
-          <a-skeleton v-else shape="square" :size="40" />
+          <div class="h-10 w-10 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center">
+            <img
+              v-if="workflowIconSrc"
+              :src="workflowIconSrc"
+              class="h-full w-full object-cover"
+              alt="workflow icon"
+              @error="onWorkflowIconError"
+            />
+            <icon-relation v-else />
+          </div>
           <!-- 工作流信息 -->
           <div class="flex flex-col justify-between h-[40px]">
             <a-skeleton-line v-if="loading" :widths="[100]" />
@@ -267,9 +350,17 @@ onMounted(async () => {
               <a-skeleton-line :widths="[60]" :line-height="18" />
             </div>
             <div v-else-if="workflow" class="flex items-center gap-2">
-              <a-avatar :size="20" :image-url="workflow.account_avatar" />
+              <div class="h-5 w-5 overflow-hidden rounded-full bg-gray-100 flex items-center justify-center">
+                <img
+                  v-if="accountAvatarSrc"
+                  :src="accountAvatarSrc"
+                  class="h-full w-full object-cover"
+                  alt="account avatar"
+                  @error="onAccountAvatarError"
+                />
+                <icon-user v-else />
+              </div>
               <div class="flex items-center h-[18px] text-xs text-gray-500">
-                <icon-user />
                 {{ workflow.account_name }}
               </div>
               <div class="flex items-center h-[18px] text-xs text-gray-500">

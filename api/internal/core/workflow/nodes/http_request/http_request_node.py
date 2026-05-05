@@ -12,6 +12,8 @@ from .http_request_entity import (
     HttpRequestNodeData,
 )
 
+DEFAULT_HTTP_REQUEST_TIMEOUT_SECONDS = 30
+
 
 class HttpRequestNode(BaseNode):
     """HTTP请求节点"""
@@ -50,6 +52,7 @@ class HttpRequestNode(BaseNode):
                 self.node_data.url,
                 headers=inputs_dict[HttpRequestInputType.HEADERS],
                 params=inputs_dict[HttpRequestInputType.PARAMS],
+                timeout=DEFAULT_HTTP_REQUEST_TIMEOUT_SECONDS,
             )
         else:
             # 5.其他请求方法需携带body参数
@@ -58,6 +61,7 @@ class HttpRequestNode(BaseNode):
                 headers=inputs_dict[HttpRequestInputType.HEADERS],
                 params=inputs_dict[HttpRequestInputType.PARAMS],
                 data=inputs_dict[HttpRequestInputType.BODY],
+                timeout=DEFAULT_HTTP_REQUEST_TIMEOUT_SECONDS,
             )
 
         # 6.获取响应文本和状态码

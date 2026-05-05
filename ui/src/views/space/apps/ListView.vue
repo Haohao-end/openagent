@@ -101,12 +101,14 @@ const handleCardClick = (appId: string) => {
               <a-avatar :size="40" shape="square" :image-url="app.icon" />
               <!-- 右侧App信息 -->
               <div class="flex flex-1 justify-between">
-                <div class="flex flex-col">
-                  <div class="text-base text-gray-900 font-bold">
-                    {{ app.name }}
+                <div class="flex flex-col min-w-0">
+                  <div class="flex items-center gap-1 min-w-0">
+                    <div class="text-base text-gray-900 font-bold line-clamp-1 min-w-0">
+                      {{ app.name }}
+                    </div>
                     <icon-check-circle-fill
                       v-if="app.status === 'published'"
-                      class="text-green-700"
+                      class="text-green-700 flex-shrink-0"
                     />
                   </div>
                   <div class="text-xs text-gray-500 line-clamp-1">

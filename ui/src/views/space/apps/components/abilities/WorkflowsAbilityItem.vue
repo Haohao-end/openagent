@@ -169,7 +169,7 @@ watch(
           class="flex items-center justify-between bg-white p-3 rounded-lg cursor-pointer hover:shadow-sm group"
         >
           <!-- 左侧工作流信息 -->
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 min-w-0">
             <!-- 图标 -->
             <a-avatar
               :size="36"
@@ -178,11 +178,11 @@ watch(
               :image-url="workflow.icon"
             />
             <!-- 名称与描述信息 -->
-            <div class="flex flex-col flex-1 gap-1 h-9">
-              <div class="text-gray-700 font-bold leading-[18px] line-clamp-1 break-all">
+            <div class="flex flex-col flex-1 min-w-0 gap-1 h-9">
+              <div class="text-gray-700 font-bold leading-[18px] line-clamp-1 min-w-0">
                 {{ workflow.name }}
               </div>
-              <div class="text-gray-500 text-xs line-clamp-1 break-all">
+              <div class="text-gray-500 text-xs line-clamp-1 min-w-0">
                 {{ workflow.description }}
               </div>
             </div>

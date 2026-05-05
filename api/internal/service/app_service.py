@@ -825,6 +825,28 @@ class AppService(BaseService):
 
         return debug_conversation.summary if debug_conversation else ""
 
+    @staticmethod
+    def _normalize_paginated_ids(paginated_items: list[Any]) -> list[Any]:
+        """提取分页结果中的主键值，兼容 SQLAlchemy Row/tuple 标量结果。"""
+        normalized_ids = []
+        for item in paginated_items:
+            if isinstance(item, UUID):
+                normalized_ids.append(item)
+                continue
+
+            mapping = getattr(item, "_mapping", None)
+            if mapping:
+                normalized_ids.append(next(iter(mapping.values()), None))
+                continue
+
+            if isinstance(item, (tuple, list)):
+                normalized_ids.append(item[0] if item else None)
+                continue
+
+            normalized_ids.append(item)
+
+        return [item for item in normalized_ids if item is not None]
+
     def _stream_agent_events(
         self,
         app_id: UUID,
@@ -1043,11 +1065,15 @@ class AppService(BaseService):
             .order_by(desc(Message.created_at))
         )
 
+        normalized_ids = self._normalize_paginated_ids(paginated_ids)
+        if not normalized_ids:
+            return [], paginator
+
         # 6. 再根据 ID 查询完整消息及其关联内容
         messages = (
             self.db.session.query(Message)
             .options(selectinload(Message.agent_thoughts))
-            .filter(Message.id.in_(paginated_ids))
+            .filter(Message.id.in_(normalized_ids))
             .order_by(desc(Message.created_at))
             .all()
         )

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { h, ref, resolveComponent, watch } from 'vue'
 import { type ValidatedError, Message, Modal } from '@arco-design/web-vue'
 import { useCreateApiKey, useUpdateApiKey } from '@/hooks/use-api-key'
+import { copyTextToClipboard } from '@/utils/clipboard'
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
@@ -28,6 +29,7 @@ const form = ref<ApiKeyForm>({
 const formRef = ref(null)
 const { loading: updateApiKeyLoading, handleUpdateApiKey } = useUpdateApiKey()
 const { loading: createApiKeyLoading, handleCreateApiKey } = useCreateApiKey()
+const IconCopy = resolveComponent('icon-copy')
 
 // 2.定义隐藏模态窗函数
 const hideModal = () => {
@@ -55,15 +57,43 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
     if (createdApiKey) {
       Modal.info({
         title: 'API 密钥（仅显示一次）',
-        content: createdApiKey,
+        width: 860,
+        modalClass: 'api-key-once-modal',
+        bodyStyle: {
+          paddingTop: '12px',
+        },
+        content: () =>
+          h(
+            'div',
+            { class: 'api-key-once-content' },
+            [
+              h('div', { class: 'flex items-center justify-between gap-4' }, [
+                h('p', { class: 'api-key-once-desc' }, '请立即复制并妥善保存，关闭后将无法再次完整查看。'),
+                h(
+                  'button',
+                  {
+                    class: 'md-code-copy-btn inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100',
+                    type: 'button',
+                    onClick: async () => {
+                      try {
+                        await copyTextToClipboard(createdApiKey)
+                        Message.success('API 密钥已复制到剪贴板')
+                      } catch {
+                        Message.warning('复制失败，请手动复制完整密钥')
+                      }
+                    },
+                  },
+                  [
+                    h(IconCopy, { class: 'text-sm' }),
+                    h('span', '复制密钥'),
+                  ],
+                ),
+              ]),
+              h('div', { class: 'api-key-once-code' }, createdApiKey),
+            ],
+          ),
         okText: '我已保存',
       })
-      try {
-        await navigator.clipboard.writeText(createdApiKey)
-        Message.success('API 密钥已复制到剪贴板')
-      } catch {
-        Message.warning('复制失败，请手动保存上方密钥')
-      }
     }
   }
 
@@ -186,4 +216,37 @@ watch(
   </a-modal>
 </template>
 
-<style scoped></style>
+<style scoped>
+:global(.api-key-once-modal) {
+  max-width: calc(100vw - 32px);
+}
+
+.api-key-once-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.api-key-once-desc {
+  margin: 0;
+  color: rgb(75 85 99);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.api-key-once-code {
+  padding: 18px 20px;
+  border-radius: 12px;
+  border: 1px solid rgb(209 213 219);
+  background: rgb(249 250 251);
+  color: rgb(17 24 39);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 15px;
+  line-height: 1.8;
+  word-break: break-all;
+  white-space: pre-wrap;
+  max-height: 280px;
+  overflow: auto;
+  user-select: all;
+}
+</style>

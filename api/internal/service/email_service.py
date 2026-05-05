@@ -20,6 +20,7 @@ class EmailService:
     PASSWORD_RESET_SCENE = "password_reset"
     CHANGE_EMAIL_SCENE = "change_email"
     LOGIN_CHALLENGE_SCENE = "login_challenge"
+    REGISTER_SCENE = "register"
     CODE_TTL_SECONDS = 5 * 60
     SEND_COOLDOWN_SECONDS = 60
     SEND_WINDOW_SECONDS = 60 * 60
@@ -80,6 +81,13 @@ class EmailService:
                 "【OpenAgent】异常登录验证验证码",
                 "异常登录验证",
                 "如果这不是您本人的操作，请立即修改密码，并在设置中心下线其他登录设备。",
+            )
+
+        if scene == cls.REGISTER_SCENE:
+            return (
+                "【OpenAgent】注册验证码",
+                "注册",
+                "如果这不是您本人的操作，请忽略此邮件，系统不会在未完成验证码校验前创建账号。",
             )
 
         return (
@@ -165,7 +173,7 @@ class EmailService:
                     <tr>
                         <td style="background-color: #f8f9fa; padding: 30px; text-align: center; border-top: 1px solid #e9ecef;">
                             <p style="margin: 0 0 15px 0; color: #666666; font-size: 14px; font-weight: 600;">
-                                OpenAgent - 端到端 LLMOps 平台
+                                OpenAgent - 端到端 AI Agent 平台
                             </p>
                             <p style="margin: 0 0 20px 0; color: #999999; font-size: 13px; line-height: 1.6;">
                                 多模型 AI Agent 开发与管理平台
@@ -179,7 +187,7 @@ class EmailService:
                                     </td>
                                     <td style="padding: 0 10px; color: #dee2e6;">|</td>
                                     <td style="padding: 0 10px;">
-                                        <a href="https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents" style="display: inline-block; color: #667eea; text-decoration: none; font-size: 13px; font-weight: 500;">
+                                        <a href="https://github.com/Haohao-end/openagent" style="display: inline-block; color: #667eea; text-decoration: none; font-size: 13px; font-weight: 500;">
                                             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: middle; margin-right: 4px;">
                                                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
                                             </svg>
@@ -218,7 +226,7 @@ class EmailService:
 ---
 OpenAgent AI Agent 平台
 官网：http://www.openllm.cloud
-GitHub：https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents
+GitHub：https://github.com/Haohao-end/openagent
         """.strip()
 
         return subject, text_body, html_body
@@ -291,6 +299,10 @@ GitHub：https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Mu
     def send_login_challenge_code(self, email: str) -> str:
         """发送异常登录二次验证验证码。"""
         return self.send_verification_code(email, scene=self.LOGIN_CHALLENGE_SCENE)
+
+    def send_register_code(self, email: str) -> str:
+        """发送注册验证码。"""
+        return self.send_verification_code(email, scene=self.REGISTER_SCENE)
 
     def send_login_alert_email(
         self,
@@ -416,3 +428,7 @@ OpenAgent AI Agent 平台
     def verify_login_challenge_code(self, email: str, code: str) -> bool:
         """验证异常登录二次验证码。"""
         return self.verify_code(email, code, scene=self.LOGIN_CHALLENGE_SCENE)
+
+    def verify_register_code(self, email: str, code: str) -> bool:
+        """验证注册验证码。"""
+        return self.verify_code(email, code, scene=self.REGISTER_SCENE)

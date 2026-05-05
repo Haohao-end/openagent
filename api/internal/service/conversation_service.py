@@ -406,8 +406,8 @@ class ConversationService(BaseService):
         safe_limit = max(1, min(limit, 50))
         message_scan_limit = max(80, safe_limit * 30)
 
-        # 1.查询最近消息并按会话去重，保留每个会话的最新一条消息
-        recent_messages = (
+        # 1.查询当前账号的私有最近消息，并按会话去重
+        private_recent_messages = (
             self.db.session.query(Message)
             .filter(
                 Message.created_by == account.id,
@@ -423,8 +423,22 @@ class ConversationService(BaseService):
             .all()
         )
 
+        # 2.查询公开广场产生的最近消息，并按会话去重
+        public_recent_messages = (
+            self.db.session.query(Message)
+            .filter(
+                Message.invoke_from == InvokeFrom.SERVICE_API.value,
+                Message.status.in_([MessageStatus.STOP.value, MessageStatus.NORMAL.value]),
+                Message.answer != "",
+                ~Message.is_deleted,
+            )
+            .order_by(desc(Message.created_at))
+            .limit(message_scan_limit)
+            .all()
+        )
+
         message_by_conversation = OrderedDict()
-        for message in recent_messages:
+        for message in private_recent_messages + public_recent_messages:
             if message.conversation_id in message_by_conversation:
                 continue
             message_by_conversation[message.conversation_id] = message
@@ -436,23 +450,29 @@ class ConversationService(BaseService):
 
         conversation_ids = list(message_by_conversation.keys())
 
-        # 2.批量查询会话数据并校验归属
+        # 3.批量查询会话数据，只允许当前账号私有会话或公开服务会话进入列表
         conversations = (
             self.db.session.query(Conversation)
             .filter(
                 Conversation.id.in_(conversation_ids),
-                Conversation.created_by == account.id,
+                (
+                    (Conversation.created_by == account.id)
+                    | (Conversation.invoke_from == InvokeFrom.SERVICE_API.value)
+                ),
                 ~Conversation.is_deleted,
             )
             .all()
         )
         conversation_map = {conversation.id: conversation for conversation in conversations}
 
-        # 3.为调试会话批量查询应用信息，以及为assistant_agent查询应用名称
+        # 4.为调试会话、公开应用会话批量查询应用信息，以及为assistant_agent查询应用名称
         app_ids = {
             message.app_id
             for message in message_by_conversation.values()
-            if message.invoke_from == InvokeFrom.DEBUGGER.value
+            if message.invoke_from in (
+                InvokeFrom.DEBUGGER.value,
+                InvokeFrom.SERVICE_API.value,
+            )
         }
 
         # 添加assistant_agent的应用id
@@ -470,7 +490,7 @@ class ConversationService(BaseService):
         )
         app_map = {app.id: app for app in apps}
 
-        # 4.组装响应列表
+        # 5.组装响应列表
         results = []
         for message in message_by_conversation.values():
             conversation = conversation_map.get(message.conversation_id)
@@ -480,6 +500,8 @@ class ConversationService(BaseService):
             source_type = (
                 "assistant_agent"
                 if message.invoke_from == InvokeFrom.ASSISTANT_AGENT.value
+                else "public_app"
+                if message.invoke_from == InvokeFrom.SERVICE_API.value
                 else "app_debugger"
             )
             app_id = ""
@@ -496,7 +518,8 @@ class ConversationService(BaseService):
                     continue
                 app_id = str(app.id)
                 app_name = app.name
-                is_active = app.debug_conversation_id == conversation.id
+                if source_type == "app_debugger":
+                    is_active = app.debug_conversation_id == conversation.id
 
             results.append(
                 {
@@ -690,7 +713,7 @@ class ConversationService(BaseService):
 
         query_lower = query.strip().lower()
 
-        # 2.查询所有属于该账号的消息
+        # 2.查询当前账号的消息
         messages = (
             self.db.session.query(Message)
             .filter(
@@ -705,12 +728,14 @@ class ConversationService(BaseService):
             .order_by(desc(Message.created_at))
             .all()
         )
-
         # 3.收集每个会话的最新消息以及真正命中的消息片段
         latest_message_by_conversation: dict[UUID, Message] = {}
         matched_message_by_conversation: dict[UUID, dict[str, Any]] = {}
         for message in messages:
-            if message.conversation_id not in latest_message_by_conversation:
+            conversation_id = getattr(message, "conversation_id", None)
+            if conversation_id is None:
+                continue
+            if conversation_id not in latest_message_by_conversation:
                 latest_message_by_conversation[message.conversation_id] = message
 
             matched_fields = []
@@ -731,7 +756,7 @@ class ConversationService(BaseService):
                 if "ai_message" in matched_fields else "",
             }
 
-        # 4.查询账号下所有会话，统一判断标题/应用/助手/消息命中
+        # 4.查询账号会话，统一判断标题/应用/助手/消息命中
         conversations = (
             self.db.session.query(Conversation)
             .filter(

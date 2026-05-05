@@ -1651,6 +1651,71 @@ class TestAppService:
         # 4 个固定过滤项 + created_at 过滤项
         assert len(id_query.filter_calls[0]) == 5
 
+    def test_get_debug_conversation_messages_with_page_should_normalize_row_like_paginated_ids(
+        self, monkeypatch
+    ):
+        service = _build_service()
+        account = SimpleNamespace(id=uuid4())
+        app = SimpleNamespace(id=uuid4(), debug_conversation=SimpleNamespace(id=uuid4()))
+        message = SimpleNamespace(id=uuid4())
+        monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: app)
+
+        class _RowLike:
+            def __init__(self, value):
+                self._mapping = {"id": value}
+
+        class _Query:
+            def __init__(self, all_result=None):
+                self.filter_calls = []
+                self._all_result = all_result if all_result is not None else []
+
+            def filter(self, *args, **_kwargs):
+                self.filter_calls.append(args)
+                return self
+
+            def order_by(self, *_args, **_kwargs):
+                return self
+
+            def options(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return self._all_result
+
+        id_query = _Query()
+        msg_query = _Query(all_result=[message])
+
+        class _Session:
+            def query(self, model):
+                return id_query if getattr(model, "key", "") == "id" else msg_query
+
+        service.db.session = _Session()
+        captures = {}
+
+        class _Paginator:
+            def __init__(self, db, req):
+                captures["db"] = db
+                captures["req"] = req
+
+            def paginate(self, query):
+                captures["query"] = query
+                return [_RowLike(message.id)]
+
+        monkeypatch.setattr("internal.service.app_service.Paginator", _Paginator)
+        req = SimpleNamespace(
+            created_at=SimpleNamespace(data=None),
+            conversation_id=SimpleNamespace(data=""),
+        )
+
+        messages, paginator = service.get_debug_conversation_messages_with_page(app.id, req, account)
+
+        assert messages == [message]
+        assert captures["req"] is req
+        assert captures["db"] is service.db
+        assert captures["query"] is id_query
+        assert isinstance(paginator, _Paginator)
+        assert msg_query.filter_calls[0][0].right.value == [message.id]
+
     def test_get_debug_conversation_messages_with_page_should_skip_created_at_filter_when_absent(self, monkeypatch):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())

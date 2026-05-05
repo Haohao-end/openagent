@@ -4,7 +4,7 @@
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="bqi6BstOvzk-IcpmwtKL-62" value="LLMOps项目服务架构设计图（docker-compose）" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;labelBackgroundColor=light-dark(#f8cecc, #ededed);fontSize=14;" parent="1" vertex="1">
+        <mxCell id="bqi6BstOvzk-IcpmwtKL-62" value="OpenAgent项目服务架构设计图（docker-compose）" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;labelBackgroundColor=light-dark(#f8cecc, #ededed);fontSize=14;" parent="1" vertex="1">
           <mxGeometry x="400.5" y="30" width="330" height="30" as="geometry" />
         </mxCell>
         <mxCell id="bqi6BstOvzk-IcpmwtKL-1" value="缓存服务&lt;div&gt;Redis&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#333333;" parent="1" vertex="1">

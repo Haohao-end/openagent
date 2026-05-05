@@ -11,6 +11,7 @@ import {
 import { useUploadImage } from '@/hooks/use-upload-file'
 import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
 import { getErrorMessage } from '@/utils/error'
+import { isValidWorkflowToolCallName } from '@/utils/workflow'
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
@@ -83,16 +84,20 @@ const saveWorkflow = async ({ errors }: { errors: Record<string, ValidatedError>
   // 3.1 判断表单是否出错
   if (errors) return
 
-  // 3.2 检测是保存还是新增，调用不同的API接口
-  if (props.workflow_id) {
-    await handleUpdateWorkflow(props.workflow_id, form.value)
-  } else {
-    await handleCreateWorkflow(form.value)
-  }
+  try {
+    // 3.2 检测是保存还是新增，调用不同的API接口
+    if (props.workflow_id) {
+      await handleUpdateWorkflow(props.workflow_id, form.value)
+    } else {
+      await handleCreateWorkflow(form.value)
+    }
 
-  // 3.3 完成保存操作，隐藏模态窗并调用回调函数
-  emits('update:visible', false)
-  props.callback && props.callback()
+    // 3.3 完成保存操作，隐藏模态窗并调用回调函数
+    emits('update:visible', false)
+    props.callback && props.callback()
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, '保存工作流失败，请稍后重试'))
+  }
 }
 
 // 6.监听模态窗显示状态变化
@@ -186,7 +191,15 @@ watch(
           field="tool_call_name"
           label="英文名称"
           asterisk-position="end"
-          :rules="[{ required: true, message: '英文名称不能为空' }]"
+          :rules="[
+            { required: true, message: '英文名称不能为空' },
+            {
+              validator: (value: string) => {
+                if (!value || isValidWorkflowToolCallName(value)) return true
+                return '英文名称仅支持字母、数字和下划线，且以字母/下划线为开头'
+              },
+            },
+          ]"
         >
           <a-input
             show-word-limit

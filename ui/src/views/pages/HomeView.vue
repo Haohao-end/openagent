@@ -39,6 +39,12 @@ import FilingIcon from '@/assets/images/FilingIcon.png'
 import LoginModal from '@/views/auth/components/LoginModal.vue'
 import { useGetCurrentUser } from '@/hooks/use-account'
 import { resolveHomeLoginNavigation } from '@/views/pages/home-login-flow'
+import {
+  HOME_NEW_CONVERSATION_QUERY_KEY,
+  hasHomeNewConversationQuery,
+  shouldSkipHomeConversationDelete,
+  stripHomeNewConversationQuery,
+} from '@/views/pages/home-new-conversation'
 import { isCredentialLoggedIn } from '@/utils/auth'
 import {
   applyChatStreamEvent,
@@ -126,6 +132,8 @@ const { current_user, loadCurrentUser } = useGetCurrentUser()
 const loginModalVisible = ref(false)
 const pendingQueryAfterLogin = ref('')
 const selectedConversationId = ref(String(route.query.conversation_id || '').trim())
+const isHandlingNewConversationRequest = ref(false)
+const hasCompletedInitialHomeLoad = ref(false)
 const isAuthenticated = computed(() => isCredentialLoggedIn(credentialStore.credential))
 const userDisplayName = computed(() => {
   return (accountStore.account?.name || '').trim() || '朋友'
@@ -143,11 +151,11 @@ const defaultAssistantIntroduction = computed(() => {
   return [
     `### Hi，${userDisplayName.value}`,
     '',
-    '你好，欢迎来到 **LLMOps** 🎉',
+    '你好，欢迎来到 **OpenAgent** 🎉',
     '',
     '- 我可以帮你从想法出发，快速创建专属 AI 应用。',
     '- 我支持根据你的需求执行 `function call`，自动调用工具并生成垂直 Agent 的后端能力代码与配置。',
-    '- 你可以把应用一键发布到 LLMOps 平台、微信等多个渠道，也可以部署到你自己的网站。',
+    '- 你可以把应用一键发布到 OpenAgent 平台、微信等多个渠道，也可以部署到你自己的网站。',
     '',
     '**试试这些问题：**',
     '- 我想做一个应用',
@@ -375,6 +383,8 @@ const ensureLogin = () => {
 }
 
 const initializeHomeAfterLogin = async () => {
+  if (hasHomeNewConversationQuery(route.query)) return
+
   await loadCurrentUser()
   if (current_user.value && Object.keys(current_user.value).length > 0) {
     accountStore.update(current_user.value)
@@ -464,6 +474,7 @@ watch(
     if (normalizedConversationId === oldConversationId) return
 
     selectedConversationId.value = normalizedConversationId
+    if (hasHomeNewConversationQuery(route.query)) return
     if (!isAuthenticated.value || !isHomeRoute.value) return
 
     try {
@@ -607,6 +618,100 @@ const loadAssistantIntroduction = async () => {
     }
   }
 }
+
+// 6.定义停止辅助 Agent 会话函数
+const handleStop = async () => {
+  if (task_id.value === '' || !assistantAgentChatLoading.value) return
+  await handleStopAssistantAgentChat(task_id.value)
+}
+
+const clearHomeNewConversationQuery = async () => {
+  if (!hasHomeNewConversationQuery(route.query)) return
+  await router.replace({
+    path: '/home',
+    query: stripHomeNewConversationQuery(route.query),
+  })
+}
+
+type StartNewAssistantConversationOptions = {
+  showSuccess?: boolean
+  skipEmptyConversation?: boolean
+  errorMessage?: string
+}
+
+const startNewAssistantConversation = async (
+  options: StartNewAssistantConversationOptions = {},
+) => {
+  if (!ensureLogin()) return false
+  if (isHandlingNewConversationRequest.value) return true
+
+  try {
+    isHandlingNewConversationRequest.value = true
+
+    const shouldSkipDelete = shouldSkipHomeConversationDelete({
+      allowSkip: options.skipEmptyConversation === true,
+      hasCompletedInitialHomeLoad: hasCompletedInitialHomeLoad.value,
+      messagesLength: messages.value.length,
+      selectedConversationId: selectedConversationId.value,
+      isStreamingResponse: isStreamingResponse.value,
+    })
+
+    if (shouldSkipDelete) {
+      return true
+    }
+
+    await handleStop()
+    await handleDeleteAssistantAgentConversation({
+      showSuccess: options.showSuccess,
+    })
+
+    selectedConversationId.value = ''
+    message_id.value = ''
+    task_id.value = ''
+    suggested_questions.value = []
+    shouldAutoScrollToBottom.value = true
+
+    await syncRouteConversationId('')
+    await reloadAssistantMessages(true, '')
+    await loadAssistantIntroduction()
+    emitRecentConversationsRefresh()
+    return true
+  } catch (error) {
+    console.error('Failed to start new assistant conversation:', error)
+    Message.error(options.errorMessage || '新建会话失败，请重试')
+    return false
+  } finally {
+    isHandlingNewConversationRequest.value = false
+  }
+}
+
+const handleHomeNewConversationRequest = async () => {
+  if (!isHomeRoute.value || !hasHomeNewConversationQuery(route.query)) return false
+  if (!isAuthenticated.value) {
+    handleShowLoginModal()
+    return true
+  }
+
+  const started = await startNewAssistantConversation({
+    showSuccess: false,
+    skipEmptyConversation: true,
+  })
+  if (started) {
+    await clearHomeNewConversationQuery()
+  }
+  return started
+}
+
+watch(
+  () => [
+    isHomeRoute.value,
+    isAuthenticated.value,
+    route.query[HOME_NEW_CONVERSATION_QUERY_KEY],
+  ],
+  async () => {
+    await handleHomeNewConversationRequest()
+  },
+)
 
 //2.定义保存滚动高度函数
 const saveScrollHeight = () => {
@@ -841,10 +946,11 @@ const canScrollWithDelta = (element: HTMLElement, deltaY: number) => {
 const handleHomePageWheel = (event: WheelEvent) => {
   const pageElement = homePageRef.value
   if (!pageElement) return
-  if (event.target !== pageElement) return
 
   const scrollHost = getPrimaryScrollHost()
   if (!scrollHost) return
+  const target = event.target
+  if (target instanceof Node && scrollHost.contains(target)) return
   if (!canScrollWithDelta(scrollHost, event.deltaY)) return
 
   event.preventDefault()
@@ -1004,34 +1110,13 @@ const handleSubmit = async () => {
   // 默认不自动播放音频，用户可手动点击播放按钮
 }
 
-// 6.定义停止调试会话函数
-const handleStop = async () => {
-  // 6.1 如果没有任务id或者未在加载中，则直接停止
-  if (task_id.value === '' || !assistantAgentChatLoading.value) return
-
-  // 6.2 调用api接口中断请求
-  await handleStopAssistantAgentChat(task_id.value)
-}
-
 const handleClearConversation = async () => {
-  if (!ensureLogin()) return
-
-  try {
-    // 1.先调用停止响应接口
-    await handleStop()
-
-    // 2.调用api接口清空会话
-    await handleDeleteAssistantAgentConversation()
-
-    // 3.重新获取数据
-    selectedConversationId.value = ''
-    await syncRouteConversationId('')
-    await reloadAssistantMessages(true, '')
-    await loadAssistantIntroduction()
-    emitRecentConversationsRefresh()
-  } catch (error) {
-    console.error('Failed to clear conversation:', error)
-    Message.error('清空会话失败，请重试')
+  const started = await startNewAssistantConversation({
+    showSuccess: true,
+    errorMessage: '清空会话失败，请重试',
+  })
+  if (started) {
+    await clearHomeNewConversationQuery()
   }
 }
 
@@ -1101,7 +1186,10 @@ onMounted(async () => {
   resetOpeningQuestions()
 
   if (isAuthenticated.value) {
-    await initializeHomeAfterLogin()
+    const handledNewConversation = await handleHomeNewConversationRequest()
+    if (!handledNewConversation) {
+      await initializeHomeAfterLogin()
+    }
   } else {
     accountStore.clear()
     messages.value = []
@@ -1118,10 +1206,12 @@ onMounted(async () => {
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', handleViewportChange)
   }
+
+  hasCompletedInitialHomeLoad.value = true
 })
 
 // 13.组件被 keep-alive 激活时的处理（从其他页面返回时）
-onActivated(() => {
+onActivated(async () => {
   if (!isAuthenticated.value) {
     accountStore.clear()
     messages.value = []
@@ -1129,6 +1219,10 @@ onActivated(() => {
     message_id.value = ''
     resetAssistantIntroduction()
     resetOpeningQuestions()
+  }
+
+  if (isAuthenticated.value) {
+    await handleHomeNewConversationRequest()
   }
 
   // 组件被激活时不重新调用意图识别接口
@@ -1337,7 +1431,7 @@ onUnmounted(() => {
             开发平台
           </div>
           <div class="text-base text-gray-700">
-            说出你的创意，我可以快速帮你创建专属应用，一键轻松分享给朋友，也可以一键发布到 LLMOps
+            说出你的创意，我可以快速帮你创建专属应用，一键轻松分享给朋友，也可以一键发布到 OpenAgent
             平台、微信等多个渠道。
           </div>
         </div>
@@ -1415,7 +1509,7 @@ onUnmounted(() => {
               <span>桂公网安备45010202000868号</span>
             </a>
             <a
-              href="https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents"
+              href="https://github.com/Haohao-end/openagent"
               target="_blank"
               rel="noopener noreferrer"
               class="inline-flex items-center justify-center leading-none hover:opacity-80 transition-opacity"

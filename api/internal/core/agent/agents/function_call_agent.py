@@ -162,70 +162,42 @@ class FunctionCallAgent(BaseAgent):
 
         # 4.流式调用LLM输出对应内容
         gathered = None
-        is_first_chunk = True
-        generation_type = ""
+        buffered_text_chunks: list[str] = []
         try:
             for chunk in llm.stream(state["messages"]):
                 if chunk is None:  # 跳过无效 chunk
                     continue
-                if is_first_chunk:
+                if gathered is None:
                     gathered = chunk
-                    is_first_chunk = False
                 else:
-                    if gathered is None:  # 防止 gathered 为 None
+                    gathered += chunk
+                    if gathered is None:  # 防止部分chunk合并实现返回None
                         gathered = chunk
-                    else:
-                        gathered += chunk
 
-                # 5.检测生成类型是工具参数还是文本生成
-                if not generation_type:
-                    if chunk.tool_calls:
-                        generation_type = "thought"
-                    elif chunk.content:
-                        generation_type = "message"
-
-                # 6.如果生成的是消息则提交智能体消息事件
-                if generation_type == "message":
-                    # 7.提取片段内容并检测是否开启输出审核
-                    review_config = self.agent_config.review_config
-                    content = chunk.content
-                    if review_config["enable"] and review_config["outputs_config"]["enable"]:
-                        for keyword in review_config["keywords"]:
-                            content = re.sub(re.escape(keyword), "**", content, flags=re.IGNORECASE)
-
-                    self.agent_queue_manager.publish(state["task_id"], AgentThought(
-                        id=id,
-                        task_id=state["task_id"],
-                        event=QueueEvent.AGENT_MESSAGE.value,
-                        thought=content,
-                        message=messages_to_dict(state["messages"]),
-                        answer=content,
-                        latency=(time.perf_counter() - start_at),
-                    ))
+                content = self._normalize_chunk_content(getattr(chunk, "content", ""))
+                if content:
+                    buffered_text_chunks.append(self._apply_output_review(content))
         except Exception as e:
             logging.exception(f"LLM节点发生错误, 错误信息: {str(e)}")
             self.agent_queue_manager.publish_error(state["task_id"], f"LLM节点发生错误, 错误信息: {str(e)}")
             raise e
 
+        if gathered is None:
+            return {"messages": [AIMessage(content="")], "iteration_count": state["iteration_count"] + 1}
+
         # 8.计算LLM的输入+输出的token总数
-        encoding = tiktoken.get_encoding("cl100k_base")
-        input_token_count = len(encoding.encode(str(state["messages"])))
-        output_token_count = len(encoding.encode(str(gathered)))
-
-        # 9.获取输入/输出价格和单位
-        input_price, output_price, unit = self.llm.get_pricing()
-
-        # 10.计算总token+总成本
-        total_token_count = input_token_count + output_token_count
-        total_price = (input_token_count * input_price + output_token_count * output_price) * unit
+        input_token_count, output_token_count, total_token_count, total_price, unit, input_price, output_price = (
+            self._calculate_usage(state, gathered)
+        )
 
         # 11.如果类型为推理则添加智能体推理事件
-        if generation_type == "thought":
+        final_tool_calls = getattr(gathered, "tool_calls", []) or []
+        if final_tool_calls:
             self.agent_queue_manager.publish(state["task_id"], AgentThought(
                 id=id,
                 task_id=state["task_id"],
                 event=QueueEvent.AGENT_THOUGHT.value,
-                thought=json.dumps(gathered.tool_calls),
+                thought=json.dumps(final_tool_calls),
                 # 消息相关字段
                 message=messages_to_dict(state["messages"]),
                 message_token_count=input_token_count,  # 消息花费的token数
@@ -241,7 +213,20 @@ class FunctionCallAgent(BaseAgent):
                 total_price=total_price,
                 latency=(time.perf_counter() - start_at),
             ))
-        elif generation_type == "message":
+            return {"messages": [gathered], "iteration_count": state["iteration_count"] + 1}
+
+        for content in buffered_text_chunks:
+            self.agent_queue_manager.publish(state["task_id"], AgentThought(
+                id=id,
+                task_id=state["task_id"],
+                event=QueueEvent.AGENT_MESSAGE.value,
+                thought=content,
+                message=messages_to_dict(state["messages"]),
+                answer=content,
+                latency=(time.perf_counter() - start_at),
+            ))
+
+        if buffered_text_chunks:
             # 12.如果LLM直接生成answer则表示已经拿到了最终答案，推送一条空内容用于计算总token+总成本,则停止监听
             self.agent_queue_manager.publish(state["task_id"], AgentThought(
                 id=id,
@@ -343,3 +328,28 @@ class FunctionCallAgent(BaseAgent):
             return END
 
         return "long_term_memory_recall"
+
+    def _calculate_usage(self, state: AgentState, gathered) -> tuple[int, int, int, float, float, float, float]:
+        """计算输入输出token以及价格"""
+        encoding = tiktoken.get_encoding("cl100k_base")
+        input_token_count = len(encoding.encode(str(state["messages"])))
+        output_token_count = len(encoding.encode(str(gathered)))
+        input_price, output_price, unit = self.llm.get_pricing()
+        total_token_count = input_token_count + output_token_count
+        total_price = (input_token_count * input_price + output_token_count * output_price) * unit
+        return input_token_count, output_token_count, total_token_count, total_price, unit, input_price, output_price
+
+    def _apply_output_review(self, content: str) -> str:
+        """按输出审核规则处理文本"""
+        review_config = self.agent_config.review_config
+        if review_config["enable"] and review_config["outputs_config"]["enable"]:
+            for keyword in review_config["keywords"]:
+                content = re.sub(re.escape(keyword), "**", content, flags=re.IGNORECASE)
+        return content
+
+    @classmethod
+    def _normalize_chunk_content(cls, content) -> str:
+        """将chunk content规范化为文本"""
+        if isinstance(content, str):
+            return content
+        return ""

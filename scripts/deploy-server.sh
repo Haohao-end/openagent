@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# LLMOps 服务器快速部署脚本
-# 用途: 在服务器上一键部署 LLMOps 平台
+# OpenAgent 服务器快速部署脚本
+# 用途: 在服务器上一键部署 OpenAgent 平台
 
 set -e
 
 echo "=========================================="
-echo "  LLMOps 平台服务器部署脚本"
+echo "  OpenAgent 平台服务器部署脚本"
 echo "=========================================="
 echo ""
 
@@ -18,7 +18,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 配置
-REPO_URL="https://github.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents.git"
+REPO_URL="https://github.com/Haohao-end/openagent.git"
 INSTALL_DIR="/opt/llmops"
 
 # 1. 检查是否为 root 用户

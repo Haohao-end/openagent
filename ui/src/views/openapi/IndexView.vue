@@ -39,8 +39,8 @@ const continueConversationStreamShell = computed(() => getContinueConversationSt
     <div class="bg-white p-6 rounded-lg h-[calc(100vh-160px)] overflow-scroll scrollbar-w-none">
       <h2 class="text-xl text-gray-900 font-bold mb-4">概览</h2>
       <p class="text-gray-700 mb-6 leading-relaxed">
-        LLMOps API 是 LLMOps 平台面向开发者提供的专业技术交互能力，致力于通过 API
-        实现开发者更高效更全面的述求。LLMOps API
+        OpenAgent API 是 OpenAgent 平台面向开发者提供的专业技术交互能力，致力于通过 API
+        实现开发者更高效更全面的述求。OpenAgent API
         将提供更加灵活的和高精度的模型、工作流、知识库和扩展插件等能力的扩展，让定制化 Agent
         更加的精确、高效和智能。
       </p>
@@ -50,7 +50,7 @@ const continueConversationStreamShell = computed(() => getContinueConversationSt
         <p class="text-gray-700 mb-2">在开始之前，您需要完成以下准备：</p>
         <ol class="list-decimal list-inside text-gray-700 space-y-1 ml-2">
           <li>创建个人访问令牌（API Key）</li>
-          <li>在 LLMOps 平台上创建并发布 AI 应用</li>
+          <li>在 OpenAgent 平台上创建并发布 AI 应用</li>
           <li>获取应用的 app_id（从应用 URL 中获取）</li>
         </ol>
       </div>

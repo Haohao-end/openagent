@@ -94,12 +94,14 @@ const handleCardClick = (workflowId: string) => {
               <a-avatar :size="40" shape="square" :image-url="workflow.icon" />
               <!-- 右侧信息 -->
               <div class="flex flex-1 justify-between">
-                <div class="flex flex-col">
-                  <div class="text-base text-gray-900 font-bold">
-                    {{ workflow.name }}
+                <div class="flex flex-col min-w-0">
+                  <div class="flex items-center gap-1 min-w-0">
+                    <div class="text-base text-gray-900 font-bold line-clamp-1 min-w-0">
+                      {{ workflow.name }}
+                    </div>
                     <icon-check-circle-fill
                       v-if="workflow.status === 'published'"
-                      class="text-green-700"
+                      class="text-green-700 flex-shrink-0"
                     />
                   </div>
                   <div class="text-xs text-gray-500 line-clamp-1">

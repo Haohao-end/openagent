@@ -83,7 +83,7 @@ class Message(db.Model):
         nullable=False,
         server_default=text("''::character varying"),
     )  # 调用来源，涵盖service_api、web_app、debugger等
-    created_by = Column(UUID, nullable=False)  # 消息的创建来源，有可能是LLMOps的用户，也有可能是开放API的终端用户
+    created_by = Column(UUID, nullable=False)  # 消息的创建来源，有可能是 OpenAgent 的用户，也有可能是开放 API 的终端用户
 
     # 消息关联的原始问题
     query = Column(Text, nullable=False, server_default=text("''::text"))  # 用户提问的原始query
@@ -157,7 +157,7 @@ class MessageAgentThought(db.Model):
         nullable=False,
         server_default=text("''::character varying"),
     )  # 调用来源，涵盖service_api、web_app、debugger等
-    created_by = Column(UUID, nullable=False)  # 消息的创建来源，有可能是LLMOps的用户，也有可能是开放API的终端用户
+    created_by = Column(UUID, nullable=False)  # 消息的创建来源，有可能是 OpenAgent 的用户，也有可能是开放 API 的终端用户
 
     # 该步骤在消息中执行的位置
     position = Column(Integer, nullable=False, server_default=text("0"))  # 推理观察的位置

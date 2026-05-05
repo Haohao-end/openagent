@@ -31,6 +31,9 @@ class AccountService(BaseService):
     jwt_service: JwtService
     email_service: EmailService
     SUPPORTED_OAUTH_PROVIDERS = ("github", "google")
+    INVALID_CREDENTIALS_REASON_CODE = "INVALID_CREDENTIALS"
+    ACCOUNT_EXISTS_REASON_CODE = "ACCOUNT_EXISTS"
+    OAUTH_ONLY_ACCOUNT_REASON_CODE = "OAUTH_ONLY_ACCOUNT"
     LOGIN_FAILURE_WINDOW_SECONDS = 15 * 60
     LOGIN_LOCK_SECONDS = 15 * 60
     MAX_LOGIN_FAILURE_PER_EMAIL = 5
@@ -987,14 +990,104 @@ class AccountService(BaseService):
 
         return self.issue_credential(account, skip_login_alert=True)
 
+    def _build_oauth_only_login_message(self, account: Account) -> str:
+        """为仅支持第三方登录的账号构建提示文案。"""
+        provider_codes = self._get_oauth_provider_codes(account)
+        provider_names = [self._oauth_provider_display_name(provider_code) for provider_code in provider_codes]
+        deduplicated_provider_names = [item for item in provider_names if item]
+
+        if not deduplicated_provider_names:
+            return "该账号尚未设置密码，请使用第三方登录方式登录"
+
+        if len(deduplicated_provider_names) == 1:
+            return f"该账号尚未设置密码，请使用{deduplicated_provider_names[0]}登录"
+
+        provider_text = " / ".join(deduplicated_provider_names)
+        return f"该账号尚未设置密码，请使用{provider_text}登录"
+
+    @classmethod
+    def _oauth_provider_display_name(cls, provider_code: str) -> str:
+        normalized_provider_code = str(provider_code or "").strip().lower()
+        if normalized_provider_code == "google":
+            return "Google"
+        if normalized_provider_code == "github":
+            return "GitHub"
+        return ""
+
+    def _get_oauth_provider_codes(self, account: Account) -> list[str]:
+        oauth_bindings = self.get_account_oauths_by_account_id(account.id)
+        provider_codes: list[str] = []
+        for binding in oauth_bindings:
+            provider_code = str(getattr(binding, "provider", "") or "").strip().lower()
+            if provider_code not in self.SUPPORTED_OAUTH_PROVIDERS:
+                continue
+            if provider_code in provider_codes:
+                continue
+            provider_codes.append(provider_code)
+        return provider_codes
+
+    def prepare_register(self, email: str, password: str) -> None:
+        """为未注册邮箱发送注册验证码。"""
+        normalized_email = self._normalize_email(email)
+        account = self.get_account_by_email(normalized_email)
+        if account:
+            if not account.is_password_set:
+                raise FailException(
+                    self._build_oauth_only_login_message(account),
+                    data={"providers": self._get_oauth_provider_codes(account)},
+                    reason_code=self.OAUTH_ONLY_ACCOUNT_REASON_CODE,
+                )
+            raise FailException(
+                "账号已存在，请直接登录",
+                reason_code=self.ACCOUNT_EXISTS_REASON_CODE,
+            )
+
+        self.email_service.send_register_code(normalized_email)
+
+    def register_by_email_code(self, email: str, password: str, code: str) -> dict[str, Any]:
+        """校验注册验证码后创建账号并直接登录。"""
+        normalized_email = self._normalize_email(email)
+        account = self.get_account_by_email(normalized_email)
+        if account:
+            if not account.is_password_set:
+                raise FailException(
+                    self._build_oauth_only_login_message(account),
+                    data={"providers": self._get_oauth_provider_codes(account)},
+                    reason_code=self.OAUTH_ONLY_ACCOUNT_REASON_CODE,
+                )
+            raise FailException(
+                "账号已存在，请直接登录",
+                reason_code=self.ACCOUNT_EXISTS_REASON_CODE,
+            )
+
+        if not self.email_service.verify_register_code(normalized_email, code):
+            raise FailException("验证码错误或已过期")
+
+        account = self.create_account(
+            email=normalized_email,
+            name=normalized_email.split("@", 1)[0],
+        )
+        self.update_password(password, account)
+        return self.begin_login(account)
+
     def password_login(self, email: str, password: str) -> dict[str, Any]:
         """根据传递的密码 + 邮箱登录特定的账号"""
         normalized_email = self._normalize_email(email)
+        generic_error_message = "账号不存在或者密码错误"
 
         # 1.根据传递的邮箱查询账号是否存在
         account = self.get_account_by_email(normalized_email)
-        if not account or not account.is_password_set:
-            raise FailException("账号不存在或者密码错误")
+        if not account:
+            raise FailException(
+                generic_error_message,
+                reason_code=self.INVALID_CREDENTIALS_REASON_CODE,
+            )
+
+        if not account.is_password_set:
+            raise FailException(
+                generic_error_message,
+                reason_code=self.INVALID_CREDENTIALS_REASON_CODE,
+            )
 
         # 2.校验账号密码是否正确
         if not compare_password(
@@ -1002,7 +1095,10 @@ class AccountService(BaseService):
             account.password,
             account.password_salt
         ):
-            raise FailException("账号不存在或者密码错误")
+            raise FailException(
+                generic_error_message,
+                reason_code=self.INVALID_CREDENTIALS_REASON_CODE,
+            )
 
         # 3.根据登录风险返回授权凭证或二次验证挑战
         return self.begin_login(account)
@@ -1032,4 +1128,3 @@ class AccountService(BaseService):
 
         # 3.更新密码
         self.update_password(new_password, account)
-

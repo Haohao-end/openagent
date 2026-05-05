@@ -97,7 +97,9 @@ class AssistantAgentService(BaseService):
             or conversation.is_deleted
             or conversation.invoke_from != InvokeFrom.ASSISTANT_AGENT.value
         ):
-            raise NotFoundException(f"该{ASSISTANT_AGENT_DISPLAY_NAME}会话不存在或已被删除，请核实后重试")
+            raise NotFoundException(
+                f"该{ASSISTANT_AGENT_DISPLAY_NAME}会话不存在或已被删除，请核实后重试"
+            )
 
         if sync_active and account.assistant_agent_conversation_id != conversation.id:
             self.update(account, assistant_agent_conversation_id=conversation.id)
@@ -155,11 +157,17 @@ class AssistantAgentService(BaseService):
         )
         tools = []
         if self.public_agent_a2a_service:
-            tools.append(self.public_agent_a2a_service.convert_public_agent_route_to_tool(account.id))
-        tools.extend([
-            search_public_agents_tool,
-            self.convert_create_app_to_tool(account.id),
-        ])
+            tools.append(
+                self.public_agent_a2a_service.convert_public_agent_route_to_tool(
+                    account.id
+                )
+            )
+        tools.extend(
+            [
+                search_public_agents_tool,
+                self.convert_create_app_to_tool(account.id),
+            ]
+        )
 
         # 7.构建辅助Agent专用智能体，避免工具调用前的过渡文案直接暴露给用户
         agent = A2AFunctionCallAgent(
@@ -360,7 +368,7 @@ class AssistantAgentService(BaseService):
                 token_counter=llm,
                 strategy="last",
                 start_on="human",
-                end_on="ai",
+                end_on="human",
             )
         except Exception:
             logging.exception(
@@ -430,7 +438,8 @@ class AssistantAgentService(BaseService):
         filters = [
             Message.conversation_id == conversation.id,
             Message.status.in_([MessageStatus.STOP.value, MessageStatus.NORMAL.value]),
-            Message.query != "",  # 只过滤用户提问不为空的消息，允许答案为空（正在生成中）
+            Message.query
+            != "",  # 只过滤用户提问不为空的消息，允许答案为空（正在生成中）
             ~Message.is_deleted,
         ]
 
@@ -454,7 +463,7 @@ class AssistantAgentService(BaseService):
         id_list = []
         for item in paginated_ids:
             # Row objects can be indexed like tuples
-            if hasattr(item, '__getitem__'):
+            if hasattr(item, "__getitem__"):
                 id_list.append(item[0])
             else:
                 id_list.append(item)
@@ -525,7 +534,9 @@ class AssistantAgentService(BaseService):
         self._clear_introduction_cache(account.id)
         self.update(account, assistant_agent_conversation_id=None)
 
-    def _generate_introduction_cache_key(self, account_id: UUID, fingerprint: str) -> str:
+    def _generate_introduction_cache_key(
+        self, account_id: UUID, fingerprint: str
+    ) -> str:
         """生成介绍内容的缓存键"""
         return f"assistant_agent:introduction:{account_id}:{fingerprint}"
 
@@ -591,10 +602,8 @@ class AssistantAgentService(BaseService):
         """构建个性化介绍提示消息列表"""
         user_name = (account.name or "").strip()
         display_name = user_name if user_name else "朋友"
-        prompt_messages = [
-            SystemMessage(
-                content=f"""
-你是LLMOps平台中的"{ASSISTANT_AGENT_DISPLAY_NAME}"，你的输出将直接展示在首页开场介绍中。
+        prompt_messages = [SystemMessage(content=f"""
+你是OpenAgent，你的输出将直接展示在首页开场介绍中。
 请基于用户历史信息生成一段"个性化欢迎介绍"，要求如下：
 1. 开头必须包含问候语：Hi，{display_name}
 2. 先识别该用户近期意图与关注方向，再给出针对性引导；不要编造不存在的信息。
@@ -603,29 +612,21 @@ class AssistantAgentService(BaseService):
 5. 语气专业、自然、简洁，长度控制在120~260字，输出必须是Markdown格式。
 6. 建议使用二级或三级标题 + 2~4条列表项，让排版更清晰；不要输出JSON。
 7. 输出语言尽量与用户最近提问语言保持一致；如果无法判断则使用中文。
-""".strip()
-            )
-        ]
+""".strip())]
 
-        # 把会话摘要作为一组人类/AI消息注入，便于trim_messages按照轮次裁剪
+        # 把会话摘要作为人类消息注入，避免把 AI 回复混入介绍生成上下文
         if summary:
             prompt_messages.extend(
                 [
                     HumanMessage(content=f"用户历史会话摘要如下：\n{summary}"),
-                    AIMessage(
-                        content="我已读取用户历史摘要，将结合摘要输出个性化介绍。"
-                    ),
                 ]
             )
 
         # 最近消息作为上下文输入
         for item in messages:
             query = (item.query or "").strip()
-            answer = (item.answer or "").strip()
             if query:
                 prompt_messages.append(HumanMessage(content=query))
-            if answer:
-                prompt_messages.append(AIMessage(content=answer))
 
         return prompt_messages
 
@@ -660,9 +661,7 @@ class AssistantAgentService(BaseService):
         if "```" in content:
             return True
 
-        markdown_pattern = re.compile(
-            r"(^|\n)\s*(#{1,6}\s|[-*+]\s|\d+\.\s|>\s|\|.+\|)"
-        )
+        markdown_pattern = re.compile(r"(^|\n)\s*(#{1,6}\s|[-*+]\s|\d+\.\s|>\s|\|.+\|)")
         inline_pattern = re.compile(r"`[^`]+`")
         return bool(markdown_pattern.search(content) or inline_pattern.search(content))
 
@@ -684,7 +683,11 @@ class AssistantAgentService(BaseService):
         sentence_parts: list[str] = []
         for line in lines:
             sentence_parts.extend(
-                [part.strip() for part in re.split(r"[。！？!?]\s*", line) if part.strip()]
+                [
+                    part.strip()
+                    for part in re.split(r"[。！？!?]\s*", line)
+                    if part.strip()
+                ]
             )
 
         if not sentence_parts:

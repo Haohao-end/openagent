@@ -2,15 +2,15 @@ from types import SimpleNamespace
 
 import pytest
 
+from internal.exception import FailException
 from pkg.paginator import Paginator
 from pkg.response import HttpCode, Response
-
 
 APP_ID = "00000000-0000-0000-0000-000000000001"
 WORKFLOW_ID = "00000000-0000-0000-0000-000000000002"
 DATASET_ID = "00000000-0000-0000-0000-000000000003"
 PROVIDER_ID = "00000000-0000-0000-0000-000000000004"
-PUBLIC_STRING_APP_ID = "builtin-assistant"
+PUBLIC_STRING_APP_ID = "00000000-0000-0000-0000-00000000aa01"
 
 
 def _assert_health(data: dict):
@@ -20,6 +20,10 @@ def _assert_health(data: dict):
     assert "database" in data["components"]
     assert "metrics" in data
     assert "status_code" in data["metrics"]
+
+
+def _assert_healthz(data: dict):
+    assert data == {"status": "ok", "service": "llmops-api"}
 
 
 def _assert_tags(data: dict):
@@ -61,7 +65,12 @@ BATCH_A_VALIDATE_CASES = [
         "url": "/public/workflows",
         "kwargs": {"query_string": {"current_page": 0}},
     },
-    {"name": "ai_chat_missing_question", "method": "post", "url": "/ai/chat", "kwargs": {"json": {}}},
+    {
+        "name": "ai_chat_missing_question",
+        "method": "post",
+        "url": "/ai/chat",
+        "kwargs": {"json": {}},
+    },
     {
         "name": "api_tool_icon_preview_missing_name",
         "method": "post",
@@ -109,6 +118,14 @@ BATCH_B_SUCCESS_CASES = [
         "kwargs": {},
         "patches": [],
         "assertion": _assert_health,
+    },
+    {
+        "name": "healthz_success",
+        "method": "get",
+        "url": "/healthz",
+        "kwargs": {},
+        "patches": [],
+        "assertion": _assert_healthz,
     },
     {
         "name": "public_app_tags_success",
@@ -163,6 +180,36 @@ BATCH_B_SUCCESS_CASES = [
             (
                 "internal.service.app_service.AppService.generate_icon_preview",
                 "https://a.com/app-preview.png",
+            )
+        ],
+    },
+    {
+        "name": "auth_prepare_register_success",
+        "method": "post",
+        "url": "/auth/register/prepare",
+        "kwargs": {"json": {"email": "tester@example.com", "password": "Abcd1234"}},
+        "patches": [
+            (
+                "internal.service.account_service.AccountService.prepare_register",
+                None,
+            )
+        ],
+    },
+    {
+        "name": "auth_verify_register_success",
+        "method": "post",
+        "url": "/auth/register/verify",
+        "kwargs": {
+            "json": {
+                "email": "tester@example.com",
+                "password": "Abcd1234",
+                "code": "123456",
+            }
+        },
+        "patches": [
+            (
+                "internal.service.account_service.AccountService.register_by_email_code",
+                {"access_token": "token", "expire_at": 123},
             )
         ],
     },
@@ -262,7 +309,10 @@ BATCH_B_SUCCESS_CASES = [
         "url": "/public/apps/my-favorites",
         "kwargs": {},
         "patches": [
-            ("internal.service.public_app_service.PublicAppService.get_my_favorites", [])
+            (
+                "internal.service.public_app_service.PublicAppService.get_my_favorites",
+                [],
+            )
         ],
     },
     {
@@ -514,7 +564,9 @@ class TestRouteGapBatchMatrix:
         with app.test_client() as client:
             yield client
 
-    @pytest.mark.parametrize("case", BATCH_A_VALIDATE_CASES, ids=[c["name"] for c in BATCH_A_VALIDATE_CASES])
+    @pytest.mark.parametrize(
+        "case", BATCH_A_VALIDATE_CASES, ids=[c["name"] for c in BATCH_A_VALIDATE_CASES]
+    )
     def test_batch_a_should_cover_validate_routes(self, case, http_client):
         method = getattr(http_client, case["method"])
         resp = method(case["url"], **case["kwargs"])
@@ -522,7 +574,9 @@ class TestRouteGapBatchMatrix:
         assert resp.status_code == 200
         assert resp.json["code"] == HttpCode.VALIDATE_ERROR
 
-    @pytest.mark.parametrize("case", BATCH_B_SUCCESS_CASES, ids=[c["name"] for c in BATCH_B_SUCCESS_CASES])
+    @pytest.mark.parametrize(
+        "case", BATCH_B_SUCCESS_CASES, ids=[c["name"] for c in BATCH_B_SUCCESS_CASES]
+    )
     def test_batch_b_should_cover_success_routes(self, case, http_client, monkeypatch):
         for target, return_value in case["patches"]:
             monkeypatch.setattr(
@@ -548,7 +602,9 @@ class TestRouteGapBatchMatrix:
             def is_authenticated(self):
                 raise RuntimeError("no-request-user")
 
-        monkeypatch.setattr("internal.handler.public_app_handler.current_user", _BrokenUser())
+        monkeypatch.setattr(
+            "internal.handler.public_app_handler.current_user", _BrokenUser()
+        )
         monkeypatch.setattr(
             "internal.service.public_app_service.PublicAppService.get_public_apps_with_page",
             lambda *_args, **_kwargs: ([], _page_paginator()),
@@ -573,7 +629,9 @@ class TestRouteGapBatchMatrix:
             def is_authenticated(self):
                 raise RuntimeError("no-request-user")
 
-        monkeypatch.setattr("internal.handler.public_workflow_handler.current_user", _BrokenUser())
+        monkeypatch.setattr(
+            "internal.handler.public_workflow_handler.current_user", _BrokenUser()
+        )
         monkeypatch.setattr(
             "internal.service.public_workflow_service.PublicWorkflowService.get_public_workflows_with_page",
             lambda *_args, **_kwargs: ([], _page_paginator()),
@@ -588,7 +646,9 @@ class TestRouteGapBatchMatrix:
         assert resp.json["code"] == HttpCode.SUCCESS
         assert resp.json["data"]["list"] == []
 
-    def test_public_app_a2a_agent_card_should_delegate_to_service(self, http_client, monkeypatch):
+    def test_public_app_a2a_agent_card_should_delegate_to_service(
+        self, http_client, monkeypatch
+    ):
         monkeypatch.setattr(
             "internal.service.public_agent_a2a_service.PublicAgentA2AService.get_agent_card",
             lambda *_args, **_kwargs: {"name": "public-agent", "version": "1.0.0"},
@@ -600,17 +660,126 @@ class TestRouteGapBatchMatrix:
         assert resp.json["name"] == "public-agent"
         assert resp.json["version"] == "1.0.0"
 
-    def test_public_app_a2a_messages_should_delegate_to_service(self, http_client, monkeypatch):
+    def test_public_app_a2a_messages_should_delegate_to_service(
+        self, http_client, monkeypatch
+    ):
         monkeypatch.setattr(
-            "internal.service.public_agent_a2a_service.PublicAgentA2AService.send_message",
-            lambda *_args, **_kwargs: {"id": "msg-1", "status": "completed"},
+            "internal.service.public_agent_a2a_service.PublicAgentA2AService.stream_message",
+            lambda *_args, **_kwargs: Response(
+                code=HttpCode.SUCCESS,
+                data={"id": "msg-1", "status": "completed"},
+            ),
         )
 
         resp = http_client.post(
             f"/public/apps/{PUBLIC_STRING_APP_ID}/a2a/messages",
-            json={"message": {"role": "user", "content": [{"type": "text", "text": "hello"}]}},
+            json={
+                "message": {
+                    "role": "user",
+                    "parts": [{"type": "text", "text": "hello"}],
+                }
+            },
         )
 
         assert resp.status_code == 200
-        assert resp.json["id"] == "msg-1"
-        assert resp.json["status"] == "completed"
+        assert resp.json["code"] == HttpCode.SUCCESS
+        assert resp.json["data"] == {"id": "msg-1", "status": "completed"}
+
+    def test_public_app_a2a_conversation_messages_should_delegate_to_service(
+        self, http_client, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "internal.service.public_agent_a2a_service.PublicAgentA2AService.list_public_app_conversation_messages",
+            lambda *_args, **_kwargs: [{"id": "msg-1", "conversation_id": "conv-1"}],
+        )
+
+        resp = http_client.get(
+            f"/public/apps/{PUBLIC_STRING_APP_ID}/a2a/conversations/conv-1/messages",
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.SUCCESS
+        assert resp.json["data"] == [{"id": "msg-1", "conversation_id": "conv-1"}]
+
+    def test_public_app_a2a_latest_conversation_should_delegate_to_service(
+        self, http_client, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "internal.service.public_agent_a2a_service.PublicAgentA2AService.get_latest_public_app_conversation_id",
+            lambda *_args, **_kwargs: "conv-1",
+        )
+
+        resp = http_client.get(
+            f"/public/apps/{PUBLIC_STRING_APP_ID}/a2a/conversations/latest"
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.SUCCESS
+        assert resp.json["data"]["conversation_id"] == "conv-1"
+
+    def test_auth_send_reset_code_should_return_generic_success_message(
+        self, http_client, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "internal.service.account_service.AccountService.send_reset_code",
+            lambda *_args, **_kwargs: None,
+        )
+
+        resp = http_client.post(
+            "/auth/send-reset-code",
+            json={"email": "tester@example.com"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.SUCCESS
+        assert resp.json["message"] == "如果该邮箱已注册，验证码已发送，请查收"
+
+    def test_auth_password_login_should_serialize_reason_code(
+        self, http_client, monkeypatch
+    ):
+        def _raise_invalid_credentials(*_args, **_kwargs):
+            raise FailException(
+                "账号不存在或者密码错误",
+                reason_code="INVALID_CREDENTIALS",
+            )
+
+        monkeypatch.setattr(
+            "internal.service.account_service.AccountService.password_login",
+            _raise_invalid_credentials,
+        )
+
+        resp = http_client.post(
+            "/auth/password-login",
+            json={"email": "tester@example.com", "password": "Abcd1234"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.FAIL
+        assert resp.json["message"] == "账号不存在或者密码错误"
+        assert resp.json["data"]["reason_code"] == "INVALID_CREDENTIALS"
+
+    def test_auth_prepare_register_should_serialize_oauth_only_providers(
+        self, http_client, monkeypatch
+    ):
+        def _raise_oauth_only(*_args, **_kwargs):
+            raise FailException(
+                "该账号尚未设置密码，请使用Google登录",
+                data={"providers": ["google"]},
+                reason_code="OAUTH_ONLY_ACCOUNT",
+            )
+
+        monkeypatch.setattr(
+            "internal.service.account_service.AccountService.prepare_register",
+            _raise_oauth_only,
+        )
+
+        resp = http_client.post(
+            "/auth/register/prepare",
+            json={"email": "tester@example.com", "password": "Abcd1234"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json["code"] == HttpCode.FAIL
+        assert resp.json["message"] == "该账号尚未设置密码，请使用Google登录"
+        assert resp.json["data"]["reason_code"] == "OAUTH_ONLY_ACCOUNT"
+        assert resp.json["data"]["providers"] == ["google"]

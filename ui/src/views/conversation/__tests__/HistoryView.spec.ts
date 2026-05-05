@@ -189,6 +189,25 @@ describe('HistoryView - 对话历史页面', () => {
     expect(vm.formatDate(yesterday)).toBe('昨天')
   })
 
+  it('应该截断过长标题', () => {
+    const wrapper = mount(HistoryView, {
+      global: {
+        stubs: {
+          UpdateConversationNameModal: true,
+          'a-input-search': true,
+          'a-skeleton': true,
+          'a-dropdown': true,
+          'a-button': true,
+          'a-doption': true,
+        },
+      },
+    })
+
+    const vm = wrapper.vm as any
+    expect(vm.truncateText('12345678901234567890')).toBe('12345678901234567890')
+    expect(vm.truncateText('123456789012345678901')).toBe('12345678901234567890...')
+  })
+
   it('应该能跳转到对话', async () => {
     const mockPush = vi.fn()
     vi.mocked(useRouter).mockReturnValue({

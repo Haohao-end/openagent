@@ -2,12 +2,12 @@ services:
   llmops-ui:
     image: llmops-ui:${IMAGE_VERSION:-0.1.0}
     build:
-      context: ../ui
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: ui/Dockerfile
     container_name: llmops-ui
     restart: always
     ports:
-      - "${UI_PORT:-3000}:3000"
+      - "127.0.0.1:${UI_PORT:-3000}:3000"
 
   llmops-api:
     image: llmops-api:${IMAGE_VERSION:-0.1.0}
@@ -23,6 +23,11 @@ services:
       - ../api/.env
     environment:
       # Docker 环境特定配置（覆盖 .env 中的对应配置）
+      FLASK_ENV: production
+      FLASK_DEBUG: '0'
+      SERVER_THREAD_AMOUNT: 32
+      GUNICORN_TIMEOUT: 120
+      SQLALCHEMY_ECHO: 'false'
       MODE: api
       MIGRATION_ENABLED: 'true'
       POSTGRES_HOST: llmops-db
@@ -35,11 +40,14 @@ services:
       WEAVIATE_HTTP_PORT: 8080
       WEAVIATE_GRPC_HOST: llmops-weaviate
       WEAVIATE_GRPC_PORT: 50051
-      # 数据库连接字符串覆盖（使用 Docker 服务名）
-      # 注意: 密码从 .env 文件的 POSTGRES_PASSWORD 读取
-      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@llmops-db:5432/${POSTGRES_DB}?client_encoding=utf8
     ports:
-      - "${API_PORT:-5001}:5001"
+      - "127.0.0.1:${API_PORT:-5001}:5001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5001/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     depends_on:
       llmops-db:
         condition: service_healthy
@@ -62,6 +70,9 @@ services:
       - ../api/.env
     environment:
       # Docker 环境特定配置（覆盖 .env 中的对应配置）
+      FLASK_ENV: production
+      FLASK_DEBUG: '0'
+      SQLALCHEMY_ECHO: 'false'
       MODE: celery
       MIGRATION_ENABLED: 'false'
       POSTGRES_HOST: llmops-db
@@ -74,9 +85,6 @@ services:
       WEAVIATE_HTTP_PORT: 8080
       WEAVIATE_GRPC_HOST: llmops-weaviate
       WEAVIATE_GRPC_PORT: 50051
-      # 数据库连接字符串覆盖（使用 Docker 服务名）
-      # 注意: 密码从 .env 文件的 POSTGRES_PASSWORD 读取
-      SQLALCHEMY_DATABASE_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@llmops-db:5432/${POSTGRES_DB}?client_encoding=utf8
     depends_on:
       llmops-db:
         condition: service_healthy
@@ -100,7 +108,7 @@ services:
       timeout: 3s
       retries: 5
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
 
   llmops-db:
     image: postgres:15-alpine
@@ -119,7 +127,7 @@ services:
       timeout: 3s
       retries: 30
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
 
   llmops-weaviate:
     image: semitechnologies/weaviate:1.28.4
@@ -141,8 +149,8 @@ services:
     volumes:
       - ./volumes/weaviate:/var/lib/weaviate
     ports:
-      - "${WEAVIATE_HTTP_PORT:-8080}:8080"
-      - "${WEAVIATE_GRPC_PORT:-50051}:50051"
+      - "127.0.0.1:${WEAVIATE_HTTP_PORT:-8080}:8080"
+      - "127.0.0.1:${WEAVIATE_GRPC_PORT:-50051}:50051"
 
   llmops-nginx:
     image: nginx:latest
@@ -162,8 +170,10 @@ services:
       - ./nginx/ssl:/etc/ssl
     entrypoint: ["/bin/bash", "/docker-entrypoint.sh"]
     depends_on:
-      - llmops-ui
-      - llmops-api
+      llmops-ui:
+        condition: service_started
+      llmops-api:
+        condition: service_healthy
     ports:
       - "${NGINX_HTTP_PORT:-80}:80"
       - "${NGINX_HTTPS_PORT:-443}:443"

@@ -25,7 +25,7 @@ const sortBy = ref<AppSortBy>('most_liked')
 const searchWord = ref('')
 const page = ref(1)
 const pageSize = ref(20)
-const total = ref(0)
+const hasMore = ref(true)
 
 const sortOptions: Array<{ label: string; value: AppSortBy }> = [
   { label: '最多点赞', value: 'most_liked' },
@@ -35,6 +35,9 @@ const sortOptions: Array<{ label: string; value: AppSortBy }> = [
 ]
 
 const loadApps = async () => {
+  if (loading.value) return
+  if (!hasMore.value && page.value > 1) return
+
   loading.value = true
   try {
     const res = await getPublicApps({
@@ -44,8 +47,13 @@ const loadApps = async () => {
       sort_by: sortBy.value,
       search_word: searchWord.value
     })
-    apps.value = res.data.list
-    total.value = res.data.paginator.total_record
+    const list = res.data.list
+    if (page.value === 1) {
+      apps.value = list
+    } else {
+      apps.value.push(...list)
+    }
+    hasMore.value = page.value < res.data.paginator.total_page
   } catch (error: unknown) {
     Message.error(getErrorMessage(error, '加载应用列表失败'))
   } finally {
@@ -106,23 +114,32 @@ const toggleTag = (tagId: string) => {
     selectedTags.value.push(tagId)
   }
   page.value = 1
+  hasMore.value = true
   loadApps()
 }
 
 const handleSortChange = (newSort: AppSortBy) => {
   sortBy.value = newSort
   page.value = 1
+  hasMore.value = true
   loadApps()
 }
 
 const handleSearch = () => {
   page.value = 1
+  hasMore.value = true
   loadApps()
 }
 
-const handlePageChange = (newPage: number) => {
-  page.value = newPage
-  loadApps()
+const handleScroll = (event: Event) => {
+  const target = event.target as HTMLElement | null
+  if (!target) return
+  const { scrollTop, scrollHeight, clientHeight } = target
+  if (scrollTop + clientHeight >= scrollHeight - 10) {
+    if (loading.value || !hasMore.value) return
+    page.value += 1
+    void loadApps()
+  }
 }
 
 const getDisplayTags = (appTags: string[]) => {
@@ -200,7 +217,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="flex-1 overflow-auto scrollbar-hide">
+      <div class="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide" @scroll="handleScroll">
         <a-row :gutter="[20, 20]">
           <a-col v-for="app in apps" :key="app.id" :span="6">
             <a-card hoverable class="h-full rounded-lg flex flex-col" :body-style="{ padding: '16px' }">
@@ -259,16 +276,14 @@ onMounted(() => {
             <a-empty description="暂无应用" class="py-20" />
           </a-col>
         </a-row>
-      </div>
 
-      <div v-if="total > pageSize" class="flex justify-center mt-6">
-        <a-pagination
-          :current="page"
-          :page-size="pageSize"
-          :total="total"
-          show-total
-          @change="handlePageChange"
-        />
+        <div v-if="apps.length > 0" class="py-4 text-center">
+          <a-space v-if="loading">
+            <a-spin />
+            <div class="text-gray-400">加载中</div>
+          </a-space>
+          <div v-else-if="!hasMore" class="text-gray-400">数据已加载完成</div>
+        </div>
       </div>
     </div>
   </a-spin>

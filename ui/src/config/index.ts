@@ -1,31 +1,127 @@
+type RuntimeLocation = Pick<Location, 'origin'> | undefined
+
+type SocketEndpoint = {
+  path: string
+  url: string
+}
+
+type EndpointResolution = {
+  apiBaseUrl: string
+  socketEndpoint: SocketEndpoint
+}
+
+const LOCAL_API_ORIGIN = 'http://localhost:5001'
+const DEFAULT_API_PROXY_PREFIX = '/api'
+const DEFAULT_SOCKET_IO_PATH = '/socket.io'
+const INVALID_API_PREFIX_MESSAGE = 'VITE_API_PREFIX must be an absolute http(s) URL or start with "/"'
+
+const trimTrailingSlash = (value: string) => {
+  return value.replace(/\/+$/, '')
+}
+
+const normalizeBasePath = (pathname: string) => {
+  const normalized = pathname.trim()
+  if (!normalized || normalized === '/') {
+    return ''
+  }
+
+  const withLeadingSlash = normalized.startsWith('/') ? normalized : `/${normalized}`
+  return withLeadingSlash.replace(/\/+$/, '')
+}
+
+const resolveLocationOrigin = (loc: RuntimeLocation = globalThis.location) => {
+  const origin = loc?.origin?.trim()
+  return origin ? trimTrailingSlash(origin) : ''
+}
+
+const resolveConfiguredApiUrl = (value: string, loc: RuntimeLocation = globalThis.location) => {
+  const normalized = value.trim()
+  if (!normalized) {
+    return null
+  }
+
+  if (/^https?:\/\//iu.test(normalized)) {
+    return new URL(normalized)
+  }
+
+  if (normalized.startsWith('/')) {
+    const origin = resolveLocationOrigin(loc)
+    if (!origin) {
+      throw new Error('A relative VITE_API_PREFIX requires window.location.origin')
+    }
+    return new URL(normalized, origin)
+  }
+
+  throw new Error(`${INVALID_API_PREFIX_MESSAGE}. Received: ${normalized}`)
+}
+
+const buildSocketPath = (apiPathname: string) => {
+  const apiBasePath = normalizeBasePath(apiPathname)
+  return apiBasePath ? `${apiBasePath}${DEFAULT_SOCKET_IO_PATH}` : DEFAULT_SOCKET_IO_PATH
+}
+
+const buildEndpointResolution = (apiUrl: URL): EndpointResolution => {
+  const origin = trimTrailingSlash(apiUrl.origin)
+  const apiBasePath = normalizeBasePath(apiUrl.pathname)
+
+  return {
+    apiBaseUrl: `${origin}${apiBasePath}`,
+    socketEndpoint: {
+      url: origin,
+      path: buildSocketPath(apiUrl.pathname),
+    },
+  }
+}
+
+export function resolveEndpointResolution(
+  loc: RuntimeLocation = globalThis.location,
+): EndpointResolution {
+  const envPrefix = String(import.meta.env.VITE_API_PREFIX || '').trim()
+  const resolvedConfiguredUrl = resolveConfiguredApiUrl(envPrefix, loc)
+  if (resolvedConfiguredUrl) {
+    return buildEndpointResolution(resolvedConfiguredUrl)
+  }
+
+  const origin = resolveLocationOrigin(loc)
+  if (origin) {
+    return {
+      apiBaseUrl: `${origin}${DEFAULT_API_PROXY_PREFIX}`,
+      socketEndpoint: {
+        url: origin,
+        path: `${DEFAULT_API_PROXY_PREFIX}${DEFAULT_SOCKET_IO_PATH}`,
+      },
+    }
+  }
+
+  return {
+    apiBaseUrl: LOCAL_API_ORIGIN,
+    socketEndpoint: {
+      url: LOCAL_API_ORIGIN,
+      path: DEFAULT_SOCKET_IO_PATH,
+    },
+  }
+}
+
 /**
  * 智能获取 API 前缀
  * 优先级:
  * 1. 环境变量 VITE_API_PREFIX (如果配置了)
- * 2. 当前域名 + /api (通过 Nginx 代理)
+ * 2. 当前域名 + /api (通过 Nginx / Vite 代理)
  * 3. 兜底 localhost (开发环境)
  */
-function getApiPrefix(): string {
-  // 1. 如果环境变量配置了完整的 API 地址,直接使用
-  const envPrefix = import.meta.env.VITE_API_PREFIX
-  if (envPrefix && envPrefix.trim() !== '') {
-    return envPrefix.trim()
-  }
+export function resolveApiPrefix(loc: RuntimeLocation = globalThis.location): string {
+  return resolveEndpointResolution(loc).apiBaseUrl
+}
 
-  // 2. 获取当前访问的域名/IP
-  const origin = globalThis.location?.origin
-
-  if (origin) {
-    // 生产环境或通过 Nginx 访问: 使用当前域名 + /api
-    return `${origin}/api`
-  }
-
-  // 3. 兜底: 开发环境 localhost
-  return 'http://localhost:5001'
+export function resolveSocketEndpoint(loc: RuntimeLocation = globalThis.location): SocketEndpoint {
+  return resolveEndpointResolution(loc).socketEndpoint
 }
 
 // api请求接口前缀
-export const apiPrefix: string = getApiPrefix()
+export const apiPrefix: string = resolveApiPrefix()
+export const socketEndpoint: SocketEndpoint = resolveSocketEndpoint()
+export const socketConnectionUrl = socketEndpoint.url
+export const socketPath = socketEndpoint.path
 
 
 // 业务状态码

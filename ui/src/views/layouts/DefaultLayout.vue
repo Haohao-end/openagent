@@ -344,7 +344,16 @@ watch(settingModalVisible, async (visible) => {
       </div>
     </a-layout-sider>
     <!-- 右侧内容 -->
-    <a-layout-content class="!bg-transparent layout-content overflow-hidden flex flex-col" :style="{ marginLeft: `${sidebarWidth}px`, height: 'auto', flex: '1 1 0', minHeight: '0' }">
+    <a-layout-content
+      class="!bg-transparent layout-content overflow-hidden flex flex-col"
+      :style="{
+        marginLeft: `${sidebarWidth}px`,
+        width: `calc(100vw - ${sidebarWidth}px)`,
+        height: 'auto',
+        flex: '1 1 0',
+        minHeight: '0',
+      }"
+    >
       <router-view v-slot="{ Component }">
         <keep-alive include="HomeView">
           <component :is="Component" class="flex-1 min-h-0" />

@@ -10,34 +10,40 @@ interface FAQItem {
 const faqs: FAQItem[] = [
   {
     id: 1,
-    question: 'What is LLMOps and how does it work?',
-    answer: 'LLMOps is a comprehensive platform for building, deploying, and managing AI applications. It provides a visual workflow builder, pre-built components, and seamless integration with multiple LLM providers. Simply define your workflow, connect your data sources, and deploy with one click.'
+    question: 'What is OpenAgent and how does it work?',
+    answer:
+      'OpenAgent is a comprehensive platform for building, deploying, and managing AI applications. It provides a visual workflow builder, pre-built components, and seamless integration with multiple LLM providers. Simply define your workflow, connect your data sources, and deploy with one click.',
   },
   {
     id: 2,
-    question: 'Do I need coding experience to use LLMOps?',
-    answer: 'No! LLMOps is designed for both technical and non-technical users. Our visual workflow builder allows you to create complex AI applications without writing any code. However, advanced users can also write custom code when needed.'
+    question: 'Do I need coding experience to use OpenAgent?',
+    answer:
+      'No! OpenAgent is designed for both technical and non-technical users. Our visual workflow builder allows you to create complex AI applications without writing any code. However, advanced users can also write custom code when needed.',
   },
   {
     id: 3,
     question: 'What LLM providers are supported?',
-    answer: 'We support all major LLM providers including OpenAI, Google, DeepSeek, Moonshot, and more. You can easily switch between providers or use multiple providers in the same application.'
+    answer:
+      'We support all major LLM providers including OpenAI, Google, DeepSeek, Moonshot, and more. You can easily switch between providers or use multiple providers in the same application.',
   },
   {
     id: 4,
-    question: 'How much does LLMOps cost?',
-    answer: 'We offer flexible pricing plans starting from free. The free tier includes basic features and limited API calls. Paid plans offer unlimited apps, advanced features, and priority support.'
+    question: 'How much does OpenAgent cost?',
+    answer:
+      'We offer flexible pricing plans starting from free. The free tier includes basic features and limited API calls. Paid plans offer unlimited apps, advanced features, and priority support.',
   },
   {
     id: 5,
-    question: 'Is my data secure on LLMOps?',
-    answer: 'Yes, security is our top priority. We use enterprise-grade encryption, regular security audits, and comply with GDPR, CCPA, and other data protection regulations. Your data is never used to train our models.'
+    question: 'Is my data secure on OpenAgent?',
+    answer:
+      'Yes, security is our top priority. We use enterprise-grade encryption, regular security audits, and comply with GDPR, CCPA, and other data protection regulations. Your data is never used to train our models.',
   },
   {
     id: 6,
-    question: 'Can I integrate LLMOps with my existing tools?',
-    answer: 'Absolutely! LLMOps provides REST APIs, webhooks, and integrations with popular tools like Slack, Discord, Zapier, and more. You can also deploy your apps as standalone services.'
-  }
+    question: 'Can I integrate OpenAgent with my existing tools?',
+    answer:
+      'Absolutely! OpenAgent provides REST APIs, webhooks, and integrations with popular tools like Slack, Discord, Zapier, and more. You can also deploy your apps as standalone services.',
+  },
 ]
 
 const expandedId = ref<number | null>(null)
@@ -63,13 +69,18 @@ const toggleFAQ = (id: number) => {
           <svg
             :class="[
               'w-5 h-5 text-gray-600 transition-transform duration-300',
-              expandedId === faq.id ? 'rotate-180' : ''
+              expandedId === faq.id ? 'rotate-180' : '',
             ]"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 14l-7 7m0 0l-7-7m7 7V3"
+            />
           </svg>
         </button>
 

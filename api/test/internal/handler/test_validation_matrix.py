@@ -523,10 +523,10 @@ CASES += [
         "kwargs": {"json": {"email": "bad", "password": "Abcd1234"}},
     },
     {
-        "name": "password_login_weak_password",
+        "name": "password_login_empty_password",
         "method": "post",
         "url": "/auth/password-login",
-        "kwargs": {"json": {"email": "a@b.com", "password": "123456"}},
+        "kwargs": {"json": {"email": "a@b.com", "password": ""}},
     },
     {
         "name": "openapi_chat_invalid_end_user_id",

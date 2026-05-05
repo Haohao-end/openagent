@@ -311,6 +311,13 @@ class AppHandler:
             "metrics": metrics,
         })
 
+    def healthz(self):
+        """轻量存活检查，不探测外部依赖，避免容器健康检查被 DB/Redis/Weaviate 阻塞。"""
+        return success_json({
+            "status": "ok",
+            "service": "llmops-api",
+        })
+
     @classmethod
     def _build_health_metrics(cls, components: dict[str, dict[str, str]], status: str) -> dict[str, int]:
         return {

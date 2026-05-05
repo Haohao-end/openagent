@@ -155,11 +155,15 @@ export const useDeleteAssistantAgentConversation = () => {
   const loading = ref(false)
 
   // 2.定义删除调试会话处理器
-  const handleDeleteAssistantAgentConversation = async () => {
+  const handleDeleteAssistantAgentConversation = async (
+    options: { showSuccess?: boolean } = {},
+  ) => {
     try {
       loading.value = true
       const resp = await deleteAssistantAgentConversation()
-      Message.success(resp.message)
+      if (options.showSuccess !== false) {
+        Message.success(resp.message)
+      }
     } finally {
       loading.value = false
     }

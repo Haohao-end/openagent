@@ -6,6 +6,8 @@ from pkg.response import success_message, validate_error_json, success_json
 from internal.schema.auth_schema import (
     PasswordLoginResp,
     PasswordLoginReq,
+    PrepareRegisterReq,
+    VerifyRegisterReq,
     SendResetCodeReq,
     ResetPasswordReq,
     VerifyLoginChallengeReq,
@@ -16,8 +18,9 @@ from internal.service import AccountService
 @inject
 @dataclass
 class AuthHandler:
-    """LLMOps平台自有授权认证处理器"""
+    """OpenAgent 平台自有授权认证处理器"""
     account_service: AccountService
+
     def password_login(self):
         """账号密码登陆"""
         # 1.提取请求并校验数据
@@ -33,6 +36,29 @@ class AuthHandler:
 
         return success_json(resp.dump(credential))
 
+    def prepare_register(self):
+        """发送注册验证码"""
+        req = PrepareRegisterReq()
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        self.account_service.prepare_register(req.email.data, req.password.data)
+        return success_message("验证码已发送到您的邮箱,请查收")
+
+    def verify_register(self):
+        """校验注册验证码并创建账号"""
+        req = VerifyRegisterReq()
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        credential = self.account_service.register_by_email_code(
+            req.email.data,
+            req.password.data,
+            req.code.data,
+        )
+
+        resp = PasswordLoginResp()
+        return success_json(resp.dump(credential))
 
     @login_required
     def logout(self):
@@ -58,7 +84,7 @@ class AuthHandler:
         # 2.调用服务发送验证码
         self.account_service.send_reset_code(req.email.data)
 
-        return success_message("验证码已发送到您的邮箱,请查收")
+        return success_message("如果该邮箱已注册，验证码已发送，请查收")
 
     def reset_password(self):
         """重置密码"""

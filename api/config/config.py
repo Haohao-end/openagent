@@ -1,6 +1,7 @@
 import os
 from typing import Any
 from kombu import Queue
+from weaviate.config import AdditionalConfig, Timeout
 from .default_config import DEFAULT_CONFIG
 
 
@@ -69,11 +70,18 @@ class Config:
         self.SQLALCHEMY_ENGINE_OPTIONS = {
             "pool_size": int(_get_env("SQLALCHEMY_POOL_SIZE")),
             "pool_recycle": int(_get_env("SQLALCHEMY_POOL_RECYCLE")),
+            "pool_timeout": int(_get_env("SQLALCHEMY_POOL_TIMEOUT")),
+            "pool_pre_ping": _get_bool_env("SQLALCHEMY_POOL_PRE_PING"),
         }
         # 强制数据库会话使用UTC，避免CURRENT_TIMESTAMP受连接时区影响
         if self.SQLALCHEMY_DATABASE_URI and self.SQLALCHEMY_DATABASE_URI.startswith("postgresql"):
+            statement_timeout_ms = int(_get_env("SQLALCHEMY_STATEMENT_TIMEOUT_MS"))
+            options = ["-c timezone=UTC"]
+            if statement_timeout_ms > 0:
+                options.append(f"-c statement_timeout={statement_timeout_ms}")
             self.SQLALCHEMY_ENGINE_OPTIONS["connect_args"] = {
-                "options": "-c timezone=UTC"
+                "connect_timeout": int(_get_env("SQLALCHEMY_CONNECT_TIMEOUT")),
+                "options": " ".join(options),
             }
         self.SQLALCHEMY_ECHO = _get_bool_env("SQLALCHEMY_ECHO")
 
@@ -84,6 +92,13 @@ class Config:
         self.WEAVIATE_GRPC_PORT = _get_env("WEAVIATE_GRPC_PORT")
         # API Key must come from environment/.env only, no default fallback.
         self.WEAVIATE_API_KEY = os.getenv("WEAVIATE_API_KEY")
+        self.WEAVIATE_ADDITIONAL_CONFIG = AdditionalConfig(
+            timeout=Timeout(
+                query=float(_get_env("WEAVIATE_TIMEOUT_QUERY")),
+                insert=float(_get_env("WEAVIATE_TIMEOUT_INSERT")),
+                init=float(_get_env("WEAVIATE_TIMEOUT_INIT")),
+            )
+        )
 
         # Redis配置
         self.REDIS_HOST = _get_env("REDIS_HOST")
@@ -92,6 +107,9 @@ class Config:
         self.REDIS_PASSWORD = _get_env("REDIS_PASSWORD")
         self.REDIS_DB = _get_env("REDIS_DB")
         self.REDIS_USE_SSL = _get_bool_env("REDIS_USE_SSL")
+        self.REDIS_SOCKET_CONNECT_TIMEOUT = float(_get_env("REDIS_SOCKET_CONNECT_TIMEOUT"))
+        self.REDIS_SOCKET_TIMEOUT = float(_get_env("REDIS_SOCKET_TIMEOUT"))
+        self.REDIS_HEALTH_CHECK_INTERVAL = int(_get_env("REDIS_HEALTH_CHECK_INTERVAL"))
 
         # 构建 Redis URL
         self.REDIS_URL = _build_redis_url(

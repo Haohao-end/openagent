@@ -96,12 +96,13 @@ class PublicWorkflowService(BaseService):
 
         items_by_id: dict[str, dict[str, Any]] = {}
         for workflow, account_name, account_avatar, favorite_count in workflow_rows:
+            resolved_tags = workflow.tags if workflow.tags else TagAssignmentService.auto_assign_tags(workflow.name, workflow.description)
             items_by_id[str(workflow.id)] = {
                 "id": str(workflow.id),
                 "name": workflow.name,
                 "icon": workflow.icon,
                 "description": workflow.description,
-                "tags": workflow.tags if workflow.tags else [],
+                "tags": resolved_tags,
                 "view_count": workflow.view_count,
                 "like_count": workflow.like_count,
                 "fork_count": workflow.fork_count,
@@ -121,6 +122,14 @@ class PublicWorkflowService(BaseService):
             if item:
                 results.append(item)
         return results
+
+    @staticmethod
+    def _resolve_public_workflow_tags(workflow: Workflow) -> list[str]:
+        """优先使用已保存标签；缺失时仅做轻量关键词兜底，避免列表接口触发慢路径。"""
+        if workflow.tags:
+            return sort_tags_by_priority(list(workflow.tags))
+        tags = TagAssignmentService.match_tags_by_keywords(workflow.name, workflow.description)
+        return tags if tags else ["other"]
 
     def share_workflow_to_square(self, workflow_id: UUID, tags: str, account: Account) -> Workflow:
         """将工作流共享到广场"""
@@ -188,16 +197,10 @@ class PublicWorkflowService(BaseService):
             Workflow.is_public == True,
             Workflow.status == WorkflowStatus.PUBLISHED.value,
         ]
+        requested_tags = [t.strip() for t in req.tags.data.split(',') if t.strip()] if req.tags.data else []
 
-        # 标签筛选 - 支持多选，OR关系
-        if req.tags.data:
-            tag_list = [t.strip() for t in req.tags.data.split(',') if t.strip()]
-            if tag_list:
-                # 使用PostgreSQL的JSONB包含操作符
-                tag_filters = []
-                for tag in tag_list:
-                    tag_filters.append(Workflow.tags.contains([tag]))
-                filters.append(or_(*tag_filters))
+        if requested_tags:
+            filters.append(or_(*[Workflow.tags.contains([tag]) for tag in requested_tags]))
 
         # 搜索词筛选
         if req.search_word.data:
@@ -275,12 +278,13 @@ class PublicWorkflowService(BaseService):
         # 6.构建返回数据
         result = []
         for workflow, account_name, account_avatar, favorite_count in workflow_rows:
+            resolved_tags = self._resolve_public_workflow_tags(workflow)
             result.append({
                 "id": str(workflow.id),
                 "name": workflow.name,
                 "icon": workflow.icon,
                 "description": workflow.description,
-                "tags": workflow.tags if workflow.tags else [],
+                "tags": resolved_tags,
                 "view_count": workflow.view_count,
                 "like_count": workflow.like_count,
                 "fork_count": workflow.fork_count,
@@ -322,7 +326,7 @@ class PublicWorkflowService(BaseService):
             "graph": {},
             "is_debug_passed": False,
             "status": WorkflowStatus.DRAFT.value,
-            "tags": public_workflow.tags if public_workflow.tags else [],
+            "tags": self._resolve_public_workflow_tags(public_workflow),
             "original_workflow_id": public_workflow.id,
         }
 
@@ -493,7 +497,7 @@ class PublicWorkflowService(BaseService):
             "name": workflow.name,
             "icon": workflow.icon,
             "description": workflow.description,
-            "tags": workflow.tags if workflow.tags else [],
+            "tags": self._resolve_public_workflow_tags(workflow),
             "status": workflow.status,
             "is_public": workflow.is_public,
             "is_debug_passed": workflow.is_debug_passed,
@@ -502,6 +506,7 @@ class PublicWorkflowService(BaseService):
             "fork_count": workflow.fork_count,
             "favorite_count": favorite_count,
             "account_name": account_obj.name if account_obj else "Unknown",
+            "account_avatar": getattr(account_obj, "avatar", "") if account_obj else "",
             "published_at": int(workflow.published_at.timestamp()) if workflow.published_at else 0,
             "created_at": int(workflow.created_at.timestamp()),
             "updated_at": int(workflow.updated_at.timestamp()),

@@ -117,12 +117,13 @@ class PublicAppService(BaseService):
 
         items_by_id: dict[str, dict[str, Any]] = {}
         for app, creator_name, creator_avatar, favorite_count in app_rows:
+            resolved_tags = app.tags if app.tags else TagAssignmentService.auto_assign_tags(app.name, app.description)
             items_by_id[str(app.id)] = {
                 "id": str(app.id),
                 "name": app.name,
                 "icon": app.icon,
                 "description": app.description,
-                "tags": app.tags if app.tags else [],
+                "tags": resolved_tags,
                 "view_count": app.view_count,
                 "like_count": app.like_count,
                 "fork_count": app.fork_count,
@@ -142,6 +143,13 @@ class PublicAppService(BaseService):
             if item:
                 results.append(item)
         return results
+
+    @staticmethod
+    def _resolve_public_app_tags(app: App) -> list[str]:
+        """优先使用已保存标签；缺失时根据名称和描述自动兜底。"""
+        if app.tags:
+            return sort_tags_by_priority(list(app.tags))
+        return TagAssignmentService.auto_assign_tags(app.name, app.description)
 
     def _enrich_tools(self, tools: list[dict]) -> list[dict]:
         """填充工具的完整信息（provider 和 tool 的 label、icon 等）"""
@@ -356,16 +364,7 @@ class PublicAppService(BaseService):
             App.is_public == True,
             App.status == AppStatus.PUBLISHED.value,
         ]
-
-        # 标签筛选 - 支持多选，OR关系
-        if req.tags.data:
-            tag_list = [t.strip() for t in req.tags.data.split(',') if t.strip()]
-            if tag_list:
-                # 使用PostgreSQL的JSONB包含操作符
-                tag_filters = []
-                for tag in tag_list:
-                    tag_filters.append(App.tags.contains([tag]))
-                filters.append(or_(*tag_filters))
+        requested_tags = [t.strip() for t in req.tags.data.split(',') if t.strip()] if req.tags.data else []
 
         # 搜索词筛选
         if req.search_word.data:
@@ -408,9 +407,18 @@ class PublicAppService(BaseService):
         sort_field = sort_field_map.get(req.sort_by.data, App.published_at)
         query = query.order_by(sort_field.desc(), App.created_at.desc())
 
-        total_user_apps = query.count()
+        if requested_tags:
+            user_rows = query.all()
+            user_rows = [
+                row for row in user_rows
+                if set(requested_tags) & set(self._resolve_public_app_tags(row[0]))
+            ]
+        else:
+            user_rows = query.all()
+
+        total_user_apps = len(user_rows)
         end = req.current_page.data * req.page_size.data
-        user_rows = query.limit(end).all()
+        user_rows = user_rows[:end]
 
         liked_app_ids: set[UUID] = set()
         favorited_app_ids: set[UUID] = set()
@@ -448,13 +456,14 @@ class PublicAppService(BaseService):
         user_app_list = []
         for app, creator_name, creator_avatar, favorite_count in user_rows:
             creator_name = creator_name or "未知用户"
+            resolved_tags = self._resolve_public_app_tags(app)
 
             app_dict = {
                 "id": str(app.id),
                 "name": app.name,
                 "icon": app.icon,
                 "description": app.description,
-                "tags": app.tags if app.tags else [],
+                "tags": resolved_tags,
                 "view_count": app.view_count,
                 "like_count": app.like_count,
                 "fork_count": app.fork_count,
@@ -527,7 +536,7 @@ class PublicAppService(BaseService):
             "icon": public_app.icon,
             "description": public_app.description,
             "status": AppStatus.DRAFT.value,
-            "tags": public_app.tags,
+            "tags": self._resolve_public_app_tags(public_app),
             "original_app_id": public_app.id,  # 记录原始应用ID
         }
 
@@ -692,6 +701,7 @@ class PublicAppService(BaseService):
         # 4.获取发布者信息
         creator = self.db.session.query(Account).filter(Account.id == app.account_id).one_or_none()
         creator_name = creator.name if creator else "未知用户"
+        creator_avatar = getattr(creator, "avatar", "") if creator else ""
 
         # 5.计算收藏数
         favorite_count = self.db.session.query(func.count(AppFavorite.id)).filter(
@@ -704,7 +714,7 @@ class PublicAppService(BaseService):
             "name": app.name,
             "icon": app.icon,
             "description": app.description,
-            "tags": app.tags,
+            "tags": self._resolve_public_app_tags(app),
             "status": app.status,
             "is_public": app.is_public,
             "view_count": app.view_count,
@@ -712,6 +722,7 @@ class PublicAppService(BaseService):
             "fork_count": app.fork_count,
             "favorite_count": favorite_count,
             "creator_name": creator_name,
+            "creator_avatar": creator_avatar,
             "published_at": int(app.published_at.timestamp()) if app.published_at else 0,
             "created_at": int(app.created_at.timestamp()),
             "is_liked": False,

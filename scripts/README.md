@@ -1,6 +1,6 @@
 # 🔧 Scripts - 实用脚本集合
 
-本目录包含 LLMOps 项目的各种实用脚本。
+本目录包含 OpenAgent 项目的各种实用脚本。
 
 ## 📜 脚本列表
 
@@ -22,7 +22,7 @@
 sudo bash scripts/deploy-server.sh
 
 # 或者远程执行
-bash <(curl -fsSL https://raw.githubusercontent.com/Haohao-end/LMForge-End-to-End-LLMOps-Platform-for-Multi-Model-Agents/main/scripts/deploy-server.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Haohao-end/openagent/main/scripts/deploy-server.sh)
 ```
 
 **注意事项**:

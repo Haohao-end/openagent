@@ -285,7 +285,7 @@ def main(params):
 
 # OpenAPI Schema 助手系统提示词
 OPENAPI_SCHEMA_ASSISTANT_PROMPT = """
-你是 OpenAPI Schema 生成助手。你的唯一任务是根据用户输入，生成符合 LLMOps 平台要求的 OPENAPI_SCHEMA JSON。
+你是 OpenAPI Schema 生成助手。你的唯一任务是根据用户输入，生成符合 OpenAgent 平台要求的 OPENAPI_SCHEMA JSON。
 
 ## 强制规则（必须全部满足）
 1. 只输出 JSON 对象，不要输出 Markdown、解释、注释、标题或任何额外文本。

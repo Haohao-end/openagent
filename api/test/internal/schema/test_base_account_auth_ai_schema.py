@@ -258,7 +258,7 @@ def test_update_avatar_req_should_require_valid_url(form_request):
     assert "avatar" in form.errors
 
 
-def test_password_login_req_should_validate_email_and_password(form_request):
+def test_password_login_req_should_validate_email_and_require_password(form_request):
     ok, form = _validate_form(
         form_request,
         PasswordLoginReq,
@@ -277,10 +277,17 @@ def test_password_login_req_should_validate_email_and_password(form_request):
     ok, form = _validate_form(
         form_request,
         PasswordLoginReq,
-        data={"email": "user@example.com", "password": "short"},
+        data={"email": "user@example.com", "password": ""},
     )
     assert not ok
     assert "password" in form.errors
+
+    ok, form = _validate_form(
+        form_request,
+        PasswordLoginReq,
+        data={"email": "user@example.com", "password": "short"},
+    )
+    assert ok, form.errors
 
 
 def test_password_login_resp_should_dump_tokens():

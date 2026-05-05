@@ -262,6 +262,42 @@ class TestPublicAgentA2AService:
         assert result["metadata"]["app_id"] == str(app_id)
         assert result["metadata"]["status"] == "success"
 
+    def test_stream_message_should_delegate_to_streaming_pipeline(self, monkeypatch):
+        app_id = uuid4()
+        captured = {}
+        service = _build_service()
+        monkeypatch.setattr(
+            service,
+            "_get_public_app",
+            lambda _app_id: SimpleNamespace(id=app_id, account_id=uuid4()),
+        )
+        monkeypatch.setattr(
+            service,
+            "_extract_query_from_payload",
+            lambda payload: str(payload.get("query", "")).strip(),
+        )
+        monkeypatch.setattr(
+            service,
+            "_stream_public_agent_events",
+            lambda **kwargs: captured.update(kwargs) or iter(
+                [
+                    'event: message\ndata: {"content":"streamed"}\n\n',
+                ]
+            ),
+        )
+
+        result = list(
+            service.stream_message(
+                app_id,
+                {"query": "hello", "contextId": "ctx-2"},
+            )
+        )
+
+        assert result == ['event: message\ndata: {"content":"streamed"}\n\n']
+        assert captured["query"] == "hello"
+        assert captured["context_id"] == "ctx-2"
+        assert captured["request_payload"]["query"] == "hello"
+
     def test_convert_public_agent_route_to_tool_should_capture_app_context(self, monkeypatch):
         flask_app = Flask(__name__)
         flask_app.config["ASSISTANT_AGENT_ID"] = "assistant-app-id"

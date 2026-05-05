@@ -62,12 +62,17 @@ const formatDate = (timestamp: number | string) => {
 }
 
 // 高亮搜索词
-const highlightText = (text: string) => {
-  if (!searchQuery.value.trim()) return text
-  const query = searchQuery.value
-  const regex = new RegExp(`(${query})`, 'gi')
-  return text.replace(regex, '<mark>$1</mark>')
-}
+const highlightText = (text: string) => {
+  if (!searchQuery.value.trim()) return text
+  const query = searchQuery.value
+  const regex = new RegExp(`(${query})`, 'gi')
+  return text.replace(regex, '<mark>$1</mark>')
+}
+
+const truncateText = (text: string, maxLength: number = 20) => {
+  if (!text) return text
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text
+}
 
 // 删除单个对话（显示浏览器提示）
 const deleteConversation = (conversation: RecentConversation) => {
@@ -95,17 +100,25 @@ const updateConversationNameSuccess = (conversation_id: string, name: string) =>
 }
 
 // 跳转到对话
-const goToConversation = (conversation: RecentConversation) => {
-  if (conversation.source_type === 'assistant_agent') {
-    router.push({
-      path: '/home',
-      query: { conversation_id: conversation.id },
-    })
-  } else if (conversation.source_type === 'app_debugger' && conversation.app_id) {
-    router.push({
-      path: `/space/apps/${conversation.app_id}`,
-      query: {
-        conversation_id: conversation.id,
+const goToConversation = (conversation: RecentConversation) => {
+  if (conversation.source_type === 'assistant_agent') {
+    router.push({
+      path: '/home',
+      query: { conversation_id: conversation.id },
+    })
+  } else if (conversation.source_type === 'public_app' && conversation.app_id) {
+    router.push({
+      path: `/store/public-apps/${conversation.app_id}/preview`,
+      query: {
+        conversation_id: conversation.id,
+        message_id: conversation.message_id,
+      },
+    })
+  } else if (conversation.source_type === 'app_debugger' && conversation.app_id) {
+    router.push({
+      path: `/space/apps/${conversation.app_id}`,
+      query: {
+        conversation_id: conversation.id,
         message_id: conversation.message_id,
       },
     })
@@ -153,34 +166,35 @@ watch(
         </div>
       </div>
 
-      <div v-else class="grid gap-4">
-        <!-- 对话卡片列表 -->
-        <div
-          v-for="conversation in filteredConversations"
-          :key="conversation.id"
-          data-scroll-item
-          class="group relative border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all"
-          @mouseenter="hoveredConversationId = conversation.id"
-          @mouseleave="hoveredConversationId = null"
-        >
-          <!-- 内容 -->
-          <div>
-            <!-- 标题和日期 -->
-            <div class="flex items-start justify-between mb-3">
-              <h3
-                class="text-base font-semibold text-gray-900 flex-1 line-clamp-2 cursor-pointer hover:text-blue-600"
-                @click="goToConversation(conversation)"
-              >
-                {{ conversation.name }}
-              </h3>
-              <div class="flex items-center gap-2 ml-4 flex-shrink-0">
-                <!-- 时间显示 - 未hover时显示 -->
-                <span
-                  v-if="hoveredConversationId !== conversation.id"
-                  class="text-sm text-gray-500 whitespace-nowrap"
-                >
-                  {{ formatDate(conversation.created_at) }}
-                </span>
+      <div v-else class="grid gap-8">
+        <!-- 对话卡片列表 -->
+        <div
+          v-for="conversation in filteredConversations"
+          :key="conversation.id"
+          data-scroll-item
+          class="group relative border border-gray-200 rounded-2xl p-8 min-h-[220px] hover:border-blue-300 hover:shadow-lg transition-all bg-white"
+          @mouseenter="hoveredConversationId = conversation.id"
+          @mouseleave="hoveredConversationId = null"
+        >
+          <!-- 内容 -->
+          <div class="h-full flex flex-col justify-between">
+            <!-- 标题和日期 -->
+            <div class="flex items-start justify-between gap-4 mb-8">
+              <h3
+                class="text-lg font-semibold text-gray-900 flex-1 min-w-0 truncate cursor-pointer hover:text-blue-600 pr-4"
+                :title="conversation.name"
+                @click="goToConversation(conversation)"
+              >
+                {{ truncateText(conversation.name, 20) }}
+              </h3>
+              <div class="flex items-center gap-2 flex-shrink-0 self-start pl-2">
+                <!-- 时间显示 - 未hover时显示 -->
+                <span
+                  v-if="hoveredConversationId !== conversation.id"
+                  class="text-sm text-gray-500 whitespace-nowrap pt-1"
+                >
+                  {{ formatDate(conversation.created_at) }}
+                </span>
                 <!-- 菜单按钮 - hover时显示 -->
                 <a-dropdown
                   v-else
@@ -218,24 +232,24 @@ watch(
             </div>
 
             <!-- 消息预览 -->
-            <div class="space-y-2 cursor-pointer" @click="goToConversation(conversation)">
-              <!-- 人类消息 -->
-              <div v-if="conversation.human_message" class="flex gap-2">
-                <span class="text-xs font-medium text-gray-500 flex-shrink-0">用户:</span>
-                <div
-                  class="text-sm text-gray-700 line-clamp-2 flex-1"
-                  v-html="highlightText(conversation.human_message)"
-                />
-              </div>
-
-              <!-- AI 消息 -->
-              <div v-if="conversation.ai_message" class="flex gap-2">
-                <span class="text-xs font-medium text-gray-500 flex-shrink-0">AI:</span>
-                <div
-                  class="text-sm text-gray-700 line-clamp-2 flex-1"
-                  v-html="highlightText(conversation.ai_message)"
-                />
-              </div>
+            <div class="space-y-6 cursor-pointer" @click="goToConversation(conversation)">
+              <!-- 人类消息 -->
+              <div v-if="conversation.human_message" class="flex gap-4">
+                <span class="text-sm font-medium text-gray-500 flex-shrink-0 leading-7">用户:</span>
+                <div
+                  class="text-sm text-gray-700 line-clamp-2 flex-1 leading-7"
+                  v-html="highlightText(conversation.human_message)"
+                />
+              </div>
+
+              <!-- AI 消息 -->
+              <div v-if="conversation.ai_message" class="flex gap-4">
+                <span class="text-sm font-medium text-gray-500 flex-shrink-0 leading-7">AI:</span>
+                <div
+                  class="text-sm text-gray-700 line-clamp-3 flex-1 leading-7"
+                  v-html="highlightText(conversation.ai_message)"
+                />
+              </div>
             </div>
           </div>
         </div>
