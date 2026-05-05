@@ -6,11 +6,18 @@ import pytest
 import requests
 
 from internal.core.workflow.entities.node_entity import NodeResult
-from internal.core.workflow.entities.variable_entity import VariableEntity, VariableValueType
+from internal.core.workflow.entities.variable_entity import (
+    VariableEntity,
+    VariableValueType,
+)
 from internal.core.workflow.nodes.code.code_entity import CodeNodeData
 from internal.core.workflow.nodes.code.code_node import CodeNode
-from internal.core.workflow.nodes.dataset_retrieval.dataset_retrieval_entity import DatasetRetrievalNodeData
-from internal.core.workflow.nodes.dataset_retrieval.dataset_retrieval_node import DatasetRetrievalNode
+from internal.core.workflow.nodes.dataset_retrieval.dataset_retrieval_entity import (
+    DatasetRetrievalNodeData,
+)
+from internal.core.workflow.nodes.dataset_retrieval.dataset_retrieval_node import (
+    DatasetRetrievalNode,
+)
 from internal.core.workflow.nodes.end.end_entity import EndNodeData
 from internal.core.workflow.nodes.end.end_node import EndNode
 from internal.core.workflow.nodes.http_request.http_request_entity import (
@@ -40,13 +47,17 @@ from internal.core.workflow.nodes.text_processor.text_processor_entity import (
     TextProcessorMode,
     TextProcessorNodeData,
 )
-from internal.core.workflow.nodes.text_processor.text_processor_node import TextProcessorNode
+from internal.core.workflow.nodes.text_processor.text_processor_node import (
+    TextProcessorNode,
+)
 from internal.core.workflow.nodes.tool.tool_entity import ToolNodeData
 from internal.core.workflow.nodes.tool.tool_node import ToolNode
 from internal.core.workflow.nodes.variable_assigner.variable_assigner_entity import (
     VariableAssignerNodeData,
 )
-from internal.core.workflow.nodes.variable_assigner.variable_assigner_node import VariableAssignerNode
+from internal.core.workflow.nodes.variable_assigner.variable_assigner_node import (
+    VariableAssignerNode,
+)
 from internal.exception import FailException, NotFoundException
 
 
@@ -79,7 +90,9 @@ class TestStartEndTemplateNodes:
         )
         node = StartNode(node_data=node_data)
 
-        result = node.invoke({"inputs": {"query": "weather"}, "outputs": {}, "node_results": []})
+        result = node.invoke(
+            {"inputs": {"query": "weather"}, "outputs": {}, "node_results": []}
+        )
         node_result = result["node_results"][0]
 
         assert node_result.outputs["query"] == "weather"
@@ -99,7 +112,9 @@ class TestStartEndTemplateNodes:
             node.invoke({"inputs": {}, "outputs": {}, "node_results": []})
 
     def test_end_node_should_extract_ref_outputs_from_state(self):
-        start_data = StartNodeData(id=uuid4(), node_type="start", title="start", inputs=[])
+        start_data = StartNodeData(
+            id=uuid4(), node_type="start", title="start", inputs=[]
+        )
         previous_result = NodeResult(node_data=start_data, outputs={"answer": "done"})
         end_data = EndNodeData(
             id=uuid4(),
@@ -121,8 +136,12 @@ class TestStartEndTemplateNodes:
         assert result["node_results"][0].status == "succeeded"
 
     def test_template_transform_node_should_render_template_with_extracted_inputs(self):
-        source_data = CodeNodeData(id=uuid4(), node_type="code", title="source", outputs=[])
-        previous_result = NodeResult(node_data=source_data, outputs={"name": "Alice", "age": 18})
+        source_data = CodeNodeData(
+            id=uuid4(), node_type="code", title="source", outputs=[]
+        )
+        previous_result = NodeResult(
+            node_data=source_data, outputs={"name": "Alice", "age": 18}
+        )
         node_data = TemplateTransformNodeData(
             id=uuid4(),
             node_type="template_transform",
@@ -130,7 +149,12 @@ class TestStartEndTemplateNodes:
             template="{{name}} is {{age}} years old",
             inputs=[
                 _ref_var(name="name", ref_node_id=source_data.id, ref_var_name="name"),
-                _ref_var(name="age", ref_node_id=source_data.id, ref_var_name="age", var_type="int"),
+                _ref_var(
+                    name="age",
+                    ref_node_id=source_data.id,
+                    ref_var_name="age",
+                    var_type="int",
+                ),
             ],
         )
         node = TemplateTransformNode(node_data=node_data)
@@ -141,7 +165,9 @@ class TestStartEndTemplateNodes:
 
 
 class TestLLMAndDatasetNodes:
-    def test_llm_node_should_stream_content_and_write_custom_output_key(self, monkeypatch):
+    def test_llm_node_should_stream_content_and_write_custom_output_key(
+        self, monkeypatch
+    ):
         class _FakeLLM:
             @staticmethod
             def stream(_prompt):
@@ -160,8 +186,12 @@ class TestLLMAndDatasetNodes:
 
         monkeypatch.setattr("app.http.app.injector", _FakeInjector())
 
-        source_data = CodeNodeData(id=uuid4(), node_type="code", title="source", outputs=[])
-        previous_result = NodeResult(node_data=source_data, outputs={"query": "weather"})
+        source_data = CodeNodeData(
+            id=uuid4(), node_type="code", title="source", outputs=[]
+        )
+        previous_result = NodeResult(
+            node_data=source_data, outputs={"query": "weather"}
+        )
 
         # 使用 model_construct 跳过 LLMNodeData 的 outputs 归一化规则，
         # 目的是覆盖 invoke 中“自定义输出字段名”的分支。
@@ -172,7 +202,9 @@ class TestLLMAndDatasetNodes:
             position={"x": 0, "y": 0},
             prompt="Answer {{query}}",
             language_model_config={},
-            inputs=[_ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")],
+            inputs=[
+                _ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")
+            ],
             outputs=[VariableEntity(name="custom_text", value={"type": "generated"})],
         )
         node = LLMNode(node_data=node_data)
@@ -181,7 +213,9 @@ class TestLLMAndDatasetNodes:
 
         assert result["node_results"][0].outputs["custom_text"] == "hello world"
 
-    def test_llm_node_should_fallback_to_output_key_when_outputs_empty(self, monkeypatch):
+    def test_llm_node_should_fallback_to_output_key_when_outputs_empty(
+        self, monkeypatch
+    ):
         class _FakeLLM:
             @staticmethod
             def stream(_prompt):
@@ -199,8 +233,12 @@ class TestLLMAndDatasetNodes:
 
         monkeypatch.setattr("app.http.app.injector", _FakeInjector())
 
-        source_data = CodeNodeData(id=uuid4(), node_type="code", title="source", outputs=[])
-        previous_result = NodeResult(node_data=source_data, outputs={"query": "weather"})
+        source_data = CodeNodeData(
+            id=uuid4(), node_type="code", title="source", outputs=[]
+        )
+        previous_result = NodeResult(
+            node_data=source_data, outputs={"query": "weather"}
+        )
         node_data = LLMNodeData.model_construct(
             id=uuid4(),
             node_type="llm",
@@ -208,7 +246,9 @@ class TestLLMAndDatasetNodes:
             position={"x": 0, "y": 0},
             prompt="Answer {{query}}",
             language_model_config={},
-            inputs=[_ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")],
+            inputs=[
+                _ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")
+            ],
             outputs=[],
         )
         node = LLMNode(node_data=node_data)
@@ -236,14 +276,18 @@ class TestLLMAndDatasetNodes:
 
         monkeypatch.setattr("app.http.module.injector", _FakeInjector())
 
-        source_data = StartNodeData(id=uuid4(), node_type="start", title="start", inputs=[])
+        source_data = StartNodeData(
+            id=uuid4(), node_type="start", title="start", inputs=[]
+        )
         previous_result = NodeResult(node_data=source_data, outputs={"query": "python"})
         node_data = DatasetRetrievalNodeData(
             id=uuid4(),
             node_type="dataset_retrieval",
             title="retrieval",
             dataset_ids=[uuid4()],
-            inputs=[_ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")],
+            inputs=[
+                _ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")
+            ],
         )
         with app.app_context():
             node = DatasetRetrievalNode(
@@ -255,7 +299,9 @@ class TestLLMAndDatasetNodes:
 
         assert result["node_results"][0].outputs["combine_documents"] == "doc-1\ndoc-2"
 
-    def test_dataset_retrieval_node_should_fallback_output_key_when_outputs_empty(self, monkeypatch, app):
+    def test_dataset_retrieval_node_should_fallback_output_key_when_outputs_empty(
+        self, monkeypatch, app
+    ):
         payload_build_calls = []
         captured_kwargs = {}
 
@@ -277,7 +323,9 @@ class TestLLMAndDatasetNodes:
 
         monkeypatch.setattr("app.http.module.injector", _FakeInjector())
 
-        source_data = StartNodeData(id=uuid4(), node_type="start", title="start", inputs=[])
+        source_data = StartNodeData(
+            id=uuid4(), node_type="start", title="start", inputs=[]
+        )
         previous_result = NodeResult(node_data=source_data, outputs={"query": "python"})
         node_data = DatasetRetrievalNodeData.model_construct(
             id=uuid4(),
@@ -291,7 +339,9 @@ class TestLLMAndDatasetNodes:
                 or {"k": 4, "score": 0, "retrieval_strategy": "semantic"},
                 dict=lambda: payload_build_calls.append("dict") or {"k": 1},
             ),
-            inputs=[_ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")],
+            inputs=[
+                _ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")
+            ],
             outputs=[],
         )
         with app.app_context():
@@ -308,7 +358,9 @@ class TestLLMAndDatasetNodes:
 
 
 class TestToolNode:
-    def test_tool_node_should_raise_not_found_for_missing_builtin_tool(self, monkeypatch):
+    def test_tool_node_should_raise_not_found_for_missing_builtin_tool(
+        self, monkeypatch
+    ):
         class _BuiltinManager:
             @staticmethod
             def get_tool(_provider_id, _tool_id):
@@ -355,7 +407,9 @@ class TestToolNode:
 
         monkeypatch.setattr("app.http.module.injector", _Injector())
 
-        source_data = StartNodeData(id=uuid4(), node_type="start", title="start", inputs=[])
+        source_data = StartNodeData(
+            id=uuid4(), node_type="start", title="start", inputs=[]
+        )
         previous_result = NodeResult(node_data=source_data, outputs={"query": "hello"})
         node_data = ToolNodeData(
             id=uuid4(),
@@ -365,7 +419,9 @@ class TestToolNode:
             provider_id="provider_a",
             tool_id="tool_a",
             params={"k": 3},
-            inputs=[_ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")],
+            inputs=[
+                _ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")
+            ],
             outputs=[VariableEntity(name="tool_output", value={"type": "generated"})],
         )
         node = ToolNode(node_data=node_data)
@@ -375,7 +431,9 @@ class TestToolNode:
 
         assert json.loads(output_text)["ok"] is True
 
-    def test_tool_node_should_raise_fail_exception_when_tool_invoke_failed(self, monkeypatch):
+    def test_tool_node_should_raise_fail_exception_when_tool_invoke_failed(
+        self, monkeypatch
+    ):
         class _BuiltinTool:
             def __init__(self, **kwargs):
                 pass
@@ -396,7 +454,9 @@ class TestToolNode:
 
         monkeypatch.setattr("app.http.module.injector", _Injector())
 
-        source_data = StartNodeData(id=uuid4(), node_type="start", title="start", inputs=[])
+        source_data = StartNodeData(
+            id=uuid4(), node_type="start", title="start", inputs=[]
+        )
         previous_result = NodeResult(node_data=source_data, outputs={"query": "hello"})
         node_data = ToolNodeData(
             id=uuid4(),
@@ -405,7 +465,9 @@ class TestToolNode:
             type="builtin_tool",
             provider_id="provider_a",
             tool_id="tool_a",
-            inputs=[_ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")],
+            inputs=[
+                _ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")
+            ],
             outputs=[],
         )
         node = ToolNode(node_data=node_data)
@@ -413,7 +475,9 @@ class TestToolNode:
         with pytest.raises(FailException, match="扩展插件执行失败"):
             node.invoke(_state_with_node_result(previous_result))
 
-    def test_tool_node_api_branch_should_load_tool_from_db_and_invoke(self, monkeypatch):
+    def test_tool_node_api_branch_should_load_tool_from_db_and_invoke(
+        self, monkeypatch
+    ):
         class _ApiProviderManager:
             @staticmethod
             def get_tool(_tool_entity):
@@ -432,8 +496,17 @@ class TestToolNode:
                     url="https://example.com/tools/{tool_id}",
                     method="post",
                     description="tool-desc",
-                    provider=SimpleNamespace(headers=[{"key": "x-api-key", "value": "abc"}]),
-                    parameters=[{"name": "keyword", "type": "str", "in": "query", "required": True}],
+                    provider=SimpleNamespace(
+                        headers=[{"key": "x-api-key", "value": "abc"}]
+                    ),
+                    parameters=[
+                        {
+                            "name": "keyword",
+                            "type": "str",
+                            "in": "query",
+                            "required": True,
+                        }
+                    ],
                 )
 
         class _DB:
@@ -448,8 +521,12 @@ class TestToolNode:
 
         monkeypatch.setattr("app.http.module.injector", _Injector())
 
-        source_data = StartNodeData(id=uuid4(), node_type="start", title="start", inputs=[])
-        previous_result = NodeResult(node_data=source_data, outputs={"keyword": "python"})
+        source_data = StartNodeData(
+            id=uuid4(), node_type="start", title="start", inputs=[]
+        )
+        previous_result = NodeResult(
+            node_data=source_data, outputs={"keyword": "python"}
+        )
         node_data = ToolNodeData(
             id=uuid4(),
             node_type="tool",
@@ -457,7 +534,11 @@ class TestToolNode:
             type="api_tool",
             provider_id="provider_a",
             tool_id="api_tool",
-            inputs=[_ref_var(name="keyword", ref_node_id=source_data.id, ref_var_name="keyword")],
+            inputs=[
+                _ref_var(
+                    name="keyword", ref_node_id=source_data.id, ref_var_name="keyword"
+                )
+            ],
             outputs=[],
         )
         node = ToolNode(node_data=node_data)
@@ -465,7 +546,9 @@ class TestToolNode:
 
         assert result["node_results"][0].outputs["text"] == "api-result"
 
-    def test_tool_node_api_branch_should_raise_not_found_when_api_tool_missing(self, monkeypatch):
+    def test_tool_node_api_branch_should_raise_not_found_when_api_tool_missing(
+        self, monkeypatch
+    ):
         class _DbQuery:
             @staticmethod
             def filter(*_args):
@@ -501,7 +584,9 @@ class TestToolNode:
         with pytest.raises(NotFoundException, match="API扩展插件不存在"):
             ToolNode(node_data=node_data)
 
-    def test_tool_node_should_fallback_text_output_when_outputs_is_empty(self, monkeypatch):
+    def test_tool_node_should_fallback_text_output_when_outputs_is_empty(
+        self, monkeypatch
+    ):
         class _BuiltinTool:
             def __init__(self, **kwargs):
                 pass
@@ -522,7 +607,9 @@ class TestToolNode:
 
         monkeypatch.setattr("app.http.module.injector", _Injector())
 
-        source_data = StartNodeData(id=uuid4(), node_type="start", title="start", inputs=[])
+        source_data = StartNodeData(
+            id=uuid4(), node_type="start", title="start", inputs=[]
+        )
         previous_result = NodeResult(node_data=source_data, outputs={"query": "hello"})
         node_data = ToolNodeData.model_construct(
             id=uuid4(),
@@ -533,7 +620,9 @@ class TestToolNode:
             provider_id="provider_a",
             tool_id="tool_a",
             params={},
-            inputs=[_ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")],
+            inputs=[
+                _ref_var(name="query", ref_node_id=source_data.id, ref_var_name="query")
+            ],
             outputs=[],
             meta={},
         )
@@ -545,16 +634,22 @@ class TestToolNode:
 
 
 class TestHttpRequestNode:
-    def test_http_request_node_should_send_get_request_with_params_and_headers(self, monkeypatch):
+    def test_http_request_node_should_send_get_request_with_params_and_headers(
+        self, monkeypatch
+    ):
         captured = {}
 
-        def _fake_get(url, headers, params):
+        def _fake_get(url, headers, params, timeout=None):
             captured["url"] = url
             captured["headers"] = headers
             captured["params"] = params
+            captured["timeout"] = timeout
             return SimpleNamespace(text="ok-get", status_code=200)
 
-        monkeypatch.setattr("internal.core.workflow.nodes.http_request.http_request_node.requests.get", _fake_get)
+        monkeypatch.setattr(
+            "internal.core.workflow.nodes.http_request.http_request_node.requests.get",
+            _fake_get,
+        )
 
         node_data = HttpRequestNodeData(
             id=uuid4(),
@@ -584,19 +679,27 @@ class TestHttpRequestNode:
         assert str(captured["url"]).startswith("https://api.example.com/v1/items")
         assert captured["params"] == {"page": 1}
         assert captured["headers"] == {"x_token": "token"}
-        assert result["node_results"][0].outputs == {"text": "ok-get", "status_code": 200}
+        assert captured["timeout"] == 30
+        assert result["node_results"][0].outputs == {
+            "text": "ok-get",
+            "status_code": 200,
+        }
 
     def test_http_request_node_should_send_non_get_request_with_body(self, monkeypatch):
         captured = {}
 
-        def _fake_post(url, headers, params, data):
+        def _fake_post(url, headers, params, data, timeout=None):
             captured["url"] = url
             captured["headers"] = headers
             captured["params"] = params
             captured["data"] = data
+            captured["timeout"] = timeout
             return SimpleNamespace(text="ok-post", status_code=201)
 
-        monkeypatch.setattr("internal.core.workflow.nodes.http_request.http_request_node.requests.post", _fake_post)
+        monkeypatch.setattr(
+            "internal.core.workflow.nodes.http_request.http_request_node.requests.post",
+            _fake_post,
+        )
 
         node_data = HttpRequestNodeData(
             id=uuid4(),
@@ -632,7 +735,11 @@ class TestHttpRequestNode:
         assert captured["params"] == {"debug": True}
         assert captured["headers"] == {"x_token": "token"}
         assert captured["data"] == {"payload": "hello"}
-        assert result["node_results"][0].outputs == {"text": "ok-post", "status_code": 201}
+        assert captured["timeout"] == 30
+        assert result["node_results"][0].outputs == {
+            "text": "ok-post",
+            "status_code": 201,
+        }
 
 
 class TestTextProcessorNodes:
@@ -668,14 +775,22 @@ class TestTextProcessorNodes:
         assert outputs["length"] == len(expected)
 
     def test_text_processor_node_should_support_ref_input(self):
-        source_data = StartNodeData(id=uuid4(), node_type="start", title="start", inputs=[])
-        previous_result = NodeResult(node_data=source_data, outputs={"content": "  Hello  "})
+        source_data = StartNodeData(
+            id=uuid4(), node_type="start", title="start", inputs=[]
+        )
+        previous_result = NodeResult(
+            node_data=source_data, outputs={"content": "  Hello  "}
+        )
         node_data = TextProcessorNodeData(
             id=uuid4(),
             node_type="text_processor",
             title="text",
             mode=TextProcessorMode.TRIM,
-            inputs=[_ref_var(name="text", ref_node_id=source_data.id, ref_var_name="content")],
+            inputs=[
+                _ref_var(
+                    name="text", ref_node_id=source_data.id, ref_var_name="content"
+                )
+            ],
         )
         node = TextProcessorNode(node_data=node_data)
 
@@ -686,7 +801,9 @@ class TestTextProcessorNodes:
 
 class TestVariableAssignerAndParameterExtractorNodes:
     def test_variable_assigner_node_should_assign_literal_and_ref_values(self):
-        source_data = StartNodeData(id=uuid4(), node_type="start", title="start", inputs=[])
+        source_data = StartNodeData(
+            id=uuid4(), node_type="start", title="start", inputs=[]
+        )
         previous_result = NodeResult(node_data=source_data, outputs={"name": "Alice"})
         node_data = VariableAssignerNodeData(
             id=uuid4(),
@@ -694,7 +811,9 @@ class TestVariableAssignerAndParameterExtractorNodes:
             title="assigner",
             inputs=[
                 _ref_var(name="name", ref_node_id=source_data.id, ref_var_name="name"),
-                VariableEntity(name="score", type="int", value={"type": "literal", "content": 100}),
+                VariableEntity(
+                    name="score", type="int", value={"type": "literal", "content": 100}
+                ),
             ],
         )
         node = VariableAssignerNode(node_data=node_data)
@@ -715,7 +834,10 @@ class TestVariableAssignerAndParameterExtractorNodes:
                 VariableEntity(
                     name="text",
                     type="string",
-                    value={"type": "literal", "content": '{"name":"Alice","age":"20","active":"true"}'},
+                    value={
+                        "type": "literal",
+                        "content": '{"name":"Alice","age":"20","active":"true"}',
+                    },
                 )
             ],
             outputs=[
@@ -795,7 +917,9 @@ class TestVariableAssignerAndParameterExtractorNodes:
         with pytest.raises(FailException, match="缺少必填字段\\[count\\]"):
             node.invoke({"inputs": {}, "outputs": {}, "node_results": []})
 
-    def test_parameter_extractor_node_should_use_default_for_optional_cast_failure(self):
+    def test_parameter_extractor_node_should_use_default_for_optional_cast_failure(
+        self,
+    ):
         node_data = ParameterExtractorNodeData(
             id=uuid4(),
             node_type="parameter_extractor",
@@ -823,14 +947,24 @@ class TestCodeNode:
             id=uuid4(),
             node_type="code",
             title="code",
-            inputs=[VariableEntity(name="name", type="string", value={"type": "literal", "content": "alice"})],
+            inputs=[
+                VariableEntity(
+                    name="name",
+                    type="string",
+                    value={"type": "literal", "content": "alice"},
+                )
+            ],
             outputs=[
-                VariableEntity(name="greeting", type="string", value={"type": "generated"}),
+                VariableEntity(
+                    name="greeting", type="string", value={"type": "generated"}
+                ),
                 VariableEntity(name="score", type="int", value={"type": "generated"}),
             ],
         )
         node = CodeNode(node_data=node_data)
-        monkeypatch.setattr(node, "_execute_function", lambda *_args, **_kwargs: {"greeting": "hi"})
+        monkeypatch.setattr(
+            node, "_execute_function", lambda *_args, **_kwargs: {"greeting": "hi"}
+        )
 
         result = node.invoke({"inputs": {}, "outputs": {}, "node_results": []})
 
@@ -843,27 +977,41 @@ class TestCodeNode:
             id=uuid4(),
             node_type="code",
             title="code",
-            outputs=[VariableEntity(name="greeting", type="string", value={"type": "generated"})],
+            outputs=[
+                VariableEntity(
+                    name="greeting", type="string", value={"type": "generated"}
+                )
+            ],
         )
         node = CodeNode(node_data=node_data)
-        monkeypatch.setattr(node, "_execute_function", lambda *_args, **_kwargs: "not-dict")
+        monkeypatch.setattr(
+            node, "_execute_function", lambda *_args, **_kwargs: "not-dict"
+        )
 
         with pytest.raises(FailException, match="返回值必须是一个字典"):
             node.invoke({"inputs": {}, "outputs": {}, "node_results": []})
 
-    def test_execute_function_should_raise_when_sandbox_url_not_configured(self, monkeypatch):
+    def test_execute_function_should_raise_when_sandbox_url_not_configured(
+        self, monkeypatch
+    ):
         monkeypatch.setattr(CodeNode, "Sandbox_URL", "")
         with pytest.raises(FailException, match="SANDBOX_URL环境变量未配置"):
-            CodeNode._execute_function("def main(params):\n    return params", params={})
+            CodeNode._execute_function(
+                "def main(params):\n    return params", params={}
+            )
 
     def test_execute_function_should_return_result_on_success(self, monkeypatch):
         monkeypatch.setattr(CodeNode, "Sandbox_URL", "https://sandbox.example.com")
         monkeypatch.setattr(
             "internal.core.workflow.nodes.code.code_node.requests.post",
-            lambda *_args, **_kwargs: SimpleNamespace(status_code=200, json=lambda: {"result": {"x": 1}}),
+            lambda *_args, **_kwargs: SimpleNamespace(
+                status_code=200, json=lambda: {"result": {"x": 1}}
+            ),
         )
 
-        result = CodeNode._execute_function("def main(params):\n    return params", params={"x": 1})
+        result = CodeNode._execute_function(
+            "def main(params):\n    return params", params={"x": 1}
+        )
 
         assert result == {"x": 1}
 
@@ -872,25 +1020,37 @@ class TestCodeNode:
 
         def _fake_post(_url, *args, **kwargs):
             captured["payload"] = json.loads(kwargs["data"])
-            return SimpleNamespace(status_code=200, json=lambda: {"result": {"ok": True}})
+            return SimpleNamespace(
+                status_code=200, json=lambda: {"result": {"ok": True}}
+            )
 
         monkeypatch.setattr(CodeNode, "Sandbox_URL", "https://sandbox.example.com")
-        monkeypatch.setattr("internal.core.workflow.nodes.code.code_node.requests.post", _fake_post)
+        monkeypatch.setattr(
+            "internal.core.workflow.nodes.code.code_node.requests.post", _fake_post
+        )
 
-        result = CodeNode._execute_function("def main(a, b):\n    return {'sum': a + b}", 1, 2)
+        result = CodeNode._execute_function(
+            "def main(a, b):\n    return {'sum': a + b}", 1, 2
+        )
 
         assert result == {"ok": True}
         assert captured["payload"]["args"] == [1, 2]
 
-    def test_execute_function_should_support_empty_args_and_kwargs_path(self, monkeypatch):
+    def test_execute_function_should_support_empty_args_and_kwargs_path(
+        self, monkeypatch
+    ):
         captured = {}
 
         def _fake_post(_url, *args, **kwargs):
             captured["payload"] = json.loads(kwargs["data"])
-            return SimpleNamespace(status_code=200, json=lambda: {"result": {"ok": True}})
+            return SimpleNamespace(
+                status_code=200, json=lambda: {"result": {"ok": True}}
+            )
 
         monkeypatch.setattr(CodeNode, "Sandbox_URL", "https://sandbox.example.com")
-        monkeypatch.setattr("internal.core.workflow.nodes.code.code_node.requests.post", _fake_post)
+        monkeypatch.setattr(
+            "internal.core.workflow.nodes.code.code_node.requests.post", _fake_post
+        )
 
         result = CodeNode._execute_function("def main():\n    return {'ok': True}")
 
@@ -910,9 +1070,13 @@ class TestCodeNode:
         )
 
         with pytest.raises(FailException, match="云函数执行失败"):
-            CodeNode._execute_function("def main(params):\n    return params", params={})
+            CodeNode._execute_function(
+                "def main(params):\n    return params", params={}
+            )
 
-    def test_execute_function_should_fallback_raw_text_when_http_error_body_not_json(self, monkeypatch):
+    def test_execute_function_should_fallback_raw_text_when_http_error_body_not_json(
+        self, monkeypatch
+    ):
         monkeypatch.setattr(CodeNode, "Sandbox_URL", "https://sandbox.example.com")
         monkeypatch.setattr(
             "internal.core.workflow.nodes.code.code_node.requests.post",
@@ -924,7 +1088,9 @@ class TestCodeNode:
         )
 
         with pytest.raises(FailException, match="gateway error"):
-            CodeNode._execute_function("def main(params):\n    return params", params={})
+            CodeNode._execute_function(
+                "def main(params):\n    return params", params={}
+            )
 
     def test_execute_function_should_raise_when_response_is_not_json(self, monkeypatch):
         monkeypatch.setattr(CodeNode, "Sandbox_URL", "https://sandbox.example.com")
@@ -938,25 +1104,36 @@ class TestCodeNode:
         )
 
         with pytest.raises(FailException, match="云函数返回非JSON内容"):
-            CodeNode._execute_function("def main(params):\n    return params", params={})
+            CodeNode._execute_function(
+                "def main(params):\n    return params", params={}
+            )
 
     @pytest.mark.parametrize(
         "payload, message",
         [
-            ({"error": "runtime boom", "traceback": "tb-line"}, "代码执行出错: runtime boom"),
+            (
+                {"error": "runtime boom", "traceback": "tb-line"},
+                "代码执行出错: runtime boom",
+            ),
             ({"error": "runtime boom"}, "代码执行出错: runtime boom"),
             ({"unexpected": "field"}, "云函数返回数据格式错误"),
         ],
     )
-    def test_execute_function_should_raise_on_invalid_result_payload(self, monkeypatch, payload, message):
+    def test_execute_function_should_raise_on_invalid_result_payload(
+        self, monkeypatch, payload, message
+    ):
         monkeypatch.setattr(CodeNode, "Sandbox_URL", "https://sandbox.example.com")
         monkeypatch.setattr(
             "internal.core.workflow.nodes.code.code_node.requests.post",
-            lambda *_args, **_kwargs: SimpleNamespace(status_code=200, json=lambda: payload),
+            lambda *_args, **_kwargs: SimpleNamespace(
+                status_code=200, json=lambda: payload
+            ),
         )
 
         with pytest.raises(FailException, match=message):
-            CodeNode._execute_function("def main(params):\n    return params", params={})
+            CodeNode._execute_function(
+                "def main(params):\n    return params", params={}
+            )
 
     @pytest.mark.parametrize(
         "error, message",
@@ -966,7 +1143,9 @@ class TestCodeNode:
             (RuntimeError("unknown boom"), "Python代码执行出错"),
         ],
     )
-    def test_execute_function_should_map_requests_and_generic_errors(self, monkeypatch, error, message):
+    def test_execute_function_should_map_requests_and_generic_errors(
+        self, monkeypatch, error, message
+    ):
         monkeypatch.setattr(CodeNode, "Sandbox_URL", "https://sandbox.example.com")
         monkeypatch.setattr(
             "internal.core.workflow.nodes.code.code_node.requests.post",
@@ -974,4 +1153,6 @@ class TestCodeNode:
         )
 
         with pytest.raises(FailException, match=message):
-            CodeNode._execute_function("def main(params):\n    return params", params={})
+            CodeNode._execute_function(
+                "def main(params):\n    return params", params={}
+            )

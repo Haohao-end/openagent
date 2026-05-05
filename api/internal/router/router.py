@@ -77,6 +77,7 @@ class Router:
 
         # 2.将url与对应的控制器方法做绑定
         bp.add_url_rule("/health", view_func=self.app_handler.health)
+        bp.add_url_rule("/healthz", view_func=self.app_handler.healthz)
         bp.add_url_rule("/ping", view_func=self.app_handler.ping)
         bp.add_url_rule("/apps", view_func=self.app_handler.get_apps_with_page)
         bp.add_url_rule("/apps", methods=["POST"], view_func=self.app_handler.create_app)

@@ -217,3 +217,4 @@ xxhash==3.6.0
 yarg==0.1.9
 yarl==1.23.0
 zstandard==0.25.0
+black==26.3.1

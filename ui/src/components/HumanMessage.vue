@@ -27,16 +27,16 @@ const handleCopyHumanMessage = async () => {
 </script>
 
 <template>
-  <div class="flex justify-end">
-    <div class="flex items-start gap-2 group">
+  <div class="flex max-w-full min-w-0 justify-end">
+    <div class="flex max-w-full min-w-0 items-start gap-2 group">
       <!-- 左侧昵称与消息 -->
-      <div class="flex flex-col items-end gap-2">
+      <div class="flex min-w-0 max-w-full flex-col items-end gap-2">
         <!-- 账号昵称 -->
         <div class="text-gray-700 font-bold text-right text-sm">{{ props.account?.name }}</div>
         <!-- 人类消息 -->
-        <div class="flex flex-col items-end gap-1">
+        <div class="flex max-w-full min-w-0 flex-col items-end gap-1">
           <div
-            class="glass-message-bubble px-4 py-3 rounded-2xl break-all max-w-[600px] transition-all duration-300"
+            class="message-bubble-content glass-message-bubble px-4 py-3 rounded-2xl break-all transition-all duration-300"
           >
             <a-image v-for="(image_url, idx) in props.image_urls" :key="idx" :src="String(image_url)" />
             {{ props.query }}
@@ -68,6 +68,13 @@ const handleCopyHumanMessage = async () => {
   color: #1f2937;
   position: relative;
   overflow: hidden;
+}
+
+.message-bubble-content {
+  width: fit-content;
+  max-width: min(600px, 100%);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .glass-message-bubble::before {

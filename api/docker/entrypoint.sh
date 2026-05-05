@@ -25,7 +25,8 @@ set_default_if_unset "HF_ENDPOINT" "https://hf-mirror.com"
 
 # 服务器配置
 set_default_if_unset "SERVER_WORKER_AMOUNT" "1"
-set_default_if_unset "SERVER_THREAD_AMOUNT" "4"
+set_default_if_unset "SERVER_THREAD_AMOUNT" "32"
+set_default_if_unset "GUNICORN_TIMEOUT" "120"
 set_default_if_unset "CELERY_WORKER_AMOUNT" "4"
 
 # 数据库连接池配置
@@ -64,6 +65,7 @@ set_default_if_unset "COS_ENABLE_OLD_DOMAIN" "True"
 set_default_if_unset "COS_ENABLE_INTERNAL_DOMAIN" "False"
 
 # API 基础地址（非敏感）
+set_default_if_unset "LLM_REQUEST_TIMEOUT" "120"
 set_default_if_unset "OPENAI_API_BASE" "https://api.openai.com/v1"
 set_default_if_unset "DEEPSEEK_API_BASE" "https://api.deepseek.com/v1"
 set_default_if_unset "SILICONFLOW_API_BASE" "https://api.siliconflow.cn"

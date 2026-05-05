@@ -3,8 +3,15 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-from internal.core.language_model.entities.model_entity import BaseLanguageModel, ModelFeature, ModelType
-from internal.core.language_model.entities.provider_entity import Provider, ProviderEntity
+from internal.core.language_model.entities.model_entity import (
+    BaseLanguageModel,
+    ModelFeature,
+    ModelType,
+)
+from internal.core.language_model.entities.provider_entity import (
+    Provider,
+    ProviderEntity,
+)
 from internal.core.language_model.language_model_manager import LanguageModelManager
 from internal.core.language_model.providers.grok.chat import Chat as GrokChat
 from internal.core.language_model.providers.moonshot.chat import Chat as MoonshotChat
@@ -20,18 +27,32 @@ def test_base_language_model_helpers_should_handle_pricing_and_multimodal_payloa
     )
 
     assert BaseLanguageModel.get_pricing(dummy) == (0.1, 0.2, 1000)
-    assert BaseLanguageModel.convert_to_human_message(dummy, "hello", ["https://img/1"]).content == "hello"
+    assert (
+        BaseLanguageModel.convert_to_human_message(
+            dummy, "hello", ["https://img/1"]
+        ).content
+        == "hello"
+    )
 
     dummy.features = [ModelFeature.IMAGE_INPUT.value]
-    message = BaseLanguageModel.convert_to_human_message(dummy, "hello", ["https://img/1"])
+    message = BaseLanguageModel.convert_to_human_message(
+        dummy, "hello", ["https://img/1"]
+    )
     assert message.content[0] == {"type": "text", "text": "hello"}
-    assert message.content[1] == {"type": "image_url", "image_url": {"url": "https://img/1"}}
+    assert message.content[1] == {
+        "type": "image_url",
+        "image_url": {"url": "https://img/1"},
+    }
 
 
-def test_provider_should_load_model_entities_and_expand_template_parameters(monkeypatch, tmp_path):
+def test_provider_should_load_model_entities_and_expand_template_parameters(
+    monkeypatch, tmp_path
+):
     provider_root = tmp_path / "providers" / "demo"
     provider_root.mkdir(parents=True)
-    (provider_root / "positions.yaml").write_text(yaml.safe_dump(["demo-chat"]), encoding="utf-8")
+    (provider_root / "positions.yaml").write_text(
+        yaml.safe_dump(["demo-chat"]), encoding="utf-8"
+    )
     (provider_root / "demo-chat.yaml").write_text(
         yaml.safe_dump(
             {
@@ -41,7 +62,11 @@ def test_provider_should_load_model_entities_and_expand_template_parameters(monk
                 "context_window": 8192,
                 "max_output_tokens": 1024,
                 "parameters": [
-                    {"name": "temperature", "use_template": "temperature", "required": True},
+                    {
+                        "name": "temperature",
+                        "use_template": "temperature",
+                        "required": True,
+                    },
                     {
                         "name": "custom_flag",
                         "label": "Custom Flag",
@@ -93,7 +118,9 @@ def test_provider_should_load_model_entities_and_expand_template_parameters(monk
 def test_provider_should_raise_when_positions_yaml_is_not_list(monkeypatch, tmp_path):
     provider_root = tmp_path / "providers" / "demo"
     provider_root.mkdir(parents=True)
-    (provider_root / "positions.yaml").write_text(yaml.safe_dump({"bad": "shape"}), encoding="utf-8")
+    (provider_root / "positions.yaml").write_text(
+        yaml.safe_dump({"bad": "shape"}), encoding="utf-8"
+    )
 
     monkeypatch.setattr(
         "internal.core.language_model.entities.provider_entity.os.path.abspath",
@@ -165,7 +192,9 @@ def test_language_model_manager_should_load_and_delegate(monkeypatch, tmp_path):
         "internal.core.language_model.language_model_manager.os.path.abspath",
         lambda _path: str(tmp_path / "language_model_manager.py"),
     )
-    monkeypatch.setattr("internal.core.language_model.language_model_manager.Provider", _FakeProvider)
+    monkeypatch.setattr(
+        "internal.core.language_model.language_model_manager.Provider", _FakeProvider
+    )
 
     manager = LanguageModelManager()
 
@@ -185,13 +214,17 @@ def test_grok_env_resolver_should_apply_priority(monkeypatch):
     assert grok_resolved["api_key"] == "xkey"
     assert grok_resolved["base_url"] == "https://api.x.ai/v1"
 
-    explicit = GrokChat.resolve_grok_env({"api_key": "explicit", "base_url": "https://custom"})
+    explicit = GrokChat.resolve_grok_env(
+        {"api_key": "explicit", "base_url": "https://custom"}
+    )
     assert explicit["api_key"] == "explicit"
     assert explicit["base_url"] == "https://custom"
     assert GrokChat.resolve_grok_env("raw-values") == "raw-values"
 
     # 覆盖 grok 的“openai_* 显式参数存在时不覆盖”分支。
-    grok_openai = GrokChat.resolve_grok_env({"openai_api_key": "ok", "openai_api_base": "obase"})
+    grok_openai = GrokChat.resolve_grok_env(
+        {"openai_api_key": "ok", "openai_api_base": "obase"}
+    )
     assert "api_key" not in grok_openai
     assert "base_url" not in grok_openai
 
@@ -220,7 +253,9 @@ def test_grok_env_resolver_should_apply_priority(monkeypatch):
             return flip
         return ""
 
-    monkeypatch.setattr("internal.core.language_model.providers.grok.chat.os.getenv", _fake_getenv)
+    monkeypatch.setattr(
+        "internal.core.language_model.providers.grok.chat.os.getenv", _fake_getenv
+    )
     grok_flip = GrokChat.resolve_grok_env({"model": "grok"})
     assert "base_url" not in grok_flip
 
@@ -264,7 +299,9 @@ def test_tongyi_and_wenxin_default_params_should_merge_extension_fields(monkeypa
     )
     assert tongyi_none._default_params == {"base": True}
 
-    wenxin_none = WenxinChat.model_construct(max_output_tokens=None, disable_search=None)
+    wenxin_none = WenxinChat.model_construct(
+        max_output_tokens=None, disable_search=None
+    )
     assert wenxin_none._default_params == {"base": True}
 
 
@@ -279,3 +316,15 @@ def test_moonshot_encoding_model_should_force_gpt35(monkeypatch):
 
     assert model == "gpt-3.5-turbo"
     assert encoding == "encoding:gpt-3.5-turbo"
+
+
+def test_default_timeout_helper_should_fallback_when_env_is_empty(monkeypatch):
+    monkeypatch.setenv("LLM_REQUEST_TIMEOUT", "")
+
+    from internal.core.language_model.providers._defaults import (
+        apply_default_model_timeout,
+    )
+
+    resolved = apply_default_model_timeout({})
+
+    assert resolved["timeout"] == 120.0

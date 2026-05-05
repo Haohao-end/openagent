@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import model_validator
 from langchain_openai import ChatOpenAI
 from internal.core.language_model.entities.model_entity import BaseLanguageModel
+from internal.core.language_model.providers._defaults import apply_default_model_timeout
 
 
 class Chat(ChatOpenAI, BaseLanguageModel):
@@ -37,4 +38,5 @@ class Chat(ChatOpenAI, BaseLanguageModel):
             if base:
                 resolved["base_url"] = base
 
+        apply_default_model_timeout(resolved)
         return resolved

@@ -152,7 +152,7 @@ const handleMarkdownClick = async (event: MouseEvent) => {
 </script>
 
 <template>
-  <div class="flex gap-2 group">
+  <div class="flex max-w-full min-w-0 gap-2 group">
     <!-- 左侧图标 -->
     <a-avatar
       v-if="avatarText"
@@ -166,7 +166,7 @@ const handleMarkdownClick = async (event: MouseEvent) => {
       <icon-apps />
     </a-avatar>
     <!-- 右侧名称与消息 -->
-    <div class="flex-1 flex flex-col items-start gap-2">
+    <div class="flex-1 min-w-0 max-w-full flex flex-col items-start gap-2">
       <!-- 应用名称 -->
       <div class="text-gray-700 font-bold text-sm">{{ props.app?.name }}</div>
       <!-- 推理步骤 -->
@@ -179,18 +179,18 @@ const handleMarkdownClick = async (event: MouseEvent) => {
         :default_visible="props.agent_thought_default_visible"
         :follow_latest_thought="props.agent_thought_follow_latest"
       />
-      <div class="flex flex-col gap-1">
+      <div class="w-full max-w-full min-w-0 flex flex-col gap-1">
         <!-- AI消息 -->
         <div
           v-if="props.loading && props.answer.trim() === ''"
-          class="glass-message-bubble px-4 py-3 rounded-2xl break-all max-w-[600px] transition-all duration-300"
+          class="message-bubble-content glass-message-bubble px-4 py-3 rounded-2xl break-all transition-all duration-300"
         >
           <dot-flashing />
         </div>
         <div
           v-else
           :class="[
-            'glass-message-bubble markdown-body px-4 py-3 rounded-2xl break-all max-w-[600px] transition-all duration-300',
+            'message-bubble-content glass-message-bubble markdown-body px-4 py-3 rounded-2xl break-all transition-all duration-300',
             isCurrentPlaying ? 'ai-message-playing' : '',
           ]"
           v-html="compiledMarkdown"
@@ -236,9 +236,9 @@ const handleMarkdownClick = async (event: MouseEvent) => {
         </div>
       </div>
       <!-- 建议问题列表 -->
-      <div v-if="props.suggested_questions.length > 0" class="flex flex-col gap-2">
+      <div v-if="props.suggested_questions.length > 0" class="max-w-full min-w-0 flex flex-col gap-2">
         <div v-for="(suggested_question, idx) in props.suggested_questions" :key="idx"
-          class="glass-suggestion-bubble px-4 py-2 border rounded-lg text-gray-700 cursor-pointer transition-all duration-300"
+          class="glass-suggestion-bubble max-w-full px-4 py-2 border rounded-lg text-gray-700 cursor-pointer break-words transition-all duration-300"
           @click="() => emits('selectSuggestedQuestion', suggested_question)">
           {{ suggested_question }}
         </div>
@@ -260,6 +260,12 @@ const handleMarkdownClick = async (event: MouseEvent) => {
   color: #1f2937;
   position: relative;
   overflow: hidden;
+}
+
+.message-bubble-content {
+  width: fit-content;
+  max-width: min(600px, 100%);
+  min-width: 0;
 }
 
 .glass-message-bubble::before {
@@ -319,11 +325,19 @@ const handleMarkdownClick = async (event: MouseEvent) => {
   background: transparent;
 }
 
+:deep(.markdown-body p),
+:deep(.markdown-body li),
+:deep(.markdown-body blockquote) {
+  overflow-wrap: anywhere;
+}
+
 :deep(.markdown-body .md-code-block) {
+  max-width: 100%;
+  min-width: 0;
   margin: 0 0 12px 0;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 :deep(.markdown-body .md-code-header) {
@@ -331,18 +345,24 @@ const handleMarkdownClick = async (event: MouseEvent) => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
   padding: 6px 10px;
   background: #f9fafb;
   border-bottom: 1px solid #e5e7eb;
 }
 
 :deep(.markdown-body .md-code-lang) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #6b7280;
   font-size: 12px;
   line-height: 16px;
 }
 
 :deep(.markdown-body .md-code-copy-btn) {
+  flex-shrink: 0;
   border: none;
   background: transparent;
   color: #374151;
@@ -361,9 +381,16 @@ const handleMarkdownClick = async (event: MouseEvent) => {
 }
 
 :deep(.markdown-body pre.hljs) {
+  max-width: 100%;
   margin: 0;
   border: 0;
   border-radius: 0;
+  overflow-x: auto;
+}
+
+:deep(.markdown-body table) {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .ai-message-playing {

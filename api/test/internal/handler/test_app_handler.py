@@ -336,6 +336,23 @@ class TestAppHandler:
         assert payload["data"]["metrics"]["status_code"] == -1
         assert payload["data"]["metrics"]["unhealthy_components"] == 1
 
+    def test_healthz_should_return_ok_without_probing_dependencies(self, app, monkeypatch):
+        handler = self._new_app_handler()
+        monkeypatch.setattr(handler, "_probe_database", lambda: pytest.fail("healthz must not probe database"))
+        monkeypatch.setattr(handler, "_probe_redis", lambda: pytest.fail("healthz must not probe redis"))
+        monkeypatch.setattr(handler, "_probe_weaviate", lambda: pytest.fail("healthz must not probe weaviate"))
+        monkeypatch.setattr(handler, "_probe_celery", lambda: pytest.fail("healthz must not probe celery"))
+
+        with app.app_context():
+            response, status_code = handler.healthz()
+
+        assert status_code == 200
+        payload = response.get_json()
+        assert payload["data"] == {
+            "status": "ok",
+            "service": "llmops-api",
+        }
+
     def test_emit_health_alert_should_not_log_when_status_is_healthy(self, caplog):
         caplog.set_level("WARNING")
 

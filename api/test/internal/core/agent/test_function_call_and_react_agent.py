@@ -371,6 +371,45 @@ def test_function_call_agent_llm_node_should_stop_when_iteration_limit_reached()
     ]
 
 
+def test_function_call_agent_llm_node_should_buffer_text_when_tool_call_arrives_later(monkeypatch):
+    monkeypatch.setattr("internal.core.agent.agents.function_call_agent.tiktoken.get_encoding", lambda _name: _FakeEncoding())
+    task_id = uuid4()
+    config = _build_agent_config(tools=[SimpleNamespace(name="google_serper")])
+    llm = _NodeLLM(
+        features=[ModelFeature.TOOL_CALL.value],
+        metadata={"pricing": {"input": 0.1, "output": 0.2, "unit": 0.001}},
+        stream_chunks=[
+            _Chunk("我来为您深度分析，先检索相关信息。"),
+            _Chunk(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_1",
+                        "name": "google_serper",
+                        "args": {"query": "Forrest Gump cinematography analysis"},
+                    }
+                ],
+            ),
+        ],
+    )
+    agent = _new_function_call_agent(llm, config)
+
+    result = agent._llm_node({
+        "task_id": task_id,
+        "messages": [HumanMessage(content="如何评估《阿甘正传》的导演手法和摄影？")],
+        "iteration_count": 0,
+    })
+
+    published_thoughts = [thought for _, thought in agent.agent_queue_manager.published]
+    events = [thought.event for thought in published_thoughts]
+
+    assert llm.bound_tools == config.tools
+    assert result["iteration_count"] == 1
+    assert result["messages"][0].tool_calls[0]["name"] == "google_serper"
+    assert events == [QueueEvent.AGENT_THOUGHT]
+    assert "google_serper" in published_thoughts[0].thought
+
+
 def test_a2a_function_call_agent_llm_node_should_buffer_final_answer_until_no_tool_call(monkeypatch):
     monkeypatch.setattr("internal.core.agent.agents.a2a_function_call_agent.tiktoken.get_encoding", lambda _name: _FakeEncoding())
     task_id = uuid4()

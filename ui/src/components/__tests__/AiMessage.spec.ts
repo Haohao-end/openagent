@@ -25,8 +25,8 @@ vi.mock('@/hooks/use-markdown-renderer', () => ({
 }))
 
 describe('AiMessage.vue', () => {
-  it('renders the OpenAgent full-text avatar when avatar_text is provided', () => {
-    const wrapper = mount(AiMessage, {
+  const mountAiMessage = (props: Record<string, unknown> = {}) =>
+    mount(AiMessage, {
       props: {
         app: {
           name: 'OpenAgent',
@@ -34,6 +34,7 @@ describe('AiMessage.vue', () => {
         },
         answer: '欢迎使用 OpenAgent',
         agent_thoughts: [],
+        ...props,
       },
       global: {
         stubs: {
@@ -55,8 +56,38 @@ describe('AiMessage.vue', () => {
       },
     })
 
+  it('renders the OpenAgent full-text avatar when avatar_text is provided', () => {
+    const wrapper = mountAiMessage()
+
     expect(wrapper.find('.avatar-stub').text()).toBe('OpenAgent')
     expect(wrapper.text()).toContain('OpenAgent')
     expect(wrapper.find('.avatar-stub').attributes('data-image-url')).toBeUndefined()
+  })
+
+  it('constrains the answer bubble to the available chat column width', () => {
+    const wrapper = mountAiMessage({
+      answer: '这是一段非常长的 AI 输出内容 '.repeat(20),
+    })
+
+    const root = wrapper.get('.group')
+    const bubble = wrapper.get('.message-bubble-content')
+    const bubbleClasses = bubble.classes()
+
+    expect(root.classes()).toEqual(expect.arrayContaining(['max-w-full', 'min-w-0']))
+    expect(bubbleClasses).toContain('message-bubble-content')
+    expect(bubbleClasses).toContain('markdown-body')
+    expect(bubbleClasses).not.toContain('max-w-[600px]')
+  })
+
+  it('uses the same width contract for the loading bubble', () => {
+    const wrapper = mountAiMessage({
+      answer: '',
+      loading: true,
+    })
+
+    const bubble = wrapper.get('.message-bubble-content')
+
+    expect(bubble.classes()).toContain('message-bubble-content')
+    expect(bubble.classes()).not.toContain('max-w-[600px]')
   })
 })

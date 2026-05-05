@@ -18,6 +18,7 @@ import IconStorage from '@/components/icons/IconStorage.vue'
 import IconStorageFull from '@/components/icons/IconStorageFull.vue'
 import IconOpenApi from '@/components/icons/IconOpenApi.vue'
 import IconOpenApiFull from '@/components/icons/IconOpenApiFull.vue'
+import { buildHomeNewConversationQuery } from '@/views/pages/home-new-conversation'
 
 interface Props {
   collapsed?: boolean
@@ -87,6 +88,18 @@ const changeConversation = async (conversation: RecentConversation) => {
       },
     })
   }
+}
+
+const handleHomeNavigation = async () => {
+  if (!isLoggedIn.value) {
+    await router.push('/home')
+    return
+  }
+
+  await router.push({
+    path: '/home',
+    query: buildHomeNewConversationQuery(),
+  })
 }
 
 const isConversationActive = (conversation: RecentConversation) => {
@@ -203,15 +216,17 @@ onUnmounted(() => {
   <div class="flex flex-col h-full min-h-0 overflow-hidden">
     <!-- 导航菜单 -->
     <div :class="`flex flex-col gap-0.5 mt-2 flex-shrink-0 ${props.collapsed ? 'items-center' : ''}`">
-      <router-link
-        to="/home"
+      <button
+        type="button"
+        data-testid="sidebar-home-new-conversation"
         :class="`flex items-center h-9 rounded-lg transition-all text-gray-700 hover:text-gray-900 hover:bg-gray-200 flex-shrink-0 ${props.collapsed ? 'justify-center w-9' : 'gap-2 px-2'} ${isHomeRootRoute ? 'bg-gray-100' : ''}`"
         :title="isHomeRootRoute ? '主页' : ''"
+        @click="handleHomeNavigation"
       >
         <icon-home-full v-if="isHomeRootRoute" class="flex-shrink-0 w-4 h-4" />
         <icon-home v-else class="flex-shrink-0 w-4 h-4" />
         <span v-if="!props.collapsed" class="truncate text-sm">主页</span>
-      </router-link>
+      </button>
       <router-link
         to="/space/apps"
         :class="`flex items-center h-9 rounded-lg transition-all text-gray-700 hover:text-gray-900 hover:bg-gray-200 flex-shrink-0 ${props.collapsed ? 'justify-center w-9' : 'gap-2 px-2'} ${route.path.startsWith('/space') ? 'bg-gray-100' : ''}`"
