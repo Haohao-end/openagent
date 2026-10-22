@@ -185,6 +185,7 @@ docker compose up -d --build
 4. **健康检查**: 数据库和 Redis 配置了健康检查,API 和 Celery 会等待它们就绪后再启动
 5. **数据持久化**: 数据库、Redis、Weaviate 的数据都挂载到 `docker/volumes/` 目录
 6. **前端构建约束**: `llmops-ui` 构建时会直接读取 `api/.env` 中的 `VITE_API_PREFIX`
+7. **Weaviate 升级**: Weaviate 只支持逐个小版本升级(如 1.28 → 1.29 → 1.30 …),不能跳过小版本。如果 `docker/volumes/weaviate` 中已有旧版本(如 1.28.x)的数据,请先备份该目录,再依次使用每个中间小版本的最新补丁版启动一次 `llmops-weaviate`(等待 `/v1/.well-known/ready` 就绪),最后再切换到 `docker-compose.yaml` 中的版本。全新部署无需此步骤。参见 [Weaviate 升级说明](https://docs.weaviate.io/deploy/migration)
 
 ## 故障排查
 
