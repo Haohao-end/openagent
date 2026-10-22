@@ -111,6 +111,9 @@ class Config:
                 init=float(_get_env("WEAVIATE_TIMEOUT_INIT")),
             )
         )
+        # 通过 X-Weaviate-Client-Integration 请求头向 Weaviate(>=1.38) 标识 OpenAgent 流量，
+        # flask-weaviate 会将其同时用于 REST 与 gRPC 请求；项目暂无运行时版本号，因此使用 unknown
+        self.WEAVIATE_ADDITIONAL_HEADERS = {"X-Weaviate-Client-Integration": "openagent/unknown"}
 
         # Redis配置
         self.REDIS_HOST = _get_env("REDIS_HOST")
