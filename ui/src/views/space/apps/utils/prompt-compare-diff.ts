@@ -3,6 +3,11 @@ export type TextDiffSegment = {
   text: string
 }
 
+export type PromptCompareErrorType = 'error' | 'timeout'
+
+export const getPromptCompareErrorType = (event: unknown): PromptCompareErrorType | undefined =>
+  event === 'error' || event === 'timeout' ? event : undefined
+
 export const buildPromptCompareDiff = (
   baseline: string,
   candidate: string,

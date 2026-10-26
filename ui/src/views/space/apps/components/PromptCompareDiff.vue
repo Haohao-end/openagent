@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import {
   buildPromptCompareDiff,
   getPromptCompareLatencyDelta,
+  type PromptCompareErrorType,
 } from '../utils/prompt-compare-diff'
 
 const props = defineProps<{
@@ -11,6 +12,8 @@ const props = defineProps<{
   candidateAnswer: string
   baselineLatency: number
   candidateLatency: number
+  baselineErrorType?: PromptCompareErrorType
+  candidateErrorType?: PromptCompareErrorType
   baselineTokenCount: number
   candidateTokenCount: number
 }>()
@@ -51,6 +54,15 @@ const formattedTokenCountDelta = computed(() => {
         }}</span>
       </span>
     </summary>
+    <p
+      v-if="baselineErrorType || candidateErrorType"
+      class="mt-2 text-xs text-gray-600"
+      data-testid="prompt-compare-error-diff"
+    >
+      {{ t('appStudio.promptCompare.errorTypeDiff') }}:
+      {{ t('appStudio.promptCompare.baselineTitle') }} — {{ t(`appStudio.promptCompare.${baselineErrorType || 'noError'}`) }};
+      {{ t('appStudio.promptCompare.candidateTitle') }} — {{ t(`appStudio.promptCompare.${candidateErrorType || 'noError'}`) }}
+    </p>
     <div class="mt-2 grid grid-cols-2 gap-3 text-xs">
       <section class="min-w-0">
         <h4 class="mb-1 font-medium text-gray-500">
