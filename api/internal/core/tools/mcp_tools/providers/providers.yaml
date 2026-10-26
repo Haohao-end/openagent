@@ -304,3 +304,24 @@
   source_url: https://cloud.tencent.com/developer/mcp/server/10011
   created_at: 1779177600
   is_public: true
+- name: parallel-search
+  label: Parallel 搜索 MCP
+  description: 由 Parallel.ai 提供的网页搜索与内容抓取 MCP；选择启用后，搜索查询和待抓取 URL 会发送至 Parallel.ai。
+  icon: ""
+  background: "#DBEAFE"
+  category: general
+  transport: streamable_http
+  command: ""
+  url: https://search.parallel.ai/mcp
+  headers: []
+  tool_names:
+    - web_search
+    - web_fetch
+  args: []
+  env: {}
+  timeout_seconds: 30
+  source_type: catalog
+  source_key: parallel-search
+  source_url: https://docs.parallel.ai/integrations/mcp/search-mcp
+  created_at: 1787443200
+  is_public: true
