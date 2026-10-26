@@ -17,6 +17,7 @@ describe('OverviewIndicator', () => {
       props: { title: 'Sample metrics', data: 0, pop: 0, unit: 'seconds' },
     })
 
+    expect(wrapper.find('.text-2xl').text()).toBe('0')
     expect(wrapper.text()).toContain('0.00%')
     expect(wrapper.text()).not.toContain('—')
   })
