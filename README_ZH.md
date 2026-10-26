@@ -251,5 +251,6 @@ npm run test:unit -- --run
 - 感谢 Atlas Cloud 和 Bloome 为 OpenAgent 提供支持。
 - 感谢 Rui Yang 和 Haoyu Wang（Johns Hopkins University）以负责任披露的方式报告了内置工具图标 URL 构造中的 Host Header poisoning 问题，帮助项目进一步改进安全性。
 - 感谢 Ryan B 以负责任披露的方式报告了自定义 API 工具服务端 URL 中的 SSRF 漏洞，帮助项目改进出站请求的安全性。
+- 感谢汪钶楠（Wang Kenan）报告 macOS 截图工具中 AppleScript 参数处理方面的潜在风险，并协助项目核验安全修复。
 
 <p align="right">(<a href="#readme-top">返回顶部</a>)</p>
