@@ -149,7 +149,13 @@ class TestCosService:
         with pytest.raises(FailException, match="本地文件存储已禁用"):
             CosService.get_file_url("local/2026/01/01/demo.txt")
 
-    def test_get_file_url_should_build_presigned_download_url_when_enabled(self, monkeypatch):
+    @pytest.mark.parametrize(
+        ("download_name", "expected_disposition"),
+        [("上海旅行计划.txt", "attachment"), ("preview.html", "inline"), ("preview.HTM", "inline")],
+    )
+    def test_get_file_url_should_choose_presigned_disposition_by_file_type(
+        self, monkeypatch, download_name, expected_disposition,
+    ):
         monkeypatch.setenv("COS_DOMAIN", "https://cos.example.com")
         monkeypatch.setenv("COS_PRESIGNED_DOWNLOAD_URL_EXPIRE_SECONDS", "600")
 
@@ -159,7 +165,7 @@ class TestCosService:
                 assert Bucket == "bucket-a"
                 assert Key == "2026/01/01/demo.txt"
                 assert Expired == 600
-                assert Params["response-content-disposition"].startswith("attachment; filename=\"download.txt\";")
+                assert Params["response-content-disposition"].startswith(f"{expected_disposition}; filename=\"")
                 return "https://signed.example.com/demo.txt?signature=1"
 
         monkeypatch.setattr(CosService, "_get_client", classmethod(lambda cls: _Client()))
@@ -167,7 +173,7 @@ class TestCosService:
 
         url = CosService.get_file_url(
             "2026/01/01/demo.txt",
-            download_name="上海迪士尼及周边7天旅行计划.txt",
+            download_name=download_name,
         )
 
         assert url == "https://signed.example.com/demo.txt?signature=1"
