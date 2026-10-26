@@ -5,6 +5,7 @@ This directory contains source-grounded documentation for OpenAgent.
 ## Guides
 
 - [Architecture guide](architecture.md) — component map, repository source locations, representative request paths, and local development boundaries.
+- [Editable architecture diagram](architecture.drawio) — diagrams.net/draw.io source aligned with the English and Chinese guides.
 - [中文架构说明](architecture.zh-CN.md) — Chinese version of the same guide.
 - [中文文档索引](README.zh-CN.md) — documentation index in Chinese.
 

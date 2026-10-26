@@ -4,6 +4,8 @@
 
 ## 组件概览
 
+[可编辑 draw.io 架构图](architecture.drawio) 与下方组件关系一致，可使用 [diagrams.net](https://app.diagrams.net/) 打开修改。它描述的是源码组件，并非某个环境的部署拓扑。
+
 ```mermaid
 flowchart LR
     Browser["浏览器 / Vue 3 前端"] --> HTTP["Flask HTTP API"]

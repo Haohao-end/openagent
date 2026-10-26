@@ -1529,6 +1529,8 @@ export default {
       queryPlaceholder: 'Enter one user message and both prompts will stream their responses side by side',
       keyboardHint: 'Press Enter to send, Shift + Enter for a new line',
       clearCompare: 'Clear comparison',
+      outputDiff: 'Latest output diff',
+      elapsedDiff: 'Elapsed time vs baseline: {value}',
       stopResponse: 'Stop',
       send: 'Send',
     },

@@ -4,6 +4,8 @@ This guide maps the **current repository structure**, not an assertion about a s
 
 ## Component overview
 
+The [editable draw.io version](architecture.drawio) mirrors this component map and can be opened in [diagrams.net](https://app.diagrams.net/). It describes source components, not a specific deployed environment.
+
 ```mermaid
 flowchart LR
     Browser["Browser / Vue 3 UI"] --> HTTP["Flask HTTP API"]
