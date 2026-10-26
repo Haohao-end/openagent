@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildPromptCompareDiff, getPromptCompareLatencyDelta } from '../prompt-compare-diff'
+import {
+  buildPromptCompareDiff,
+  getPromptCompareErrorType,
+  getPromptCompareLatencyDelta,
+} from '../prompt-compare-diff'
 
 describe('prompt compare diff', () => {
   it('highlights removed and added text while preserving common text', () => {
@@ -28,5 +32,13 @@ describe('prompt compare diff', () => {
   it('compares the measured elapsed time between lanes', () => {
     expect(getPromptCompareLatencyDelta(1.25, 1.6)).toBe(0.35)
     expect(getPromptCompareLatencyDelta(2.4, 1.2)).toBe(-1.2)
+  })
+
+  it.each(['error', 'timeout'] as const)('keeps the %s stream error type', event => {
+    expect(getPromptCompareErrorType(event)).toBe(event)
+  })
+
+  it('ignores non-failure stream events', () => {
+    expect(getPromptCompareErrorType('workflow')).toBeUndefined()
   })
 })

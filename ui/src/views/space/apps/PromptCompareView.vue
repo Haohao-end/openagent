@@ -20,6 +20,7 @@ import {
   type StreamState,
 } from '@/views/shared/chat-stream'
 import { normalizeMessageMetrics, type MessageMetrics } from '@/views/shared/chat-metrics'
+import { getPromptCompareErrorType } from './utils/prompt-compare-diff'
 
 type LaneKey = 'baseline' | 'candidate'
 
@@ -32,6 +33,7 @@ type CompareMessage = {
   answer_parts: Array<Record<string, unknown>>
   artifacts: Array<Record<string, unknown>>
   total_token_count: number
+  errorType?: 'error' | 'timeout'
   latency: number
   agent_thoughts: ChatThought[]
   suggested_questions: string[]
@@ -244,6 +246,8 @@ const streamLane = async (lane: CompareLane, userQuery: string) => {
         history,
       } satisfies PromptCompareChatRequest,
       (eventResponse) => {
+        const errorType = getPromptCompareErrorType(eventResponse.event)
+        if (errorType) currentMessage.errorType = errorType
         const streamResult = applyChatStreamEvent(
           currentMessage,
           eventResponse,
@@ -264,6 +268,7 @@ const streamLane = async (lane: CompareLane, userQuery: string) => {
       throw new Error(String(apiResp.message || t('appStudio.promptCompare.debugFailed')))
     }
   } catch (error) {
+    currentMessage.errorType = 'error'
     currentMessage.answer = getErrorMessage(error, t('appStudio.promptCompare.debugFailed'))
   } finally {
     lane.loading = false
@@ -442,6 +447,8 @@ onMounted(async () => {
           :candidate-answer="latestComparePair.candidate.answer"
           :baseline-latency="latestComparePair.baseline.latency"
           :candidate-latency="latestComparePair.candidate.latency"
+          :baseline-error-type="latestComparePair.baseline.errorType"
+          :candidate-error-type="latestComparePair.candidate.errorType"
         />
 
         <div class="border-t border-gray-100 px-4 py-3">
