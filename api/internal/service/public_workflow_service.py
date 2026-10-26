@@ -10,6 +10,7 @@ from sqlalchemy import desc, or_
 
 from internal.entity.workflow_entity import WorkflowStatus
 from internal.entity.tag_entity import sort_tags_by_priority
+from internal.lib.helper import datetime_to_timestamp
 from internal.service.tag_assignment_service import TagAssignmentService
 from internal.exception import NotFoundException, ForbiddenException, ValidateErrorException, FailException
 from internal.model import (
@@ -157,8 +158,8 @@ class PublicWorkflowService(BaseService):
                 "icon": workflow.icon,
                 "description": workflow.description,
                 "tags": resolved_tags,
-                "published_at": int(workflow.published_at.timestamp()) if workflow.published_at else 0,
-                "created_at": int(workflow.created_at.timestamp()),
+                "published_at": datetime_to_timestamp(workflow.published_at),
+                "created_at": datetime_to_timestamp(workflow.created_at),
                 "is_forked": workflow.id in forked_workflow_ids if account else False,
                 "account_name": account_name or "Unknown",
                 "account_avatar": account_avatar or "",
@@ -270,8 +271,8 @@ class PublicWorkflowService(BaseService):
             "is_debug_passed": workflow.is_debug_passed,
             "account_name": account_obj.name if account_obj else "Unknown",
             "account_avatar": getattr(account_obj, "avatar", "") if account_obj else "",
-            "published_at": int(workflow.published_at.timestamp()) if workflow.published_at else 0,
-            "created_at": int(workflow.created_at.timestamp()),
+            "published_at": datetime_to_timestamp(workflow.published_at),
+            "created_at": datetime_to_timestamp(workflow.created_at),
             "updated_at": int(workflow.updated_at.timestamp()),
             "is_forked": False,  # 是否已fork
         }

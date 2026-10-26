@@ -11,6 +11,24 @@ from internal.exception import FailException, ForbiddenException, NotFoundExcept
 from internal.service.public_app_service import PublicAppService
 
 
+@pytest.fixture
+def _asia_shanghai_timezone():
+    import os
+    import time
+
+    previous_timezone = os.environ.get("TZ")
+    os.environ["TZ"] = "Asia/Shanghai"
+    time.tzset()
+    try:
+        yield
+    finally:
+        if previous_timezone is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = previous_timezone
+        time.tzset()
+
+
 def _field(value):
     return SimpleNamespace(data=value)
 
@@ -287,7 +305,7 @@ class TestPublicAppService:
         with pytest.raises(ForbiddenException):
             service.unshare_app_from_square(app_id, account)
 
-    def test_get_public_apps_with_page_should_return_basic_fields_and_fork_status(self, monkeypatch):
+    def test_get_public_apps_with_page_should_return_basic_fields_and_fork_status(self, monkeypatch, _asia_shanghai_timezone):
         account = SimpleNamespace(id=uuid4())
         app = SimpleNamespace(
             id=uuid4(),
@@ -296,8 +314,8 @@ class TestPublicAppService:
             icon="https://user/icon.png",
             description="user app",
             tags=["coding"],
-            published_at=datetime(2026, 1, 1, tzinfo=UTC),
-            created_at=datetime(2025, 12, 31, tzinfo=UTC),
+            published_at=datetime(2026, 1, 1),
+            created_at=datetime(2025, 12, 31),
         )
         creator = SimpleNamespace(name="Alice", avatar="https://creator/icon.png")
         session = _QueueSession([_Query(), _Query(all_result=[(app.id,)])])
@@ -331,8 +349,8 @@ class TestPublicAppService:
             "tags": ["coding"],
             "creator_name": "Alice",
             "creator_avatar": "https://creator/icon.png",
-            "published_at": int(app.published_at.timestamp()),
-            "created_at": int(app.created_at.timestamp()),
+            "published_at": int(datetime(2026, 1, 1, tzinfo=UTC).timestamp()),
+            "created_at": int(datetime(2025, 12, 31, tzinfo=UTC).timestamp()),
             "is_forked": True,
         }
         assert paginator.total_record == 1

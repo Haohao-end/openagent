@@ -12,7 +12,7 @@ from internal.core.tools.builtin_tools.providers import BuiltinProviderManager
 from internal.entity.app_entity import AppStatus
 from internal.entity.workflow_entity import WorkflowStatus
 from internal.entity.tag_entity import sort_tags_by_priority
-from internal.lib.helper import utc_now_naive
+from internal.lib.helper import datetime_to_timestamp, utc_now_naive
 from internal.task.app_task import sync_public_app_registry
 from internal.service.tag_assignment_service import TagAssignmentService
 from internal.exception import NotFoundException, ForbiddenException, ValidateErrorException, FailException
@@ -335,8 +335,8 @@ class PublicAppService(BaseService):
                 "tags": resolved_tags,
                 "creator_name": creator_name,  # 添加发布者名称
                 "creator_avatar": creator_avatar or "",  # 添加发布者头像
-                "published_at": int(app.published_at.timestamp()) if app.published_at else 0,
-                "created_at": int(app.created_at.timestamp()),
+                "published_at": datetime_to_timestamp(app.published_at),
+                "created_at": datetime_to_timestamp(app.created_at),
                 "is_forked": False,  # 是否已fork
             }
 
@@ -487,8 +487,8 @@ class PublicAppService(BaseService):
             "is_public": app.is_public,
             "creator_name": creator_name,
             "creator_avatar": creator_avatar,
-            "published_at": int(app.published_at.timestamp()) if app.published_at else 0,
-            "created_at": int(app.created_at.timestamp()),
+            "published_at": datetime_to_timestamp(app.published_at),
+            "created_at": datetime_to_timestamp(app.created_at),
             "is_forked": False,  # 是否已fork
         }
 
