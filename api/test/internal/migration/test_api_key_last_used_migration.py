@@ -2,6 +2,9 @@ import importlib.util
 from pathlib import Path
 
 from alembic.script import ScriptDirectory
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+import sqlalchemy as sa
 
 
 def test_migration_is_connected_to_the_current_single_head():
@@ -48,3 +51,24 @@ def test_api_key_last_used_migration_can_be_downgraded(monkeypatch):
     migration.downgrade()
 
     assert calls == [("api_key", "last_used_at")]
+
+
+def test_api_key_last_used_migration_supports_upgrade_downgrade_upgrade():
+    migration = _load_migration()
+    engine = sa.create_engine("sqlite://")
+
+    with engine.begin() as connection:
+        connection.execute(sa.text("CREATE TABLE api_key (id INTEGER PRIMARY KEY)"))
+        with Operations.context(MigrationContext.configure(connection)):
+            migration.upgrade()
+        assert "last_used_at" in {column["name"] for column in sa.inspect(connection).get_columns("api_key")}
+
+        with Operations.context(MigrationContext.configure(connection)):
+            migration.downgrade()
+        assert "last_used_at" not in {column["name"] for column in sa.inspect(connection).get_columns("api_key")}
+
+        with Operations.context(MigrationContext.configure(connection)):
+            migration.upgrade()
+        assert "last_used_at" in {column["name"] for column in sa.inspect(connection).get_columns("api_key")}
+
+    engine.dispose()
