@@ -153,6 +153,16 @@ Click the diagram to view the full-resolution architecture image.
 
 ### Local Development
 
+For local development, start only the supporting Docker services; the API and UI run directly on your machine. This avoids building or starting the API, UI, Celery, or Nginx containers:
+
+```bash
+cd docker
+docker compose up -d --no-build llmops-db llmops-redis llmops-weaviate
+docker compose ps llmops-db llmops-redis llmops-weaviate
+```
+
+Use localhost and the published ports for PostgreSQL, Redis, and Weaviate in your local `api/.env` configuration. See [Docker setup](docker/README.md) for details. Keep full-stack `docker compose up -d --build` for containerized deployment, not this local workflow.
+
 Backend:
 
 ```bash
