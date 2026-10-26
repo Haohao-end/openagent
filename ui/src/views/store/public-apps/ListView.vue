@@ -188,9 +188,11 @@ onMounted(() => {
                   <a-avatar :size="40" shape="square" :image-url="app.icon" />
                   <div class="flex-1 min-w-0">
                     <div class="text-base font-bold text-gray-900 truncate">{{ app.name }}</div>
-                    <div class="flex items-center gap-1 flex-wrap">
-                      <a-tag v-for="tag in getDisplayTags(app.tags)" :key="tag" size="small">
-                        {{ getTagName(tag) }}
+                    <div class="flex h-6 items-center gap-1 overflow-hidden whitespace-nowrap">
+                      <a-tag v-for="tag in getDisplayTags(app.tags)" :key="tag" size="small" class="min-w-0 max-w-[7rem]">
+                        <span class="block min-w-0 max-w-[7rem] truncate" :title="getTagName(tag)">
+                          {{ getTagName(tag) }}
+                        </span>
                       </a-tag>
                       <a-tag v-if="getExtraTagCount(app.tags) > 0" size="small" class="cursor-help" :title="getExtraTagNames(app.tags).join(', ')">
                         +{{ getExtraTagCount(app.tags) }}
