@@ -1536,6 +1536,7 @@ export default {
       clearCompare: 'Clear comparison',
       outputDiff: 'Latest output diff',
       elapsedDiff: 'Elapsed time vs baseline: {value}',
+      tokenCountDiff: 'Token count difference vs baseline: {value}',
       stopResponse: 'Stop',
       send: 'Send',
     },

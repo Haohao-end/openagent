@@ -1517,6 +1517,7 @@ export default {
       clearCompare: '清空对比',
       outputDiff: '最近一次输出差异',
       elapsedDiff: '较默认提示词耗时：{value}',
+      tokenCountDiff: '较默认提示词 Token 数差异：{value}',
       stopResponse: '停止响应',
       send: '发送',
     },
