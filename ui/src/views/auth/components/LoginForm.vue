@@ -1000,6 +1000,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
         <a-form-item hide-label class="login-input !mb-4">
           <a-input
             v-model="registerForm.email"
+            autocomplete="email"
             size="large"
             allow-clear
             placeholder="请输入注册邮箱"
@@ -1014,6 +1015,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
         <a-form-item hide-label class="login-input !mb-4">
           <a-input-password
             v-model="registerForm.password"
+            autocomplete="new-password"
             size="large"
             placeholder="请设置密码(至少一个字母,一个数字,长度8-16位)"
             @keyup.enter="handleStartRegister"
@@ -1059,6 +1061,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
         <a-form-item hide-label class="login-input !mb-4">
           <a-input
             v-model="registerForm.code"
+            autocomplete="one-time-code"
             size="large"
             placeholder="请输入6位验证码"
             maxlength="6"
