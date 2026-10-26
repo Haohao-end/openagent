@@ -3,8 +3,10 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 from injector import inject
+from sqlalchemy import func
 from internal.lib.helper import ensure_utc_naive, utc_midnight_naive, utc_now_naive
-from internal.model import Account, App, Message
+from internal.model import Account, App, Message, MessageAgentThought
+from internal.core.agent.entities.queue_entity import QueueEvent
 from pkg.sqlalchemy import SQLAlchemy
 from .app_service import AppService
 from .base_service import BaseService
@@ -31,6 +33,8 @@ class AnalysisService(BaseService):
         # 3.查询消息表最近7天(到当前时间)，以及最近14-7天的数据（数据要求答案非空、并且只要需要计算的数据）
         seven_days_messages = self.get_messages_by_time_range(app, seven_days_ago, now)
         fourteen_days_messages = self.get_messages_by_time_range(app, fourteen_days_ago, seven_days_ago)
+        current_rag_latency = self.get_rag_latency_by_time_range(app, seven_days_ago, now)
+        previous_rag_latency = self.get_rag_latency_by_time_range(app, fourteen_days_ago, seven_days_ago)
 
         # 4.计算概览指标，涵盖会话活跃度、响应时延、Token输出速度与费用消耗
         seven_overview_indicators = self.calculate_overview_indicators_by_messages(seven_days_messages)
@@ -38,6 +42,11 @@ class AnalysisService(BaseService):
 
         # 5.统计环比数据
         pop = self.calculate_pop_by_overview_indicators(seven_overview_indicators, fourteen_overview_indicators)
+        rag_latency_pop = (
+            (current_rag_latency - previous_rag_latency) / previous_rag_latency
+            if current_rag_latency is not None and previous_rag_latency not in (None, 0)
+            else None
+        )
 
         # 6.计算4个指标对应的趋势
         trend = self.calculate_trend_by_messages(today_midnight, 7, seven_days_messages)
@@ -51,6 +60,10 @@ class AnalysisService(BaseService):
         # 8.构建应用分析字典
         app_analysis = {
             **trend,
+            "rag_retrieval_latency": {
+                "data": current_rag_latency,
+                "pop": rag_latency_pop,
+            },
             **{
                 field: {
                     "data": seven_overview_indicators.get(field),
@@ -60,6 +73,16 @@ class AnalysisService(BaseService):
         }
 
         return app_analysis
+
+    def get_rag_latency_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
+        return self.db.session.query(
+            func.avg(MessageAgentThought.latency),
+        ).filter(
+            MessageAgentThought.app_id == app.id,
+            MessageAgentThought.event == QueueEvent.DATASET_RETRIEVAL.value,
+            MessageAgentThought.created_at >= start_at,
+            MessageAgentThought.created_at < end_at,
+        ).scalar()
 
     def get_messages_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> list[Message]:
         """根据传递的时间段获取指定应用的消息会话数据"""

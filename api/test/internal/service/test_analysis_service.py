@@ -4,7 +4,10 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.sql import operators
 
+from internal.core.agent.entities.queue_entity import QueueEvent
+from internal.model import MessageAgentThought
 from internal.service.analysis_service import AnalysisService
 
 
@@ -27,7 +30,13 @@ def _build_service(app=None):
 
 
 class TestAnalysisService:
-    def test_get_app_analysis_should_calculate_realtime_data(self, monkeypatch):
+    @pytest.mark.parametrize(
+        ("previous_rag_latency", "expected_rag_latency_pop"),
+        [(2.0, -0.25), (0.0, None), (None, None)],
+    )
+    def test_get_app_analysis_should_calculate_realtime_data(
+        self, monkeypatch, previous_rag_latency, expected_rag_latency_pop,
+    ):
         """测试实时计算统计数据(不使用缓存)"""
         app = SimpleNamespace(id=uuid4())
         now = datetime(2024, 1, 8, 18, 30, 0)
@@ -50,12 +59,24 @@ class TestAnalysisService:
             "get_messages_by_time_range",
             lambda *_args, **_kwargs: message_sets.pop(0),
         )
+        retrieval_sets = [1.5, previous_rag_latency]
+        monkeypatch.setattr(
+            service,
+            "get_rag_latency_by_time_range",
+            lambda *_args, **_kwargs: retrieval_sets.pop(0),
+        )
 
         result = service.get_app_analysis(app.id, SimpleNamespace(id=uuid4()))
 
         assert result["total_messages"]["data"] == 2
         assert result["active_accounts"]["data"] >= 1
         assert result["avg_latency"]["data"] == pytest.approx(1.5)
+        assert result["rag_retrieval_latency"]["data"] == pytest.approx(1.5)
+        actual_pop = result["rag_retrieval_latency"]["pop"]
+        if expected_rag_latency_pop is None:
+            assert actual_pop is None
+        else:
+            assert actual_pop == pytest.approx(expected_rag_latency_pop)
         assert len(result["total_messages_trend"]["x_axis"]) == 7
         assert len(result["total_messages_trend"]["y_axis"]) == 7
 
@@ -70,11 +91,13 @@ class TestAnalysisService:
             "get_messages_by_time_range",
             lambda *_args, **_kwargs: message_sets.pop(0),
         )
+        monkeypatch.setattr(service, "get_rag_latency_by_time_range", lambda *_args: None)
 
         result = service.get_app_analysis(app.id, SimpleNamespace(id=uuid4()))
 
         assert result["total_messages"]["data"] == 0
         assert result["avg_latency"]["data"] == 0.0
+        assert result["rag_retrieval_latency"] == {"data": None, "pop": None}
 
     def test_calculate_overview_indicators_should_handle_zero_division_safely(self):
         indicators = AnalysisService.calculate_overview_indicators_by_messages([])
@@ -146,6 +169,41 @@ class TestAnalysisService:
         assert query.with_entities_called is True
         assert query.filter_called is True
         assert result == messages
+
+    @pytest.mark.parametrize("average", [1.25, None])
+    def test_get_rag_latency_by_time_range_uses_persisted_retrieval_events(self, average):
+        class _Query:
+            def filter(self, *conditions):
+                self.conditions = conditions
+                return self
+
+            def scalar(self):
+                return average
+
+        query = _Query()
+        service = AnalysisService(
+            db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args: query)),
+            app_service=SimpleNamespace(),
+        )
+        app_id = uuid4()
+        start_at = datetime(2024, 1, 1)
+        end_at = datetime(2024, 1, 2)
+        result = service.get_rag_latency_by_time_range(SimpleNamespace(id=app_id), start_at, end_at)
+
+        assert result == average
+        assert len(query.conditions) == 4
+        assert [str(condition.left) for condition in query.conditions] == [
+            "message_agent_thought.app_id",
+            "message_agent_thought.event",
+            "message_agent_thought.created_at",
+            "message_agent_thought.created_at",
+        ]
+        assert [condition.operator for condition in query.conditions] == [
+            operators.eq, operators.eq, operators.ge, operators.lt,
+        ]
+        assert [condition.right.value for condition in query.conditions] == [
+            app_id, QueueEvent.DATASET_RETRIEVAL.value, start_at, end_at,
+        ]
 
     def test_calculate_trend_by_messages_should_generate_fixed_length_series(self):
         end_at = datetime(2024, 1, 8, 18, 30, 0)
