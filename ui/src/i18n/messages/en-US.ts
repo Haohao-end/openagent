@@ -1535,6 +1535,7 @@ export default {
       keyboardHint: 'Press Enter to send, Shift + Enter for a new line',
       clearCompare: 'Clear comparison',
       outputDiff: 'Latest output diff',
+      emptyOutput: 'No output',
       elapsedDiff: 'Elapsed time vs baseline: {value}',
       errorTypeDiff: 'Error type',
       error: 'Error',

@@ -68,7 +68,10 @@ const formattedTokenCountDelta = computed(() => {
         <h4 class="mb-1 font-medium text-gray-500">
           {{ t('appStudio.promptCompare.baselineTitle') }}
         </h4>
-        <p class="whitespace-pre-wrap break-words rounded bg-gray-50 p-2 text-gray-700">
+        <p v-if="!baselineAnswer" class="rounded bg-gray-50 p-2 text-gray-500">
+          {{ t('appStudio.promptCompare.emptyOutput') }}
+        </p>
+        <p v-else class="whitespace-pre-wrap break-words rounded bg-gray-50 p-2 text-gray-700">
           <template v-for="(segment, index) in baselineSegments" :key="`baseline-${index}`">
             <del v-if="segment.type === 'removed'" class="bg-red-100 text-red-800">
               {{ segment.text }}
@@ -81,7 +84,10 @@ const formattedTokenCountDelta = computed(() => {
         <h4 class="mb-1 font-medium text-gray-500">
           {{ t('appStudio.promptCompare.candidateTitle') }}
         </h4>
-        <p class="whitespace-pre-wrap break-words rounded bg-gray-50 p-2 text-gray-700">
+        <p v-if="!candidateAnswer" class="rounded bg-gray-50 p-2 text-gray-500">
+          {{ t('appStudio.promptCompare.emptyOutput') }}
+        </p>
+        <p v-else class="whitespace-pre-wrap break-words rounded bg-gray-50 p-2 text-gray-700">
           <template v-for="(segment, index) in candidateSegments" :key="`candidate-${index}`">
             <ins v-if="segment.type === 'added'" class="bg-green-100 text-green-800 no-underline">
               {{ segment.text }}
