@@ -633,6 +633,7 @@ export default {
     noInputData: '该工作流暂无输入数据',
     noRunResults: '该工作流暂无运行调试结果',
     nodeResults: '节点输出',
+    nodeErrorDetails: '节点错误详情',
     running: '工作流运行中',
     runFailed: '工作流运行失败',
     runSuccess: '运行成功',

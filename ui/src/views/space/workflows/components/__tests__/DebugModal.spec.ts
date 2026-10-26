@@ -10,13 +10,17 @@ vi.mock('@vue-flow/core', () => ({
   useVueFlow: () => ({ nodes: { value: [] } }),
 }))
 
-vi.mock('@/hooks/use-workflow', () => ({
-  useDebugWorkflow: () => ({
-    error: { value: '' },
-    loading: { value: false },
-    handleDebugWorkflow: mocks.handleDebugWorkflow,
-  }),
-}))
+vi.mock('@/hooks/use-workflow', async () => {
+  const { ref } = await import('vue')
+
+  return {
+    useDebugWorkflow: () => ({
+      error: ref(''),
+      loading: ref(false),
+      handleDebugWorkflow: mocks.handleDebugWorkflow,
+    }),
+  }
+})
 
 const nodeResults = [
   {
@@ -62,5 +66,63 @@ describe('DebugModal node outputs', () => {
     expect(wrapper.text()).toContain('"temperature": 22')
     expect(wrapper.text()).toContain('"answer": "Sunny"')
     expect(mocks.handleDebugWorkflow).toHaveBeenCalledOnce()
+  })
+
+  it('renders detailed error text for a failed node', async () => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
+      onData({
+        event: 'workflow',
+        data: {
+          node_data: { node_type: 'tool', type: 'tool', title: 'Weather' },
+          status: 'failed',
+          error: 'Weather provider returned HTTP 503',
+          outputs: {},
+          latency: 0.2,
+        },
+      })
+    })
+
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="workflow-node-error"]').text()).toContain(
+      'Weather provider returned HTTP 503',
+    )
+  })
+
+  it('shows stream-level failure events without treating them as node results', async () => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
+      onData({
+        event: 'timeout',
+        data: { event: 'timeout', observation: 'Workflow execution timed out at node Weather' },
+      })
+    })
+
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Workflow execution timed out at node Weather')
+    expect(wrapper.findAll('[data-testid="workflow-node-result"]')).toHaveLength(0)
+  })
+
+  it('shows request errors in the output panel', async () => {
+    mocks.handleDebugWorkflow.mockRejectedValueOnce(new Error('network disconnected'))
+
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('network disconnected')
   })
 })
