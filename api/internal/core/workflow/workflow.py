@@ -4,7 +4,7 @@ from pydantic import PrivateAttr, BaseModel, Field, create_model
 from langchain_core.runnables import RunnableConfig
 from langchain_core.runnables.utils import Input, Output
 from langchain_core.tools import BaseTool
-from langgraph.graph import StateGraph
+from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from internal.exception import ValidateErrorException
@@ -220,10 +220,15 @@ class Workflow(BaseTool):
                     return "true"
                 return condition_func
 
+            # An unwired condition side means that branch terminates the workflow.
+            path_map = {
+                "true": branches.get("true", END),
+                "false": branches.get("false", END),
+            }
             graph.add_conditional_edges(
                 if_else_node,
                 create_condition_func(if_else_node),
-                branches
+                path_map
             )
 
         # 8.构建图程序并编译

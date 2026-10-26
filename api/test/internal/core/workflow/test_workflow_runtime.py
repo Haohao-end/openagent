@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from uuid import uuid4
+import asyncio
 
 import pytest
 from pydantic import BaseModel
@@ -74,13 +75,14 @@ def _node(node_id, node_type):
     return SimpleNamespace(id=node_id, node_type=node_type)
 
 
-def _edge(edge_id, source, source_type, target, target_type):
+def _edge(edge_id, source, source_type, target, target_type, source_handle=None):
     return SimpleNamespace(
         id=edge_id,
         source=source,
         source_type=source_type,
         target=target,
         target_type=target_type,
+        source_handle=source_handle,
     )
 
 
@@ -160,6 +162,70 @@ def test_workflow_build_workflow_should_register_nodes_edges_and_special_points(
     parallel_edges = [edge for edge in _FakeGraph.latest.edges if edge[1] == extractor_target]
     assert parallel_edges
     assert len(parallel_edges[0][0]) >= 2
+
+
+@pytest.mark.parametrize(
+    ("wired_branch", "condition_result", "reaches_end"),
+    [
+        ("true", True, True),
+        ("true", False, False),
+        ("false", True, False),
+        ("false", False, True),
+    ],
+)
+def test_workflow_partial_if_else_branch_routes_missing_side_to_end(
+    monkeypatch, wired_branch, condition_result, reaches_end
+):
+    start_id = uuid4()
+    if_else_id = uuid4()
+    end_id = uuid4()
+    nodes = [
+        _start_node(start_id),
+        _node(if_else_id, NodeType.IF_ELSE.value),
+        _end_node(end_id),
+    ]
+    edges = [
+        _edge(uuid4(), start_id, NodeType.START, if_else_id, NodeType.IF_ELSE),
+        _edge(
+            uuid4(), if_else_id, NodeType.IF_ELSE, end_id, NodeType.END,
+            source_handle=wired_branch,
+        ),
+    ]
+    workflow = _build_workflow_obj(SimpleNamespace(nodes=nodes, edges=edges))
+
+    class _ConditionalRuntimeNode:
+        def __init__(self, node_data):
+            self.node_data = node_data
+
+        async def __call__(self, _state):
+            if self.node_data.node_type == NodeType.IF_ELSE.value:
+                return {
+                    "node_results": [
+                        SimpleNamespace(
+                            node_data=SimpleNamespace(
+                                node_type=NodeType.IF_ELSE.value,
+                                id=self.node_data.id,
+                            ),
+                            outputs={"result": condition_result},
+                        )
+                    ]
+                }
+            if self.node_data.node_type == NodeType.END.value:
+                return {"outputs": {"reached_end": True}}
+            return {}
+
+    monkeypatch.setattr(
+        "internal.core.workflow.workflow.NodeClasses",
+        {
+            NodeType.START.value: _ConditionalRuntimeNode,
+            NodeType.IF_ELSE.value: _ConditionalRuntimeNode,
+            NodeType.END.value: _ConditionalRuntimeNode,
+        },
+    )
+    compiled = Workflow._build_workflow(workflow)
+    result = asyncio.run(compiled.ainvoke({"inputs": {}}))
+
+    assert (result.get("outputs", {}).get("reached_end") is True) is reaches_end
 
 
 def test_workflow_build_workflow_should_raise_when_node_type_unknown(monkeypatch):
