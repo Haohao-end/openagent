@@ -1,4 +1,4 @@
 name: google_serper
 label: 谷歌Serper搜索
-description: 这是一个谷歌搜索API，当你需要搜索的时候 可以使用该工具 该工具的输入是一个查询语句
+description: Search the web with Google Serper using a search query.
 params: []
