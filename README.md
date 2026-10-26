@@ -42,6 +42,7 @@
 - [Usage](#usage)
 - [Testing](#testing)
 - [Contact](#contact)
+- [Sponsored By](#sponsored-by)
 - [Acknowledgments](#acknowledgments)
 
 ## About The Project
