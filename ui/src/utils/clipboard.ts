@@ -4,7 +4,7 @@ export const copyTextToClipboard = async (text: string) => {
     return
   }
 
-  if (typeof document === 'undefined') return
+  if (typeof document === 'undefined') throw new Error('Clipboard is unavailable')
 
   const textarea = document.createElement('textarea')
   textarea.value = text
@@ -12,8 +12,11 @@ export const copyTextToClipboard = async (text: string) => {
   textarea.style.left = '-9999px'
   textarea.style.top = '-9999px'
   document.body.appendChild(textarea)
-  textarea.focus()
-  textarea.select()
-  document.execCommand('copy')
-  document.body.removeChild(textarea)
+  try {
+    textarea.focus()
+    textarea.select()
+    if (!document.execCommand('copy')) throw new Error('Clipboard copy failed')
+  } finally {
+    document.body.removeChild(textarea)
+  }
 }
