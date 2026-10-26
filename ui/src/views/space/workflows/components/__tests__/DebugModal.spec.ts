@@ -10,13 +10,17 @@ vi.mock('@vue-flow/core', () => ({
   useVueFlow: () => ({ nodes: { value: [] } }),
 }))
 
-vi.mock('@/hooks/use-workflow', () => ({
-  useDebugWorkflow: () => ({
-    error: { value: '' },
-    loading: { value: false },
-    handleDebugWorkflow: mocks.handleDebugWorkflow,
-  }),
-}))
+vi.mock('@/hooks/use-workflow', async () => {
+  const { ref } = await import('vue')
+
+  return {
+    useDebugWorkflow: () => ({
+      error: ref(''),
+      loading: ref(false),
+      handleDebugWorkflow: mocks.handleDebugWorkflow,
+    }),
+  }
+})
 
 const nodeResults = [
   {
