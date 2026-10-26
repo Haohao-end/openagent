@@ -11,6 +11,11 @@ import {
   sumWorkflowToolLatency,
   type DebugNodeResult,
 } from '@/views/space/workflows/utils/debug-metrics'
+import {
+  clearWorkflowDebugVisualization as clearDebugCanvas,
+  markWorkflowDebugEdgeSucceeded as markDebugEdge,
+  markWorkflowDebugNodeSucceeded as markDebugNode,
+} from '@/views/space/workflows/utils/debug-visualization'
 
 type WorkflowInput = {
   name: string
@@ -25,9 +30,10 @@ const props = defineProps({
 })
 const emits = defineEmits(['update:visible', 'debug-success'])
 const { t } = useI18n()
-const { nodes } = useVueFlow()
+const { nodes, edges } = useVueFlow()
 const form = ref<Record<string, string | number | boolean>>({})
 const nodeResults = ref<DebugNodeResult[]>([])
+const previousNodeId = ref('')
 const activatedTab = ref('input')
 const {
   error: debugWorkflowError,
@@ -64,6 +70,8 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   // 6.1 运行前先将历史运行清空
   nodeResults.value = []
   debugWorkflowError.value = ''
+  previousNodeId.value = ''
+  clearDebugCanvas(nodes.value, edges.value)
 
   // 6.2 检查表单是否出错，如果出错则直接结束
   if (errors) return
@@ -76,8 +84,18 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
     props.workflow_id,
     form.value,
     (event_response: { data?: DebugNodeResult }) => {
-      if (event_response?.data) {
-        nodeResults.value.push(event_response.data)
+      const nodeResult = event_response?.data
+      if (nodeResult) {
+        nodeResults.value.push(nodeResult)
+
+        const nodeId = nodeResult.node_data?.id
+        if (nodeId && nodeResult.status === 'succeeded') {
+          markDebugNode(nodes.value, nodeId)
+          if (previousNodeId.value) {
+            markDebugEdge(edges.value, previousNodeId.value, nodeId)
+          }
+          previousNodeId.value = nodeId
+        }
       }
     },
   )
@@ -95,6 +113,8 @@ watch(
     if (newValue) {
       debugWorkflowError.value = ''
       nodeResults.value = []
+      previousNodeId.value = ''
+      clearDebugCanvas(nodes.value, edges.value)
       activatedTab.value = 'input'
       form.value = {}
     }

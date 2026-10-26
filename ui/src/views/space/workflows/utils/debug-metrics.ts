@@ -1,9 +1,11 @@
 export type DebugNodeResult = {
   node_data: {
+    id?: string
     node_type?: string
     type?: string
     title?: string
   }
+  status?: string
   outputs: unknown
   latency: number
 }

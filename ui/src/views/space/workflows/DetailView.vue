@@ -1038,6 +1038,33 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
+.vue-flow__node.workflow-debug-succeeded > div {
+  @apply !border-green-500;
+}
+
+.vue-flow__node.workflow-debug-succeeded::after {
+  content: '✓';
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  z-index: 1;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 2px solid white;
+  border-radius: 9999px;
+  background: #16a34a;
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.vue-flow__edge.workflow-debug-edge-succeeded .vue-flow__edge-path {
+  stroke: #16a34a;
+  stroke-width: 3;
+}
+
 .selected {
   .vue-flow__edge-path {
     @apply !stroke-blue-700;
