@@ -70,6 +70,8 @@ OpenAgent 不是单一的聊天 Demo，而是一个面向团队和产品化场�
 
 点击图片可查看原始大图。
 
+更多源码级文档请查看[文档索引](docs/README.zh-CN.md)，也可阅读[English documentation index](docs/README.md)。
+
 详细源码架构说明：[架构文档](docs/architecture.zh-CN.md)。
 
 ### 技术栈
