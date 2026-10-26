@@ -439,6 +439,49 @@ class TestWorkflowService:
         )
         assert all(target is not workflow for target, _ in updates)
 
+    def test_debug_workflow_should_persist_failure_and_reraise_for_sse_error(self, monkeypatch):
+        service = _build_service()
+        account = SimpleNamespace(id=uuid4())
+        workflow = SimpleNamespace(
+            id=uuid4(),
+            account_id=account.id,
+            tool_call_name="wf_tool",
+            description="desc",
+            draft_graph={"nodes": [], "edges": []},
+        )
+        monkeypatch.setattr(service, "get_workflow", lambda *_args, **_kwargs: workflow)
+        monkeypatch.setattr(
+            "internal.service.workflow_service.WorkflowConfig",
+            lambda **kwargs: SimpleNamespace(**kwargs),
+        )
+
+        class _WorkflowTool:
+            def __init__(self, workflow_config):
+                self.workflow_config = workflow_config
+
+            @staticmethod
+            def stream(_inputs):
+                yield from ()
+                raise RuntimeError("node execution failed")
+
+        monkeypatch.setattr("internal.service.workflow_service.WorkflowTool", _WorkflowTool)
+        workflow_result = SimpleNamespace(id=uuid4())
+        monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: workflow_result)
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        with pytest.raises(RuntimeError, match="node execution failed"):
+            list(service.debug_workflow(workflow.id, {}, account))
+
+        assert len(updates) == 1
+        assert updates[0][0] is workflow_result
+        assert updates[0][1]["status"] == WorkflowResultStatus.FAILED.value
+        assert updates[0][1]["state"] == []
+
     def test_get_workflow_should_raise_when_workflow_not_found(self, monkeypatch):
         service = _build_service()
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: None)
