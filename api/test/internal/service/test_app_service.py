@@ -362,7 +362,36 @@ class TestAppService:
             description="",
         )
 
-    def test_auto_create_app_should_raise_when_icon_generation_failed(self, monkeypatch):
+    def test_auto_create_app_should_fallback_when_icon_generation_failed(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+
+        class _AccountQuery:
+            def get(self, account_id):
+                assert account_id == account.id
+                return account
+
+        class _AutoCreateSession:
+            def __init__(self):
+                self.added = []
+
+            def query(self, _model):
+                return _AccountQuery()
+
+            def add(self, obj):
+                self.added.append(obj)
+
+            def flush(self):
+                if self.added and getattr(self.added[-1], "id", None) is None:
+                    self.added[-1].id = uuid4()
+
+        class _AutoCreateDB:
+            def __init__(self):
+                self.session = _AutoCreateSession()
+
+            @contextmanager
+            def auto_commit(self):
+                yield
+
         class _Pipe:
             def __or__(self, _other):
                 return self
@@ -375,7 +404,7 @@ class TestAppService:
         monkeypatch.setattr("internal.service.app_service.ChatPromptTemplate.from_messages", lambda _messages: _Pipe())
         monkeypatch.setattr("internal.service.app_service.StrOutputParser", lambda: object())
         service = _new_app_service(
-            db=_DummyDB(),
+            db=_AutoCreateDB(),
             redis_client=SimpleNamespace(),
             cos_service=SimpleNamespace(),
             retrieval_service=SimpleNamespace(),
@@ -391,8 +420,11 @@ class TestAppService:
         )
         service.conversation_service = SimpleNamespace(generate_suggested_questions=lambda _histories: [])
 
-        with pytest.raises(FailException):
-            service.auto_create_app("助手", "x" * 2101, uuid4())
+        app = service.auto_create_app("助手", "x" * 2101, account.id)
+
+        assert app.icon.startswith("data:image/svg+xml;base64,")
+        assert len(service.db.session.added) == 2
+        assert service.db.session.added[0] is app
 
     def test_cancel_publish_should_raise_when_app_is_not_published(self, monkeypatch):
         service = _build_service()

@@ -292,11 +292,15 @@ class AppService(BaseService):
             for tool in self.AUTO_CREATE_DEFAULT_TOOLS
         ]
 
-        # 6.使用共享图标服务生成并上传应用图标
-        icon = self.icon_generator_service.generate_icon(
-            name=name,
-            description=description or "",
-        )
+        # 6.使用共享图标服务生成并上传应用图标；图标生成失败不应阻断Agent创建。
+        try:
+            icon = self.icon_generator_service.generate_icon(
+                name=name,
+                description=description or "",
+            )
+        except Exception:
+            logging.exception("自动创建Agent时生成图标失败，使用默认图标: name=%s", name)
+            icon = self._generate_default_icon(name)
 
         account = self.db.session.query(Account).get(account_id)
 
