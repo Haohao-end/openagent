@@ -3,6 +3,7 @@ from uuid import uuid4
 import random
 
 import pytest
+from flask import Flask
 
 from internal.core.workflow.entities.node_entity import NodeType
 from internal.entity.workflow_entity import WorkflowStatus, WorkflowResultStatus
@@ -14,6 +15,7 @@ from internal.exception import (
 )
 from internal.model import ApiTool, Dataset
 from internal.service.workflow_service import WorkflowService as _WorkflowService
+from pkg.response import compact_generate_response
 
 
 class _DummyQuery:
@@ -439,6 +441,64 @@ class TestWorkflowService:
         )
         assert all(target is not workflow for target, _ in updates)
 
+    @pytest.mark.parametrize(
+        ("failure", "event_name"),
+        [
+            (RuntimeError("node execution failed"), "error"),
+            (TimeoutError("node execution timed out"), "timeout"),
+        ],
+    )
+    def test_debug_workflow_should_persist_failure_and_emit_sse_error(
+        self,
+        monkeypatch,
+        failure,
+        event_name,
+    ):
+        service = _build_service()
+        account = SimpleNamespace(id=uuid4())
+        workflow = SimpleNamespace(
+            id=uuid4(),
+            account_id=account.id,
+            tool_call_name="wf_tool",
+            description="desc",
+            draft_graph={"nodes": [], "edges": []},
+        )
+        monkeypatch.setattr(service, "get_workflow", lambda *_args, **_kwargs: workflow)
+        monkeypatch.setattr(
+            "internal.service.workflow_service.WorkflowConfig",
+            lambda **kwargs: SimpleNamespace(**kwargs),
+        )
+
+        class _WorkflowTool:
+            def __init__(self, workflow_config):
+                self.workflow_config = workflow_config
+
+            @staticmethod
+            def stream(_inputs):
+                yield from ()
+                raise failure
+
+        monkeypatch.setattr("internal.service.workflow_service.WorkflowTool", _WorkflowTool)
+        workflow_result = SimpleNamespace(id=uuid4())
+        monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: workflow_result)
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        with Flask(__name__).test_request_context():
+            response = compact_generate_response(service.debug_workflow(workflow.id, {}, account))
+            body = response.get_data(as_text=True)
+
+        assert len(updates) == 1
+        assert updates[0][0] is workflow_result
+        assert updates[0][1]["status"] == WorkflowResultStatus.FAILED.value
+        assert updates[0][1]["state"] == []
+        assert f"event: {event_name}" in body
+        assert str(failure) in body
+
     def test_get_workflow_should_raise_when_workflow_not_found(self, monkeypatch):
         service = _build_service()
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: None)
@@ -657,10 +717,9 @@ class TestWorkflowService:
             lambda target, **kwargs: updates.append((target, kwargs)) or target,
         )
 
-        # 发生异常时内部会吞掉异常并写入失败状态，这里应拿到空事件列表。
-        events = list(service.debug_workflow(workflow.id, {"query": "hello"}, account))
+        with pytest.raises(RuntimeError, match="stream-error"):
+            list(service.debug_workflow(workflow.id, {"query": "hello"}, account))
 
-        assert events == []
         assert any(
             target is workflow_result and payload["status"] == WorkflowResultStatus.FAILED.value
             for target, payload in updates

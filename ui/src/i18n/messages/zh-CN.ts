@@ -633,6 +633,7 @@ export default {
     noInputData: '该工作流暂无输入数据',
     noRunResults: '该工作流暂无运行调试结果',
     nodeResults: '节点输出',
+    nodeErrorDetails: '节点错误详情',
     running: '工作流运行中',
     runFailed: '工作流运行失败',
     runSuccess: '运行成功',
@@ -1320,6 +1321,11 @@ export default {
           title: '平均会话互动数',
           help: '反映每个会话用户的持续沟通次数，如果用户与 AI 进行了 10 轮对话，即为 10，该指标反映了用户粘性。',
           unit: '次',
+        },
+        averageLatency: {
+          title: '平均响应耗时',
+          help: '近 7 天已完成响应的平均耗时（秒），根据每条消息实际记录的 latency 计算。',
+          unit: '秒',
         },
         tokenOutputRate: {
           title: 'Token 输出速度',

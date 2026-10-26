@@ -32,7 +32,7 @@ class AnalysisService(BaseService):
         seven_days_messages = self.get_messages_by_time_range(app, seven_days_ago, now)
         fourteen_days_messages = self.get_messages_by_time_range(app, fourteen_days_ago, seven_days_ago)
 
-        # 4.计算5个概念指标，涵盖：全部会话数、激活用户数、平均会话互动数、Token输出速度、费用消耗
+        # 4.计算概览指标，涵盖会话活跃度、响应时延、Token输出速度与费用消耗
         seven_overview_indicators = self.calculate_overview_indicators_by_messages(seven_days_messages)
         fourteen_overview_indicators = self.calculate_overview_indicators_by_messages(fourteen_days_messages)
 
@@ -42,10 +42,10 @@ class AnalysisService(BaseService):
         # 6.计算4个指标对应的趋势
         trend = self.calculate_trend_by_messages(today_midnight, 7, seven_days_messages)
 
-        # 7.定义5个指标字段名称
+        # 7.定义概览指标字段名称
         fields = [
             "total_messages", "active_accounts", "avg_of_conversation_messages",
-            "token_output_rate", "cost_consumption",
+            "avg_latency", "token_output_rate", "cost_consumption",
         ]
 
         # 8.构建应用分析字典
@@ -76,32 +76,38 @@ class AnalysisService(BaseService):
 
     @classmethod
     def calculate_overview_indicators_by_messages(cls, messages: list[Message]) -> dict[str, Any]:
-        """根据传递的消息列表计算概览指标，涵盖全部会话数、激活用户数、平均会话互动数、Token输出速度、费用消耗"""
+        """根据传递的已完成消息计算概览指标，latency 使用消息记录的秒数。"""
         # 1.计算全部会话数，使用消息总数来计算
         total_messages = len(messages)
 
         # 2.计算激活用户数，使用唯一用户数判断
         active_accounts = len({message.created_by for message in messages})
 
-        # 3.平均会话互动数，使用消息总数/会话总数，涉及除法要做/0判断
+        # 3.平均响应耗时使用持久化的消息 latency（秒），与完成消息数量做算术平均
+        avg_latency = 0.0
+        if total_messages:
+            avg_latency = sum(float(message.latency or 0) for message in messages) / total_messages
+
+        # 4.平均会话互动数，使用消息总数/会话总数，涉及除法要做/0判断
         avg_of_conversation_messages = 0
         conversation_count = len({message.conversation_id for message in messages})
         if conversation_count != 0:
             avg_of_conversation_messages = total_messages / conversation_count
 
-        # 4.Token输出速度，使用总token数/总耗时，涉及除法要做/0判断
+        # 5.Token输出速度，使用总token数/总耗时，涉及除法要做/0判断
         token_output_rate = 0
         latency_sum = sum(message.latency for message in messages)
         if latency_sum != 0:
             token_output_rate = sum(message.total_token_count for message in messages) / latency_sum
 
-        # 5.计算费用消耗，使用总花费进行求和
+        # 6.计算费用消耗，使用总花费进行求和
         cost_consumption = sum(message.total_price for message in messages)
 
-        # 6.返回数据，并且对于小数型数据，如果数值过小，需要转换成float，避免Python使用科学计数法进行展示
+        # 7.返回数据，并且对于小数型数据，如果数值过小，需要转换成float，避免Python使用科学计数法进行展示
         return {
             "total_messages": total_messages,
             "active_accounts": active_accounts,
+            "avg_latency": float(avg_latency),
             "avg_of_conversation_messages": float(avg_of_conversation_messages),
             "token_output_rate": float(token_output_rate),
             "cost_consumption": float(cost_consumption),
@@ -118,7 +124,7 @@ class AnalysisService(BaseService):
         # 2.定义需要计算环比的字段
         fields = [
             "total_messages", "active_accounts", "avg_of_conversation_messages",
-            "token_output_rate", "cost_consumption",
+            "avg_latency", "token_output_rate", "cost_consumption",
         ]
 
         # 3.循环遍历字段计算环比增长

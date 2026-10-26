@@ -399,6 +399,8 @@ class WorkflowService(BaseService):
                     "state": node_results,
                     "latency": (time.perf_counter() - start_at)
                 })
+                # 将异常交给 compact_generate_response，转为可被前端读取的 SSE error/timeout 事件。
+                raise
 
         return handle_stream()
 

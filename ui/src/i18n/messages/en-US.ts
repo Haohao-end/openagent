@@ -644,6 +644,7 @@ export default {
     noInputData: 'This workflow has no input data yet',
     noRunResults: 'This workflow has no debug results yet',
     nodeResults: 'Node outputs',
+    nodeErrorDetails: 'Node error details',
     running: 'Workflow running',
     runFailed: 'Workflow failed',
     runSuccess: 'Success',
@@ -1339,6 +1340,11 @@ export default {
           title: 'Avg Session Interactions',
           help: 'The average number of back-and-forth interactions per session. If a user talks with the AI for 10 rounds, this metric is 10. It reflects retention.',
           unit: 'times',
+        },
+        averageLatency: {
+          title: 'Avg Response Latency',
+          help: 'Average elapsed time in seconds for completed responses, calculated from the latency recorded with each message over the last 7 days.',
+          unit: 'seconds',
         },
         tokenOutputRate: {
           title: 'Token Output Rate',

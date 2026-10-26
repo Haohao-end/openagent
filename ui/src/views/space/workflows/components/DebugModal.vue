@@ -79,26 +79,45 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   // 6.3 将tab选项切换到输出选项卡
   activatedTab.value = 'output'
 
-  // 6.4 调用hooks发起请求
-  await handleDebugWorkflow(
-    props.workflow_id,
-    form.value,
-    (event_response: { data?: DebugNodeResult }) => {
-      const nodeResult = event_response?.data
-      if (nodeResult) {
-        nodeResults.value.push(nodeResult)
+  // 6.4 处理成功节点和流式失败事件；错误载荷不能作为节点结果或执行路径处理。
+  try {
+    await handleDebugWorkflow(
+      props.workflow_id,
+      form.value,
+      (event_response: Record<string, unknown>) => {
+        const eventName = typeof event_response.event === 'string' ? event_response.event : ''
+        const payload = event_response.data
 
-        const nodeId = nodeResult.node_data?.id
-        if (nodeId && nodeResult.status === 'succeeded') {
-          markDebugNode(nodes.value, nodeId)
-          if (previousNodeId.value) {
-            markDebugEdge(edges.value, previousNodeId.value, nodeId)
-          }
-          previousNodeId.value = nodeId
+        if (eventName === 'error' || eventName === 'timeout') {
+          const failurePayload =
+            payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {}
+          const detail = [failurePayload.observation, failurePayload.message, failurePayload.error].find(
+            (value) => typeof value === 'string' && value.trim().length > 0,
+          )
+          debugWorkflowError.value =
+            typeof detail === 'string' ? detail : t('workflowEditor.runFailed')
+          return
         }
-      }
-    },
-  )
+
+        if (payload && typeof payload === 'object' && 'node_data' in payload) {
+          const nodeResult = payload as DebugNodeResult
+          nodeResults.value.push(nodeResult)
+
+          const nodeId = nodeResult.node_data?.id
+          if (nodeId && nodeResult.status === 'succeeded') {
+            markDebugNode(nodes.value, nodeId)
+            if (previousNodeId.value) {
+              markDebugEdge(edges.value, previousNodeId.value, nodeId)
+            }
+            previousNodeId.value = nodeId
+          }
+        }
+      },
+    )
+  } catch (error: unknown) {
+    debugWorkflowError.value =
+      error instanceof Error ? error.message : String(error || t('workflowEditor.runFailed'))
+  }
 
   // 6.5 如果调试成功（没有错误且有输出结果），触发 debug-success 事件
   if (!debugWorkflowError.value && outputs.value) {
@@ -267,6 +286,16 @@ watch(
             <h4 class="mb-2 text-xs font-semibold text-gray-700">
               {{ nodeResult.node_data.title || nodeResult.node_data.node_type || t('workflowEditor.output') }}
             </h4>
+            <div
+              v-if="nodeResult.error"
+              class="mt-2 rounded border border-red-200 bg-red-50 p-2"
+              data-testid="workflow-node-error"
+            >
+              <div class="mb-1 text-xs font-semibold text-red-600">
+                {{ t('workflowEditor.nodeErrorDetails') }}
+              </div>
+              <pre class="whitespace-pre-wrap break-words text-xs text-red-700">{{ nodeResult.error }}</pre>
+            </div>
             <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs text-gray-600" data-testid="workflow-node-output">{{ formatDebugNodeOutputs(nodeResult.outputs) }}</pre>
           </article>
         </section>
