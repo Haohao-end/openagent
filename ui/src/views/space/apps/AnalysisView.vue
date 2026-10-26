@@ -290,7 +290,7 @@ onMounted(() => {
         <div class="text-base text-gray-700 font-semibold">{{ t('appStudio.analysis.overviewTitle') }}</div>
       </div>
       <a-spin :loading="getAppAnalysisLoading">
-        <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5">
+        <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-6">
           <overview-indicator
             :title="t('appStudio.analysis.trendCards.totalMessages.title')"
             :help="t('appStudio.analysis.trendCards.totalMessages.help')"
@@ -300,6 +300,17 @@ onMounted(() => {
           >
             <template #icon>
               <icon-dashboard class="text-blue-700" />
+            </template>
+          </overview-indicator>
+          <overview-indicator
+            :title="t('appStudio.analysis.trendCards.averageLatency.title')"
+            :help="t('appStudio.analysis.trendCards.averageLatency.help')"
+            :unit="t('appStudio.analysis.trendCards.averageLatency.unit')"
+            :data="app_analysis?.avg_latency?.data"
+            :pop="app_analysis?.avg_latency?.pop"
+          >
+            <template #icon>
+              <icon-clock-circle class="text-violet-700" />
             </template>
           </overview-indicator>
           <overview-indicator

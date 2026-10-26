@@ -1341,6 +1341,11 @@ export default {
           help: 'The average number of back-and-forth interactions per session. If a user talks with the AI for 10 rounds, this metric is 10. It reflects retention.',
           unit: 'times',
         },
+        averageLatency: {
+          title: 'Avg Response Latency',
+          help: 'Average elapsed time in seconds for completed responses, calculated from the latency recorded with each message over the last 7 days.',
+          unit: 'seconds',
+        },
         tokenOutputRate: {
           title: 'Token Output Rate',
           help: 'Measures LLM performance by tracking the token output speed from request start to completion.',
