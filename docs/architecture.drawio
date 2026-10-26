@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="OpenAgent documentation" version="24.7.17" type="device">
+  <diagram id="openagent-current" name="Current architecture / 当前架构">
+    <mxGraphModel dx="1418" dy="634" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="600" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="ui" value="Vue 3 UI / 前端&#xa;ui/src/views" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=14;" vertex="1" parent="1"><mxGeometry x="40" y="80" width="200" height="78" as="geometry"/></mxCell>
+        <mxCell id="client" value="External OpenAPI / 外部客户端" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=14;" vertex="1" parent="1"><mxGeometry x="40" y="240" width="200" height="70" as="geometry"/></mxCell>
+        <mxCell id="http" value="Flask HTTP API&#xa;api/app/http + router" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=14;" vertex="1" parent="1"><mxGeometry x="310" y="150" width="215" height="90" as="geometry"/></mxCell>
+        <mxCell id="svc" value="Handlers / Services&#xa;业务服务层" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=14;" vertex="1" parent="1"><mxGeometry x="590" y="150" width="215" height="90" as="geometry"/></mxCell>
+        <mxCell id="runtime" value="Agents / LangGraph&#xa;智能体与工作流" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=14;" vertex="1" parent="1"><mxGeometry x="875" y="35" width="215" height="85" as="geometry"/></mxCell>
+        <mxCell id="workers" value="Celery tasks / 异步任务&#xa;api/internal/task" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=14;" vertex="1" parent="1"><mxGeometry x="875" y="180" width="215" height="85" as="geometry"/></mxCell>
+        <mxCell id="llm" value="LLM providers / 模型提供商" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;fontSize=14;" vertex="1" parent="1"><mxGeometry x="1160" y="35" width="210" height="70" as="geometry"/></mxCell>
+        <mxCell id="tools" value="Tools / MCP / Retrieval&#xa;工具与检索" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;fontSize=14;" vertex="1" parent="1"><mxGeometry x="1160" y="160" width="210" height="82" as="geometry"/></mxCell>
+        <mxCell id="pg" value="PostgreSQL&#xa;持久化数据" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=14;" vertex="1" parent="1"><mxGeometry x="520" y="380" width="205" height="82" as="geometry"/></mxCell>
+        <mxCell id="redis" value="Redis&#xa;缓存与队列" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=14;" vertex="1" parent="1"><mxGeometry x="780" y="380" width="205" height="82" as="geometry"/></mxCell>
+        <mxCell id="weaviate" value="Weaviate&#xa;向量检索" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=14;" vertex="1" parent="1"><mxGeometry x="1040" y="380" width="205" height="82" as="geometry"/></mxCell>
+        <mxCell id="connection-1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="ui" target="http"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="connection-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="client" target="http"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="connection-3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="http" target="svc"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="connection-4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="svc" target="runtime"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="connection-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="svc" target="workers"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="connection-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="svc" target="pg"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="connection-7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="svc" target="redis"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="connection-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="svc" target="weaviate"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="connection-9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="runtime" target="llm"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="connection-10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="runtime" target="tools"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="connection-11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="workers" target="pg"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="connection-12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="workers" target="weaviate"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="legend" value="Source-level component view / 源码组件视图&#xa;Not a deployed topology / 非部署拓扑" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;fontSize=13;fontColor=#475569;align=left;" vertex="1" parent="1"><mxGeometry x="55" y="492" width="500" height="50" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
