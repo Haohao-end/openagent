@@ -236,6 +236,20 @@ watch(
             </template>
           </a-table-column>
           <a-table-column
+            :title="t('openapi.apiKeys.columns.lastUsedAt')"
+            data-index="last_used_at"
+            :width="160"
+            header-cell-class="!bg-gray-50 !text-gray-900 !font-semibold !border-b !border-gray-200"
+            cell-class="!py-4"
+          >
+            <template #cell="{ record }">
+              <div class="flex items-center gap-2 text-gray-600 text-sm whitespace-nowrap">
+                <icon-clock-circle class="text-gray-400 flex-shrink-0" :size="16" />
+                <span>{{ record.last_used_at ? formatTimestampDate(record.last_used_at) : t('openapi.apiKeys.neverUsed') }}</span>
+              </div>
+            </template>
+          </a-table-column>
+          <a-table-column
             :title="t('openapi.apiKeys.columns.remark')"
             data-index="remark"
             :width="280"

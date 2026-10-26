@@ -965,6 +965,7 @@ export default {
         key: 'Key',
         status: 'Status',
         createdAt: 'Created At',
+        lastUsedAt: 'Last Used',
         remark: 'Remark',
         actions: 'Actions',
       },
@@ -974,6 +975,7 @@ export default {
       editRemark: 'Edit remark',
       deleteKey: 'Delete key',
       noRemark: 'No remark',
+      neverUsed: 'Never used',
       loadFailed: 'Failed to load API keys. Please try again later.',
     },
     quickStart: {
