@@ -30,10 +30,8 @@ export const useWorkflowNodeSidebar = (options: UseWorkflowNodeSidebarOptions) =
   }
 
   const openNodePanel = (node: SelectedWorkflowNode) => {
-    if (!selectedNode.value || selectedNode.value.id !== node.id) {
-      selectedNode.value = node
-      nodeInfoVisible.value = true
-    }
+    selectedNode.value = node
+    nodeInfoVisible.value = true
     isDebug.value = false
   }
 
