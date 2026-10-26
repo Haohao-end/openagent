@@ -308,6 +308,25 @@ describe('LoginForm auto register flow', () => {
   })
 
 
+  it('allows one-time-code autofill for a login security challenge', async () => {
+    mocks.passwordLogin.mockResolvedValueOnce({
+      data: {
+        challenge_required: true,
+        challenge_id: 'challenge-1',
+        masked_email: 'd***@example.com',
+      },
+    })
+    const wrapper = renderForm()
+    try {
+      await fillLoginForm(wrapper, 'demo@example.com', 'Abcd1234')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+      expect(wrapper.get('input[placeholder="请输入6位验证码"]').attributes('autocomplete')).toBe('one-time-code')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('provides browser autocomplete hints for email and password login', () => {
     const wrapper = renderForm()
 
