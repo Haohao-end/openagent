@@ -70,6 +70,8 @@ OpenAgent 不是单一的聊天 Demo，而是一个面向团队和产品化场�
 
 点击图片可查看原始大图。
 
+详细源码架构说明：[架构文档](docs/architecture.zh-CN.md)。
+
 ### 技术栈
 
 - AI 开发框架与编排：LangChain、LangGraph、Workflow 编排、工具调用、A2A 委派、Skill、Memory

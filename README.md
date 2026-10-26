@@ -70,6 +70,8 @@ What the current codebase already supports:
 
 Click the diagram to view the full-resolution architecture image.
 
+Detailed source-level guide: [Architecture documentation](docs/architecture.md).
+
 ### Built With
 
 - AI framework and orchestration: LangChain, LangGraph, workflow orchestration, tool calling, A2A delegation, skills, memory
