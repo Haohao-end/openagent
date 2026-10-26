@@ -1514,6 +1514,8 @@ export default {
       queryPlaceholder: '输入同一条用户消息，默认提示词和对比提示词会同时流式输出结果',
       keyboardHint: 'Enter 发送，Shift + Enter 换行',
       clearCompare: '清空对比',
+      outputDiff: '最近一次输出差异',
+      elapsedDiff: '较默认提示词耗时：{value}',
       stopResponse: '停止响应',
       send: '发送',
     },
