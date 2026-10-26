@@ -20,4 +20,18 @@ describe('PromptCompareDiff', () => {
     expect(wrapper.find('.bg-red-100').text()).toBe('old')
     expect(wrapper.find('.bg-green-100').text()).toBe('new')
   })
+
+  it('labels an empty response instead of leaving its side blank', () => {
+    const wrapper = mount(PromptCompareDiff, {
+      props: {
+        baselineAnswer: '',
+        candidateAnswer: 'Candidate output',
+        baselineLatency: 1,
+        candidateLatency: 1,
+      },
+    })
+
+    expect(wrapper.text()).toContain('无输出')
+    expect(wrapper.text()).toContain('Candidate output')
+  })
 })

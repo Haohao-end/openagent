@@ -1516,6 +1516,7 @@ export default {
       keyboardHint: 'Enter 发送，Shift + Enter 换行',
       clearCompare: '清空对比',
       outputDiff: '最近一次输出差异',
+      emptyOutput: '无输出',
       elapsedDiff: '较默认提示词耗时：{value}',
       stopResponse: '停止响应',
       send: '发送',
