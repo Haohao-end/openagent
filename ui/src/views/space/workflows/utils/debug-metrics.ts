@@ -4,6 +4,8 @@ export type DebugNodeResult = {
     type?: string
     title?: string
   }
+  status?: string
+  error?: string
   outputs: unknown
   latency: number
 }
