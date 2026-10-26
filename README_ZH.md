@@ -30,6 +30,7 @@
     <img src="https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white" alt="Docker Compose" />
     <img src="https://img.shields.io/badge/weaviate-vector%20db-00C6A7" alt="Weaviate" />
     <a href="https://deepwiki.com/Haohao-end/openagent"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki" /></a>
+    <a href="https://mcpvault.io/servers/haohao-end-openagent"><img src="https://mcpvault.io/badge/haohao-end-openagent.svg" alt="MCPVault 项目目录" /></a>
   </p>
 </div>
 
