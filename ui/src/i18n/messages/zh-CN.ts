@@ -1327,6 +1327,11 @@ export default {
           help: '近 7 天已完成响应的平均耗时（秒），根据每条消息实际记录的 latency 计算。',
           unit: '秒',
         },
+        ragRetrievalLatency: {
+          title: '平均 RAG 检索耗时',
+          help: '根据近 7 天记录的知识库检索调用耗时计算；无检索样本时显示横线。',
+          unit: '秒',
+        },
         tokenOutputRate: {
           title: 'Token 输出速度',
           help: '衡量 LLM 的性能，统计 LLM 从请求到输出完毕这段期间内的 Tokens 输出速度。',
