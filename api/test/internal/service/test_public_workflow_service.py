@@ -11,6 +11,24 @@ from internal.exception import ForbiddenException, NotFoundException, ValidateEr
 from internal.service.public_workflow_service import PublicWorkflowService
 
 
+@pytest.fixture
+def _asia_shanghai_timezone():
+    import os
+    import time
+
+    previous_timezone = os.environ.get("TZ")
+    os.environ["TZ"] = "Asia/Shanghai"
+    time.tzset()
+    try:
+        yield
+    finally:
+        if previous_timezone is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = previous_timezone
+        time.tzset()
+
+
 def _field(value):
     return SimpleNamespace(data=value)
 
@@ -247,7 +265,7 @@ class TestPublicWorkflowService:
         with pytest.raises(ForbiddenException):
             service.unshare_workflow_from_square(workflow_id, account)
 
-    def test_get_public_workflows_with_page_should_return_basic_fields_and_fork_status(self, monkeypatch):
+    def test_get_public_workflows_with_page_should_return_basic_fields_and_fork_status(self, monkeypatch, _asia_shanghai_timezone):
         account = SimpleNamespace(id=uuid4())
         workflow = SimpleNamespace(
             id=uuid4(),
@@ -256,8 +274,8 @@ class TestPublicWorkflowService:
             icon="https://icon",
             description="desc",
             tags=[AppCategory.GENERAL.value],
-            published_at=datetime(2026, 1, 1, tzinfo=UTC),
-            created_at=datetime(2025, 12, 31, tzinfo=UTC),
+            published_at=datetime(2026, 1, 1),
+            created_at=datetime(2025, 12, 31),
         )
         session = _QueueSession([
             _Query(),
@@ -290,8 +308,8 @@ class TestPublicWorkflowService:
                 "icon": "https://icon",
                 "description": "desc",
                 "tags": [AppCategory.GENERAL.value],
-                "published_at": int(workflow.published_at.timestamp()),
-                "created_at": int(workflow.created_at.timestamp()),
+                "published_at": int(datetime(2026, 1, 1, tzinfo=UTC).timestamp()),
+                "created_at": int(datetime(2025, 12, 31, tzinfo=UTC).timestamp()),
                 "is_forked": True,
                 "account_name": "Owner",
                 "account_avatar": "https://avatar",
