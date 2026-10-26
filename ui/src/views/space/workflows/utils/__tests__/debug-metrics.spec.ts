@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatDebugNodeOutputs,
   findWorkflowOutputs,
   sumWorkflowLatency,
   sumWorkflowToolLatency,
@@ -37,6 +38,17 @@ const mockNodeResults: DebugNodeResult[] = [
 ]
 
 describe('debug-metrics', () => {
+  it('formats structured node outputs for display', () => {
+    expect(formatDebugNodeOutputs({ query: 'weather', count: 2 })).toBe(`{
+  "query": "weather",
+  "count": 2
+}`)
+  })
+
+  it('keeps text node outputs readable without JSON quoting', () => {
+    expect(formatDebugNodeOutputs('Sunny, 22°C')).toBe('Sunny, 22°C')
+  })
+
   it('returns end node outputs', () => {
     expect(findWorkflowOutputs(mockNodeResults)).toEqual({ text: 'done' })
   })

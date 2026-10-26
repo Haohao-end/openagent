@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useDebugWorkflow } from '@/hooks/use-workflow'
 import type { ValidatedError } from '@arco-design/web-vue'
 import {
+  formatDebugNodeOutputs,
   findWorkflowOutputs,
   sumWorkflowLatency,
   sumWorkflowToolLatency,
@@ -235,8 +236,22 @@ watch(
           <!-- 运行结果 -->
           <div v-if="outputs" class="bg-gray-700 rounded-lg p-3 text-white">{{ outputs }}</div>
         </div>
+        <section v-if="nodeResults.length > 0" class="mt-4 flex flex-col gap-2" data-testid="workflow-node-results">
+          <h3 class="text-sm font-semibold text-gray-700">{{ t('workflowEditor.nodeResults') }}</h3>
+          <article
+            v-for="(nodeResult, index) in nodeResults"
+            :key="index"
+            class="rounded-lg border border-gray-200 p-3"
+            data-testid="workflow-node-result"
+          >
+            <h4 class="mb-2 text-xs font-semibold text-gray-700">
+              {{ nodeResult.node_data.title || nodeResult.node_data.node_type || t('workflowEditor.output') }}
+            </h4>
+            <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs text-gray-600" data-testid="workflow-node-output">{{ formatDebugNodeOutputs(nodeResult.outputs) }}</pre>
+          </article>
+        </section>
         <!-- 空数据状态 -->
-        <a-empty v-if="!debugWorkflowLoading && !outputs && !debugWorkflowError" class="my-4">
+        <a-empty v-if="!debugWorkflowLoading && nodeResults.length === 0 && !outputs && !debugWorkflowError" class="my-4">
           {{ t('workflowEditor.noRunResults') }}
         </a-empty>
       </a-tab-pane>

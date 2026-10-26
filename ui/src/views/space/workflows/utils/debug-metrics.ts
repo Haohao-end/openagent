@@ -8,6 +8,16 @@ export type DebugNodeResult = {
   latency: number
 }
 
+export const formatDebugNodeOutputs = (outputs: unknown): string => {
+  if (typeof outputs === 'string') return outputs
+
+  try {
+    return JSON.stringify(outputs, null, 2) ?? String(outputs)
+  } catch {
+    return String(outputs)
+  }
+}
+
 export const findWorkflowOutputs = (nodeResults: DebugNodeResult[]): unknown => {
   const endNodeResult = nodeResults.find((item) => item.node_data.node_type === 'end')
   return endNodeResult ? endNodeResult.outputs : null

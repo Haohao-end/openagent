@@ -643,6 +643,7 @@ export default {
     descriptionPlaceholder: 'Enter a description...',
     noInputData: 'This workflow has no input data yet',
     noRunResults: 'This workflow has no debug results yet',
+    nodeResults: 'Node outputs',
     running: 'Workflow running',
     runFailed: 'Workflow failed',
     runSuccess: 'Success',
