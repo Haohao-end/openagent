@@ -1559,6 +1559,7 @@ export default {
       placeholder: 'App',
       nameLabel: 'App Name',
       nameRequired: 'App name is required',
+      nameTooLong: 'App name must be 40 characters or fewer',
       namePlaceholder: 'Enter the app name',
       descriptionLabel: 'App Description',
       descriptionPlaceholder: 'Enter a description for this app',
