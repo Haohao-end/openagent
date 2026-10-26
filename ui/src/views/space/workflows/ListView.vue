@@ -98,7 +98,7 @@ const handleCardClick = (workflowId: string) => {
             <!-- 顶部工作流名称 -->
             <div class="flex items-center gap-3 mb-3">
               <!-- 左侧图标 -->
-              <a-avatar :size="40" shape="square" :image-url="workflow.icon" />
+              <a-avatar :size="40" shape="square" class="flex-shrink-0" :image-url="workflow.icon" />
               <!-- 右侧信息 -->
               <div class="flex flex-1 justify-between">
                 <div class="flex flex-col min-w-0">
