@@ -75,7 +75,7 @@ const formItemStub = {
 }
 
 const inputStub = {
-  props: ['modelValue', 'placeholder', 'readonly', 'maxlength'],
+  props: ['modelValue', 'placeholder', 'readonly', 'maxlength', 'autocomplete'],
   emits: ['update:modelValue', 'keyup.enter'],
   template: `
     <label>
@@ -85,6 +85,7 @@ const inputStub = {
         :placeholder="placeholder"
         :readonly="readonly"
         :maxlength="maxlength"
+        :autocomplete="autocomplete"
         @input="$emit('update:modelValue', $event.target.value)"
         @keyup.enter="$emit('keyup.enter')"
       />
@@ -304,5 +305,13 @@ describe('LoginForm auto register flow', () => {
     expect(mocks.messageSuccess).toHaveBeenCalledWith('如果该邮箱已注册，验证码已发送，请查收')
     expect(wrapper.text()).toContain('输入验证码并设置新密码')
     expect(wrapper.find('input[placeholder="请输入6位验证码"]').exists()).toBe(true)
+  })
+
+
+  it('provides browser autocomplete hints for email and password login', () => {
+    const wrapper = renderForm()
+
+    expect(wrapper.get('input[placeholder="登录/注册账号"]').attributes('autocomplete')).toBe('username')
+    expect(wrapper.get('input[placeholder="账号密码"]').attributes('autocomplete')).toBe('current-password')
   })
 })
