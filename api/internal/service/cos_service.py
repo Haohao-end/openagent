@@ -256,8 +256,10 @@ class CosService:
 
         fallback_name = cls._build_download_filename(download_name)
         utf8_name = quote(download_name, safe="")
+        is_html = os.path.splitext(download_name)[1].lower() in {".html", ".htm"}
+        disposition_type = "inline" if is_html else "attachment"
         disposition = (
-            f"attachment; filename=\"{fallback_name}\"; "
+            f"{disposition_type}; filename=\"{fallback_name}\"; "
             f"filename*=UTF-8''{utf8_name}"
         )
         client = cls._get_client()
