@@ -1,6 +1,7 @@
 import base64
 import binascii
 import hashlib
+import hmac
 import re
 from typing import Any
 
@@ -15,12 +16,22 @@ def validate_password(password: str, pattern: str = password_pattern):
     return
 
 
-def hash_password(password: str, salt: Any) -> bytes:
-    """将传入的密码+颜值进行哈希加密"""
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 10000)
-    return binascii.hexlify(dk)
+PBKDF2_ITERATIONS = 600_000
+_LEGACY_PBKDF2_ITERATIONS = 10_000
+
+
+def hash_password(password: str, salt: Any, iterations: int = PBKDF2_ITERATIONS) -> bytes:
+    """将传入的密码和盐值进行哈希加密。"""
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+    return binascii.hexlify(digest)
 
 
 def compare_password(password: str, password_hashed_base64: Any, salt_base64: Any) -> bool:
-    """根据传递的密码+颜值校验比对是否一致"""
-    return hash_password(password, base64.b64decode(salt_base64)) == base64.b64decode(password_hashed_base64)
+    """校验密码，兼容升级前使用 10,000 轮 PBKDF2 的已有哈希。"""
+    salt = base64.b64decode(salt_base64)
+    expected = base64.b64decode(password_hashed_base64)
+    for iterations in (PBKDF2_ITERATIONS, _LEGACY_PBKDF2_ITERATIONS):
+        candidate = hash_password(password, salt, iterations=iterations)
+        if hmac.compare_digest(candidate, expected):
+            return True
+    return False
