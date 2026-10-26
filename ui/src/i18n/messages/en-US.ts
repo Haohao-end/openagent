@@ -1346,6 +1346,11 @@ export default {
           help: 'Average elapsed time in seconds for completed responses, calculated from the latency recorded with each message over the last 7 days.',
           unit: 'seconds',
         },
+        ragRetrievalLatency: {
+          title: 'Avg RAG Retrieval Latency',
+          help: 'Average recorded duration of dataset retrieval calls over the last 7 days. Shows a dash when no retrieval samples are available.',
+          unit: 'seconds',
+        },
         tokenOutputRate: {
           title: 'Token Output Rate',
           help: 'Measures LLM performance by tracking the token output speed from request start to completion.',

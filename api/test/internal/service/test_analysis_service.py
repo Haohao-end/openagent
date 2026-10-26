@@ -50,12 +50,20 @@ class TestAnalysisService:
             "get_messages_by_time_range",
             lambda *_args, **_kwargs: message_sets.pop(0),
         )
+        retrieval_sets = [1.5, 2.0]
+        monkeypatch.setattr(
+            service,
+            "get_rag_latency_by_time_range",
+            lambda *_args, **_kwargs: retrieval_sets.pop(0),
+        )
 
         result = service.get_app_analysis(app.id, SimpleNamespace(id=uuid4()))
 
         assert result["total_messages"]["data"] == 2
         assert result["active_accounts"]["data"] >= 1
         assert result["avg_latency"]["data"] == pytest.approx(1.5)
+        assert result["rag_retrieval_latency"]["data"] == pytest.approx(1.5)
+        assert result["rag_retrieval_latency"]["pop"] == pytest.approx(-0.25)
         assert len(result["total_messages_trend"]["x_axis"]) == 7
         assert len(result["total_messages_trend"]["y_axis"]) == 7
 
@@ -70,11 +78,13 @@ class TestAnalysisService:
             "get_messages_by_time_range",
             lambda *_args, **_kwargs: message_sets.pop(0),
         )
+        monkeypatch.setattr(service, "get_rag_latency_by_time_range", lambda *_args: None)
 
         result = service.get_app_analysis(app.id, SimpleNamespace(id=uuid4()))
 
         assert result["total_messages"]["data"] == 0
         assert result["avg_latency"]["data"] == 0.0
+        assert result["rag_retrieval_latency"] == {"data": None, "pop": None}
 
     def test_calculate_overview_indicators_should_handle_zero_division_safely(self):
         indicators = AnalysisService.calculate_overview_indicators_by_messages([])
@@ -146,6 +156,27 @@ class TestAnalysisService:
         assert query.with_entities_called is True
         assert query.filter_called is True
         assert result == messages
+
+    def test_get_rag_latency_by_time_range_uses_persisted_retrieval_events(self):
+        class _Query:
+            def filter(self, *conditions):
+                self.conditions = conditions
+                return self
+
+            def scalar(self):
+                return 1.25
+
+        query = _Query()
+        service = AnalysisService(
+            db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args: query)),
+            app_service=SimpleNamespace(),
+        )
+        result = service.get_rag_latency_by_time_range(
+            SimpleNamespace(id=uuid4()), datetime(2024, 1, 1), datetime(2024, 1, 2),
+        )
+
+        assert result == 1.25
+        assert len(query.conditions) == 4
 
     def test_calculate_trend_by_messages_should_generate_fixed_length_series(self):
         end_at = datetime(2024, 1, 8, 18, 30, 0)
