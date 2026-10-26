@@ -644,6 +644,7 @@ export default {
     noInputData: 'This workflow has no input data yet',
     noRunResults: 'This workflow has no debug results yet',
     nodeResults: 'Node outputs',
+    nodeErrorDetails: 'Node error details',
     running: 'Workflow running',
     runFailed: 'Workflow failed',
     runSuccess: 'Success',
