@@ -314,6 +314,17 @@ onMounted(() => {
             </template>
           </overview-indicator>
           <overview-indicator
+            :title="t('appStudio.analysis.trendCards.ragRetrievalLatency.title')"
+            :help="t('appStudio.analysis.trendCards.ragRetrievalLatency.help')"
+            :unit="t('appStudio.analysis.trendCards.ragRetrievalLatency.unit')"
+            :data="app_analysis?.rag_retrieval_latency?.data"
+            :pop="app_analysis?.rag_retrieval_latency?.pop"
+          >
+            <template #icon>
+              <icon-search class="text-indigo-700" />
+            </template>
+          </overview-indicator>
+          <overview-indicator
             :title="t('appStudio.analysis.trendCards.activeAccounts.title')"
             :help="t('appStudio.analysis.trendCards.activeAccounts.help')"
             :unit="t('appStudio.analysis.trendCards.activeAccounts.unit')"
