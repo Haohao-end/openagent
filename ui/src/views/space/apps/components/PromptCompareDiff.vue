@@ -14,6 +14,8 @@ const props = defineProps<{
   candidateLatency: number
   baselineErrorType?: PromptCompareErrorType
   candidateErrorType?: PromptCompareErrorType
+  baselineTokenCount: number
+  candidateTokenCount: number
 }>()
 
 const { t } = useI18n()
@@ -30,6 +32,11 @@ const formattedLatencyDelta = computed(() => {
   const sign = latencyDelta.value > 0 ? '+' : ''
   return `${sign}${latencyDelta.value.toFixed(2)}s`
 })
+const tokenCountDelta = computed(() => props.candidateTokenCount - props.baselineTokenCount)
+const formattedTokenCountDelta = computed(() => {
+  const sign = tokenCountDelta.value > 0 ? '+' : ''
+  return `${sign}${tokenCountDelta.value}`
+})
 </script>
 
 <template>
@@ -38,7 +45,14 @@ const formattedLatencyDelta = computed(() => {
       class="flex cursor-pointer list-none items-center justify-between gap-3 text-xs text-gray-600"
     >
       <span class="font-semibold">{{ t('appStudio.promptCompare.outputDiff') }}</span>
-      <span>{{ t('appStudio.promptCompare.elapsedDiff', { value: formattedLatencyDelta }) }}</span>
+      <span class="flex flex-wrap justify-end gap-x-3">
+        <span>{{
+          t('appStudio.promptCompare.elapsedDiff', { value: formattedLatencyDelta })
+        }}</span>
+        <span>{{
+          t('appStudio.promptCompare.tokenCountDiff', { value: formattedTokenCountDelta })
+        }}</span>
+      </span>
     </summary>
     <p
       v-if="baselineErrorType || candidateErrorType"

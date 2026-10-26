@@ -1540,6 +1540,7 @@ export default {
       error: 'Error',
       timeout: 'Timed out',
       noError: 'None',
+      tokenCountDiff: 'Token count difference vs baseline: {value}',
       stopResponse: 'Stop',
       send: 'Send',
     },

@@ -449,6 +449,8 @@ onMounted(async () => {
           :candidate-latency="latestComparePair.candidate.latency"
           :baseline-error-type="latestComparePair.baseline.errorType"
           :candidate-error-type="latestComparePair.candidate.errorType"
+          :baseline-token-count="latestComparePair.baseline.total_token_count"
+          :candidate-token-count="latestComparePair.candidate.total_token_count"
         />
 
         <div class="border-t border-gray-100 px-4 py-3">

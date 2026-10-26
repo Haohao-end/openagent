@@ -1521,6 +1521,7 @@ export default {
       error: '错误',
       timeout: '超时',
       noError: '无',
+      tokenCountDiff: '较默认提示词 Token 数差异：{value}',
       stopResponse: '停止响应',
       send: '发送',
     },
