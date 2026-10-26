@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     total_messages: { data: 128, pop: 12 },
     active_accounts: { data: 16, pop: 4 },
     avg_of_conversation_messages: { data: 4.2, pop: 0.3 },
+    avg_latency: { data: 1.5, pop: 0.2 },
     token_output_rate: { data: 1280, pop: 18 },
     cost_consumption: { data: 36.5, pop: 2.1 },
     total_messages_trend: {
@@ -72,6 +73,9 @@ vi.mock('vue-i18n', () => {
     'appStudio.analysis.trendCards.avgConversationMessages.title': '平均会话互动数',
     'appStudio.analysis.trendCards.avgConversationMessages.help': '平均会话互动数说明',
     'appStudio.analysis.trendCards.avgConversationMessages.unit': '次',
+    'appStudio.analysis.trendCards.averageLatency.title': '平均响应耗时',
+    'appStudio.analysis.trendCards.averageLatency.help': '平均响应耗时说明',
+    'appStudio.analysis.trendCards.averageLatency.unit': '秒',
     'appStudio.analysis.trendCards.tokenOutputRate.title': 'Token 输出速度',
     'appStudio.analysis.trendCards.tokenOutputRate.help': 'Token 输出速度说明',
     'appStudio.analysis.trendCards.tokenOutputRate.unit': 'Ts/秒',
@@ -135,6 +139,7 @@ describe('AnalysisView', () => {
           'icon-dashboard': true,
           'icon-computer': true,
           'icon-bulb': true,
+          'icon-clock-circle': true,
           'icon-language': true,
           'icon-code': true,
           'icon-question-circle-fill': true,
@@ -147,6 +152,7 @@ describe('AnalysisView', () => {
     expect(mocks.loadAppAnalysis).toHaveBeenCalledWith('app-1')
     expect(wrapper.text()).toContain('概览指标')
     expect(wrapper.text()).toContain('详细指标')
+    expect(wrapper.text()).toContain('平均响应耗时')
     expect(wrapper.text()).not.toContain('统计分析看板')
     expect(wrapper.text()).not.toContain('通过近 7 天会话、活跃与成本趋势，快速洞察应用运营质量和资源消耗变化。')
     expect(wrapper.text()).not.toContain('数据范围：近 7 天')
