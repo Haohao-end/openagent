@@ -1,6 +1,11 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DebugModal from '@/views/space/workflows/components/DebugModal.vue'
+import { copyTextToClipboard } from '@/utils/clipboard'
+
+vi.mock('@/utils/clipboard', () => ({
+  copyTextToClipboard: vi.fn().mockResolvedValue(undefined),
+}))
 
 const mocks = vi.hoisted(() => ({
   handleDebugWorkflow: vi.fn(),
@@ -220,5 +225,33 @@ describe('DebugModal node outputs', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('network disconnected')
+  })
+
+
+  it('copies failed node error details for sharing with support or an assistant', async () => {
+    vi.mocked(copyTextToClipboard).mockResolvedValueOnce(undefined)
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
+      onData({
+        event: 'workflow',
+        data: {
+          node_data: { node_type: 'tool', type: 'tool', title: 'Weather' },
+          status: 'failed',
+          error: 'Weather provider returned HTTP 503',
+          outputs: {},
+          latency: 0.2,
+        },
+      })
+    })
+
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+    await wrapper.find('[data-testid="copy-node-error"]').trigger('click')
+    await flushPromises()
+
+    expect(copyTextToClipboard).toHaveBeenCalledWith('Weather provider returned HTTP 503')
   })
 })
