@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useVueFlow } from '@vue-flow/core'
+import { Message } from '@arco-design/web-vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDebugWorkflow } from '@/hooks/use-workflow'
+import { copyTextToClipboard } from '@/utils/clipboard'
 import type { ValidatedError } from '@arco-design/web-vue'
 import {
   formatDebugNodeOutputs,
@@ -31,6 +33,15 @@ const props = defineProps({
 const emits = defineEmits(['update:visible', 'debug-success'])
 const { t } = useI18n()
 const { nodes, edges } = useVueFlow()
+
+const copyNodeError = async (error: string) => {
+  try {
+    await copyTextToClipboard(error)
+    Message.success(t('workflowEditor.errorCopied'))
+  } catch {
+    Message.error(t('workflowEditor.errorCopyFailed'))
+  }
+}
 const form = ref<Record<string, string | number | boolean>>({})
 const nodeResults = ref<DebugNodeResult[]>([])
 const previousNodeId = ref('')
@@ -291,8 +302,18 @@ watch(
               class="mt-2 rounded border border-red-200 bg-red-50 p-2"
               data-testid="workflow-node-error"
             >
-              <div class="mb-1 text-xs font-semibold text-red-600">
-                {{ t('workflowEditor.nodeErrorDetails') }}
+              <div class="mb-1 flex items-center justify-between gap-2">
+                <div class="text-xs font-semibold text-red-600">
+                  {{ t('workflowEditor.nodeErrorDetails') }}
+                </div>
+                <button
+                  type="button"
+                  class="text-xs text-red-700 underline"
+                  data-testid="copy-node-error"
+                  @click="copyNodeError(String(nodeResult.error || ''))"
+                >
+                  {{ t('workflowEditor.copyError') }}
+                </button>
               </div>
               <pre class="whitespace-pre-wrap break-words text-xs text-red-700">{{ nodeResult.error }}</pre>
             </div>
