@@ -172,11 +172,16 @@ watch(
           field="name"
           :label="t('appStudio.createModal.nameLabel')"
           asterisk-position="end"
-          :rules="[{ required: true, message: t('appStudio.createModal.nameRequired') }]"
+          :rules="[
+            { required: true, message: t('appStudio.createModal.nameRequired') },
+            { max: 40, message: t('appStudio.createModal.nameTooLong') },
+          ]"
         >
           <a-input
             v-model:model-value="form.name"
             :placeholder="t('appStudio.createModal.namePlaceholder')"
+            :max-length="40"
+            show-word-limit
             size="large"
             class="rounded-lg"
           />

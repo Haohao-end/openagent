@@ -1540,6 +1540,7 @@ export default {
       placeholder: '应用',
       nameLabel: '应用名称',
       nameRequired: '应用名称不能为空',
+      nameTooLong: '应用名称最多40个字符',
       namePlaceholder: '请输入应用名称',
       descriptionLabel: '应用描述',
       descriptionPlaceholder: '请输入关于该应用的描述信息',
