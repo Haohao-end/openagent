@@ -7,6 +7,7 @@ import HumanMessage from '@/components/HumanMessage.vue'
 import AiMessage from '@/components/AiMessage.vue'
 import MarkdownEditor from '@/components/MarkdownEditor.vue'
 import PromptOptimizeTrigger from '@/components/PromptOptimizeTrigger.vue'
+import PromptCompareDiff from './components/PromptCompareDiff.vue'
 import { useGetDraftAppConfig, useUpdateDraftAppConfig } from '@/hooks/use-app'
 import { useAccountStore } from '@/stores/account'
 import { getErrorMessage } from '@/utils/error'
@@ -76,6 +77,20 @@ const { handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
 
 const appId = computed(() => String(route.params?.app_id || ''))
 const anyLaneLoading = computed(() => lanes.value.some((lane) => lane.loading))
+const latestComparePair = computed(() => {
+  if (anyLaneLoading.value) return null
+
+  const baseline = lanes.value.find((lane) => lane.key === 'baseline')?.messages
+  const candidate = lanes.value.find((lane) => lane.key === 'candidate')?.messages
+  const baselineMessage = baseline?.[baseline.length - 1]
+  const candidateMessage = candidate?.[candidate.length - 1]
+
+  if (!baselineMessage || !candidateMessage || baselineMessage.query !== candidateMessage.query) {
+    return null
+  }
+
+  return { baseline: baselineMessage, candidate: candidateMessage }
+})
 
 const createLocalUuid = () => {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
@@ -420,6 +435,14 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+
+        <prompt-compare-diff
+          v-if="latestComparePair"
+          :baseline-answer="latestComparePair.baseline.answer"
+          :candidate-answer="latestComparePair.candidate.answer"
+          :baseline-latency="latestComparePair.baseline.latency"
+          :candidate-latency="latestComparePair.candidate.latency"
+        />
 
         <div class="border-t border-gray-100 px-4 py-3">
           <div class="rounded-[28px] border border-gray-200 bg-white px-4 py-3 shadow-sm">
