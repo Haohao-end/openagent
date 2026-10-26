@@ -1321,6 +1321,11 @@ export default {
           help: '反映每个会话用户的持续沟通次数，如果用户与 AI 进行了 10 轮对话，即为 10，该指标反映了用户粘性。',
           unit: '次',
         },
+        averageLatency: {
+          title: '平均响应耗时',
+          help: '近 7 天已完成响应的平均耗时（秒），根据每条消息实际记录的 latency 计算。',
+          unit: '秒',
+        },
         tokenOutputRate: {
           title: 'Token 输出速度',
           help: '衡量 LLM 的性能，统计 LLM 从请求到输出完毕这段期间内的 Tokens 输出速度。',

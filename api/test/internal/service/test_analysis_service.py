@@ -55,6 +55,7 @@ class TestAnalysisService:
 
         assert result["total_messages"]["data"] == 2
         assert result["active_accounts"]["data"] >= 1
+        assert result["avg_latency"]["data"] == pytest.approx(1.5)
         assert len(result["total_messages_trend"]["x_axis"]) == 7
         assert len(result["total_messages_trend"]["y_axis"]) == 7
 
@@ -73,12 +74,14 @@ class TestAnalysisService:
         result = service.get_app_analysis(app.id, SimpleNamespace(id=uuid4()))
 
         assert result["total_messages"]["data"] == 0
+        assert result["avg_latency"]["data"] == 0.0
 
     def test_calculate_overview_indicators_should_handle_zero_division_safely(self):
         indicators = AnalysisService.calculate_overview_indicators_by_messages([])
 
         assert indicators["total_messages"] == 0
         assert indicators["active_accounts"] == 0
+        assert indicators["avg_latency"] == 0.0
         assert indicators["avg_of_conversation_messages"] == 0.0
         assert indicators["token_output_rate"] == 0.0
         assert indicators["cost_consumption"] == 0.0
@@ -88,6 +91,7 @@ class TestAnalysisService:
             "total_messages": 10,
             "active_accounts": 3,
             "avg_of_conversation_messages": 2.5,
+            "avg_latency": 6.0,
             "token_output_rate": 30.0,
             "cost_consumption": 6.0,
         }
@@ -95,6 +99,7 @@ class TestAnalysisService:
             "total_messages": 5,
             "active_accounts": 0,
             "avg_of_conversation_messages": 2.0,
+            "avg_latency": 3.0,
             "token_output_rate": 0.0,
             "cost_consumption": 3.0,
         }
@@ -104,6 +109,7 @@ class TestAnalysisService:
         assert pop["total_messages"] == pytest.approx(1.0)
         assert pop["active_accounts"] == 0.0
         assert pop["avg_of_conversation_messages"] == pytest.approx(0.25)
+        assert pop["avg_latency"] == pytest.approx(1.0)
         assert pop["token_output_rate"] == 0.0
         assert pop["cost_consumption"] == pytest.approx(1.0)
 
