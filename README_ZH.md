@@ -153,6 +153,16 @@ OpenAgent 不是单一的聊天 Demo，而是一个面向团队和产品化场�
 
 ### 本地开发
 
+本地开发时仅通过 Docker 启动基础设施，API 和 UI 在宿主机直接运行，避免构建或启动 API、UI、Celery、Nginx 容器：
+
+```bash
+cd docker
+docker compose up -d --no-build llmops-db llmops-redis llmops-weaviate
+docker compose ps llmops-db llmops-redis llmops-weaviate
+```
+
+本地 `api/.env` 中的 PostgreSQL、Redis、Weaviate 连接地址应使用 `localhost` 和映射端口，详细配置见 [Docker 配置说明](docker/README.md)。完整的 `docker compose up -d --build` 属于容器化部署流程，不适用于此本地开发方式。
+
 后端：
 
 ```bash
