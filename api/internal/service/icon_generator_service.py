@@ -1,6 +1,7 @@
 import logging
 import uuid
 from dataclasses import dataclass
+from io import BytesIO
 from typing import Optional
 
 import requests
@@ -9,6 +10,7 @@ from injector import inject
 from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from PIL import Image, UnidentifiedImageError
 
 from internal.core.language_model import LanguageModelManager
 from internal.entity.app_entity import GENERATE_ICON_PROMPT_TEMPLATE
@@ -17,6 +19,11 @@ from internal.lib.helper import utc_now_naive
 from internal.lib.safe_http_client import safe_request
 from .base_service import BaseService
 from .cos_service import CosService
+
+
+MAX_ICON_IMAGE_BYTES = 20 * 1024 * 1024
+MAX_ICON_IMAGE_PIXELS = 20_000_000
+SUPPORTED_ICON_IMAGE_FORMATS = {"PNG", "JPEG", "WEBP"}
 
 
 @inject
@@ -252,10 +259,31 @@ class IconGeneratorService(BaseService):
         Returns:
             str: COS中的图片URL
         """
-        # 1. 下载图片
-        response = safe_request("GET", image_url, timeout=30)
+        # 1. 流式下载并限制体积，避免异常上游响应占用过多内存。
+        response = safe_request("GET", image_url, timeout=30, stream=True)
+        image_chunks = []
+        image_size = 0
+        try:
+            response.raise_for_status()
+            content_length = response.headers.get("Content-Length")
+            if content_length:
+                try:
+                    if int(content_length) > MAX_ICON_IMAGE_BYTES:
+                        raise FailException("图标文件超过大小限制")
+                except ValueError as error:
+                    raise FailException("图标响应长度无效") from error
 
-        image_data = response.content
+            for chunk in response.iter_content(chunk_size=64 * 1024):
+                if not chunk:
+                    continue
+                image_size += len(chunk)
+                if image_size > MAX_ICON_IMAGE_BYTES:
+                    raise FailException("图标文件超过大小限制")
+                image_chunks.append(chunk)
+        finally:
+            response.close()
+
+        image_data = self._normalize_icon_image(b"".join(image_chunks))
 
         # 2. 获取COS客户端和存储桶
         client = self.cos_service._get_client()
@@ -280,3 +308,26 @@ class IconGeneratorService(BaseService):
             raise FailException("COS_DOMAIN 未配置")
 
         return f"{cos_domain}/{upload_filename}"
+
+    @staticmethod
+    def _normalize_icon_image(image_data: bytes) -> bytes:
+        """校验生成结果为受支持的栅格图片，并统一编码为 PNG。"""
+        try:
+            with Image.open(BytesIO(image_data)) as image:
+                if image.format not in SUPPORTED_ICON_IMAGE_FORMATS:
+                    raise FailException("图标生成服务返回了不支持的图片格式")
+                width, height = image.size
+                if width <= 0 or height <= 0 or width * height > MAX_ICON_IMAGE_PIXELS:
+                    raise FailException("图标图片尺寸无效或超过限制")
+                image.verify()
+
+            with Image.open(BytesIO(image_data)) as image:
+                image.load()
+                normalized_image = image.convert("RGBA")
+                output = BytesIO()
+                normalized_image.save(output, format="PNG", optimize=True)
+                return output.getvalue()
+        except FailException:
+            raise
+        except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as error:
+            raise FailException("图标生成服务返回了无效图片") from error
