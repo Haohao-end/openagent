@@ -1,9 +1,11 @@
 from datetime import datetime
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
+from PIL import Image
 
 from internal.exception import FailException
 from internal.service.icon_generator_service import IconGeneratorService
@@ -39,6 +41,21 @@ def _mock_safe_request(response, snapshot=None):
     return _safe_request
 
 
+def _image_bytes(image_format="PNG"):
+    image = Image.new("RGB", (2, 2), color=(20, 80, 160))
+    output = BytesIO()
+    image.save(output, format=image_format)
+    return output.getvalue()
+
+
+def _mock_image_response(image_data):
+    response = Mock()
+    response.headers = {"Content-Length": str(len(image_data))}
+    response.iter_content.return_value = [image_data]
+    response.raise_for_status = Mock()
+    return response
+
+
 @pytest.fixture(autouse=True)
 def _mock_icon_prompt_generation(monkeypatch):
     """默认阻断提示词外部调用，避免测试触发真实网络重试。"""
@@ -64,9 +81,7 @@ class TestIconGeneratorService:
         }
         mock_response.raise_for_status = Mock()
 
-        mock_download_response = Mock()
-        mock_download_response.content = b"fake-image-data"
-        mock_download_response.raise_for_status = Mock()
+        mock_download_response = _mock_image_response(_image_bytes())
 
         with patch(
             "internal.service.icon_generator_service.safe_request",
@@ -204,9 +219,7 @@ class TestIconGeneratorService:
             lambda: datetime(2026, 1, 2, 3, 4, 5),
         )
 
-        mock_download_response = Mock()
-        mock_download_response.content = b"fake-image-data"
-        mock_download_response.raise_for_status = Mock()
+        mock_download_response = _mock_image_response(_image_bytes())
 
         with patch(
             "internal.service.icon_generator_service.safe_request",
@@ -228,7 +241,7 @@ class TestIconGeneratorService:
 
             call_args = mock_cos_client.put_object.call_args
             assert call_args[1]["Bucket"] == "test-bucket"
-            assert call_args[1]["Body"] == b"fake-image-data"
+            assert call_args[1]["Body"].startswith(b"\x89PNG\r\n\x1a\n")
             assert call_args[1]["ContentType"] == "image/png"
 
     def test_download_and_upload_image_should_raise_when_cos_domain_missing(self, monkeypatch):
@@ -236,9 +249,7 @@ class TestIconGeneratorService:
         mock_app.config = {}
         monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
 
-        mock_download_response = Mock()
-        mock_download_response.content = b"image"
-        mock_download_response.raise_for_status = Mock()
+        mock_download_response = _mock_image_response(_image_bytes())
         monkeypatch.setattr("internal.service.icon_generator_service.safe_request", lambda *_args, **_kwargs: mock_download_response)
 
         mock_cos_service = SimpleNamespace(
@@ -249,6 +260,80 @@ class TestIconGeneratorService:
 
         with pytest.raises(FailException):
             service._download_and_upload_image("https://example.com/a.png", "kolors")
+
+    def test_download_and_upload_image_should_normalize_supported_format_to_png(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"COS_DOMAIN": "https://test.cos.com"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+        response = _mock_image_response(_image_bytes("JPEG"))
+        monkeypatch.setattr("internal.service.icon_generator_service.safe_request", lambda *_args, **_kwargs: response)
+        client = Mock()
+        service = _build_service(cos_service=SimpleNamespace(
+            _get_client=Mock(return_value=client),
+            _get_bucket=Mock(return_value="test-bucket"),
+        ))
+
+        service._download_and_upload_image("https://example.com/image.jpg", "test")
+
+        uploaded = client.put_object.call_args.kwargs
+        assert uploaded["ContentType"] == "image/png"
+        assert uploaded["Body"].startswith(b"\x89PNG\r\n\x1a\n")
+        response.close.assert_called_once()
+
+    def test_download_and_upload_image_should_reject_unsupported_format(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"COS_DOMAIN": "https://test.cos.com"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+        response = _mock_image_response(_image_bytes("GIF"))
+        monkeypatch.setattr("internal.service.icon_generator_service.safe_request", lambda *_args, **_kwargs: response)
+        client = Mock()
+        service = _build_service(cos_service=SimpleNamespace(
+            _get_client=Mock(return_value=client),
+            _get_bucket=Mock(return_value="test-bucket"),
+        ))
+
+        with pytest.raises(FailException, match="不支持的图片格式"):
+            service._download_and_upload_image("https://example.com/image.gif", "test")
+
+        client.put_object.assert_not_called()
+
+    def test_download_and_upload_image_should_reject_malformed_image(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"COS_DOMAIN": "https://test.cos.com"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+        response = _mock_image_response(b"not-an-image")
+        monkeypatch.setattr("internal.service.icon_generator_service.safe_request", lambda *_args, **_kwargs: response)
+        client = Mock()
+        service = _build_service(cos_service=SimpleNamespace(
+            _get_client=Mock(return_value=client),
+            _get_bucket=Mock(return_value="test-bucket"),
+        ))
+
+        with pytest.raises(FailException, match="无效图片"):
+            service._download_and_upload_image("https://example.com/image.png", "test")
+
+        client.put_object.assert_not_called()
+
+    def test_download_and_upload_image_should_reject_oversized_response(self):
+        response = _mock_image_response(b"x" * (20 * 1024 * 1024 + 1))
+        service = _build_service()
+
+        with patch("internal.service.icon_generator_service.safe_request", return_value=response):
+            with pytest.raises(FailException, match="超过大小限制"):
+                service._download_and_upload_image("https://example.com/image.png", "test")
+
+        response.close.assert_called_once()
+
+    def test_download_and_upload_image_should_reject_invalid_content_length(self):
+        response = _mock_image_response(_image_bytes())
+        response.headers["Content-Length"] = "unknown"
+        service = _build_service()
+
+        with patch("internal.service.icon_generator_service.safe_request", return_value=response):
+            with pytest.raises(FailException, match="响应长度无效"):
+                service._download_and_upload_image("https://example.com/image.png", "test")
+
+        response.close.assert_called_once()
 
     def test_generate_with_kolors_should_raise_when_images_empty(self, monkeypatch):
         mock_app = Mock()
