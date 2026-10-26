@@ -11,6 +11,11 @@ import {
   sumWorkflowToolLatency,
   type DebugNodeResult,
 } from '@/views/space/workflows/utils/debug-metrics'
+import {
+  clearWorkflowDebugVisualization as clearDebugCanvas,
+  markWorkflowDebugEdgeSucceeded as markDebugEdge,
+  markWorkflowDebugNodeSucceeded as markDebugNode,
+} from '@/views/space/workflows/utils/debug-visualization'
 
 type WorkflowInput = {
   name: string
@@ -25,9 +30,10 @@ const props = defineProps({
 })
 const emits = defineEmits(['update:visible', 'debug-success'])
 const { t } = useI18n()
-const { nodes } = useVueFlow()
+const { nodes, edges } = useVueFlow()
 const form = ref<Record<string, string | number | boolean>>({})
 const nodeResults = ref<DebugNodeResult[]>([])
+const previousNodeId = ref('')
 const activatedTab = ref('input')
 const {
   error: debugWorkflowError,
@@ -64,6 +70,8 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   // 6.1 运行前先将历史运行清空
   nodeResults.value = []
   debugWorkflowError.value = ''
+  previousNodeId.value = ''
+  clearDebugCanvas(nodes.value, edges.value)
 
   // 6.2 检查表单是否出错，如果出错则直接结束
   if (errors) return
@@ -71,7 +79,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   // 6.3 将tab选项切换到输出选项卡
   activatedTab.value = 'output'
 
-  // 6.4 调用hooks发起请求；同时接收流式失败事件，避免将错误载荷误当作节点结果。
+  // 6.4 处理成功节点和流式失败事件；错误载荷不能作为节点结果或执行路径处理。
   try {
     await handleDebugWorkflow(
       props.workflow_id,
@@ -92,7 +100,17 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
         }
 
         if (payload && typeof payload === 'object' && 'node_data' in payload) {
-          nodeResults.value.push(payload as DebugNodeResult)
+          const nodeResult = payload as DebugNodeResult
+          nodeResults.value.push(nodeResult)
+
+          const nodeId = nodeResult.node_data?.id
+          if (nodeId && nodeResult.status === 'succeeded') {
+            markDebugNode(nodes.value, nodeId)
+            if (previousNodeId.value) {
+              markDebugEdge(edges.value, previousNodeId.value, nodeId)
+            }
+            previousNodeId.value = nodeId
+          }
         }
       },
     )
@@ -114,6 +132,8 @@ watch(
     if (newValue) {
       debugWorkflowError.value = ''
       nodeResults.value = []
+      previousNodeId.value = ''
+      clearDebugCanvas(nodes.value, edges.value)
       activatedTab.value = 'input'
       form.value = {}
     }
