@@ -242,9 +242,19 @@ def ensure_macos_permissions() -> None:
 
 
 def activate_app(app: str) -> None:
-    safe_app = app.replace('"', '\\"')
-    script = f'tell application "{safe_app}" to activate'
-    subprocess.run(["osascript", "-e", script], check=False, capture_output=True, text=True)
+    script = "\n".join(
+        (
+            "on run argv",
+            "tell application (item 1 of argv) to activate",
+            "end run",
+        )
+    )
+    subprocess.run(
+        ["osascript", "-e", script, app],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
 
 
 def macos_window_payload(args: argparse.Namespace, frontmost: bool, include_list: bool) -> dict:
