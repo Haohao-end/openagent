@@ -2750,6 +2750,22 @@ class TestAppServiceDraftConfigValidation:
         with pytest.raises(ValidateErrorException):
             service._validate_draft_app_config({"model_config": model_config}, SimpleNamespace(id=uuid4()))
 
+    @pytest.mark.parametrize("parameters", [None, [], "invalid"])
+    def test_validate_should_reject_non_object_model_parameters(self, parameters):
+        service = _build_validation_service()
+
+        with pytest.raises(ValidateErrorException):
+            service._validate_draft_app_config(
+                {
+                    "model_config": {
+                        "provider": "provider-a",
+                        "model": "model-a",
+                        "parameters": parameters,
+                    }
+                },
+                SimpleNamespace(id=uuid4()),
+            )
+
     def test_validate_should_sanitize_model_parameters_with_defaults(self):
         service = _build_validation_service()
         payload = {

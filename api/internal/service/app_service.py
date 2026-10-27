@@ -1843,6 +1843,9 @@ class AppService(BaseService):
             if set(model_config.keys()) != {"provider", "model", "parameters"}:
                 raise ValidateErrorException("模型键配置格式错误 请核实后重试")
 
+            if not isinstance(model_config["parameters"], dict):
+                raise ValidateErrorException("模型参数配置格式错误 请核实后重试")
+
             # 3.3 判断模型提供者信息是否正确
             if not model_config["provider"] or not isinstance(model_config["provider"], str):
                 raise ValidateErrorException("模型服务提供商类型必须为字符串")
