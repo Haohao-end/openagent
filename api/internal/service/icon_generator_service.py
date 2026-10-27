@@ -203,7 +203,7 @@ class IconGeneratorService(BaseService):
         result = response.json()
         if not isinstance(result, dict):
             raise FailException(f"{provider_name} 返回的图片响应格式无效")
-        images = result.get("images") or []
+        images = result.get("images", [])
         if not isinstance(images, list):
             raise FailException(f"{provider_name} 返回的图片列表格式无效")
         if not images:

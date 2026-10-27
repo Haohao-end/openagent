@@ -480,7 +480,7 @@ class TestIconGeneratorService:
         with pytest.raises(FailException, match="图片响应格式无效"):
             service._generate_with_kolors("App", "description")
 
-    @pytest.mark.parametrize("images", [{"url": "https://cdn.example/icon.png"}, "unexpected"])
+    @pytest.mark.parametrize("images", [{"url": "https://cdn.example/icon.png"}, "unexpected", None, "", 0])
     def test_kolors_rejects_non_list_images(self, monkeypatch, images):
         app = Mock()
         app.config = {"SILICONFLOW_API_KEY": "test-key"}
