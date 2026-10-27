@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { copyTextToClipboard } from '../clipboard'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 const useFallbackCopy = (succeeds: boolean) => {
   vi.stubGlobal('navigator', {})
