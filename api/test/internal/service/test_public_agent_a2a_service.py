@@ -18,6 +18,33 @@ def _build_service(**kwargs) -> PublicAgentA2AService:
 
 
 class TestPublicAgentA2AService:
+    @pytest.mark.parametrize("execution_path", ["invoke", "stream"])
+    def test_public_agent_execution_should_create_one_runtime_agent(self, monkeypatch, execution_path):
+        runtime_agent_calls = []
+        runtime_agent = SimpleNamespace(invoke=lambda _state: None, stream=lambda _state: iter(()))
+        app_service = SimpleNamespace(
+            _build_runtime_tools=lambda *_args, **_kwargs: [],
+            _create_runtime_agent=lambda *_args, **_kwargs: runtime_agent_calls.append(True) or runtime_agent,
+        )
+        llm = SimpleNamespace(convert_to_human_message=lambda query, _images: query)
+        service = _build_service(
+            app_service=app_service,
+            app_config_service=SimpleNamespace(get_app_config=lambda _app: {}),
+            language_model_service=SimpleNamespace(load_language_model=lambda _config: llm),
+        )
+        app = SimpleNamespace(id=uuid4(), account_id=uuid4())
+
+        if execution_path == "invoke":
+            service._invoke_public_agent(app, "hello")
+        else:
+            conversation = SimpleNamespace(id=uuid4(), summary="", name="Existing")
+            monkeypatch.setattr(service, "_resolve_public_conversation", lambda *_args: conversation)
+            monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: SimpleNamespace(id=uuid4()))
+            monkeypatch.setattr(service, "_save_public_agent_thoughts", lambda **_kwargs: None)
+            list(service._stream_public_agent_events(app, "hello", "ctx", {}))
+
+        assert runtime_agent_calls == [True]
+
     def test_route_public_agents_should_search_and_delegate(self, monkeypatch):
         caller_account_id = uuid4()
         app_id = str(uuid4())
