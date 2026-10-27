@@ -311,6 +311,7 @@ describe('LoginForm auto register flow', () => {
 
     await forgotButton!.trigger('click')
     expect(wrapper.get('input[placeholder="请输入邮箱"]').attributes('autocomplete')).toBe('email')
+    expect(wrapper.get('input[placeholder="请输入邮箱"]').attributes('aria-label')).toBe('passwordResetForm.email')
     await wrapper.get('input[placeholder="请输入邮箱"]').setValue('missing@example.com')
 
     const sendCodeButton = findButtonContainingText(wrapper, '发送验证码')
@@ -323,8 +324,11 @@ describe('LoginForm auto register flow', () => {
     expect(mocks.messageSuccess).toHaveBeenCalledWith('如果该邮箱已注册，验证码已发送，请查收')
     expect(wrapper.text()).toContain('输入验证码并设置新密码')
     expect(wrapper.get('input[placeholder="请输入6位验证码"]').attributes('autocomplete')).toBe('one-time-code')
+    expect(wrapper.get('input[placeholder="请输入6位验证码"]').attributes('aria-label')).toBe('passwordResetForm.code')
     expect(wrapper.get('input[placeholder^="新密码("]').attributes('autocomplete')).toBe('new-password')
+    expect(wrapper.get('input[placeholder^="新密码("]').attributes('aria-label')).toBe('passwordResetForm.newPassword')
     expect(wrapper.get('input[placeholder="请再次输入新密码"]').attributes('autocomplete')).toBe('new-password')
+    expect(wrapper.get('input[placeholder="请再次输入新密码"]').attributes('aria-label')).toBe('passwordResetForm.confirmPassword')
   })
 
 

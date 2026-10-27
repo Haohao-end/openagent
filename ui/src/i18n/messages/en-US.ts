@@ -3,6 +3,12 @@ export default {
     accountEmail: 'Account email',
     accountPassword: 'Account password',
   },
+  passwordResetForm: {
+    email: 'Password reset email',
+    code: 'Password reset verification code',
+    newPassword: 'New password',
+    confirmPassword: 'Confirm new password',
+  },
   common: {
     actions: {
       cancel: 'Cancel',

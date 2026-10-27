@@ -3,6 +3,12 @@ export default {
     accountEmail: '登录邮箱地址',
     accountPassword: '账号密码',
   },
+  passwordResetForm: {
+    email: '找回密码邮箱',
+    code: '找回密码验证码',
+    newPassword: '新密码',
+    confirmPassword: '确认新密码',
+  },
   common: {
     actions: {
       cancel: '取消',
