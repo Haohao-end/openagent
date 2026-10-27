@@ -54,5 +54,7 @@ export const buildPromptCompareDiff = (
 }
 
 export const getPromptCompareLatencyDelta = (baselineSeconds: number, candidateSeconds: number) => {
+  if (!Number.isFinite(baselineSeconds) || !Number.isFinite(candidateSeconds)) return null
+  if (baselineSeconds < 0 || candidateSeconds < 0) return null
   return Number((candidateSeconds - baselineSeconds).toFixed(2))
 }
