@@ -122,8 +122,11 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
           if (nodeId && nodeResult.status === 'succeeded') {
             markDebugNode(nodes.value, nodeId)
             edges.value
-              .filter((edge) => edge.target === nodeId && succeededNodeIds.value.has(edge.source))
-              .forEach((edge) => markDebugEdge(edges.value, edge.source, nodeId))
+              .filter((edge) =>
+                (edge.target === nodeId && succeededNodeIds.value.has(edge.source)) ||
+                (edge.source === nodeId && succeededNodeIds.value.has(edge.target)),
+              )
+              .forEach((edge) => markDebugEdge(edges.value, edge.source, edge.target))
             succeededNodeIds.value.add(nodeId)
           }
         }
