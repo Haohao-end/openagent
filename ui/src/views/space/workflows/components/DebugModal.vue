@@ -121,10 +121,10 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
           const nodeId = nodeResult.node_data?.id
           if (nodeId && nodeResult.status === 'succeeded') {
             markDebugNode(nodes.value, nodeId)
-            if (previousNodeId.value) {
-              markDebugEdge(edges.value, previousNodeId.value, nodeId)
-            }
-            previousNodeId.value = nodeId
+            edges.value
+              .filter((edge) => edge.target === nodeId && succeededNodeIds.value.has(edge.source))
+              .forEach((edge) => markDebugEdge(edges.value, edge.source, nodeId))
+            succeededNodeIds.value.add(nodeId)
           }
         }
       },
