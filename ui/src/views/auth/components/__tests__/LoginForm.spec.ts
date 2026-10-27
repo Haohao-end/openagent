@@ -130,6 +130,7 @@ const renderForm = () => {
         $t: (key: string) => ({
           'authForm.accountEmail': 'Account email',
           'authForm.accountPassword': 'Account password',
+          'authForm.registerVerificationCode': 'Registration verification code',
           'authForm.registerEmail': 'Registration email',
           'authForm.registerPassword': 'Registration password',
           'authForm.loginChallengeCode': 'Login verification code',
@@ -301,6 +302,7 @@ describe('LoginForm auto register flow', () => {
     expect(mocks.prepareRegister).toHaveBeenCalledWith('register@example.com', 'Abcd1234')
     expect(wrapper.text()).toContain('首次注册需要完成邮箱验证码验证')
     expect(wrapper.get('input[placeholder="请输入6位验证码"]').attributes('autocomplete')).toBe('one-time-code')
+    expect(wrapper.get('input[placeholder="请输入6位验证码"]').attributes('aria-label')).toBe('Registration verification code')
   })
 
   it('uses the generic forgot-password message and proceeds to the reset step', async () => {
