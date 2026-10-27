@@ -9,7 +9,8 @@ from internal.lib import safe_http_client as client
 
 
 @pytest.mark.parametrize("status", [307, 308])
-def test_cross_origin_body_replay_is_rejected_before_second_request(monkeypatch, status):
+@pytest.mark.parametrize("method", ["POST", "GET"])
+def test_cross_origin_body_replay_is_rejected_before_second_request(monkeypatch, status, method):
     first = requests.Response()
     first.status_code = status
     first.headers["Location"] = "https://other.example/receive"
@@ -30,7 +31,7 @@ def test_cross_origin_body_replay_is_rejected_before_second_request(monkeypatch,
     monkeypatch.setattr(client, "_validate_safe_target", target)
 
     with pytest.raises(ValidateErrorException, match="禁止跨域重定向转发请求体"):
-        client.safe_request("POST", "https://source.example/start", json={"secret": "value"})
+        client.safe_request(method, "https://source.example/start", json={"secret": "value"})
 
     session.request.assert_called_once()
     first.raw.close.assert_called_once()
