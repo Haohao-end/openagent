@@ -270,6 +270,8 @@ describe('LoginForm auto register flow', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('使用邮箱完成注册，验证后即可登录')
+    expect(wrapper.get('input[placeholder="请输入注册邮箱"]').attributes('autocomplete')).toBe('email')
+    expect(wrapper.get('input[placeholder^="请设置密码"]').attributes('autocomplete')).toBe('new-password')
 
     const sendRegisterCodeButton = findButtonContainingText(wrapper, '发送注册验证码')
     expect(sendRegisterCodeButton).toBeTruthy()
@@ -279,6 +281,7 @@ describe('LoginForm auto register flow', () => {
 
     expect(mocks.prepareRegister).toHaveBeenCalledWith('register@example.com', 'Abcd1234')
     expect(wrapper.text()).toContain('首次注册需要完成邮箱验证码验证')
+    expect(wrapper.get('input[placeholder="请输入6位验证码"]').attributes('autocomplete')).toBe('one-time-code')
   })
 
   it('uses the generic forgot-password message and proceeds to the reset step', async () => {
