@@ -2,6 +2,7 @@ export default {
   authForm: {
     accountEmail: 'Account email',
     accountPassword: 'Account password',
+    registerVerificationCode: 'Registration verification code',
     registerEmail: 'Registration email',
     registerPassword: 'Registration password',
   },
