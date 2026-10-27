@@ -128,8 +128,10 @@ class McpHandler:
     def generate_icon_preview(self):
         """生成 MCP 图标预览。"""
         data = request.get_json(force=True, silent=True) or {}
-        name = str(data.get("name", "")).strip()
-        description = str(data.get("description", "")).strip()
+        raw_name = data.get("name")
+        raw_description = data.get("description")
+        name = raw_name.strip() if isinstance(raw_name, str) else ""
+        description = raw_description.strip() if isinstance(raw_description, str) else ""
         if not name:
             return validate_error_json({"name": ["MCP 名称不能为空"]})
 
