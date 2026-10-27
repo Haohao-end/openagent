@@ -1066,7 +1066,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
         </div>
 
         <a-form-item hide-label class="login-input !mb-3">
-          <a-input v-model="registerForm.email" size="large" readonly>
+          <a-input v-model="registerForm.email" size="large" readonly :input-attrs="{ 'aria-label': $t('authForm.registerEmail') }">
             <template #prefix>
               <icon-email class="text-slate-400" />
             </template>
