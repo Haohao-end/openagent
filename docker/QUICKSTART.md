@@ -131,16 +131,22 @@ docker compose down
 docker compose up -d --build
 ```
 
-### 修改数据库密码
+### 轮换数据库和 Redis 密码
+
+PostgreSQL 已有数据目录时，只修改环境变量不会更新数据库角色密码。先连接现有数据库并在 `psql` 提示符运行 `\password`，按提示为当前用户设置新密码：
 
 ```bash
-# 编辑 api/.env 中的数据库和 Redis 凭据
-vim ../api/.env
-
-# 删除数据并重新创建
-docker compose down -v
-docker compose up -d --build
+docker compose exec llmops-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
+
+然后将 `POSTGRES_PASSWORD` 和 `REDIS_PASSWORD` 更新到 `api/.env`，并仅重建使用这些配置的服务：
+
+```bash
+vim ../api/.env
+docker compose up -d --no-build --no-deps llmops-db llmops-redis llmops-api llmops-celery
+```
+
+不要使用 `docker compose down -v` 轮换密码；该命令会删除数据库、Redis 和 Weaviate 的持久化卷。
 
 ## 🎨 配置示例
 
