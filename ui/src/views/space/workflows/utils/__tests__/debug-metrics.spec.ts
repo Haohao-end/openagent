@@ -100,6 +100,14 @@ describe('debug-metrics', () => {
     expect(sumWorkflowLatency(mockNodeResults)).toBeCloseTo(0.65)
   })
 
+  it('includes legacy type-only tool nodes in tool duration', () => {
+    const events: DebugNodeResult[] = [
+      { node_data: { type: 'tool' }, outputs: null, latency: 0.3 },
+      { node_data: { type: 'end' }, outputs: null, latency: 0.2 },
+    ]
+    expect(sumWorkflowToolLatency(events)).toBeCloseTo(0.3)
+  })
+
   it('sums only tool node latency', () => {
     expect(sumWorkflowToolLatency(mockNodeResults)).toBeCloseTo(0.35)
   })
