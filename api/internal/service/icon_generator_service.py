@@ -295,7 +295,10 @@ class IconGeneratorService(BaseService):
             content_length = response.headers.get("Content-Length")
             if content_length:
                 try:
-                    if int(content_length) > MAX_ICON_IMAGE_BYTES:
+                    declared_length = int(content_length)
+                    if declared_length < 0:
+                        raise ValueError("negative content length")
+                    if declared_length > MAX_ICON_IMAGE_BYTES:
                         raise FailException("图标文件超过大小限制")
                 except ValueError as error:
                     raise FailException("图标响应长度无效") from error
