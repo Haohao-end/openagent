@@ -58,6 +58,23 @@ describe('PromptCompareDiff', () => {
     expect(wrapper.text()).not.toContain('NaNs')
   })
 
+  it.each([
+    [Number.NaN, 3],
+    [2, Number.POSITIVE_INFINITY],
+    [-1, 2],
+  ])('shows unavailable token delta for invalid counts %s and %s', (baseline, candidate) => {
+    const wrapper = mount(PromptCompareDiff, {
+      props: {
+        baselineAnswer: 'A', candidateAnswer: 'B',
+        baselineLatency: 1, candidateLatency: 1,
+        baselineTokenCount: baseline, candidateTokenCount: candidate,
+      },
+    })
+    expect(wrapper.text()).toContain('较默认提示词 Token 数差异：—')
+    expect(wrapper.text()).not.toContain('NaN')
+    wrapper.unmount()
+  })
+
   it('shows a negative token delta when the candidate uses fewer tokens', () => {
     const wrapper = mount(PromptCompareDiff, {
       props: {
