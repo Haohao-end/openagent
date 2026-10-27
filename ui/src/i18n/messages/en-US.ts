@@ -2,6 +2,8 @@ export default {
   authForm: {
     accountEmail: 'Account email',
     accountPassword: 'Account password',
+    registerEmail: 'Registration email',
+    registerPassword: 'Registration password',
   },
   common: {
     actions: {
