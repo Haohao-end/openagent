@@ -380,7 +380,16 @@ class TestIconGeneratorService:
         monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
 
         response = Mock()
-        response.json.return_value = {"images": [None, {}, {"url": 7}, {"url": " "}, {"url": "https://cdn.example/icon.png"}]}
+        response.json.return_value = {
+            "images": [
+                None,
+                {},
+                {"url": 7},
+                {"url": " "},
+                {"url": "not a URL"},
+                {"url": "https://cdn.example/icon.png"},
+            ]
+        }
         response.raise_for_status = Mock()
         monkeypatch.setattr("internal.service.icon_generator_service.safe_request", lambda *a, **kw: response)
 
