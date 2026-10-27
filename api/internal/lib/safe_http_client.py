@@ -250,6 +250,7 @@ def safe_request(
     current_data = data
     current_headers = dict(headers or {})
     current_cookies = cookies
+    current_auth = auth
     redirects_remaining = max_redirects
 
     session = _build_session(max_redirects=max_redirects)
@@ -269,7 +270,7 @@ def safe_request(
                     verify=verify,
                     cert=cert,
                     stream=stream,
-                    auth=auth,
+                    auth=current_auth,
                 )
             except ValidateErrorException:
                 raise
@@ -303,6 +304,7 @@ def safe_request(
                     if key.lower() not in {"authorization", "proxy-authorization", "cookie"}
                 }
                 current_cookies = None
+                current_auth = None
 
             if response.status_code == 303:
                 if current_method != "HEAD":
