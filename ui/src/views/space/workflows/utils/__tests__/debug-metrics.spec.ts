@@ -20,7 +20,6 @@ const mockNodeResults: DebugNodeResult[] = [
   {
     node_data: {
       node_type: 'tool',
-      type: 'tool',
       title: '工具节点',
     },
     outputs: { query: 'weather' },
