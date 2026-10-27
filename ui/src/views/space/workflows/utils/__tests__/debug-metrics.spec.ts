@@ -78,6 +78,13 @@ describe('debug-metrics', () => {
     expect(findWorkflowOutputs(updates)).toEqual({ answer: 'complete' })
   })
 
+  it('uses the legacy node type when end nodes omit node_type', () => {
+    const events: DebugNodeResult[] = [
+      { node_data: { type: 'end' }, outputs: { answer: 'legacy' }, latency: 0.2 },
+    ]
+    expect(findWorkflowOutputs(events)).toEqual({ answer: 'legacy' })
+  })
+
   it('returns null when end node is missing', () => {
     const withoutEnd = mockNodeResults.filter((item) => item.node_data.node_type !== 'end')
     expect(findWorkflowOutputs(withoutEnd)).toBeNull()
