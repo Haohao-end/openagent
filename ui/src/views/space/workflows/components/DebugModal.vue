@@ -114,6 +114,9 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
         if (payload && typeof payload === 'object' && 'node_data' in payload) {
           const nodeResult = payload as DebugNodeResult
           nodeResults.value.push(nodeResult)
+          if (nodeResult.status === 'failed') {
+            debugWorkflowError.value = nodeResult.error || t('workflowEditor.runFailed')
+          }
 
           const nodeId = nodeResult.node_data?.id
           if (nodeId && nodeResult.status === 'succeeded') {
@@ -260,7 +263,7 @@ watch(
           </div>
           <!-- 运行成功UI -->
           <div
-            v-if="hasOutputs"
+            v-if="hasOutputs && !debugWorkflowError"
             class="flex flex-col gap-2 bg-green-100 p-3 rounded-lg border border-green-500"
           >
             <!-- 状态统计 -->

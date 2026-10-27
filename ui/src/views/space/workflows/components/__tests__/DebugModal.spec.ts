@@ -170,6 +170,31 @@ describe('DebugModal node outputs', () => {
     expect(mocks.canvas.edges.every(({ class: className }) => !className)).toBe(true)
   })
 
+  it('does not report success when a failed end node includes output data', async () => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
+      onData({
+        data: {
+          node_data: { id: 'end-1', node_type: 'end', title: 'End' },
+          status: 'failed',
+          error: 'Failed to produce a valid answer',
+          outputs: { answer: 'partial result' },
+          latency: 0.2,
+        },
+      })
+    })
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Failed to produce a valid answer')
+    expect(wrapper.emitted('debug-success')).toBeUndefined()
+    expect(wrapper.get('[data-testid="workflow-node-error"]').text()).toContain('Failed to produce a valid answer')
+    wrapper.unmount()
+  })
+
   it('renders detailed error text for a failed node', async () => {
     mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
       onData({
