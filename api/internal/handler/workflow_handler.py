@@ -81,10 +81,11 @@ class WorkflowHandler:
     def update_draft_graph(self, workflow_id: UUID):
         """根据传递的工作流id+请求信息更新工作流草稿图配置"""
         # 1.提取草稿图接口请求json数据
-        draft_graph_dict = request.get_json(force=True, silent=True) or {
-            "nodes": [],
-            "edges": [],
-        }
+        draft_graph_dict = request.get_json(force=True, silent=True)
+        if draft_graph_dict is None:
+            draft_graph_dict = {"nodes": [], "edges": []}
+        elif not isinstance(draft_graph_dict, dict):
+            return validate_error_json({"graph": ["工作流草稿必须是对象"]})
 
         # 2.调用服务更新工作流的草稿图配置
         self.workflow_service.update_draft_graph(workflow_id, draft_graph_dict, current_user)
