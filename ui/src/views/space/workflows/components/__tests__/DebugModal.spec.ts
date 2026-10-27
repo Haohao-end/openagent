@@ -138,6 +138,23 @@ describe('DebugModal node outputs', () => {
     wrapper.unmount()
   })
 
+  it('shows the legacy node type when a debug event omits its title and node_type', async () => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_id, _inputs, onData) => {
+      onData({ data: {
+        node_data: { id: 'tool-1', type: 'tool' },
+        status: 'succeeded', outputs: {}, latency: 0.1,
+      } })
+    })
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="workflow-node-result"] h4').text()).toBe('tool')
+    wrapper.unmount()
+  })
+
   it('renders outputs for every node received from the workflow debug stream', async () => {
     const wrapper = mount(DebugModal, {
       props: { visible: true, workflow_id: 'workflow-1' },
