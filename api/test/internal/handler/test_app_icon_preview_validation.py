@@ -49,3 +49,17 @@ def test_generate_icon_preview_should_treat_null_description_as_empty():
     assert status_code == 200
     assert response.get_json()["code"] == HttpCode.SUCCESS
     assert captured == {"name": "app", "description": ""}
+
+
+@pytest.mark.parametrize("payload", ["invalid", 1])
+def test_generate_icon_preview_should_validate_non_object_json(payload):
+    handler = _handler(object())
+    test_app = Flask(__name__)
+
+    with test_app.test_request_context(
+        "/apps/generate-icon-preview", method="POST", json=payload
+    ):
+        response, status_code = handler.generate_icon_preview.__wrapped__(handler)
+
+    assert status_code == 200
+    assert response.get_json()["code"] == HttpCode.VALIDATE_ERROR
