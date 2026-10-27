@@ -25,30 +25,36 @@ const searchWord = ref('')
 const page = ref(1)
 const pageSize = ref(20)
 const hasMore = ref(true)
+let latestAppsRequest = 0
 
-const loadApps = async () => {
-  if (loading.value) return
+const loadApps = async (force = false) => {
+  if (loading.value && !force) return
   if (!hasMore.value && page.value > 1) return
 
+  const requestId = ++latestAppsRequest
+  const requestPage = page.value
   loading.value = true
   try {
     const res = await getPublicApps({
-      current_page: page.value,
+      current_page: requestPage,
       page_size: pageSize.value,
       tags: selectedTags.value.join(','),
       search_word: searchWord.value
     })
+    if (requestId !== latestAppsRequest) return
     const list = res.data.list
-    if (page.value === 1) {
+    if (requestPage === 1) {
       apps.value = list
     } else {
       apps.value.push(...list)
     }
-    hasMore.value = page.value < res.data.paginator.total_page
+    hasMore.value = requestPage < res.data.paginator.total_page
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('publicApps.list.loadAppsFailed')))
+    if (requestId === latestAppsRequest) {
+      Message.error(getErrorMessage(error, t('publicApps.list.loadAppsFailed')))
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestAppsRequest) loading.value = false
   }
 }
 
@@ -79,7 +85,7 @@ const handlePreview = (app: PublicApp) => {
 const refreshApps = () => {
   page.value = 1
   hasMore.value = true
-  void loadApps()
+  void loadApps(true)
 }
 
 const handleSelectAll = () => {
