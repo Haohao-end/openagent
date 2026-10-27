@@ -44,6 +44,12 @@ describe('debug-metrics', () => {
 }`)
   })
 
+  it('shows missing node output as unavailable instead of the word undefined', () => {
+    expect(formatDebugNodeOutputs(undefined)).toBe('—')
+    expect(formatDebugNodeOutputs(null)).toBe('null')
+    expect(formatDebugNodeOutputs('')).toBe('')
+  })
+
   it('keeps text node outputs readable without JSON quoting', () => {
     expect(formatDebugNodeOutputs('Sunny, 22°C')).toBe('Sunny, 22°C')
   })
