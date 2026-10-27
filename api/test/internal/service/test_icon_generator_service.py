@@ -536,6 +536,23 @@ class TestIconGeneratorService:
         with pytest.raises(FailException, match="图片列表格式无效"):
             service._generate_with_kolors("App", "description")
 
+    @pytest.mark.parametrize("invalid_url", [" ", "file:///etc/passwd", "javascript:alert(1)", "not a url"])
+    def test_dalle_rejects_non_http_image_urls_before_download(self, monkeypatch, invalid_url):
+        app = Mock()
+        app.config = {"OPENAI_API_KEY": "openai-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+        service = _build_service()
+        dalle = Mock()
+        dalle.run.return_value = invalid_url
+        monkeypatch.setattr("internal.service.icon_generator_service.DallEAPIWrapper", lambda **_kwargs: dalle)
+        download = Mock()
+        monkeypatch.setattr(service, "_download_and_upload_image", download)
+
+        with pytest.raises(FailException, match="DALLE 返回的图片URL为空"):
+            service._generate_with_dalle("Demo", "")
+
+        download.assert_not_called()
+
     def test_generate_with_dalle_should_raise_when_image_url_empty(self, monkeypatch):
         mock_app = Mock()
         mock_app.config = {"OPENAI_API_KEY": "openai-key"}
