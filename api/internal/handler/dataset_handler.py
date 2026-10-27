@@ -125,8 +125,10 @@ class DatasetHandler:
         """根据传递的名称和描述生成图标预览（不保存到知识库）"""
         # 1.获取请求数据
         data = request.get_json(force=True, silent=True) or {}
-        name = data.get('name', '').strip()
-        description = data.get('description', '').strip()
+        raw_name = data.get('name')
+        raw_description = data.get('description')
+        name = raw_name.strip() if isinstance(raw_name, str) else ''
+        description = raw_description.strip() if isinstance(raw_description, str) else ''
 
         # 2.校验名称不能为空
         if not name:
