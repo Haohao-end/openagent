@@ -302,7 +302,7 @@ watch(
             data-testid="workflow-node-result"
           >
             <h4 class="mb-2 text-xs font-semibold text-gray-700">
-              {{ nodeResult.node_data?.title || nodeResult.node_data?.node_type || t('workflowEditor.output') }}
+              {{ nodeResult.node_data?.title || nodeResult.node_data?.node_type || nodeResult.node_data?.type || t('workflowEditor.output') }}
             </h4>
             <div
               v-if="nodeResult.error || nodeResult.status === 'failed'"
