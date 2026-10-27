@@ -374,6 +374,32 @@ class TestIconGeneratorService:
         with pytest.raises(FailException, match="Kolors 返回的图片列表为空"):
             service._generate_with_kolors("测试应用", "desc")
 
+    def test_kolors_skips_invalid_image_entries_before_valid_url(self, monkeypatch):
+        app = Mock()
+        app.config = {"SILICONFLOW_API_KEY": "test-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+
+        response = Mock()
+        response.json.return_value = {
+            "images": [
+                None,
+                {},
+                {"url": 7},
+                {"url": " "},
+                {"url": "not a URL"},
+                {"url": "https://cdn.example/icon.png"},
+            ]
+        }
+        response.raise_for_status = Mock()
+        monkeypatch.setattr("internal.service.icon_generator_service.safe_request", lambda *a, **kw: response)
+
+        service = _build_service()
+        upload = Mock(return_value="https://cos.example/icon.png")
+        monkeypatch.setattr(service, "_download_and_upload_image", upload)
+
+        assert service._generate_with_kolors("App", "description") == "https://cos.example/icon.png"
+        upload.assert_called_once_with("https://cdn.example/icon.png", "kolors")
+
     def test_generate_with_kolors_should_raise_when_image_url_missing(self, monkeypatch):
         mock_app = Mock()
         mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
