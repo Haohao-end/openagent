@@ -150,8 +150,10 @@ class WorkflowHandler:
     def share_workflow_to_public(self, workflow_id: UUID):
         """分享或取消分享工作流到广场"""
         # 1.提取请求数据
-        data = request.get_json(force=True, silent=True) or {}
-        is_public = data.get("is_public", False)
+        data = request.get_json(force=True, silent=True)
+        if not isinstance(data, dict) or not isinstance(data.get("is_public"), bool):
+            return validate_error_json({"is_public": ["公开状态必须为布尔值"]})
+        is_public = data["is_public"]
 
         # 2.调用服务更新工作流公开状态
         self.workflow_service.share_workflow_to_public(workflow_id, current_user, is_public)
