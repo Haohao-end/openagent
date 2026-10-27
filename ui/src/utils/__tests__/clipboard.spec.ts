@@ -20,6 +20,24 @@ const useFallbackCopy = (succeeds: boolean) => {
 }
 
 describe('copyTextToClipboard fallback', () => {
+  it('falls back when the modern clipboard API rejects the write', async () => {
+    const original = Object.getOwnPropertyDescriptor(document, 'execCommand')
+    const execute = vi.fn(() => true)
+    const writeText = vi.fn().mockRejectedValue(new Error('NotAllowedError'))
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: execute })
+
+    try {
+      await expect(copyTextToClipboard('error details')).resolves.toBeUndefined()
+      expect(writeText).toHaveBeenCalledWith('error details')
+      expect(execute).toHaveBeenCalledWith('copy')
+      expect(document.querySelector('textarea')).toBeNull()
+    } finally {
+      if (original) Object.defineProperty(document, 'execCommand', original)
+      else Reflect.deleteProperty(document, 'execCommand')
+    }
+  })
+
   it('reports a rejected legacy copy instead of silently succeeding', async () => {
     const { execute, restore } = useFallbackCopy(false)
     try {
