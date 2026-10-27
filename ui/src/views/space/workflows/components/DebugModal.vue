@@ -44,7 +44,7 @@ const copyNodeError = async (error: string) => {
 }
 const form = ref<Record<string, string | number | boolean>>({})
 const nodeResults = ref<DebugNodeResult[]>([])
-const previousNodeId = ref('')
+const succeededNodeIds = ref<Set<string>>(new Set())
 const activatedTab = ref('input')
 const {
   error: debugWorkflowError,
