@@ -267,7 +267,7 @@ class IconGeneratorService(BaseService):
         )
 
         # 生成图片
-        image_url = dalle_api_wrapper.run(prompt)
+        image_url = _normalize_provider_image_url(dalle_api_wrapper.run(prompt))
 
         if not image_url:
             raise FailException("DALLE 返回的图片URL为空")
