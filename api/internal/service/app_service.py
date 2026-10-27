@@ -1904,7 +1904,7 @@ class AppService(BaseService):
         # 4.校验dialog_round上下文轮数，校验数据类型以及范围
         if "dialog_round" in draft_app_config:
             dialog_round = draft_app_config["dialog_round"]
-            if not isinstance(dialog_round, int) or not (0 <= dialog_round <= 100):
+            if type(dialog_round) is not int or not (0 <= dialog_round <= 100):
                 raise ValidateErrorException("携带上下文轮数范围为0-100")
 
         # 5.校验preset_prompt

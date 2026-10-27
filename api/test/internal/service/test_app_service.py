@@ -2985,6 +2985,16 @@ class TestAppServiceDraftConfigValidation:
         assert validated["text_to_speech"]["voice"] == ALLOWED_AUDIO_VOICES[0]
         assert validated["review_config"]["inputs_config"]["enable"] is True
 
+    @pytest.mark.parametrize("dialog_round", [True, False])
+    def test_validate_should_reject_boolean_dialog_round(self, dialog_round):
+        service = _build_validation_service()
+
+        with pytest.raises(ValidateErrorException):
+            service._validate_draft_app_config(
+                {"dialog_round": dialog_round},
+                SimpleNamespace(id=uuid4()),
+            )
+
     def test_validate_should_accept_and_normalize_mcp_bindings(self):
         service = _build_validation_service()
         payload = {
