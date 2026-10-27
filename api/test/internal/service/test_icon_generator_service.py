@@ -210,6 +210,24 @@ class TestIconGeneratorService:
         assert "rounded square app icon composition" in prompt
         assert "no text, no watermark, no extra elements" in prompt
 
+    def test_missing_cos_domain_rejects_before_download_or_upload(self, monkeypatch):
+        app = Mock()
+        app.config = {}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+        network_request = Mock()
+        monkeypatch.setattr("internal.service.icon_generator_service.safe_request", network_request)
+        cos_client = Mock()
+        service = _build_service(cos_service=SimpleNamespace(
+            _get_client=Mock(return_value=cos_client),
+            _get_bucket=Mock(return_value="test-bucket"),
+        ))
+
+        with pytest.raises(FailException, match="COS_DOMAIN 未配置"):
+            service._download_and_upload_image("https://example.com/icon.png", "kolors")
+
+        network_request.assert_not_called()
+        cos_client.put_object.assert_not_called()
+
     def test_download_and_upload_image(self, monkeypatch):
         mock_app = Mock()
         mock_app.config = {"COS_DOMAIN": "https://test.cos.com"}
