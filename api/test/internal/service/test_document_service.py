@@ -1,5 +1,7 @@
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier, Lock, local
 from types import SimpleNamespace
 from uuid import uuid4
 import sys
@@ -98,12 +100,17 @@ class _DummyLock:
 class _RedisStub:
     def __init__(self, get_value=None):
         self._get_value = get_value
+        self.set_calls = []
         self.setex_calls = []
         self.delete_calls = []
         self.lock_calls = []
 
     def get(self, _key):
         return self._get_value
+
+    def set(self, key, value, *, ex, nx):
+        self.set_calls.append((key, value, ex, nx))
+        return self._get_value is None
 
     def setex(self, key, ttl, value):
         self.setex_calls.append((key, ttl, value))
@@ -117,6 +124,64 @@ class _RedisStub:
 
 
 class TestDocumentService:
+    def test_update_document_enabled_should_acquire_lock_atomically(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        read_barrier = Barrier(2)
+        lock_guard = Lock()
+        acquired = False
+        documents = local()
+
+        class _ConcurrentRedis:
+            def get(self, _key):
+                read_barrier.wait(timeout=2)
+                return None
+
+            def set(self, _key, _value, *, ex, nx):
+                nonlocal acquired
+                assert nx is True and ex > 0
+                with lock_guard:
+                    if acquired:
+                        return None
+                    acquired = True
+                    return True
+
+            def setex(self, *_args):
+                pass
+
+        service = DocumentService(db=SimpleNamespace(session=SimpleNamespace()), redis_client=_ConcurrentRedis())
+
+        def get_document(*_args, **_kwargs):
+            documents.value = SimpleNamespace(
+                id=uuid4(),
+                dataset_id=dataset_id,
+                account_id=account.id,
+                status=DocumentStatus.COMPLETED.value,
+                enabled=False,
+            )
+            return documents.value
+
+        monkeypatch.setattr(service, "get", get_document)
+        monkeypatch.setattr(service, "update", lambda target, **_kwargs: target)
+        task_calls = []
+        monkeypatch.setattr(
+            "internal.service.document_service.update_document_enabled.delay",
+            lambda document_id: task_calls.append(document_id),
+        )
+
+        def update_enabled():
+            try:
+                service.update_document_enabled(dataset_id, uuid4(), True, account)
+                return "updated"
+            except FailException:
+                return "locked"
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _index: update_enabled(), range(2)))
+
+        assert sorted(results) == ["locked", "updated"]
+        assert len(task_calls) == 1
+
     def test_create_documents_should_raise_forbidden_when_dataset_not_accessible(self, monkeypatch):
         dataset_id = uuid4()
         account = SimpleNamespace(id=uuid4())
@@ -287,6 +352,27 @@ class TestDocumentService:
         with pytest.raises(FailException):
             service.update_document_enabled(dataset_id, document.id, True, account)
 
+    def test_update_document_enabled_should_release_lock_when_update_fails(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        document = SimpleNamespace(
+            id=uuid4(),
+            dataset_id=dataset_id,
+            account_id=account.id,
+            status=DocumentStatus.COMPLETED.value,
+            enabled=False,
+        )
+        redis_client = _RedisStub()
+        service = DocumentService(db=SimpleNamespace(session=SimpleNamespace()), redis_client=redis_client)
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: document)
+        monkeypatch.setattr(service, "update", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("db error")))
+
+        with pytest.raises(RuntimeError, match="db error"):
+            service.update_document_enabled(dataset_id, document.id, True, account)
+
+        assert len(redis_client.set_calls) == 1
+        assert redis_client.delete_calls == [redis_client.set_calls[0][0]]
+
     def test_update_document_enabled_should_update_state_lock_and_dispatch_task(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         dataset_id = uuid4()
@@ -318,7 +404,8 @@ class TestDocumentService:
         assert update_calls[0][0] is document
         assert update_calls[0][1]["enabled"] is True
         assert update_calls[0][1]["disabled_at"] is None
-        assert len(redis_client.setex_calls) == 1
+        assert len(redis_client.set_calls) == 1
+        assert redis_client.set_calls[0][3] is True
         assert task_calls == [document.id]
 
     def test_delete_document_should_raise_when_document_not_deletable(self, monkeypatch):
