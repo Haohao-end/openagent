@@ -195,6 +195,29 @@ describe('DebugModal node outputs', () => {
     wrapper.unmount()
   })
 
+  it('renders a node event without crashing if node metadata is null', async () => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_id, _inputs, onData) => {
+      onData({
+        data: {
+          node_data: null,
+          status: 'succeeded',
+          outputs: { message: 'missing node metadata' },
+          latency: 0.1,
+        },
+      })
+    })
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-testid="workflow-node-result"]')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="workflow-node-result"]').text()).toContain('missing node metadata')
+    wrapper.unmount()
+  })
+
   it('renders detailed error text for a failed node', async () => {
     mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
       onData({
