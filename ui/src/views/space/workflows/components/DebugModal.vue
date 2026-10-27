@@ -115,7 +115,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
           const nodeResult = payload as DebugNodeResult
           nodeResults.value.push(nodeResult)
           if (nodeResult.status === 'failed') {
-            debugWorkflowError.value = nodeResult.error || t('workflowEditor.runFailed')
+            debugWorkflowError.value = nodeResult.error?.trim() || t('workflowEditor.runFailed')
           }
 
           const nodeId = nodeResult.node_data?.id
@@ -317,12 +317,12 @@ watch(
                   type="button"
                   class="text-xs text-red-700 underline"
                   data-testid="copy-node-error"
-                  @click="copyNodeError(String(nodeResult.error || t('workflowEditor.runFailed')))"
+                  @click="copyNodeError(String(nodeResult.error?.trim() || t('workflowEditor.runFailed')))"
                 >
                   {{ t('workflowEditor.copyError') }}
                 </button>
               </div>
-              <pre class="whitespace-pre-wrap break-words text-xs text-red-700">{{ nodeResult.error || t('workflowEditor.runFailed') }}</pre>
+              <pre class="whitespace-pre-wrap break-words text-xs text-red-700">{{ nodeResult.error?.trim() || t('workflowEditor.runFailed') }}</pre>
             </div>
             <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs text-gray-600" data-testid="workflow-node-output">{{ formatDebugNodeOutputs(nodeResult.outputs) }}</pre>
           </article>
