@@ -132,7 +132,10 @@ def _resolve_host_ips(hostname: str, port: int | None) -> list[str]:
 
 def _validate_safe_target(url: Any) -> SafeHttpTarget:
     normalized_url = _normalize_raw_url(url)
-    parsed = urlsplit(normalized_url)
+    try:
+        parsed = urlsplit(normalized_url)
+    except ValueError as exc:
+        raise ValidateErrorException("URL格式无效") from exc
 
     if not parsed.scheme or parsed.scheme.lower() not in _ALLOWED_SCHEMES:
         raise ValidateErrorException("URL必须是绝对的http或https地址")
