@@ -66,6 +66,12 @@ class DocumentHandler:
     @login_required
     def update_document_enabled(self, dataset_id: UUID, document_id: UUID):
         """根据传递的知识库id+文档id更新指定文档的启用状态"""
+        payload = request.get_json(silent=True)
+        if request.is_json and (
+            not isinstance(payload, dict) or not isinstance(payload.get("enabled"), bool)
+        ):
+            return validate_error_json({"enabled": ["启用状态必须为布尔值"]})
+
         # 1.提取请求并校验
         req = UpdateDocumentEnabledReq()
         if not req.validate():
