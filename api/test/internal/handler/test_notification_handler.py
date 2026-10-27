@@ -183,6 +183,27 @@ def test_get_notifications_route_should_serialize_page_payload(http_client, noti
     assert resp.json["data"]["list"][1]["id"] == "doc-1"
 
 
+@pytest.mark.parametrize(("requested_limit", "expected_limit"), [(0, 1), (-5, 1), (500, 100)])
+def test_get_notifications_should_bound_page_size(
+    http_client, notification_user, monkeypatch, requested_limit, expected_limit
+):
+    received = {}
+
+    def get_notifications(_service, _user_id, limit, offset, notification_type=None):
+        received["limit"] = limit
+        return [], 0
+
+    monkeypatch.setattr(
+        "internal.service.notification_service.NotificationService.get_user_notifications",
+        get_notifications,
+    )
+
+    response = http_client.get("/notifications", query_string={"limit": requested_limit})
+
+    assert response.json["data"]["paginator"]["limit"] == expected_limit
+    assert received["limit"] == expected_limit
+
+
 def test_mark_notification_as_read_route_should_return_success(http_client, notification_user, monkeypatch):
     monkeypatch.setattr(
         "internal.service.notification_service.NotificationService.mark_as_read",
