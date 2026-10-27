@@ -301,6 +301,7 @@ describe('LoginForm auto register flow', () => {
 
     expect(mocks.prepareRegister).toHaveBeenCalledWith('register@example.com', 'Abcd1234')
     expect(wrapper.text()).toContain('首次注册需要完成邮箱验证码验证')
+    expect(wrapper.get('input[readonly]').attributes('aria-label')).toBe('Registration email')
     expect(wrapper.get('input[placeholder="请输入6位验证码"]').attributes('autocomplete')).toBe('one-time-code')
     expect(wrapper.get('input[placeholder="请输入6位验证码"]').attributes('aria-label')).toBe('Registration verification code')
   })
