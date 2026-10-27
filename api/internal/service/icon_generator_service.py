@@ -188,7 +188,10 @@ class IconGeneratorService(BaseService):
         if not images:
             raise FailException(f"{provider_name} 返回的图片列表为空")
 
-        image_url = images[0].get("url")
+        image_url = next(
+            (entry.get("url") for entry in images if isinstance(entry, dict) and entry.get("url")),
+            None,
+        )
         if not image_url:
             raise FailException(f"{provider_name} 返回的图片URL为空")
 
