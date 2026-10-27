@@ -80,13 +80,11 @@ cd docker
 
 ### docker/.env 变量
 
+`docker/.env` 用于 Compose 文件插值，例如端口和镜像标签。PostgreSQL 与 Redis 的用户名、数据库名和密码由各服务从 `api/.env` 读取。
+
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| POSTGRES_USER | postgres | PostgreSQL 用户名 |
-| POSTGRES_PASSWORD | llmops123456 | PostgreSQL 密码 |
-| POSTGRES_DB | llmops | 数据库名 |
-| REDIS_PASSWORD | llmops123456 | Redis 密码 |
-| WEAVIATE_API_KEY | ftBC9hKkjfdbdi0W3T6kEtMh5BZFpGa1DF8 | Weaviate API Key |
+| WEAVIATE_API_KEY | 未设置时使用 Compose 配置中的回退值 | Weaviate API Key |
 | UI_PORT | 3000 | 前端端口 |
 | API_PORT | 5001 | API 端口 |
 | REDIS_PORT | 6379 | Redis 端口 |
@@ -105,7 +103,7 @@ cd docker
 - 前端构建配置 (`VITE_API_PREFIX`)
 - Flask 配置 (FLASK_DEBUG, FLASK_ENV)
 - JWT 密钥
-- 数据库连接 (本地开发时使用 localhost)
+- PostgreSQL 用户名、密码和数据库名，以及 Redis 密码 (本地开发时使用 localhost 连接)
 - LLM 服务商配置 (OpenAI, DeepSeek, 月之暗面等)
 - 工具插件配置 (高德地图, Serper 搜索, GitHub Token 等)
 - OAuth 配置 (GitHub, Google)
