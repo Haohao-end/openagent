@@ -52,6 +52,15 @@ def test_handle_connect_should_reject_invalid_token(monkeypatch):
     assert result is False
 
 
+def test_handle_connect_should_reject_non_object_auth(monkeypatch):
+    monkeypatch.setattr(
+        "internal.handler.websocket_handler.request",
+        SimpleNamespace(sid="sid-malformed-auth"),
+    )
+
+    assert handle_connect("malformed-auth") is False
+
+
 def test_handle_subscribe_document_notification_should_ack_with_server_channel(monkeypatch):
     account_id = uuid4()
     subscribe_calls: list[tuple[str, str]] = []
