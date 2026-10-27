@@ -295,6 +295,8 @@ def safe_request(
 
             try:
                 next_url = urljoin(current_url, location)
+                if urlsplit(current_url).scheme.lower() == "https" and urlsplit(next_url).scheme.lower() == "http":
+                    raise ValidateErrorException("禁止HTTPS降级重定向")
                 next_target = _validate_safe_target(next_url)
             except Exception:
                 response.close()
