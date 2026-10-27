@@ -892,7 +892,14 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
           :validate-trigger="['change', 'blur']"
           hide-label
         >
-          <a-input v-model="loginForm.email" size="large" allow-clear autocomplete="username" placeholder="登录/注册账号">
+          <a-input
+            v-model="loginForm.email"
+            size="large"
+            allow-clear
+            autocomplete="username"
+            placeholder="登录/注册账号"
+            :input-attrs="{ 'aria-label': $t('authForm.accountEmail') }"
+          >
             <template #prefix>
               <icon-user class="text-slate-400" />
             </template>
@@ -906,7 +913,13 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
           :validate-trigger="['change', 'blur']"
           hide-label
         >
-          <a-input-password v-model="loginForm.password" size="large" autocomplete="current-password" placeholder="账号密码">
+          <a-input-password
+            v-model="loginForm.password"
+            size="large"
+            autocomplete="current-password"
+            placeholder="账号密码"
+            :input-attrs="{ 'aria-label': $t('authForm.accountPassword') }"
+          >
             <template #prefix>
               <icon-lock class="text-slate-400" />
             </template>
