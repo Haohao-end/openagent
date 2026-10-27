@@ -5,6 +5,12 @@ export default {
     registerEmail: '注册邮箱',
     registerPassword: '注册密码',
   },
+  passwordResetForm: {
+    email: '找回密码邮箱',
+    code: '找回密码验证码',
+    newPassword: '新密码',
+    confirmPassword: '确认新密码',
+  },
   common: {
     actions: {
       cancel: '取消',

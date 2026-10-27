@@ -1179,6 +1179,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
               size="large"
               allow-clear
               placeholder="请输入邮箱"
+              :input-attrs="{ 'aria-label': $t('passwordResetForm.email') }"
               @keyup.enter="handleSendCode"
             >
               <template #prefix>
@@ -1206,6 +1207,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
               size="large"
               placeholder="请输入6位验证码"
               maxlength="6"
+              :input-attrs="{ 'aria-label': $t('passwordResetForm.code') }"
               @keyup.enter="handleResetPassword"
             >
               <template #prefix>
@@ -1231,6 +1233,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
               autocomplete="new-password"
               size="large"
               placeholder="新密码(至少一个字母,一个数字,长度8-16位)"
+              :input-attrs="{ 'aria-label': $t('passwordResetForm.newPassword') }"
             >
               <template #prefix>
                 <icon-lock class="text-slate-400" />
@@ -1244,6 +1247,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
               autocomplete="new-password"
               size="large"
               placeholder="请再次输入新密码"
+              :input-attrs="{ 'aria-label': $t('passwordResetForm.confirmPassword') }"
               @keyup.enter="handleResetPassword"
             >
               <template #prefix>

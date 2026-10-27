@@ -5,6 +5,12 @@ export default {
     registerEmail: 'Registration email',
     registerPassword: 'Registration password',
   },
+  passwordResetForm: {
+    email: 'Password reset email',
+    code: 'Password reset verification code',
+    newPassword: 'New password',
+    confirmPassword: 'Confirm new password',
+  },
   common: {
     actions: {
       cancel: 'Cancel',
