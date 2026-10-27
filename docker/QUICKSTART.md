@@ -4,14 +4,10 @@
 
 | 文件 | 状态 | 说明 |
 |------|------|------|
-| `docker/.env` | ✨ 新增 | Docker 基础设施配置 |
-| `docker/docker-compose.yaml` | 🔄 重构 | 简化为 150 行(原 265 行) |
-| `docker/README.md` | ✨ 新增 | 详细使用文档 |
-| `docker/MIGRATION.md` | ✨ 新增 | 迁移指南 |
-| `docker/start.sh` | ✨ 新增 | 快速启动脚本 |
-| `docker/.gitignore` | ✨ 新增 | Git 忽略规则 |
-| `api/docker/entrypoint.sh` | 🔄 更新 | 新增更多默认值 |
-| `api/.env` | ♻️ 复用 | 业务配置(已存在) |
+| [`docker-compose.yaml`](docker-compose.yaml) | 服务编排配置 |
+| [`README.md`](README.md) | Docker 部署与本地开发说明 |
+| [`start.sh`](start.sh) | 完整 Docker 启动脚本 |
+| [`api/.env.example`](../api/.env.example) | 应用配置模板 |
 
 ## 🎯 核心改进
 
@@ -224,8 +220,8 @@ docker compose exec llmops-db pg_isready -U postgres
 ### API Key 无效
 
 ```bash
-# 检查环境变量是否正确注入
-docker compose exec llmops-api env | grep API_KEY
+# 只检查已注入的 API Key 变量名，不输出密钥值
+docker compose exec llmops-api sh -c 'env | cut -d= -f1 | grep "_API_KEY$"'
 
 # 重启容器
 docker compose restart llmops-api
@@ -233,10 +229,9 @@ docker compose restart llmops-api
 
 ## 📚 文档索引
 
-- **README.md**: 详细使用文档
-- **MIGRATION.md**: 迁移指南和技术细节
-- **QUICKSTART.md**: 本文件,快速参考
-- **.env.example**: 配置模板
+- [README.md](README.md): Docker 部署与本地开发说明
+- [api/.env.example](../api/.env.example): 应用配置模板
+- [QUICKSTART.md](QUICKSTART.md): 本文件,快速参考
 
 ## 🎉 优势总结
 
