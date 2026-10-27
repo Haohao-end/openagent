@@ -24,7 +24,7 @@ class NotificationHandler:
     def get_notifications(self):
         """获取用户的通知列表"""
         # 获取分页参数
-        page = request.args.get("page", 1, type=int)
+        page = max(1, request.args.get("page", 1, type=int))
         limit = max(1, min(request.args.get("limit", 10, type=int), 100))
         offset = (page - 1) * limit
         notification_type = request.args.get("type", type=str)
