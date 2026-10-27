@@ -83,6 +83,34 @@ describe('DebugModal node outputs', () => {
     })
   })
 
+  it('marks all executed incoming edges when branch events arrive in a non-linear order', async () => {
+    const events = [
+      { node_data: { id: 'start-1', node_type: 'start', title: 'Start' }, status: 'succeeded', outputs: {}, latency: 0.1 },
+      { node_data: { id: 'condition-1', node_type: 'if_else', title: 'Condition' }, status: 'succeeded', outputs: {}, latency: 0.1 },
+      { node_data: { id: 'tool-1', node_type: 'tool', title: 'Weather A' }, status: 'succeeded', outputs: {}, latency: 0.1 },
+      { node_data: { id: 'tool-2', node_type: 'tool', title: 'Weather B' }, status: 'succeeded', outputs: {}, latency: 0.1 },
+      { node_data: { id: 'end-1', node_type: 'end', title: 'End' }, status: 'succeeded', outputs: { answer: 'done' }, latency: 0.1 },
+    ]
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
+      events.forEach((data) => onData({ data }))
+    })
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.canvas.edges.map(({ class: className }) => className)).toEqual([
+      ['workflow-debug-edge-succeeded'],
+      ['workflow-debug-edge-succeeded'],
+      ['workflow-debug-edge-succeeded'],
+      ['workflow-debug-edge-succeeded'],
+      ['workflow-debug-edge-succeeded'],
+    ])
+    wrapper.unmount()
+  })
+
   it('renders outputs for every node received from the workflow debug stream', async () => {
     const wrapper = mount(DebugModal, {
       props: { visible: true, workflow_id: 'workflow-1' },
