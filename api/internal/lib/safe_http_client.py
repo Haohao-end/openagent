@@ -104,7 +104,7 @@ def _resolve_host_ips(hostname: str, port: int | None) -> list[str]:
             family=socket.AF_UNSPEC,
             type=socket.SOCK_STREAM,
         )
-    except socket.gaierror as exc:
+    except OSError as exc:
         raise ValidateErrorException("URL主机名无法解析") from exc
 
     resolved_ips: list[str] = []
