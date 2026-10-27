@@ -29,6 +29,7 @@ const latencyDelta = computed(() =>
   getPromptCompareLatencyDelta(props.baselineLatency, props.candidateLatency),
 )
 const formattedLatencyDelta = computed(() => {
+  if (latencyDelta.value === null) return '—'
   const sign = latencyDelta.value > 0 ? '+' : ''
   return `${sign}${latencyDelta.value.toFixed(2)}s`
 })
