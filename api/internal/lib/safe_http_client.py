@@ -309,6 +309,7 @@ def safe_request(
                 current_cookies = None
                 current_auth = None
 
+            previous_method = current_method
             if response.status_code == 303:
                 if current_method != "HEAD":
                     current_method = "GET"
@@ -319,6 +320,12 @@ def safe_request(
                     current_method = "GET"
                     current_data = None
                     current_json = None
+
+            if current_method == "GET" and previous_method not in {"GET", "HEAD"}:
+                current_headers = {
+                    key: value for key, value in current_headers.items()
+                    if key.lower() not in {"content-type", "content-length", "transfer-encoding"}
+                }
 
             if current_method == "GET" or current_method == "HEAD":
                 current_data = None
