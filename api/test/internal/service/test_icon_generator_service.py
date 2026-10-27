@@ -488,6 +488,21 @@ class TestIconGeneratorService:
                 "Kolors", requests.exceptions.HTTPError("HTTP 503", response=response)
             )
 
+    @pytest.mark.parametrize("body,expected", [
+        (b'{"error": "quota exceeded"}', "quota exceeded"),
+        (b'{"message": "service is unavailable"}', "service is unavailable"),
+    ])
+    def test_http_error_preserves_string_or_top_level_provider_message(self, body, expected):
+        response = requests.Response()
+        response.status_code = 503
+        response._content = body
+        service = _build_service()
+
+        with pytest.raises(FailException, match=expected):
+            service._raise_request_error(
+                "Kolors", requests.exceptions.HTTPError("HTTP 503", response=response)
+            )
+
     def test_generate_with_kolors_should_raise_when_http_429(self, monkeypatch):
         mock_app = Mock()
         mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
@@ -535,6 +550,23 @@ class TestIconGeneratorService:
 
         with pytest.raises(FailException, match="图片列表格式无效"):
             service._generate_with_kolors("App", "description")
+
+    @pytest.mark.parametrize("invalid_url", [" ", "file:///etc/passwd", "javascript:alert(1)", "not a url"])
+    def test_dalle_rejects_non_http_image_urls_before_download(self, monkeypatch, invalid_url):
+        app = Mock()
+        app.config = {"OPENAI_API_KEY": "openai-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+        service = _build_service()
+        dalle = Mock()
+        dalle.run.return_value = invalid_url
+        monkeypatch.setattr("internal.service.icon_generator_service.DallEAPIWrapper", lambda **_kwargs: dalle)
+        download = Mock()
+        monkeypatch.setattr(service, "_download_and_upload_image", download)
+
+        with pytest.raises(FailException, match="DALLE 返回的图片URL为空"):
+            service._generate_with_dalle("Demo", "")
+
+        download.assert_not_called()
 
     def test_generate_with_dalle_should_raise_when_image_url_empty(self, monkeypatch):
         mock_app = Mock()

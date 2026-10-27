@@ -148,9 +148,10 @@ class IconGeneratorService(BaseService):
             error_detail = ""
             try:
                 error_data = error.response.json() if error.response is not None else {}
+                provider_error = error_data.get("error") if isinstance(error_data, dict) else None
                 error_detail = (
-                    error_data.get("error", {}).get("message")
-                    or error_data.get("message")
+                    (provider_error.get("message") if isinstance(provider_error, dict) else provider_error)
+                    or (error_data.get("message") if isinstance(error_data, dict) else None)
                     or str(error)
                 )
             except Exception:
@@ -267,7 +268,7 @@ class IconGeneratorService(BaseService):
         )
 
         # 生成图片
-        image_url = dalle_api_wrapper.run(prompt)
+        image_url = _normalize_provider_image_url(dalle_api_wrapper.run(prompt))
 
         if not image_url:
             raise FailException("DALLE 返回的图片URL为空")

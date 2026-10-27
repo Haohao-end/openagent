@@ -195,6 +195,29 @@ describe('DebugModal node outputs', () => {
     wrapper.unmount()
   })
 
+  it('renders a node event without crashing if node metadata is null', async () => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_id, _inputs, onData) => {
+      onData({
+        data: {
+          node_data: null,
+          status: 'succeeded',
+          outputs: { message: 'missing node metadata' },
+          latency: 0.1,
+        },
+      })
+    })
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-testid="workflow-node-result"]')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="workflow-node-result"]').text()).toContain('missing node metadata')
+    wrapper.unmount()
+  })
+
   it('renders detailed error text for a failed node', async () => {
     mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
       onData({
@@ -266,6 +289,28 @@ describe('DebugModal node outputs', () => {
     ])
     expect(mocks.canvas.edges.every(({ class: className }) => !className)).toBe(true)
     expect(wrapper.findAll('[data-testid="workflow-node-result"]')).toHaveLength(0)
+  })
+
+  it('shows localized error details for failed nodes with no error message', async () => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_id, _inputs, onData) => {
+      onData({ data: {
+        node_data: { node_type: 'tool', title: 'Weather' },
+        status: 'failed', error: '', outputs: {}, latency: 0.1,
+      } })
+    })
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+    const errorPanel = wrapper.get('[data-testid="workflow-node-error"]')
+    const fallbackMessage = errorPanel.find('pre').text()
+    expect(fallbackMessage.length).toBeGreaterThan(0)
+    await wrapper.get('[data-testid="copy-node-error"]').trigger('click')
+    await flushPromises()
+    expect(copyTextToClipboard).toHaveBeenCalledWith(fallbackMessage)
+    wrapper.unmount()
   })
 
   it('shows request errors in the output panel', async () => {

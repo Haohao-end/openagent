@@ -44,6 +44,12 @@ describe('debug-metrics', () => {
 }`)
   })
 
+  it('shows missing node output as unavailable instead of the word undefined', () => {
+    expect(formatDebugNodeOutputs(undefined)).toBe('—')
+    expect(formatDebugNodeOutputs(null)).toBe('null')
+    expect(formatDebugNodeOutputs('')).toBe('')
+  })
+
   it('keeps text node outputs readable without JSON quoting', () => {
     expect(formatDebugNodeOutputs('Sunny, 22°C')).toBe('Sunny, 22°C')
   })
@@ -61,6 +67,15 @@ describe('debug-metrics', () => {
 
     expect(findWorkflowOutputs(withMissingNode)).toEqual({ answer: 'OK' })
     expect(sumWorkflowToolLatency(withMissingNode)).toBeCloseTo(0.2)
+  })
+
+  it('uses the latest completed end-node event instead of a stale earlier output', () => {
+    const updates: DebugNodeResult[] = [
+      { node_data: { node_type: 'end' }, outputs: { answer: 'partial' }, latency: 0.1 },
+      { node_data: { node_type: 'tool' }, outputs: {}, latency: 0.1 },
+      { node_data: { node_type: 'end' }, outputs: { answer: 'complete' }, latency: 0.2 },
+    ]
+    expect(findWorkflowOutputs(updates)).toEqual({ answer: 'complete' })
   })
 
   it('returns null when end node is missing', () => {

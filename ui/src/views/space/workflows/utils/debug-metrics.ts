@@ -12,6 +12,7 @@ export type DebugNodeResult = {
 }
 
 export const formatDebugNodeOutputs = (outputs: unknown): string => {
+  if (outputs === undefined) return '—'
   if (typeof outputs === 'string') return outputs
 
   try {
@@ -22,7 +23,7 @@ export const formatDebugNodeOutputs = (outputs: unknown): string => {
 }
 
 export const findWorkflowOutputs = (nodeResults: DebugNodeResult[]): unknown => {
-  const endNodeResult = nodeResults.find((item) => item.node_data?.node_type === 'end')
+  const endNodeResult = [...nodeResults].reverse().find((item) => item.node_data?.node_type === 'end')
   return endNodeResult ? endNodeResult.outputs : null
 }
 
