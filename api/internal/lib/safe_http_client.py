@@ -300,7 +300,7 @@ def safe_request(
                 current_headers = {
                     key: value
                     for key, value in current_headers.items()
-                    if key.lower() not in {"authorization", "proxy-authorization"}
+                    if key.lower() not in {"authorization", "proxy-authorization", "cookie"}
                 }
                 current_cookies = None
 
