@@ -1,12 +1,33 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import jwt
 
 from internal.exception import UnauthorizedException
 from internal.service.jwt_service import JwtService
 
 
 class TestJwtService:
+    def test_generate_token_should_reject_empty_secret(self, monkeypatch):
+        monkeypatch.setenv("JWT_SECRET_KEY", " ")
+
+        with pytest.raises(UnauthorizedException, match="JWT secret key is not configured"):
+            JwtService.generate_token({"sub": "u-1"})
+
+    def test_generate_token_should_reject_example_secret(self, monkeypatch):
+        monkeypatch.setenv("JWT_SECRET_KEY", "your-random-secret-key-here-change-this")
+
+        with pytest.raises(UnauthorizedException, match="JWT secret key is not configured"):
+            JwtService.generate_token({"sub": "u-1"})
+
+    def test_parse_token_should_reject_example_secret(self, monkeypatch):
+        placeholder = "your-random-secret-key-here-change-this"
+        token = jwt.encode({"sub": "u-1"}, placeholder, algorithm="HS256")
+        monkeypatch.setenv("JWT_SECRET_KEY", placeholder)
+
+        with pytest.raises(UnauthorizedException, match="JWT secret key is not configured"):
+            JwtService.parse_token(token)
+
     def test_generate_and_parse_token(self, monkeypatch):
         monkeypatch.setenv("JWT_SECRET_KEY", "test-secret-key-with-32-bytes-min-123456")
 
