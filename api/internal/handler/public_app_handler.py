@@ -100,7 +100,9 @@ class PublicAppHandler:
         """以A2A协议向公共应用发送消息。"""
         if not self.public_agent_a2a_service:
             return jsonify({"error": "A2A service unavailable"}), 503
-        payload = request.get_json(force=True, silent=True) or {}
+        payload = request.get_json(force=True, silent=True)
+        if not isinstance(payload, dict):
+            return jsonify({"error": "Request body must be an object"}), 400
         return compact_generate_response(self.public_agent_a2a_service.stream_message(app_id, payload))
 
     def get_public_app_a2a_conversation_messages(self, app_id: str, conversation_id: str):
