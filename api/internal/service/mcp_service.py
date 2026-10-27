@@ -90,7 +90,11 @@ class McpService(BaseService):
         if normalized.startswith("db::"):
             return "db", normalized[4:]
         if normalized.startswith("catalog::"):
-            return "catalog", self._decode_catalog_source_key(normalized[9:])
+            try:
+                source_key = self._decode_catalog_source_key(normalized[9:])
+            except ValueError as exc:
+                raise ValidateErrorException("MCP provider key 格式无效") from exc
+            return "catalog", source_key
         try:
             UUID(normalized)
             return "db", normalized

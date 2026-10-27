@@ -1,8 +1,10 @@
 from contextlib import contextmanager
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy.exc import ProgrammingError
 
+from internal.exception import ValidateErrorException
 from internal.service.mcp_service import McpService
 
 
@@ -131,6 +133,13 @@ def test_get_public_mcp_providers_with_page_should_fallback_to_catalog_when_tabl
     assert providers[0]["name"] == "weather_gateway"
     assert paginator.total_record == 1
     assert paginator.total_page == 1
+
+
+def test_get_public_mcp_provider_should_reject_invalid_catalog_key_encoding():
+    service = _build_service(table_exists=False)
+
+    with pytest.raises(ValidateErrorException, match="MCP provider key 格式无效"):
+        service.get_public_mcp_provider("catalog::wA")
 
 
 def test_get_mcp_providers_with_page_should_return_empty_when_table_missing():
