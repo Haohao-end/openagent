@@ -35,6 +35,12 @@ const formattedLatencyDelta = computed(() => {
 })
 const tokenCountDelta = computed(() => props.candidateTokenCount - props.baselineTokenCount)
 const formattedTokenCountDelta = computed(() => {
+  if (
+    !Number.isSafeInteger(props.baselineTokenCount) ||
+    !Number.isSafeInteger(props.candidateTokenCount) ||
+    props.baselineTokenCount < 0 ||
+    props.candidateTokenCount < 0
+  ) return '—'
   const sign = tokenCountDelta.value > 0 ? '+' : ''
   return `${sign}${tokenCountDelta.value}`
 })

@@ -3,6 +3,7 @@ import uuid
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Optional
+from urllib.parse import urlsplit
 
 import requests
 from flask import current_app
@@ -24,6 +25,22 @@ from .cos_service import CosService
 MAX_ICON_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_ICON_IMAGE_PIXELS = 20_000_000
 SUPPORTED_ICON_IMAGE_FORMATS = {"PNG", "JPEG", "WEBP"}
+
+
+def _normalize_provider_image_url(value: object) -> Optional[str]:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    normalized = value.strip()
+    try:
+        parsed = urlsplit(normalized)
+        if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+            return None
+        port = parsed.port
+        if port is not None and not 1 <= port <= 65535:
+            return None
+    except ValueError:
+        return None
+    return normalized
 
 
 @inject
@@ -188,7 +205,13 @@ class IconGeneratorService(BaseService):
         if not images:
             raise FailException(f"{provider_name} 返回的图片列表为空")
 
-        image_url = images[0].get("url")
+        image_url = next(
+            (
+                url for entry in images if isinstance(entry, dict)
+                if (url := _normalize_provider_image_url(entry.get("url")))
+            ),
+            None,
+        )
         if not image_url:
             raise FailException(f"{provider_name} 返回的图片URL为空")
 

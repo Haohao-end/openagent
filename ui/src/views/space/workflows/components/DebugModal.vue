@@ -65,6 +65,7 @@ const inputs = computed<WorkflowInput[]>(() => {
 const outputs = computed(() => {
   return findWorkflowOutputs(nodeResults.value)
 })
+const hasOutputs = computed(() => outputs.value !== null && outputs.value !== undefined)
 
 // 4.定义整个工作流的响应耗时
 const latency = computed(() => {
@@ -131,7 +132,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   }
 
   // 6.5 如果调试成功（没有错误且有输出结果），触发 debug-success 事件
-  if (!debugWorkflowError.value && outputs.value) {
+  if (!debugWorkflowError.value && hasOutputs.value) {
     emits('debug-success')
   }
 }
@@ -259,7 +260,7 @@ watch(
           </div>
           <!-- 运行成功UI -->
           <div
-            v-if="outputs"
+            v-if="hasOutputs"
             class="flex flex-col gap-2 bg-green-100 p-3 rounded-lg border border-green-500"
           >
             <!-- 状态统计 -->
@@ -284,7 +285,7 @@ watch(
             </div>
           </div>
           <!-- 运行结果 -->
-          <div v-if="outputs" class="bg-gray-700 rounded-lg p-3 text-white">{{ outputs }}</div>
+          <div v-if="hasOutputs" class="bg-gray-700 rounded-lg p-3 text-white">{{ outputs }}</div>
         </div>
         <section v-if="nodeResults.length > 0" class="mt-4 flex flex-col gap-2" data-testid="workflow-node-results">
           <h3 class="text-sm font-semibold text-gray-700">{{ t('workflowEditor.nodeResults') }}</h3>
@@ -321,7 +322,7 @@ watch(
           </article>
         </section>
         <!-- 空数据状态 -->
-        <a-empty v-if="!debugWorkflowLoading && nodeResults.length === 0 && !outputs && !debugWorkflowError" class="my-4">
+        <a-empty v-if="!debugWorkflowLoading && nodeResults.length === 0 && !hasOutputs && !debugWorkflowError" class="my-4">
           {{ t('workflowEditor.noRunResults') }}
         </a-empty>
       </a-tab-pane>
