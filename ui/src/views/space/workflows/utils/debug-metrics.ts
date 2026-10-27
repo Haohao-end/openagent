@@ -34,7 +34,7 @@ export const sumWorkflowLatency = (nodeResults: DebugNodeResult[]): number => {
 
 export const sumWorkflowToolLatency = (nodeResults: DebugNodeResult[]): number => {
   return nodeResults.reduce((total, item) => {
-    if (item.node_data.type === 'tool') {
+    if (item.node_data.node_type === 'tool') {
       return total + safeLatency(item.latency)
     }
     return total

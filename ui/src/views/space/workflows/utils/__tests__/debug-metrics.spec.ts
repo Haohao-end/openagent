@@ -20,7 +20,6 @@ const mockNodeResults: DebugNodeResult[] = [
   {
     node_data: {
       node_type: 'tool',
-      type: 'tool',
       title: '工具节点',
     },
     outputs: { query: 'weather' },
@@ -60,10 +59,10 @@ describe('debug-metrics', () => {
 
   it('ignores malformed and negative latencies without corrupting metrics', () => {
     const broken: DebugNodeResult[] = [
-      { node_data: { type: 'tool' }, outputs: null, latency: Number.NaN },
-      { node_data: { type: 'tool' }, outputs: null, latency: -12 },
-      { node_data: { type: 'tool' }, outputs: null, latency: Number.POSITIVE_INFINITY },
-      { node_data: { type: 'tool' }, outputs: null, latency: 0.25 },
+      { node_data: { node_type: 'tool' }, outputs: null, latency: Number.NaN },
+      { node_data: { node_type: 'tool' }, outputs: null, latency: -12 },
+      { node_data: { node_type: 'tool' }, outputs: null, latency: Number.POSITIVE_INFINITY },
+      { node_data: { node_type: 'tool' }, outputs: null, latency: 0.25 },
       { node_data: { type: 'start' }, outputs: null, latency: 0.1 },
     ]
 
