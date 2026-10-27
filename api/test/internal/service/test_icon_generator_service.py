@@ -262,6 +262,24 @@ class TestIconGeneratorService:
             assert call_args[1]["Body"].startswith(b"\x89PNG\r\n\x1a\n")
             assert call_args[1]["ContentType"] == "image/png"
 
+    def test_download_and_upload_image_should_not_double_slash_cos_url(self, monkeypatch):
+        app = Mock()
+        app.config = {"COS_DOMAIN": "https://test.cos.com/"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+        response = _mock_image_response(_image_bytes())
+        monkeypatch.setattr("internal.service.icon_generator_service.safe_request", lambda *_a, **_kw: response)
+        client = Mock()
+        service = _build_service(cos_service=SimpleNamespace(
+            _get_client=Mock(return_value=client),
+            _get_bucket=Mock(return_value="bucket"),
+        ))
+
+        url = service._download_and_upload_image("https://example.com/icon.png", "test")
+
+        assert url.startswith("https://test.cos.com/")
+        assert not url.startswith("https://test.cos.com//")
+        client.put_object.assert_called_once()
+
     def test_download_and_upload_image_should_raise_when_cos_domain_missing(self, monkeypatch):
         mock_app = Mock()
         mock_app.config = {}

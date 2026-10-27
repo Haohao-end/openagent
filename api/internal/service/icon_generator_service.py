@@ -333,7 +333,7 @@ class IconGeneratorService(BaseService):
         )
 
         # 5. 返回COS URL
-        return f"{cos_domain}/{upload_filename}"
+        return f"{str(cos_domain).rstrip('/')}/{upload_filename}"
 
     @staticmethod
     def _normalize_icon_image(image_data: bytes) -> bytes:
