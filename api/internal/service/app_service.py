@@ -2183,8 +2183,10 @@ class AppService(BaseService):
             if not isinstance(retrieval_config["k"], int) or not (0 <= retrieval_config["k"] <= 10):
                 raise ValidateErrorException("最大召回数量范围为0-10")
             # 9.5 校验得分/最小匹配度
-            if not isinstance(retrieval_config["score"], float) or not (0 <= retrieval_config["score"] <= 1):
+            score = retrieval_config["score"]
+            if not isinstance(score, (int, float)) or isinstance(score, bool) or not (0 <= score <= 1):
                 raise ValidateErrorException("最小匹配范围为0-1")
+            retrieval_config["score"] = float(score)
 
         # 12.校验long_term_memory长期记忆配置
         if "long_term_memory" in draft_app_config:
