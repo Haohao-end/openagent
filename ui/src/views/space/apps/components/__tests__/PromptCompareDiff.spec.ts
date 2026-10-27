@@ -46,6 +46,18 @@ describe('PromptCompareDiff', () => {
     expect(wrapper.text()).toContain('Candidate output')
   })
 
+  it('shows unavailable rather than NaN when measured latency is invalid', () => {
+    const wrapper = mount(PromptCompareDiff, {
+      props: {
+        baselineAnswer: 'A', candidateAnswer: 'B',
+        baselineLatency: Number.NaN, candidateLatency: 1,
+        baselineTokenCount: 2, candidateTokenCount: 2,
+      },
+    })
+    expect(wrapper.text()).toContain('较默认提示词耗时：—')
+    expect(wrapper.text()).not.toContain('NaNs')
+  })
+
   it('shows a negative token delta when the candidate uses fewer tokens', () => {
     const wrapper = mount(PromptCompareDiff, {
       props: {

@@ -26,14 +26,16 @@ export const findWorkflowOutputs = (nodeResults: DebugNodeResult[]): unknown => 
   return endNodeResult ? endNodeResult.outputs : null
 }
 
+const safeLatency = (value: number): number => Number.isFinite(value) && value >= 0 ? value : 0
+
 export const sumWorkflowLatency = (nodeResults: DebugNodeResult[]): number => {
-  return nodeResults.reduce((total, item) => total + item.latency, 0)
+  return nodeResults.reduce((total, item) => total + safeLatency(item.latency), 0)
 }
 
 export const sumWorkflowToolLatency = (nodeResults: DebugNodeResult[]): number => {
   return nodeResults.reduce((total, item) => {
     if (item.node_data.node_type === 'tool') {
-      return total + item.latency
+      return total + safeLatency(item.latency)
     }
     return total
   }, 0)
