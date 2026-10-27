@@ -186,19 +186,21 @@ class DocumentService(BaseService):
         if document.enabled == enabled:
             raise FailException(f"文档状态修改错误，当前已是{'启用' if enabled else '禁用'}状态")
 
-        # 4.获取更新文档启用状态的缓存键并检测是否上锁
+        # 4.原子获取更新文档启用状态的锁
         cache_key = LOCK_DOCUMENT_UPDATE_ENABLED.format(document_id=document.id)
-        cache_result = self.redis_client.get(cache_key)
-        if cache_result is not None:
+        if not self.redis_client.set(cache_key, 1, ex=LOCK_EXPIRE_TIME, nx=True):
             raise FailException("当前文档正在修改启用状态，请稍后再次尝试")
 
-        # 5.修改文档的启用状态并设置缓存键，缓存时间为600s
-        self.update(
-            document,
-            enabled=enabled,
-            disabled_at=None if enabled else datetime.now(UTC),
-        )
-        self.redis_client.setex(cache_key, LOCK_EXPIRE_TIME, 1)
+        # 5.修改文档的启用状态
+        try:
+            self.update(
+                document,
+                enabled=enabled,
+                disabled_at=None if enabled else datetime.now(UTC),
+            )
+        except Exception:
+            self.redis_client.delete(cache_key)
+            raise
 
         # 6.启用异步任务完成后续操作
         update_document_enabled.delay(document.id)
