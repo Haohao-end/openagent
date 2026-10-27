@@ -4,6 +4,7 @@ export default {
     accountPassword: '账号密码',
     registerEmail: '注册邮箱',
     registerPassword: '注册密码',
+    loginChallengeCode: '登录安全验证码',
   },
   common: {
     actions: {
