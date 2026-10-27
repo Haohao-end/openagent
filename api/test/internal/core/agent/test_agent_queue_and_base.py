@@ -459,6 +459,27 @@ def test_base_agent_invoke_should_support_plain_text_query(monkeypatch):
     assert result.query == "plain query"
 
 
+def test_base_agent_invoke_should_accept_image_before_text_content(monkeypatch):
+    class _FakeQueueManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+    monkeypatch.setattr("internal.core.agent.agents.base_agent.AgentQueueManager", _FakeQueueManager)
+    config = AgentConfig(user_id=uuid4(), invoke_from=InvokeFrom.WEB_APP)
+    agent = _DummyAgent(llm=_DummyLLM(features=[]), agent_config=config)
+    monkeypatch.setattr(_DummyAgent, "stream", lambda self, _input, _config=None: iter([]))
+
+    message = HumanMessage(content=[
+        {"type": "image_url", "image_url": {"url": "https://img/a.png"}},
+        {"type": "text", "text": "describe this"},
+    ])
+
+    result = agent.invoke({"messages": [message]})
+
+    assert result.query == "describe this"
+    assert result.image_urls == ["https://img/a.png"]
+
+
 def test_base_agent_invoke_should_fallback_when_message_content_is_neither_str_nor_list(monkeypatch):
     class _FakeQueueManager:
         def __init__(self, *_args, **_kwargs):

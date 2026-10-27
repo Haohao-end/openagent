@@ -56,7 +56,7 @@ class BaseAgent(Serializable, Runnable):
         if isinstance(content, str):
             query = content
         elif isinstance(content, list):
-            query = content[0]["text"]
+            query = next((chunk.get("text", "") for chunk in content if chunk.get("type") == "text"), "")
             image_urls = [chunk["image_url"]["url"] for chunk in content if chunk.get("type") == "image_url"]
         agent_result = AgentResult(query=query, image_urls=image_urls)
         agent_thoughts = {}
