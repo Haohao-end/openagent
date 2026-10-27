@@ -82,7 +82,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   // 6.1 运行前先将历史运行清空
   nodeResults.value = []
   debugWorkflowError.value = ''
-  previousNodeId.value = ''
+  succeededNodeIds.value = new Set()
   clearDebugCanvas(nodes.value, edges.value)
 
   // 6.2 检查表单是否出错，如果出错则直接结束
@@ -147,7 +147,7 @@ watch(
     if (newValue) {
       debugWorkflowError.value = ''
       nodeResults.value = []
-      previousNodeId.value = ''
+      succeededNodeIds.value = new Set()
       clearDebugCanvas(nodes.value, edges.value)
       activatedTab.value = 'input'
       form.value = {}
