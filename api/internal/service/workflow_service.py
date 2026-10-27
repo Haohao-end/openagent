@@ -601,6 +601,8 @@ class WorkflowService(BaseService):
         # 提取节点和边数据
         nodes = graph.get("nodes", [])
         edges = graph.get("edges", [])
+        if not isinstance(nodes, list) or not isinstance(edges, list):
+            raise ValidateErrorException("工作流节点和边必须为数组")
 
         # 节点类型与数据类映射
         node_data_classes = {

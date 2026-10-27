@@ -1253,6 +1253,13 @@ class TestWorkflowService:
             service._validate_graph(invalid_edge_graph, account)
         assert "边验证失败" in str(edge_exc.value)
 
+    @pytest.mark.parametrize("graph", [{"nodes": None, "edges": []}, {"nodes": [], "edges": None}])
+    def test_validate_graph_should_reject_non_list_node_and_edge_collections(self, graph):
+        service = _build_service()
+
+        with pytest.raises(ValidateErrorException):
+            service._validate_graph(graph, SimpleNamespace(id=uuid4()))
+
     def test_validate_graph_should_call_prepare_tool_node_for_tool_nodes(self, monkeypatch):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
