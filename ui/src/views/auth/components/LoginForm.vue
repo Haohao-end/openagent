@@ -1112,6 +1112,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
         <a-form-item hide-label class="login-input !mb-4">
           <a-input
             v-model="challengeCode"
+            autocomplete="one-time-code"
             size="large"
             placeholder="请输入6位验证码"
             maxlength="6"
