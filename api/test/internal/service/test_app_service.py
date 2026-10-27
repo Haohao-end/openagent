@@ -2794,6 +2794,42 @@ class TestAppServiceDraftConfigValidation:
 
         assert validated["model_config"]["parameters"]["req_int"] == 3
 
+    def test_validate_should_enforce_zero_minimum_for_model_parameters(self):
+        service = _build_validation_service()
+        model_entity = service.language_model_manager.get_provider("provider-a").get_model_entity("model-a")
+        model_entity.parameters.append(SimpleNamespace(
+            name="zero_min",
+            required=False,
+            default=0.0,
+            type=ModelParameterType.FLOAT,
+            options=[],
+            min=0,
+            max=2,
+        ))
+        model_entity.parameters.append(SimpleNamespace(
+            name="zero_max",
+            required=False,
+            default=0.0,
+            type=ModelParameterType.FLOAT,
+            options=[],
+            min=-2,
+            max=0,
+        ))
+
+        validated = service._validate_draft_app_config(
+            {
+                "model_config": {
+                    "provider": "provider-a",
+                    "model": "model-a",
+                    "parameters": {"zero_min": -0.1, "zero_max": 0.1},
+                }
+            },
+            SimpleNamespace(id=uuid4()),
+        )
+
+        assert validated["model_config"]["parameters"]["zero_min"] == 0.0
+        assert validated["model_config"]["parameters"]["zero_max"] == 0.0
+
     def test_validate_should_keep_required_and_optional_values_when_types_valid(self):
         service = _build_validation_service()
         payload = {
