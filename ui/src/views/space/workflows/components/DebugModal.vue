@@ -133,8 +133,8 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
       },
     )
   } catch (error: unknown) {
-    debugWorkflowError.value =
-      error instanceof Error ? error.message : String(error || t('workflowEditor.runFailed'))
+    const errorMessage = error instanceof Error ? error.message : String(error || '')
+    debugWorkflowError.value = errorMessage.trim() || t('workflowEditor.runFailed')
   }
 
   // 6.5 如果调试成功（没有错误且有输出结果），触发 debug-success 事件

@@ -419,6 +419,20 @@ describe('DebugModal node outputs', () => {
     expect(wrapper.text()).toContain('network disconnected')
   })
 
+  it('shows a fallback when a request error has an empty message', async () => {
+    mocks.handleDebugWorkflow.mockRejectedValueOnce(new Error(''))
+
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('工作流运行失败')
+    wrapper.unmount()
+  })
+
 
   it('copies failed node error details for sharing with support or an assistant', async () => {
     vi.mocked(copyTextToClipboard).mockResolvedValueOnce(undefined)
