@@ -52,6 +52,17 @@ describe('debug-metrics', () => {
     expect(findWorkflowOutputs(mockNodeResults)).toEqual({ text: 'done' })
   })
 
+  it('ignores malformed node metadata while retaining valid end and tool results', () => {
+    const withMissingNode = [
+      { node_data: null, outputs: null, latency: 1 } as unknown as DebugNodeResult,
+      { node_data: { node_type: 'tool' }, outputs: {}, latency: 0.2 },
+      { node_data: { node_type: 'end' }, outputs: { answer: 'OK' }, latency: 0.1 },
+    ]
+
+    expect(findWorkflowOutputs(withMissingNode)).toEqual({ answer: 'OK' })
+    expect(sumWorkflowToolLatency(withMissingNode)).toBeCloseTo(0.2)
+  })
+
   it('returns null when end node is missing', () => {
     const withoutEnd = mockNodeResults.filter((item) => item.node_data.node_type !== 'end')
     expect(findWorkflowOutputs(withoutEnd)).toBeNull()
