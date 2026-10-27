@@ -11,7 +11,7 @@ from internal.service import AccountService, JwtService
 
 def _resolve_socket_account_id(auth: dict[str, Any] | None = None) -> UUID:
     """根据握手认证信息解析并校验当前 Socket 对应的账号。"""
-    payload = auth or {}
+    payload = auth if isinstance(auth, dict) else {}
     token = str(payload.get("token", "")).strip()
     if not token:
         raise UnauthorizedException("Socket 连接缺少访问令牌")
