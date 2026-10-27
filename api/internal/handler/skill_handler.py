@@ -7,6 +7,7 @@ from uuid import UUID
 from flask import redirect, request, send_file
 from flask_login import login_required
 from injector import inject
+from werkzeug.datastructures import MultiDict
 
 from internal.schema.skill_schema import (
     GetSkillsCategoriesResp,
@@ -84,8 +85,9 @@ class SkillHandler:
     @login_required
     def rollback_skill_package(self, skill_id: UUID):
         """回滚技能包版本。"""
-        data = request.get_json(force=True, silent=True) or {}
-        req = RollbackSkillPackageReq(data=data)
+        data = request.get_json(force=True, silent=True)
+        data = data if isinstance(data, dict) else {}
+        req = RollbackSkillPackageReq(formdata=MultiDict(data))
         if not req.validate():
             return validate_error_json(req.errors)
 
