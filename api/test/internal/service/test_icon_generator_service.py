@@ -332,7 +332,10 @@ class TestIconGeneratorService:
 
         client.put_object.assert_not_called()
 
-    def test_download_and_upload_image_should_reject_oversized_response(self):
+    def test_download_and_upload_image_should_reject_oversized_response(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"COS_DOMAIN": "https://test.cos.com"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
         response = _mock_image_response(b"x" * (20 * 1024 * 1024 + 1))
         service = _build_service()
 
@@ -342,7 +345,10 @@ class TestIconGeneratorService:
 
         response.close.assert_called_once()
 
-    def test_download_and_upload_image_should_reject_invalid_content_length(self):
+    def test_download_and_upload_image_should_reject_invalid_content_length(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"COS_DOMAIN": "https://test.cos.com"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
         response = _mock_image_response(_image_bytes())
         response.headers["Content-Length"] = "unknown"
         service = _build_service()
