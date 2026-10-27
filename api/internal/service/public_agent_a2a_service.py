@@ -651,13 +651,6 @@ class PublicAgentA2AService(BaseService):
             tools,
             flask_app=flask_app,
         )
-        agent = self.app_service._create_runtime_agent(
-            llm,
-            owner_account,
-            app_config,
-            tools,
-            flask_app=flask_app,
-        )
         conversation = self._resolve_public_conversation(app, context_id)
         message = self.create(
             Message,
@@ -761,13 +754,6 @@ class PublicAgentA2AService(BaseService):
             app_config,
             flask_app=flask_app,
             runtime_context=runtime_context,
-        )
-        agent = self.app_service._create_runtime_agent(
-            llm,
-            owner_account,
-            app_config,
-            tools,
-            flask_app=flask_app,
         )
         agent = self.app_service._create_runtime_agent(
             llm,
