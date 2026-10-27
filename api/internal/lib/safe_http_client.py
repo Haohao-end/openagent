@@ -49,6 +49,8 @@ def _normalize_raw_url(url: Any) -> str:
     normalized = str(url or "").strip()
     if not normalized:
         raise ValidateErrorException("URL不能为空")
+    if any(ord(char) < 32 or ord(char) == 127 for char in normalized):
+        raise ValidateErrorException("URL包含非法控制字符")
     return normalized
 
 
