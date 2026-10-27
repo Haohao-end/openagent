@@ -24,30 +24,36 @@ const searchWord = ref('')
 const page = ref(1)
 const pageSize = ref(20)
 const hasMore = ref(true)
+let latestWorkflowsRequest = 0
 
-const loadWorkflows = async () => {
-  if (loading.value) return
+const loadWorkflows = async (force = false) => {
+  if (loading.value && !force) return
   if (!hasMore.value && page.value > 1) return
 
+  const requestId = ++latestWorkflowsRequest
+  const requestPage = page.value
   loading.value = true
   try {
     const res = await getPublicWorkflows({
-      current_page: page.value,
+      current_page: requestPage,
       page_size: pageSize.value,
       tags: selectedTags.value.join(','),
       search_word: searchWord.value
     })
+    if (requestId !== latestWorkflowsRequest) return
     const list = res.data.list
-    if (page.value === 1) {
+    if (requestPage === 1) {
       workflows.value = list
     } else {
       workflows.value.push(...list)
     }
-    hasMore.value = page.value < res.data.paginator.total_page
+    hasMore.value = requestPage < res.data.paginator.total_page
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('store.workflows.loadFailed')))
+    if (requestId === latestWorkflowsRequest) {
+      Message.error(getErrorMessage(error, t('store.workflows.loadFailed')))
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestWorkflowsRequest) loading.value = false
   }
 }
 
@@ -78,7 +84,7 @@ const handlePreview = (workflow: PublicWorkflow) => {
 const refreshWorkflows = () => {
   page.value = 1
   hasMore.value = true
-  void loadWorkflows()
+  void loadWorkflows(true)
 }
 
 const handleSelectAll = () => {
