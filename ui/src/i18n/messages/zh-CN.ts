@@ -2,6 +2,7 @@ export default {
   authForm: {
     accountEmail: '登录邮箱地址',
     accountPassword: '账号密码',
+    registerVerificationCode: '注册邮箱验证码',
     registerEmail: '注册邮箱',
     registerPassword: '注册密码',
   },
