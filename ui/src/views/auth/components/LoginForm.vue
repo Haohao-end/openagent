@@ -1128,6 +1128,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
           <a-input
             v-model="challengeCode"
             autocomplete="one-time-code"
+            :input-attrs="{ 'aria-label': $t('authForm.loginChallengeCode') }"
             size="large"
             placeholder="请输入6位验证码"
             maxlength="6"
