@@ -22,7 +22,7 @@ export const formatDebugNodeOutputs = (outputs: unknown): string => {
 }
 
 export const findWorkflowOutputs = (nodeResults: DebugNodeResult[]): unknown => {
-  const endNodeResult = nodeResults.find((item) => item.node_data.node_type === 'end')
+  const endNodeResult = nodeResults.find((item) => item.node_data?.node_type === 'end')
   return endNodeResult ? endNodeResult.outputs : null
 }
 
@@ -34,7 +34,7 @@ export const sumWorkflowLatency = (nodeResults: DebugNodeResult[]): number => {
 
 export const sumWorkflowToolLatency = (nodeResults: DebugNodeResult[]): number => {
   return nodeResults.reduce((total, item) => {
-    if (item.node_data.node_type === 'tool') {
+    if (item.node_data?.node_type === 'tool') {
       return total + safeLatency(item.latency)
     }
     return total
