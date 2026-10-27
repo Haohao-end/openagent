@@ -159,7 +159,7 @@ def _validate_safe_target(url: Any) -> SafeHttpTarget:
         scheme=parsed.scheme.lower(),
         hostname=ascii_hostname,
         ascii_hostname=ascii_hostname,
-        port=port if port not in (_DEFAULT_HTTP_PORT, _DEFAULT_HTTPS_PORT) else None,
+        port=port if port != (_DEFAULT_HTTPS_PORT if parsed.scheme.lower() == "https" else _DEFAULT_HTTP_PORT) else None,
         resolved_ip=resolved_ips[0],
     )
 
