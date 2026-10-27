@@ -75,12 +75,13 @@ const formItemStub = {
 }
 
 const inputStub = {
-  props: ['modelValue', 'placeholder', 'readonly', 'maxlength', 'autocomplete'],
+  props: ['modelValue', 'placeholder', 'readonly', 'maxlength', 'autocomplete', 'inputAttrs'],
   emits: ['update:modelValue', 'keyup.enter'],
   template: `
     <label>
       <slot name="prefix" />
       <input
+        v-bind="inputAttrs"
         :value="modelValue"
         :placeholder="placeholder"
         :readonly="readonly"
@@ -125,6 +126,12 @@ const renderForm = () => {
       redirectAfterLogin: false,
     },
     global: {
+      mocks: {
+        $t: (key: string) => ({
+          'authForm.accountEmail': 'Account email',
+          'authForm.accountPassword': 'Account password',
+        })[key] ?? key,
+      },
       stubs: {
         'a-form': formStub,
         'a-form-item': formItemStub,
@@ -171,6 +178,13 @@ const createAuthRequestError = (
 }
 
 describe('LoginForm auto register flow', () => {
+  it('gives login credential inputs accessible names', () => {
+    const wrapper = renderForm()
+
+    expect(wrapper.get('input[placeholder="登录/注册账号"]').attributes('aria-label')).toBe('Account email')
+    expect(wrapper.get('input[placeholder="账号密码"]').attributes('aria-label')).toBe('Account password')
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()

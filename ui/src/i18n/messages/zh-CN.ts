@@ -1,4 +1,8 @@
 export default {
+  authForm: {
+    accountEmail: '登录邮箱地址',
+    accountPassword: '账号密码',
+  },
   common: {
     actions: {
       cancel: '取消',
