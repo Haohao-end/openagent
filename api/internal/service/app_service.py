@@ -1887,8 +1887,8 @@ class AppService(BaseService):
                                       ModelParameterType.FLOAT.value] and parameter_value is not None:
                     # 3.13 校验数值的min/max
                     if (
-                            (parameter.min and parameter_value < parameter.min)
-                            or (parameter.max and parameter_value > parameter.max)
+                            (parameter.min is not None and parameter_value < parameter.min)
+                            or (parameter.max is not None and parameter_value > parameter.max)
                     ):
                         parameter_value = parameter.default
 
