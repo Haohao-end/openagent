@@ -75,12 +75,13 @@ const formItemStub = {
 }
 
 const inputStub = {
-  props: ['modelValue', 'placeholder', 'readonly', 'maxlength', 'autocomplete'],
+  props: ['modelValue', 'placeholder', 'readonly', 'maxlength', 'autocomplete', 'inputAttrs'],
   emits: ['update:modelValue', 'keyup.enter'],
   template: `
     <label>
       <slot name="prefix" />
       <input
+        v-bind="inputAttrs"
         :value="modelValue"
         :placeholder="placeholder"
         :readonly="readonly"
@@ -125,6 +126,12 @@ const renderForm = () => {
       redirectAfterLogin: false,
     },
     global: {
+      mocks: {
+        $t: (key: string) => ({
+          'authForm.registerEmail': 'Registration email',
+          'authForm.registerPassword': 'Registration password',
+        })[key] ?? key,
+      },
       stubs: {
         'a-form': formStub,
         'a-form-item': formItemStub,
@@ -271,7 +278,9 @@ describe('LoginForm auto register flow', () => {
 
     expect(wrapper.text()).toContain('使用邮箱完成注册，验证后即可登录')
     expect(wrapper.get('input[placeholder="请输入注册邮箱"]').attributes('autocomplete')).toBe('email')
+    expect(wrapper.get('input[placeholder="请输入注册邮箱"]').attributes('aria-label')).toBe('Registration email')
     expect(wrapper.get('input[placeholder^="请设置密码"]').attributes('autocomplete')).toBe('new-password')
+    expect(wrapper.get('input[placeholder^="请设置密码"]').attributes('aria-label')).toBe('Registration password')
 
     const sendRegisterCodeButton = findButtonContainingText(wrapper, '发送注册验证码')
     expect(sendRegisterCodeButton).toBeTruthy()

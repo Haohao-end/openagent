@@ -1,4 +1,8 @@
 export default {
+  authForm: {
+    registerEmail: 'Registration email',
+    registerPassword: 'Registration password',
+  },
   common: {
     actions: {
       cancel: 'Cancel',

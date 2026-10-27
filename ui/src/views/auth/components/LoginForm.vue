@@ -1004,6 +1004,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
             size="large"
             allow-clear
             placeholder="请输入注册邮箱"
+            :input-attrs="{ 'aria-label': $t('authForm.registerEmail') }"
             @keyup.enter="handleStartRegister"
           >
             <template #prefix>
@@ -1018,6 +1019,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
             autocomplete="new-password"
             size="large"
             placeholder="请设置密码(至少一个字母,一个数字,长度8-16位)"
+            :input-attrs="{ 'aria-label': $t('authForm.registerPassword') }"
             @keyup.enter="handleStartRegister"
           >
             <template #prefix>
