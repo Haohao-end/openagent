@@ -138,8 +138,8 @@ docker compose up -d --build
 ### 修改数据库密码
 
 ```bash
-# 编辑 docker/.env
-vim .env
+# 编辑 api/.env 中的数据库和 Redis 凭据
+vim ../api/.env
 
 # 删除数据并重新创建
 docker compose down -v
