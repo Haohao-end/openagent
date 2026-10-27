@@ -4,6 +4,7 @@ export default {
     accountPassword: 'Account password',
     registerEmail: 'Registration email',
     registerPassword: 'Registration password',
+    loginChallengeCode: 'Login verification code',
   },
   passwordResetForm: {
     email: 'Password reset email',

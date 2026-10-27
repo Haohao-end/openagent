@@ -132,6 +132,7 @@ const renderForm = () => {
           'authForm.accountPassword': 'Account password',
           'authForm.registerEmail': 'Registration email',
           'authForm.registerPassword': 'Registration password',
+          'authForm.loginChallengeCode': 'Login verification code',
         })[key] ?? key,
       },
       stubs: {
@@ -350,6 +351,7 @@ describe('LoginForm auto register flow', () => {
       await wrapper.find('form').trigger('submit')
       await flushPromises()
       expect(wrapper.get('input[placeholder="请输入6位验证码"]').attributes('autocomplete')).toBe('one-time-code')
+      expect(wrapper.get('input[placeholder="请输入6位验证码"]').attributes('aria-label')).toBe('Login verification code')
     } finally {
       wrapper.unmount()
     }
