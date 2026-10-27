@@ -147,7 +147,7 @@ class IconGeneratorService(BaseService):
             status_code = getattr(error.response, "status_code", None)
             error_detail = ""
             try:
-                error_data = error.response.json() if error.response else {}
+                error_data = error.response.json() if error.response is not None else {}
                 error_detail = (
                     error_data.get("error", {}).get("message")
                     or error_data.get("message")
@@ -201,7 +201,11 @@ class IconGeneratorService(BaseService):
             self._raise_request_error(provider_name, e)
 
         result = response.json()
-        images = result.get("images") or []
+        if not isinstance(result, dict):
+            raise FailException(f"{provider_name} 返回的图片响应格式无效")
+        images = result.get("images", [])
+        if not isinstance(images, list):
+            raise FailException(f"{provider_name} 返回的图片列表格式无效")
         if not images:
             raise FailException(f"{provider_name} 返回的图片列表为空")
 
@@ -295,7 +299,10 @@ class IconGeneratorService(BaseService):
             content_length = response.headers.get("Content-Length")
             if content_length:
                 try:
-                    if int(content_length) > MAX_ICON_IMAGE_BYTES:
+                    declared_length = int(content_length)
+                    if declared_length < 0:
+                        raise ValueError("negative content length")
+                    if declared_length > MAX_ICON_IMAGE_BYTES:
                         raise FailException("图标文件超过大小限制")
                 except ValueError as error:
                     raise FailException("图标响应长度无效") from error
@@ -330,7 +337,7 @@ class IconGeneratorService(BaseService):
         )
 
         # 5. 返回COS URL
-        return f"{cos_domain}/{upload_filename}"
+        return f"{str(cos_domain).rstrip('/')}/{upload_filename}"
 
     @staticmethod
     def _normalize_icon_image(image_data: bytes) -> bytes:
