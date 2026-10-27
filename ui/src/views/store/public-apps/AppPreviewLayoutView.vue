@@ -64,6 +64,7 @@ const onCreatorAvatarError = () => {
   creatorAvatarSrc.value = creatorAvatarCandidates.value[creatorAvatarIndex.value] || ''
 }
 type PreviewApp = PublicApp & { draft_updated_at: number }
+let latestAppRequest = 0
 const app = ref<PreviewApp>({
   id: '',
   name: '',
@@ -79,9 +80,11 @@ const app = ref<PreviewApp>({
 
 // 加载公共应用详情
 const loadApp = async () => {
+  const requestId = ++latestAppRequest
   try {
     loading.value = true
     const res = await getPublicAppDetail(String(route.params?.app_id))
+    if (requestId !== latestAppRequest) return
     // 将 draft_app_config 数据合并到 app 对象中，这样 DetailView 可以直接使用
     app.value = {
       ...res.data,
@@ -96,9 +99,11 @@ const loadApp = async () => {
     creatorAvatarIndex.value = 0
     creatorAvatarSrc.value = creatorAvatarCandidates.value[0] || ''
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('publicApps.preview.loadFailed')))
+    if (requestId === latestAppRequest) {
+      Message.error(getErrorMessage(error, t('publicApps.preview.loadFailed')))
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestAppRequest) loading.value = false
   }
 }
 
