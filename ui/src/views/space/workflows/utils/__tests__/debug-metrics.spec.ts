@@ -58,6 +58,19 @@ describe('debug-metrics', () => {
     expect(findWorkflowOutputs(withoutEnd)).toBeNull()
   })
 
+  it('ignores malformed and negative latencies without corrupting metrics', () => {
+    const broken: DebugNodeResult[] = [
+      { node_data: { type: 'tool' }, outputs: null, latency: Number.NaN },
+      { node_data: { type: 'tool' }, outputs: null, latency: -12 },
+      { node_data: { type: 'tool' }, outputs: null, latency: Number.POSITIVE_INFINITY },
+      { node_data: { type: 'tool' }, outputs: null, latency: 0.25 },
+      { node_data: { type: 'start' }, outputs: null, latency: 0.1 },
+    ]
+
+    expect(sumWorkflowLatency(broken)).toBeCloseTo(0.35)
+    expect(sumWorkflowToolLatency(broken)).toBeCloseTo(0.25)
+  })
+
   it('sums all node latency', () => {
     expect(sumWorkflowLatency(mockNodeResults)).toBeCloseTo(0.65)
   })
