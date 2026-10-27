@@ -58,6 +58,12 @@ class ApiKeyHandler:
     @login_required
     def update_api_key_is_active(self, api_key_id: UUID):
         """根据传递的信息更新API密钥激活状态"""
+        payload = request.get_json(silent=True)
+        if request.is_json and (
+            not isinstance(payload, dict) or not isinstance(payload.get("is_active"), bool)
+        ):
+            return validate_error_json({"is_active": ["激活状态必须为布尔值"]})
+
         # 1.提取请求并校验
         req = UpdateApiKeyIsActiveReq()
         if not req.validate():
