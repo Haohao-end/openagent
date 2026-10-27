@@ -12,6 +12,7 @@ export type DebugNodeResult = {
 }
 
 export const formatDebugNodeOutputs = (outputs: unknown): string => {
+  if (outputs === undefined) return '—'
   if (typeof outputs === 'string') return outputs
 
   try {
