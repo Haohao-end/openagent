@@ -147,7 +147,7 @@ class IconGeneratorService(BaseService):
             status_code = getattr(error.response, "status_code", None)
             error_detail = ""
             try:
-                error_data = error.response.json() if error.response else {}
+                error_data = error.response.json() if error.response is not None else {}
                 error_detail = (
                     error_data.get("error", {}).get("message")
                     or error_data.get("message")

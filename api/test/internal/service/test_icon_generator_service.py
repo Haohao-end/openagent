@@ -445,6 +445,17 @@ class TestIconGeneratorService:
         with pytest.raises(FailException, match="Qwen 返回的图片URL为空"):
             service._generate_with_qwen("测试应用", "desc")
 
+    def test_http_error_preserves_provider_message_on_failing_response(self):
+        response = requests.Response()
+        response.status_code = 503
+        response._content = b'{"error": {"message": "provider temporarily offline"}}'
+        service = _build_service()
+
+        with pytest.raises(FailException, match="provider temporarily offline"):
+            service._raise_request_error(
+                "Kolors", requests.exceptions.HTTPError("HTTP 503", response=response)
+            )
+
     def test_generate_with_kolors_should_raise_when_http_429(self, monkeypatch):
         mock_app = Mock()
         mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
