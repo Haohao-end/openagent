@@ -15,6 +15,7 @@ def test_redirect_strips_auth_argument_only_when_origin_changes(monkeypatch, loc
     first = requests.Response()
     first.status_code = 302
     first.headers["Location"] = location
+    first.raw = Mock()
     second = requests.Response()
     second.status_code = 200
 
