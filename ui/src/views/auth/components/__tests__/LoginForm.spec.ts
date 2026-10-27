@@ -128,6 +128,8 @@ const renderForm = () => {
     global: {
       mocks: {
         $t: (key: string) => ({
+          'authForm.accountEmail': 'Account email',
+          'authForm.accountPassword': 'Account password',
           'authForm.registerEmail': 'Registration email',
           'authForm.registerPassword': 'Registration password',
         })[key] ?? key,
@@ -178,6 +180,13 @@ const createAuthRequestError = (
 }
 
 describe('LoginForm auto register flow', () => {
+  it('gives login credential inputs accessible names', () => {
+    const wrapper = renderForm()
+
+    expect(wrapper.get('input[placeholder="登录/注册账号"]').attributes('aria-label')).toBe('Account email')
+    expect(wrapper.get('input[placeholder="账号密码"]').attributes('aria-label')).toBe('Account password')
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
