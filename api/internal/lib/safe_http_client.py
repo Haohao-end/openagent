@@ -308,7 +308,7 @@ def safe_request(
                 raise
 
             if _should_strip_sensitive_headers(current_url, next_target.original_url):
-                if response.status_code in (307, 308) and current_method not in {"GET", "HEAD"} and (current_data is not None or current_json is not None):
+                if response.status_code in (307, 308) and (current_data is not None or current_json is not None):
                     response.close()
                     raise ValidateErrorException("禁止跨域重定向转发请求体")
                 current_headers = {
