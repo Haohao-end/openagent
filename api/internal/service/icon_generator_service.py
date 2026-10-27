@@ -201,7 +201,10 @@ class IconGeneratorService(BaseService):
         except Exception as e:
             self._raise_request_error(provider_name, e)
 
-        result = response.json()
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise FailException(f"{provider_name} 返回的图片响应格式无效") from exc
         if not isinstance(result, dict):
             raise FailException(f"{provider_name} 返回的图片响应格式无效")
         images = result.get("images", [])
