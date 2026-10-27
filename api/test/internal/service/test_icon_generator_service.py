@@ -359,32 +359,6 @@ class TestIconGeneratorService:
 
         response.close.assert_called_once()
 
-    @pytest.mark.parametrize("payload", [None, [], "unexpected response"])
-    def test_kolors_rejects_invalid_provider_response_shape(self, monkeypatch, payload):
-        app = Mock()
-        app.config = {"SILICONFLOW_API_KEY": "test-key"}
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
-        response = Mock()
-        response.json.return_value = payload
-        monkeypatch.setattr("internal.service.icon_generator_service.safe_request", lambda *a, **kw: response)
-        service = _build_service()
-
-        with pytest.raises(FailException, match="图片响应格式无效"):
-            service._generate_with_kolors("App", "description")
-
-    @pytest.mark.parametrize("images", [{"url": "https://cdn.example/icon.png"}, "unexpected"])
-    def test_kolors_rejects_non_list_images(self, monkeypatch, images):
-        app = Mock()
-        app.config = {"SILICONFLOW_API_KEY": "test-key"}
-        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
-        response = Mock()
-        response.json.return_value = {"images": images}
-        monkeypatch.setattr("internal.service.icon_generator_service.safe_request", lambda *a, **kw: response)
-        service = _build_service()
-
-        with pytest.raises(FailException, match="图片列表格式无效"):
-            service._generate_with_kolors("App", "description")
-
     def test_generate_with_kolors_should_raise_when_images_empty(self, monkeypatch):
         mock_app = Mock()
         mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
@@ -492,6 +466,32 @@ class TestIconGeneratorService:
 
         with pytest.raises(FailException, match="请求过于频繁"):
             service._generate_with_kolors("测试应用", "desc")
+
+    @pytest.mark.parametrize("payload", [None, [], "unexpected response"])
+    def test_kolors_rejects_invalid_provider_response_shape(self, monkeypatch, payload):
+        app = Mock()
+        app.config = {"SILICONFLOW_API_KEY": "test-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+        response = Mock()
+        response.json.return_value = payload
+        monkeypatch.setattr("internal.service.icon_generator_service.safe_request", lambda *a, **kw: response)
+        service = _build_service()
+
+        with pytest.raises(FailException, match="图片响应格式无效"):
+            service._generate_with_kolors("App", "description")
+
+    @pytest.mark.parametrize("images", [{"url": "https://cdn.example/icon.png"}, "unexpected"])
+    def test_kolors_rejects_non_list_images(self, monkeypatch, images):
+        app = Mock()
+        app.config = {"SILICONFLOW_API_KEY": "test-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+        response = Mock()
+        response.json.return_value = {"images": images}
+        monkeypatch.setattr("internal.service.icon_generator_service.safe_request", lambda *a, **kw: response)
+        service = _build_service()
+
+        with pytest.raises(FailException, match="图片列表格式无效"):
+            service._generate_with_kolors("App", "description")
 
     def test_generate_with_dalle_should_raise_when_image_url_empty(self, monkeypatch):
         mock_app = Mock()
