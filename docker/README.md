@@ -4,7 +4,7 @@
 
 **所有敏感信息（API Keys、密钥、密码）必须存储在 `.env` 文件中，绝不提交到 Git！**
 
-详细安全配置请参考: [SECURITY.md](./SECURITY.md)
+详细安全配置请参考: [SECURITY.md](../SECURITY.md)
 
 ## 配置文件结构
 
