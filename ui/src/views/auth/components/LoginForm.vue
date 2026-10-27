@@ -1159,6 +1159,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
           <a-form-item hide-label class="login-input !mb-4">
             <a-input
               v-model="forgotForm.email"
+              autocomplete="email"
               size="large"
               allow-clear
               placeholder="请输入邮箱"
@@ -1185,6 +1186,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
           <a-form-item hide-label class="login-input !mb-3">
             <a-input
               v-model="forgotForm.code"
+              autocomplete="one-time-code"
               size="large"
               placeholder="请输入6位验证码"
               maxlength="6"
@@ -1210,6 +1212,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
           <a-form-item hide-label class="login-input !mb-3">
             <a-input-password
               v-model="forgotForm.new_password"
+              autocomplete="new-password"
               size="large"
               placeholder="新密码(至少一个字母,一个数字,长度8-16位)"
             >
@@ -1222,6 +1225,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
           <a-form-item hide-label class="login-input !mb-3">
             <a-input-password
               v-model="forgotForm.confirm_password"
+              autocomplete="new-password"
               size="large"
               placeholder="请再次输入新密码"
               @keyup.enter="handleResetPassword"
