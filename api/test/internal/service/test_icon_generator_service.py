@@ -359,6 +359,20 @@ class TestIconGeneratorService:
 
         response.close.assert_called_once()
 
+    def test_download_and_upload_image_should_reject_negative_content_length(self, monkeypatch):
+        app = Mock()
+        app.config = {"COS_DOMAIN": "https://test.cos.com"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+        response = _mock_image_response(_image_bytes())
+        response.headers["Content-Length"] = "-1"
+        service = _build_service()
+
+        with patch("internal.service.icon_generator_service.safe_request", return_value=response):
+            with pytest.raises(FailException, match="图标响应长度无效"):
+                service._download_and_upload_image("https://example.com/image.png", "test")
+
+        response.close.assert_called_once()
+
     def test_generate_with_kolors_should_raise_when_images_empty(self, monkeypatch):
         mock_app = Mock()
         mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
