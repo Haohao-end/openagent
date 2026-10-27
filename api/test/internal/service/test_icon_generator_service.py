@@ -210,6 +210,24 @@ class TestIconGeneratorService:
         assert "rounded square app icon composition" in prompt
         assert "no text, no watermark, no extra elements" in prompt
 
+    def test_missing_cos_domain_rejects_before_download_or_upload(self, monkeypatch):
+        app = Mock()
+        app.config = {}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+        network_request = Mock()
+        monkeypatch.setattr("internal.service.icon_generator_service.safe_request", network_request)
+        cos_client = Mock()
+        service = _build_service(cos_service=SimpleNamespace(
+            _get_client=Mock(return_value=cos_client),
+            _get_bucket=Mock(return_value="test-bucket"),
+        ))
+
+        with pytest.raises(FailException, match="COS_DOMAIN 未配置"):
+            service._download_and_upload_image("https://example.com/icon.png", "kolors")
+
+        network_request.assert_not_called()
+        cos_client.put_object.assert_not_called()
+
     def test_download_and_upload_image(self, monkeypatch):
         mock_app = Mock()
         mock_app.config = {"COS_DOMAIN": "https://test.cos.com"}
@@ -314,7 +332,10 @@ class TestIconGeneratorService:
 
         client.put_object.assert_not_called()
 
-    def test_download_and_upload_image_should_reject_oversized_response(self):
+    def test_download_and_upload_image_should_reject_oversized_response(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"COS_DOMAIN": "https://test.cos.com"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
         response = _mock_image_response(b"x" * (20 * 1024 * 1024 + 1))
         service = _build_service()
 
@@ -324,7 +345,10 @@ class TestIconGeneratorService:
 
         response.close.assert_called_once()
 
-    def test_download_and_upload_image_should_reject_invalid_content_length(self):
+    def test_download_and_upload_image_should_reject_invalid_content_length(self, monkeypatch):
+        mock_app = Mock()
+        mock_app.config = {"COS_DOMAIN": "https://test.cos.com"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
         response = _mock_image_response(_image_bytes())
         response.headers["Content-Length"] = "unknown"
         service = _build_service()

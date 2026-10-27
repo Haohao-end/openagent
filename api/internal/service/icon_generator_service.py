@@ -259,6 +259,10 @@ class IconGeneratorService(BaseService):
         Returns:
             str: COS中的图片URL
         """
+        cos_domain = current_app.config.get("COS_DOMAIN")
+        if not cos_domain:
+            raise FailException("COS_DOMAIN 未配置")
+
         # 1. 流式下载并限制体积，避免异常上游响应占用过多内存。
         response = safe_request("GET", image_url, timeout=30, stream=True)
         image_chunks = []
@@ -303,10 +307,6 @@ class IconGeneratorService(BaseService):
         )
 
         # 5. 返回COS URL
-        cos_domain = current_app.config.get("COS_DOMAIN")
-        if not cos_domain:
-            raise FailException("COS_DOMAIN 未配置")
-
         return f"{cos_domain}/{upload_filename}"
 
     @staticmethod
