@@ -44,7 +44,7 @@ const copyNodeError = async (error: string) => {
 }
 const form = ref<Record<string, string | number | boolean>>({})
 const nodeResults = ref<DebugNodeResult[]>([])
-const previousNodeId = ref('')
+const succeededNodeIds = ref<Set<string>>(new Set())
 const activatedTab = ref('input')
 const {
   error: debugWorkflowError,
@@ -82,7 +82,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   // 6.1 运行前先将历史运行清空
   nodeResults.value = []
   debugWorkflowError.value = ''
-  previousNodeId.value = ''
+  succeededNodeIds.value = new Set()
   clearDebugCanvas(nodes.value, edges.value)
 
   // 6.2 检查表单是否出错，如果出错则直接结束
@@ -121,10 +121,10 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
           const nodeId = nodeResult.node_data?.id
           if (nodeId && nodeResult.status === 'succeeded') {
             markDebugNode(nodes.value, nodeId)
-            if (previousNodeId.value) {
-              markDebugEdge(edges.value, previousNodeId.value, nodeId)
-            }
-            previousNodeId.value = nodeId
+            edges.value
+              .filter((edge) => edge.target === nodeId && succeededNodeIds.value.has(edge.source))
+              .forEach((edge) => markDebugEdge(edges.value, edge.source, nodeId))
+            succeededNodeIds.value.add(nodeId)
           }
         }
       },
@@ -147,7 +147,7 @@ watch(
     if (newValue) {
       debugWorkflowError.value = ''
       nodeResults.value = []
-      previousNodeId.value = ''
+      succeededNodeIds.value = new Set()
       clearDebugCanvas(nodes.value, edges.value)
       activatedTab.value = 'input'
       form.value = {}
