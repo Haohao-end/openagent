@@ -2985,6 +2985,17 @@ class TestAppServiceDraftConfigValidation:
         assert validated["text_to_speech"]["voice"] == ALLOWED_AUDIO_VOICES[0]
         assert validated["review_config"]["inputs_config"]["enable"] is True
 
+    @pytest.mark.parametrize("score", [0, 1])
+    def test_validate_should_accept_integer_retrieval_score(self, score):
+        service = _build_validation_service()
+
+        validated = service._validate_draft_app_config(
+            {"retrieval_config": {"retrieval_strategy": "semantic", "k": 3, "score": score}},
+            SimpleNamespace(id=uuid4()),
+        )
+
+        assert validated["retrieval_config"]["score"] == float(score)
+
     @pytest.mark.parametrize("dialog_round", [True, False])
     def test_validate_should_reject_boolean_dialog_round(self, dialog_round):
         service = _build_validation_service()
@@ -3060,7 +3071,8 @@ class TestAppServiceDraftConfigValidation:
         [
             {"dialog_round": -1},
             {"preset_prompt": 123},
-            {"retrieval_config": {"retrieval_strategy": "semantic", "k": 3, "score": 1}},
+            {"retrieval_config": {"retrieval_strategy": "semantic", "k": 3, "score": 1.1}},
+            {"retrieval_config": {"retrieval_strategy": "semantic", "k": 3, "score": True}},
             {"long_term_memory": {"enable": "yes"}},
             {"opening_statement": 123},
             {"opening_questions": ["ok", 1]},
