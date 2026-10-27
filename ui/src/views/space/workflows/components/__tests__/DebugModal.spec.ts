@@ -291,6 +291,28 @@ describe('DebugModal node outputs', () => {
     expect(wrapper.findAll('[data-testid="workflow-node-result"]')).toHaveLength(0)
   })
 
+  it('shows localized error details for failed nodes with no error message', async () => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_id, _inputs, onData) => {
+      onData({ data: {
+        node_data: { node_type: 'tool', title: 'Weather' },
+        status: 'failed', error: '', outputs: {}, latency: 0.1,
+      } })
+    })
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+    const errorPanel = wrapper.get('[data-testid="workflow-node-error"]')
+    const fallbackMessage = errorPanel.find('pre').text()
+    expect(fallbackMessage.length).toBeGreaterThan(0)
+    await wrapper.get('[data-testid="copy-node-error"]').trigger('click')
+    await flushPromises()
+    expect(copyTextToClipboard).toHaveBeenCalledWith(fallbackMessage)
+    wrapper.unmount()
+  })
+
   it('shows request errors in the output panel', async () => {
     mocks.handleDebugWorkflow.mockRejectedValueOnce(new Error('network disconnected'))
 

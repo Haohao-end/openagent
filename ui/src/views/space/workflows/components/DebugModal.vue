@@ -302,7 +302,7 @@ watch(
               {{ nodeResult.node_data?.title || nodeResult.node_data?.node_type || t('workflowEditor.output') }}
             </h4>
             <div
-              v-if="nodeResult.error"
+              v-if="nodeResult.error || nodeResult.status === 'failed'"
               class="mt-2 rounded border border-red-200 bg-red-50 p-2"
               data-testid="workflow-node-error"
             >
@@ -314,12 +314,12 @@ watch(
                   type="button"
                   class="text-xs text-red-700 underline"
                   data-testid="copy-node-error"
-                  @click="copyNodeError(String(nodeResult.error || ''))"
+                  @click="copyNodeError(String(nodeResult.error || t('workflowEditor.runFailed')))"
                 >
                   {{ t('workflowEditor.copyError') }}
                 </button>
               </div>
-              <pre class="whitespace-pre-wrap break-words text-xs text-red-700">{{ nodeResult.error }}</pre>
+              <pre class="whitespace-pre-wrap break-words text-xs text-red-700">{{ nodeResult.error || t('workflowEditor.runFailed') }}</pre>
             </div>
             <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs text-gray-600" data-testid="workflow-node-output">{{ formatDebugNodeOutputs(nodeResult.outputs) }}</pre>
           </article>
