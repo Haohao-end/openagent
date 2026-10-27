@@ -127,7 +127,8 @@ class McpHandler:
     @login_required
     def generate_icon_preview(self):
         """生成 MCP 图标预览。"""
-        data = request.get_json(force=True, silent=True) or {}
+        data = request.get_json(force=True, silent=True)
+        data = data if isinstance(data, dict) else {}
         raw_name = data.get("name")
         raw_description = data.get("description")
         name = raw_name.strip() if isinstance(raw_name, str) else ""
