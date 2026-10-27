@@ -63,6 +63,15 @@ describe('debug-metrics', () => {
     expect(sumWorkflowToolLatency(withMissingNode)).toBeCloseTo(0.2)
   })
 
+  it('uses the latest completed end-node event instead of a stale earlier output', () => {
+    const updates: DebugNodeResult[] = [
+      { node_data: { node_type: 'end' }, outputs: { answer: 'partial' }, latency: 0.1 },
+      { node_data: { node_type: 'tool' }, outputs: {}, latency: 0.1 },
+      { node_data: { node_type: 'end' }, outputs: { answer: 'complete' }, latency: 0.2 },
+    ]
+    expect(findWorkflowOutputs(updates)).toEqual({ answer: 'complete' })
+  })
+
   it('returns null when end node is missing', () => {
     const withoutEnd = mockNodeResults.filter((item) => item.node_data.node_type !== 'end')
     expect(findWorkflowOutputs(withoutEnd)).toBeNull()
