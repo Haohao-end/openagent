@@ -1,7 +1,11 @@
 export const copyTextToClipboard = async (text: string) => {
   if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text)
-    return
+    try {
+      await navigator.clipboard.writeText(text)
+      return
+    } catch {
+      // Clipboard permissions can fail even when the modern API exists; try the DOM fallback.
+    }
   }
 
   if (typeof document === 'undefined') throw new Error('Clipboard is unavailable')
