@@ -253,4 +253,4 @@ docker compose restart llmops-api
 
 - [Docker Compose 文档](https://docs.docker.com/compose/)
 - [环境变量最佳实践](https://12factor.net/config)
-- [项目 CLAUDE.md](../CLAUDE.md)
+- [项目贡献指南](../CONTRIBUTING.md)
