@@ -102,7 +102,11 @@ class WorkflowHandler:
     def debug_workflow(self, workflow_id: UUID):
         """根据传递的变量字典+工作流id调试指定的工作流"""
         # 1.提取用户传递的输入变量信息
-        inputs = request.get_json(force=True, silent=True) or {}
+        inputs = request.get_json(force=True, silent=True)
+        if inputs is None:
+            inputs = {}
+        elif not isinstance(inputs, dict):
+            return validate_error_json({"inputs": ["工作流输入必须是对象"]})
 
         # 2.调用服务调试指定的API接口
         response = self.workflow_service.debug_workflow(workflow_id, inputs, current_user)
