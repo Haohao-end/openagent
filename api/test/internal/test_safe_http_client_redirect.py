@@ -18,6 +18,7 @@ def test_redirect_does_not_leak_explicit_cookie_header_across_origins(monkeypatc
     initial = requests.Response()
     initial.status_code = 302
     initial.headers["Location"] = redirect_url
+    initial.raw = Mock()
     final = requests.Response()
     final.status_code = 200
 
