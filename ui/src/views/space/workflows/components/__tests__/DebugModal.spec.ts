@@ -273,6 +273,27 @@ describe('DebugModal node outputs', () => {
     wrapper.unmount()
   })
 
+  it('shows and copies fallback details for whitespace-only failure messages', async () => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_id, _inputs, onData) => {
+      onData({ data: {
+        node_data: { node_type: 'tool', title: 'Weather' },
+        status: 'failed', error: '   ', outputs: {}, latency: 0.1,
+      } })
+    })
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+    const failureText = wrapper.get('[data-testid="workflow-node-error"]').find('pre').text()
+    expect(failureText.trim().length).toBeGreaterThan(0)
+    await wrapper.get('[data-testid="copy-node-error"]').trigger('click')
+    await flushPromises()
+    expect(copyTextToClipboard).toHaveBeenCalledWith(failureText)
+    wrapper.unmount()
+  })
+
   it('renders detailed error text for a failed node', async () => {
     mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
       onData({
