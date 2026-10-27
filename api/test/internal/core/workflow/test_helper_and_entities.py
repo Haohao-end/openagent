@@ -347,6 +347,33 @@ def test_workflow_config_should_raise_when_edge_source_target_mismatch_or_duplic
         WorkflowConfig(**payload)
 
 
+def test_workflow_config_should_reject_duplicate_if_else_branch_handles():
+    start_id, branch_id, first_id, second_id, end_id = (uuid4() for _ in range(5))
+    payload = {
+        "account_id": uuid4(),
+        "name": "wf_duplicate_branch_handle",
+        "description": "workflow description",
+        "nodes": [
+            _start_node(start_id),
+            {"id": branch_id, "node_type": "if_else", "title": "branch"},
+            _code_node(first_id, "first"),
+            _code_node(second_id, "second"),
+            _end_node(end_id),
+        ],
+        "edges": [
+            _edge(uuid4(), start_id, "start", branch_id, "if_else"),
+            {**_edge(uuid4(), branch_id, "if_else", first_id, "code"), "source_handle": "true"},
+            {**_edge(uuid4(), branch_id, "if_else", second_id, "code"), "source_handle": "true"},
+            {**_edge(uuid4(), branch_id, "if_else", second_id, "code"), "source_handle": "false"},
+            _edge(uuid4(), first_id, "code", end_id, "end"),
+            _edge(uuid4(), second_id, "code", end_id, "end"),
+        ],
+    }
+
+    with pytest.raises(ValidateErrorException, match="条件分支节点.*source_handle.*重复"):
+        WorkflowConfig(**payload)
+
+
 def test_workflow_config_should_raise_when_graph_not_connected():
     start_id = uuid4()
     code_1 = uuid4()

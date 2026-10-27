@@ -169,6 +169,11 @@ class WorkflowConfig(BaseModel):
                         f"条件分支节点 '{source_node.title}' 的 source_handle 必须是 'true' 或 'false'，"
                         f"当前值: {edge_data.source_handle}"
                     )
+                if any(
+                    item.source == edge_data.source and item.source_handle == edge_data.source_handle
+                    for item in edge_data_dict.values()
+                ):
+                    raise ValidateErrorException("条件分支节点的 source_handle 不能重复连接")
 
             # 18.校验边Edges里的边必须唯一(source+target+source_handle必须唯一)
             # 对于条件分支节点，允许多条边连接到同一目标，但 source_handle 必须不同
