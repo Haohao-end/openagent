@@ -525,7 +525,6 @@ class TestIconGeneratorService:
         with pytest.raises(FailException, match="请求过于频繁"):
             service._generate_with_kolors("测试应用", "desc")
 
-    @pytest.mark.parametrize("payload", [None, [], "unexpected response"])
     def test_kolors_rejects_provider_non_json_response(self, monkeypatch):
         app = Mock()
         app.config = {"SILICONFLOW_API_KEY": "test-key"}
@@ -538,6 +537,7 @@ class TestIconGeneratorService:
         with pytest.raises(FailException, match="Kolors 返回的图片响应格式无效"):
             service._generate_with_kolors("Demo", "desc")
 
+    @pytest.mark.parametrize("payload", [None, [], "unexpected response"])
     def test_kolors_rejects_invalid_provider_response_shape(self, monkeypatch, payload):
         app = Mock()
         app.config = {"SILICONFLOW_API_KEY": "test-key"}
