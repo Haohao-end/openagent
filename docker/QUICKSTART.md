@@ -220,8 +220,8 @@ docker compose exec llmops-db pg_isready -U postgres
 ### API Key 无效
 
 ```bash
-# 检查环境变量是否正确注入
-docker compose exec llmops-api env | grep API_KEY
+# 只检查已注入的 API Key 变量名，不输出密钥值
+docker compose exec llmops-api sh -c 'env | cut -d= -f1 | grep "_API_KEY$"'
 
 # 重启容器
 docker compose restart llmops-api
