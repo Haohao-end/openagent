@@ -74,7 +74,7 @@ def handle_subscribe_message(data: dict[str, Any] | None = None) -> None:
         logging.warning("[WS] rejected subscribe_message sid=%s: %s", request.sid, exc)
         return
 
-    payload = data or {}
+    payload = data if isinstance(data, dict) else {}
     message_id = str(payload.get("message_id", "")).strip()
     conversation_id = str(payload.get("conversation_id", "")).strip()
     if not message_id:
@@ -91,7 +91,7 @@ def handle_unsubscribe_message(data: dict[str, Any] | None = None) -> None:
         logging.warning("[WS] rejected unsubscribe_message sid=%s: %s", request.sid, exc)
         return
 
-    payload = data or {}
+    payload = data if isinstance(data, dict) else {}
     message_id = str(payload.get("message_id", "")).strip()
     if not message_id:
         return
