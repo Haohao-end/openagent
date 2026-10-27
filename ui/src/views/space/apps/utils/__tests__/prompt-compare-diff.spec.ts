@@ -29,6 +29,12 @@ describe('prompt compare diff', () => {
     ])
   })
 
+  it('rejects invalid or negative durations instead of inventing a delta', () => {
+    expect(getPromptCompareLatencyDelta(Number.NaN, 1.2)).toBeNull()
+    expect(getPromptCompareLatencyDelta(1.2, Number.POSITIVE_INFINITY)).toBeNull()
+    expect(getPromptCompareLatencyDelta(-1, 1.2)).toBeNull()
+  })
+
   it('compares the measured elapsed time between lanes', () => {
     expect(getPromptCompareLatencyDelta(1.25, 1.6)).toBe(0.35)
     expect(getPromptCompareLatencyDelta(2.4, 1.2)).toBe(-1.2)
