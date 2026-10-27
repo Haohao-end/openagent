@@ -488,6 +488,21 @@ class TestIconGeneratorService:
                 "Kolors", requests.exceptions.HTTPError("HTTP 503", response=response)
             )
 
+    @pytest.mark.parametrize("body,expected", [
+        (b'{"error": "quota exceeded"}', "quota exceeded"),
+        (b'{"message": "service is unavailable"}', "service is unavailable"),
+    ])
+    def test_http_error_preserves_string_or_top_level_provider_message(self, body, expected):
+        response = requests.Response()
+        response.status_code = 503
+        response._content = body
+        service = _build_service()
+
+        with pytest.raises(FailException, match=expected):
+            service._raise_request_error(
+                "Kolors", requests.exceptions.HTTPError("HTTP 503", response=response)
+            )
+
     def test_generate_with_kolors_should_raise_when_http_429(self, monkeypatch):
         mock_app = Mock()
         mock_app.config = {"SILICONFLOW_API_KEY": "test-key"}
