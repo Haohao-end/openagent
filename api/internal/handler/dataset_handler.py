@@ -124,7 +124,8 @@ class DatasetHandler:
     def generate_icon_preview(self):
         """根据传递的名称和描述生成图标预览（不保存到知识库）"""
         # 1.获取请求数据
-        data = request.get_json(force=True, silent=True) or {}
+        data = request.get_json(force=True, silent=True)
+        data = data if isinstance(data, dict) else {}
         raw_name = data.get('name')
         raw_description = data.get('description')
         name = raw_name.strip() if isinstance(raw_name, str) else ''
