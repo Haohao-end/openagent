@@ -101,6 +101,8 @@ describe('DebugModal node outputs', () => {
     ])
     expect(wrapper.text()).toContain('"temperature": 22')
     expect(wrapper.text()).toContain('"answer": "Sunny"')
+    expect(wrapper.get('[data-testid="workflow-total-tokens"]').text()).toBe('—')
+    expect(wrapper.text()).not.toContain('500 Tokens')
     expect(mocks.handleDebugWorkflow).toHaveBeenCalledOnce()
     expect(mocks.canvas.nodes.map(({ class: className }) => className)).toEqual([
       ['custom-node', 'workflow-debug-succeeded'],
