@@ -137,6 +137,9 @@ def _validate_safe_target(url: Any) -> SafeHttpTarget:
     if not parsed.scheme or parsed.scheme.lower() not in _ALLOWED_SCHEMES:
         raise ValidateErrorException("URL必须是绝对的http或https地址")
 
+    if parsed.username is not None or parsed.password is not None:
+        raise ValidateErrorException("URL不能包含用户名或密码")
+
     hostname = parsed.hostname
     if not hostname:
         raise ValidateErrorException("URL必须包含主机名")
