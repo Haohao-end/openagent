@@ -120,6 +120,33 @@ describe('DebugModal node outputs', () => {
     ])
   })
 
+  it.each([
+    ['empty text', ''],
+    ['zero', 0],
+    ['false', false],
+  ])('accepts valid %s as completed end-node output', async (_label, output) => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
+      onData({
+        data: {
+          node_data: { id: 'end-1', node_type: 'end', title: 'End' },
+          status: 'succeeded',
+          outputs: output,
+          latency: 0.02,
+        },
+      })
+    })
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.emitted('debug-success')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="workflow-total-tokens"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   it('clears prior node and edge markers before a new debug run', async () => {
     const wrapper = mount(DebugModal, {
       props: { visible: true, workflow_id: 'workflow-1' },
