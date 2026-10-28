@@ -125,6 +125,25 @@ class TestHomeService:
         result = service.get_user_intent(user)
         assert result == mock_intent_service.DEFAULT_INTENT
 
+    def test_get_user_intent_uses_cached_intent_when_message_query_fails(
+        self,
+        service,
+        mock_db,
+        mock_intent_service,
+    ):
+        user = SimpleNamespace(id=uuid4())
+        cached_intent = {"intent": "cached intent", "is_default": False}
+        all_messages = (
+            mock_db.session.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all
+        )
+        all_messages.side_effect = RuntimeError("database unavailable")
+        mock_intent_service.get_cached_intent.return_value = cached_intent
+
+        result = service.get_user_intent(user)
+
+        assert result == cached_intent
+        mock_intent_service.recognize.assert_not_called()
+
     def test_get_user_intent_single_user_message_triggers_recognition(
         self,
         service,
