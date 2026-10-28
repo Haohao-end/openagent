@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ConversationSearchView from '../ConversationSearchView.vue'
@@ -79,6 +79,12 @@ const mountView = () => {
  })
 }
 
+const searchFor = async (wrapper: ReturnType<typeof mountView>, query: string) => {
+ await wrapper.get('[data-testid="conversation-search-input"]').setValue(query)
+ await new Promise((resolve) => setTimeout(resolve, 310))
+ await flushPromises()
+}
+
 describe('ConversationSearchView', () => {
  beforeEach(() => {
  vi.clearAllMocks()
@@ -128,8 +134,7 @@ describe('ConversationSearchView', () => {
  } as never)
 
  const wrapper = mountView()
- await wrapper.get('[data-testid="conversation-search-input"]').setValue('Python')
- await flushPromises()
+ await searchFor(wrapper, 'Python')
 
  expect(conversationSearchService.searchConversations).toHaveBeenLastCalledWith('Python',100)
  expect(wrapper.text()).toContain('Python 编程教程')
@@ -137,6 +142,29 @@ describe('ConversationSearchView', () => {
  const cardClasses = wrapper.get('[data-testid="conversation-card"]').classes()
  expect(cardClasses).toContain('min-h-[108px]')
  expect(cardClasses).not.toContain('h-[144px]')
+ })
+
+ it('debounces consecutive search input before querying conversations', async () => {
+  vi.useFakeTimers()
+  const wrapper = mountView()
+  try {
+   const input = wrapper.get('[data-testid="conversation-search-input"]')
+   await input.setValue('o')
+   await input.setValue('op')
+   await input.setValue('open')
+   await nextTick()
+
+   expect(conversationSearchService.searchConversations).not.toHaveBeenCalled()
+   await vi.advanceTimersByTimeAsync(299)
+   expect(conversationSearchService.searchConversations).not.toHaveBeenCalled()
+   await vi.advanceTimersByTimeAsync(1)
+
+   expect(conversationSearchService.searchConversations).toHaveBeenCalledTimes(1)
+   expect(conversationSearchService.searchConversations).toHaveBeenCalledWith('open', 100)
+  } finally {
+   wrapper.unmount()
+   vi.useRealTimers()
+  }
  })
 
  it('highlights matched keywords in title and message preview', async () => {
@@ -153,8 +181,7 @@ describe('ConversationSearchView', () => {
  } as never)
 
  const wrapper = mountView()
- await wrapper.get('[data-testid="conversation-search-input"]').setValue('Python')
- await flushPromises()
+ await searchFor(wrapper, 'Python')
 
  const highlightedNodes = wrapper.findAll('.gradient-highlight')
  expect(highlightedNodes.length).toBeGreaterThan(0)
@@ -175,8 +202,7 @@ describe('ConversationSearchView', () => {
  } as never)
 
  const wrapper = mountView()
- await wrapper.get('[data-testid="conversation-search-input"]').setValue('Python')
- await flushPromises()
+ await searchFor(wrapper, 'Python')
 
  expect(wrapper.html()).toContain('<span class="gradient-highlight">Python</span>')
  expect(wrapper.html()).toContain('<strong>')
@@ -197,8 +223,7 @@ describe('ConversationSearchView', () => {
  } as never)
 
  const wrapper = mountView()
- await wrapper.get('[data-testid="conversation-search-input"]').setValue('Python')
- await flushPromises()
+ await searchFor(wrapper, 'Python')
 
     expect(wrapper.text()).toContain('匹配来源：标题')
  expect(wrapper.text()).not.toContain('这个问题没有命中词')
@@ -220,8 +245,7 @@ describe('ConversationSearchView', () => {
  } as never)
 
  const wrapper = mountView()
- await wrapper.get('[data-testid="conversation-search-input"]').setValue('OpenAgent')
- await flushPromises()
+ await searchFor(wrapper, 'OpenAgent')
 
     expect(wrapper.text()).toContain('匹配来源：Agent · OpenAgent')
  expect(wrapper.text()).toContain('OpenAgent')
@@ -253,8 +277,7 @@ describe('ConversationSearchView', () => {
  } as never)
 
  const wrapper = mountView()
- await wrapper.get('[data-testid="conversation-search-input"]').setValue('菜单')
- await flushPromises()
+ await searchFor(wrapper, '菜单')
 
  const card = wrapper.get('[data-testid="conversation-card"]')
  await card.trigger('mouseenter')
@@ -283,8 +306,7 @@ describe('ConversationSearchView', () => {
  } as never)
 
  const wrapper = mountView()
- await wrapper.get('[data-testid="conversation-search-input"]').setValue('调试')
- await flushPromises()
+ await searchFor(wrapper, '调试')
  await wrapper.get('[data-testid="conversation-card"]').trigger('click')
 
  expect(routerPush).toHaveBeenCalledWith({

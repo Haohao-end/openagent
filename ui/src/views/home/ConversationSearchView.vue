@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import AiDynamicBackground from '@/components/AiDynamicBackground.vue'
@@ -24,6 +24,7 @@ const { renderMarkdown } = useMarkdownRenderer()
 
 // State
 const searchQuery = ref('')
+let searchTimer: ReturnType<typeof setTimeout> | undefined
 const conversations = ref<SearchConversation[]>([])
 const loading = ref(false)
 const updateConversationNameVisible = ref(false)
@@ -366,8 +367,11 @@ watch(recentConversations, async () => {
 }, { deep: true })
 
 watch(searchQuery, () => {
-  handleSearch()
-}, { debounce: 300 } as any)
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => void handleSearch(), 300)
+})
+
+onUnmounted(() => clearTimeout(searchTimer))
 
 onMounted(() => {
   handleSearch()
