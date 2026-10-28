@@ -40,11 +40,16 @@ export const useGetApiKeysWithPage = () => {
 
     try {
       loading.value = true
-      const resp = await getApiKeysWithPage({
-        current_page: parsePositiveIntegerQuery(route.query?.current_page, 1),
-        page_size: parsePositiveIntegerQuery(route.query?.page_size, 20),
-      })
-      const data = resp.data
+      const pageSize = parsePositiveIntegerQuery(route.query?.page_size, 20)
+      let data = (
+        await getApiKeysWithPage({
+          current_page: parsePositiveIntegerQuery(route.query?.current_page, 1),
+          page_size: pageSize,
+        })
+      ).data
+      if (data.paginator.total_record > 0 && data.paginator.current_page > data.paginator.total_page) {
+        data = (await getApiKeysWithPage({ current_page: data.paginator.total_page, page_size: pageSize })).data
+      }
 
       paginator.value = data.paginator
       api_keys.value = data.list
