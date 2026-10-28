@@ -29,8 +29,8 @@ class Paginator:
 
     def __init__(self, db: SQLAlchemy, req: PaginatorReq = None):
         if req is not None:
-            self.current_page = req.current_page.data
-            self.page_size = req.page_size.data
+            self.current_page = req.current_page.data if req.current_page.data is not None else 1
+            self.page_size = req.page_size.data if req.page_size.data is not None else 20
         self.db = db
 
     def paginate(self, select) -> list[Any]:
