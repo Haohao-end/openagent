@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRequestError } from '@/utils/error'
-import { useUpdateDraftGraph } from '@/hooks/use-workflow'
+import { useGetWorkflowsWithPage, useUpdateDraftGraph } from '@/hooks/use-workflow'
 
 const mocks = vi.hoisted(() => ({
   cancelPublishWorkflow: vi.fn(),
@@ -20,6 +20,21 @@ const mocks = vi.hoisted(() => ({
 
 const messageSuccessMock = vi.fn()
 const messageErrorMock = vi.fn()
+
+type WorkflowPageResponse = {
+  data: {
+    paginator: { current_page: number; page_size: number; total_page: number; total_record: number }
+    list: { id: string }[]
+  }
+}
+
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
 
 vi.mock('@/services/workflow', () => ({
   cancelPublishWorkflow: (...args: unknown[]) => mocks.cancelPublishWorkflow(...args),
@@ -87,5 +102,72 @@ describe('use-workflow draft save feedback', () => {
     expect(result).toBe(false)
     expect(messageErrorMock).toHaveBeenCalledWith('URL解析到不允许的地址: 169.254.169.254')
     expect(messageSuccessMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('useGetWorkflowsWithPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('ignores a stale search result after a newer search completes', async () => {
+    const olderResponse = createDeferred<WorkflowPageResponse>()
+    const newerResponse = createDeferred<WorkflowPageResponse>()
+    mocks.getWorkflowsWithPage
+      .mockReturnValueOnce(olderResponse.promise)
+      .mockReturnValueOnce(newerResponse.promise)
+
+    const { workflows, loadWorkflows } = useGetWorkflowsWithPage()
+    const olderRequest = loadWorkflows('old', '', true)
+    const newerRequest = loadWorkflows('new', '', true)
+
+    newerResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'new-result' }],
+      },
+    })
+    await newerRequest
+    olderResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'old-result' }],
+      },
+    })
+    await olderRequest
+
+    expect(workflows.value).toEqual([{ id: 'new-result' }])
+  })
+
+  it('keeps loading while the newest workflow search is pending', async () => {
+    const olderResponse = createDeferred<WorkflowPageResponse>()
+    const newerResponse = createDeferred<WorkflowPageResponse>()
+    mocks.getWorkflowsWithPage
+      .mockReturnValueOnce(olderResponse.promise)
+      .mockReturnValueOnce(newerResponse.promise)
+
+    const { loading, loadWorkflows } = useGetWorkflowsWithPage()
+    const olderRequest = loadWorkflows('old', '', true)
+    const newerRequest = loadWorkflows('new', '', true)
+
+    olderResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'old-result' }],
+      },
+    })
+    await olderRequest
+
+    expect(loading.value).toBe(true)
+
+    newerResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'new-result' }],
+      },
+    })
+    await newerRequest
+
+    expect(loading.value).toBe(false)
   })
 })
