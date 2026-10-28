@@ -150,7 +150,7 @@ class HomeService(BaseService):
 
         except Exception as e:
             logging.error(f"Failed to get recent messages: {str(e)}")
-            return []
+            raise
 
     @classmethod
     def _build_message_signature(cls, messages: list[dict[str, Any]]) -> str:
