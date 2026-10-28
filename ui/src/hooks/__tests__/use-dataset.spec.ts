@@ -4,6 +4,7 @@ import {
   useDeleteSegment,
   useGetDataset,
   useGetDatasetsWithPage,
+  useGetDocument,
   useGetDocumentsWithPage,
   useGetSegmentsWithPage,
   useUpdateDocumentEnabled,
@@ -229,6 +230,30 @@ describe('useGetDataset', () => {
     newerResponse.resolve({ data: { id: 'dataset-b' } })
     await newerRequest
     expect(dataset.value.id).toBe('dataset-b')
+    expect(loading.value).toBe(false)
+  })
+})
+
+describe('useGetDocument', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('keeps the latest document detail after overlapping requests', async () => {
+    const olderResponse = createDeferred<{ data: { id: string } }>()
+    const newerResponse = createDeferred<{ data: { id: string } }>()
+    mocks.getDocument.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+
+    const { document, loading, loadDocument } = useGetDocument()
+    const olderRequest = loadDocument('dataset-1', 'document-a')
+    const newerRequest = loadDocument('dataset-1', 'document-b')
+
+    newerResponse.resolve({ data: { id: 'document-b' } })
+    await newerRequest
+    olderResponse.resolve({ data: { id: 'document-a' } })
+    await olderRequest
+
+    expect(document.value.id).toBe('document-b')
     expect(loading.value).toBe(false)
   })
 })
