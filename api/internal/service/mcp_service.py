@@ -251,6 +251,8 @@ class McpService(BaseService):
         updated_at=None,
         include_tools: bool = False,
     ) -> dict[str, Any]:
+        headers = [] if is_public else headers
+        env = {} if is_public else env
         normalized_category = normalize_mcp_category(category, name=name, description=description)
         category_meta = get_mcp_category_meta(normalized_category)
         binding = self._normalize_binding({
