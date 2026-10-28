@@ -107,15 +107,16 @@ const handleScroll = async (event: UIEvent) => {
 const handleUpdate = (dataset_id: string) => {
   updateShowUpdateModal(true, async () => {
     // 1.调用api获取知识库详情
-    await loadDataset(dataset_id)
+    const loadedDataset = await loadDataset(dataset_id)
+    if (!loadedDataset) return
     updateDatasetID = dataset_id
 
     // 2.更新表单数据
     formRef.value?.resetFields()
-    form.value.fileList = [{ uid: '1', name: t('space.datasets.modal.iconPlaceholder'), url: dataset.value.icon }]
-    form.value.icon = dataset.value.icon
-    form.value.name = dataset.value.name
-    form.value.description = dataset.value.description
+    form.value.fileList = [{ uid: '1', name: t('space.datasets.modal.iconPlaceholder'), url: loadedDataset.icon }]
+    form.value.icon = loadedDataset.icon
+    form.value.name = loadedDataset.name
+    form.value.description = loadedDataset.description
   })
 }
 

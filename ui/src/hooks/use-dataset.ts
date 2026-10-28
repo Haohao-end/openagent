@@ -171,7 +171,9 @@ export const useGetDataset = () => {
     try {
       loading.value = true
       const resp = await getDataset(dataset_id)
-      if (requestId === latestRequest) dataset.value = resp.data
+      if (requestId !== latestRequest) return
+      dataset.value = resp.data
+      return resp.data
     } finally {
       if (requestId === latestRequest) loading.value = false
     }

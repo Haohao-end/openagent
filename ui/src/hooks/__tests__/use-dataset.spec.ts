@@ -223,12 +223,13 @@ describe('useGetDataset', () => {
     const newerRequest = loadDataset('dataset-b')
 
     olderResponse.resolve({ data: { id: 'dataset-a' } })
-    await olderRequest
+    expect(await olderRequest).toBeUndefined()
     expect(dataset.value).toEqual({})
     expect(loading.value).toBe(true)
 
-    newerResponse.resolve({ data: { id: 'dataset-b' } })
-    await newerRequest
+    const latestDataset = { id: 'dataset-b' }
+    newerResponse.resolve({ data: latestDataset })
+    expect(await newerRequest).toEqual(latestDataset)
     expect(dataset.value.id).toBe('dataset-b')
     expect(loading.value).toBe(false)
   })
