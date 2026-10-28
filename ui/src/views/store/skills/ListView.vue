@@ -24,6 +24,7 @@ const hasMore = ref(true)
 const showDetailVisible = ref(false)
 const detailLoading = ref(false)
 const activeSkill = ref<SkillPackage | null>(null)
+let latestSkillDetailRequest = 0
 const { renderMarkdown } = useMarkdownRenderer()
 const avatarPalettes = [
   ['#334155', '#0f172a'],
@@ -118,16 +119,20 @@ const handleScroll = (event: Event) => {
 }
 
 const loadSkillDetail = async (skillId: string) => {
+  const requestId = ++latestSkillDetailRequest
   detailLoading.value = true
   showDetailVisible.value = true
   try {
     const res = await getSkill(skillId)
+    if (requestId !== latestSkillDetailRequest) return
     activeSkill.value = res.data
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('store.skills.detailLoadFailed')))
-    showDetailVisible.value = false
+    if (requestId === latestSkillDetailRequest) {
+      Message.error(getErrorMessage(error, t('store.skills.detailLoadFailed')))
+      showDetailVisible.value = false
+    }
   } finally {
-    detailLoading.value = false
+    if (requestId === latestSkillDetailRequest) detailLoading.value = false
   }
 }
 
