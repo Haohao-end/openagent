@@ -127,51 +127,59 @@ class TestDocumentService:
     def test_update_document_enabled_should_acquire_lock_atomically(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         dataset_id = uuid4()
+        document_id = uuid4()
         read_barrier = Barrier(2)
         lock_guard = Lock()
-        acquired = False
-        documents = local()
+        locks = {}
 
         class _ConcurrentRedis:
-            def get(self, _key):
-                read_barrier.wait(timeout=2)
-                return None
+            def __init__(self):
+                self.set_calls = []
+                self.sync_requests = True
 
-            def set(self, _key, _value, *, ex, nx):
-                nonlocal acquired
+            def set(self, key, value, *, ex, nx):
                 assert nx is True and ex > 0
+                if self.sync_requests and key.endswith(str(document_id)):
+                    read_barrier.wait(timeout=2)
                 with lock_guard:
-                    if acquired:
+                    if nx and key in locks:
                         return None
-                    acquired = True
+                    locks[key] = value
+                    self.set_calls.append(key)
                     return True
 
-            def setex(self, *_args):
-                pass
+            def get(self, key):
+                return locks.get(key)
 
-        service = DocumentService(db=SimpleNamespace(session=SimpleNamespace()), redis_client=_ConcurrentRedis())
+            def setex(self, key, _ttl, value):
+                locks[key] = value
+
+            def delete(self, key):
+                locks.pop(key, None)
+
+        redis_client = _ConcurrentRedis()
+        service = DocumentService(db=SimpleNamespace(session=SimpleNamespace()), redis_client=redis_client)
+        updates, task_calls = [], []
 
         def get_document(*_args, **_kwargs):
-            documents.value = SimpleNamespace(
-                id=uuid4(),
+            return SimpleNamespace(
+                id=document_id,
                 dataset_id=dataset_id,
                 account_id=account.id,
                 status=DocumentStatus.COMPLETED.value,
                 enabled=False,
             )
-            return documents.value
 
         monkeypatch.setattr(service, "get", get_document)
-        monkeypatch.setattr(service, "update", lambda target, **_kwargs: target)
-        task_calls = []
+        monkeypatch.setattr(service, "update", lambda target, **kwargs: updates.append((target, kwargs)) or target)
         monkeypatch.setattr(
             "internal.service.document_service.update_document_enabled.delay",
-            lambda document_id: task_calls.append(document_id),
+            lambda value: task_calls.append(value),
         )
 
         def update_enabled():
             try:
-                service.update_document_enabled(dataset_id, uuid4(), True, account)
+                service.update_document_enabled(dataset_id, document_id, True, account)
                 return "updated"
             except FailException:
                 return "locked"
@@ -180,8 +188,18 @@ class TestDocumentService:
             results = list(executor.map(lambda _index: update_enabled(), range(2)))
 
         assert sorted(results) == ["locked", "updated"]
-        assert len(task_calls) == 1
+        assert len(updates) == len(task_calls) == 1
+        assert task_calls == [document_id]
 
+        redis_client.sync_requests = False
+        other_document_id = uuid4()
+        assert redis_client.set(f"document-enable:{other_document_id}", 1, ex=600, nx=True)
+
+        locks[f"document-enable:{document_id}"] = 1
+        updates.clear()
+        with pytest.raises(FailException):
+            service.update_document_enabled(dataset_id, document_id, True, account)
+        assert updates == []
     def test_create_documents_should_raise_forbidden_when_dataset_not_accessible(self, monkeypatch):
         dataset_id = uuid4()
         account = SimpleNamespace(id=uuid4())
