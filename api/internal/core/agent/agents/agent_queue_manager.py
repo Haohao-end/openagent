@@ -1,5 +1,6 @@
 import queue
 import os
+import threading
 import time
 import uuid
 from queue import Queue
@@ -31,6 +32,7 @@ class AgentQueueManager:
         self.invoke_from = invoke_from
         self._queues = {}
         self._terminal_events = {}
+        self._queue_lock = threading.Lock()
 
         # 2.内部初始化redis_client
         from app.http.module import injector
@@ -160,26 +162,19 @@ class AgentQueueManager:
 
     def queue(self, task_id: UUID) -> Queue:
         """根据传递的task_id获取对应的任务队列信息"""
-        # 1.从队列字典中获取对应的任务队列
-        q = self._queues.get(str(task_id))
-
-        # 2.检测队列是否存在，如果不存在则创建队列，并添加缓存键标识
-        if not q:
-            # 3.添加缓存键标识
-            user_prefix = "account" if self.invoke_from in [
-                InvokeFrom.WEB_APP, InvokeFrom.DEBUGGER, InvokeFrom.ASSISTANT_AGENT
-            ] else "end-user"
-
-            # 4.设置任务对应的缓存键，代表这次任务已经开始了
-            self.redis_client.setex(
-                self.generate_task_belong_cache_key(task_id),
-                1800,
-                f"{user_prefix}-{str(self.user_id)}",
-            )
-
-            # 5.将任务队列添加到队列字典中
-            q = Queue()
-            self._queues[str(task_id)] = q
+        task_key = str(task_id)
+        with self._queue_lock:
+            q = self._queues.get(task_key)
+            if q is None:
+                user_prefix = "account" if self.invoke_from in [
+                    InvokeFrom.WEB_APP, InvokeFrom.DEBUGGER, InvokeFrom.ASSISTANT_AGENT
+                ] else "end-user"
+                self.redis_client.setex(
+                    self.generate_task_belong_cache_key(task_id),
+                    1800,
+                    f"{user_prefix}-{self.user_id}",
+                )
+                q = self._queues[task_key] = Queue()
 
         return q
 
