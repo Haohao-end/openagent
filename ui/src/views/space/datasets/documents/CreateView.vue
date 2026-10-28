@@ -42,6 +42,7 @@ type UploadFileResponsePayload = {
 // 1.定义页面逻辑基础数据，涵盖定时器、路由、当前步骤书、表单信息等
 let timer: ReturnType<typeof setInterval> | null = null
 let batch = ''
+let documentsCreated = false
 let fetchCount = 0
 const route = useRoute()
 const { t } = useI18n()
@@ -137,8 +138,11 @@ const nextStep = async () => {
       }
 
       // 2.10 发起请求并获取数据
-      await handleCreateDocuments(String(route.params?.dataset_id), req as CreateDocumentsRequest)
-      batch = create_documents_result.value.batch
+      if (!documentsCreated) {
+        await handleCreateDocuments(String(route.params?.dataset_id), req as CreateDocumentsRequest)
+        batch = create_documents_result.value.batch
+        documentsCreated = true
+      }
 
       // 2.11 先调用一次获取文档状态，然后创建定时器
       await fetchDocumentsStatus()

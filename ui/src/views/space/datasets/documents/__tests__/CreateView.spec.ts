@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { handleCreateDocuments, loadDocumentsStatus } = vi.hoisted(() => ({
   handleCreateDocuments: vi.fn().mockResolvedValue(undefined),
@@ -42,6 +42,11 @@ const UploadStub = defineComponent({
 })
 
 describe('document creation status', () => {
+  beforeEach(() => {
+    handleCreateDocuments.mockReset().mockResolvedValue(undefined)
+    loadDocumentsStatus.mockReset().mockResolvedValue(undefined)
+  })
+
   it('shows parsing errors when the document has no segments', async () => {
     const { default: CreateView } = await import('../CreateView.vue')
     const wrapper = mount(CreateView, { global: { stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub } } })
@@ -54,6 +59,31 @@ describe('document creation status', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('space.datasets.documents.create.processingError')
+    wrapper.unmount()
+  })
+
+  it('does not submit document creation again when the first status lookup fails', async () => {
+    loadDocumentsStatus.mockRejectedValueOnce(new Error('status unavailable'))
+    const { default: CreateView } = await import('../CreateView.vue')
+    const wrapper = mount(CreateView, {
+      global: {
+        config: { errorHandler: () => {} },
+        stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub },
+      },
+    })
+    const nextButton = () => wrapper.findAll('button').find((button) => button.text().includes('.next'))!
+
+    await wrapper.get('[data-testid="upload"]').trigger('click')
+    await nextButton().trigger('click')
+    await flushPromises()
+    await nextButton().trigger('click')
+    await flushPromises()
+    const retryButton = wrapper.findAll('button').find((button) => button.text().includes('.next'))
+    if (retryButton) await retryButton.trigger('click')
+    await flushPromises()
+
+    expect(handleCreateDocuments).toHaveBeenCalledTimes(1)
+    expect(loadDocumentsStatus).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
 })
