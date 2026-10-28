@@ -58,9 +58,13 @@ class OpenAPISchema(BaseModel):
         interfaces = []
         extra_paths = {}
         for path, path_item in paths.items():
+            if not isinstance(path_item, dict):
+                raise ValidateErrorException("paths路径项必须为字典")
             for method in methods:
                 # 检测是否存在特定的方法并提取信息
                 if method in path_item:
+                    if not isinstance(path_item[method], dict):
+                        raise ValidateErrorException("operation必须为字典")
                     interfaces.append({
                         "path": path,
                         "method": method,
