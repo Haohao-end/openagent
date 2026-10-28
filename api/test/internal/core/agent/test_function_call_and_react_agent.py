@@ -325,9 +325,22 @@ def test_function_call_agent_llm_node_should_cover_none_chunk_and_no_generation_
     agent_no_type = _new_function_call_agent(llm_no_type, _build_agent_config())
     result_no_type = agent_no_type._llm_node({"task_id": task_id, "messages": [HumanMessage(content="q")], "iteration_count": 0})
     assert result_no_type["messages"][0].content == ""
-    assert len(agent_no_type.agent_queue_manager.published) == 1
+    assert len(agent_no_type.agent_queue_manager.published) == 3
     assert agent_no_type.agent_queue_manager.published[0][1].event == QueueEvent.AGENT_MESSAGE
     assert agent_no_type.agent_queue_manager.published[0][1].thought == ""
+    assert [thought.event for _, thought in agent_no_type.agent_queue_manager.published] == [
+        QueueEvent.AGENT_MESSAGE,
+        QueueEvent.AGENT_MESSAGE,
+        QueueEvent.AGENT_END,
+    ]
+
+
+def test_function_call_agent_llm_node_should_end_when_stream_has_no_chunks():
+    agent = _new_function_call_agent(_NodeLLM(features=[], stream_chunks=[]), _build_agent_config())
+    result = agent._llm_node({"task_id": uuid4(), "messages": [HumanMessage(content="q")], "iteration_count": 0})
+
+    assert result["messages"][0].content == ""
+    assert [thought.event for _, thought in agent.agent_queue_manager.published] == [QueueEvent.AGENT_END]
 
 
 def test_function_call_agent_llm_node_should_stop_when_iteration_limit_reached():

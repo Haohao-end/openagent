@@ -212,6 +212,11 @@ class FunctionCallAgent(BaseAgent):
                         if isinstance(item, dict)
                     ],
                 )
+            self.agent_queue_manager.publish(state["task_id"], AgentThought(
+                id=uuid.uuid4(),
+                task_id=state["task_id"],
+                event=QueueEvent.AGENT_END.value,
+            ))
             return {
                 "messages": [AIMessage(content="")],
                 "iteration_count": state["iteration_count"] + 1,
@@ -265,7 +270,7 @@ class FunctionCallAgent(BaseAgent):
             latency=(time.perf_counter() - start_at),
         ))
 
-        if buffered_text_chunks:
+        if not final_tool_calls:
             if pending_skill_prompts:
                 logger.info(
                     "技能 prompt 租约已回收: lease_ids=%s",
