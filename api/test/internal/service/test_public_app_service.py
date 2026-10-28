@@ -703,11 +703,11 @@ class TestPublicAppService:
                         "transport": "streamable_http",
                         "url": "https://mcp.example.com",
                         "enabled": True,
-                        "headers": [],
+                        "headers": [{"key": "Authorization", "value": "Bearer synthetic-public-secret"}],
                         "tool_names": [],
                         "timeout_seconds": 30,
                         "args": [],
-                        "env": {},
+                        "env": {"MCP_TOKEN": "synthetic-public-secret"},
                     }
                 ],
                 workflows=[{"id": "wf"}],
