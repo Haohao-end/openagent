@@ -369,8 +369,8 @@ onUnmounted(() => stopTimer())
               </div>
             </div>
             <!-- 处理的百分比 -->
-            <div v-if="document.segment_count === 0" class="text-gray-500">0.00%</div>
-            <div v-else-if="document.status === 'error'" class="">{{ t('space.datasets.documents.create.processingError') }}</div>
+            <div v-if="document.status === 'error'" class="">{{ t('space.datasets.documents.create.processingError') }}</div>
+            <div v-else-if="document.segment_count === 0" class="text-gray-500">0.00%</div>
             <div v-else-if="document.status === 'completed'" class="">{{ t('space.datasets.documents.create.processingCompleted') }}</div>
             <div v-else class="text-gray-500">
               {{ ((document.completed_segment_count / document.segment_count) * 100).toFixed(2) }}%
