@@ -39,6 +39,7 @@ const paginator = ref<PaginatorState>({
   current_page: 0,
   page_size: PAGE_SIZE,
 })
+let latestSkillsRequest = 0
 
 const hideModal = () => emits('update:visible', false)
 
@@ -101,12 +102,13 @@ const loadCategories = async () => {
 }
 
 const loadSkills = async (reset = false) => {
-  if (loading.value) return
+  if (loading.value && !reset) return
   if (!reset && paginator.value.current_page > 0 && paginator.value.current_page >= paginator.value.total_page) {
     return
   }
 
   const nextPage = reset ? 1 : paginator.value.current_page + 1 || 1
+  const requestId = ++latestSkillsRequest
   loading.value = true
   try {
     if (reset) {
@@ -125,6 +127,7 @@ const loadSkills = async (reset = false) => {
       search_word: searchWord.value.trim(),
       category: selectedCategory.value === 'all' ? '' : selectedCategory.value,
     })
+    if (requestId !== latestSkillsRequest) return
     skills.value = reset ? (res.data.list || []) : [...skills.value, ...(res.data.list || [])]
     paginator.value = res.data.paginator || {
       total_page: nextPage,
@@ -133,9 +136,11 @@ const loadSkills = async (reset = false) => {
       page_size: PAGE_SIZE,
     }
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('appStudio.abilities.skills.loadMarketplaceFailed')))
+    if (requestId === latestSkillsRequest) {
+      Message.error(getErrorMessage(error, t('appStudio.abilities.skills.loadMarketplaceFailed')))
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestSkillsRequest) loading.value = false
   }
 }
 

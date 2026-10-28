@@ -186,4 +186,30 @@ describe('SkillsMarketplacePickerModal', () => {
     )
     expect(wrapper.text()).toContain('周末安排师')
   })
+
+  it('starts a new first-page request when search changes during loading', async () => {
+    let resolveInitial!: (value: unknown) => void
+    const initialRequest = new Promise((resolve) => { resolveInitial = resolve })
+    mocks.getSkillCategories.mockResolvedValue({ data: { categories: [] } })
+    mocks.getSkillsWithPage.mockReturnValueOnce(initialRequest).mockResolvedValueOnce({
+      data: { list: [makeSkill('new', 'New Search Result')], paginator: makePaginator(1, 1, 1) },
+    })
+
+    const wrapper = mount(SkillsMarketplacePickerModal, {
+      props: { visible: true, selected_bindings: [] },
+      global: { stubs: globalStubs },
+    })
+    await nextTick()
+    await wrapper.get('[data-testid="search-input"]').setValue('new query')
+    await wrapper.get('[data-testid="search-button"]').trigger('click')
+
+    expect(mocks.getSkillsWithPage).toHaveBeenCalledTimes(2)
+    expect(mocks.getSkillsWithPage.mock.calls[1][0]).toMatchObject({ search_word: 'new query', current_page: 1 })
+
+    resolveInitial({ data: { list: [makeSkill('old', 'Old Search Result')], paginator: makePaginator(1, 1, 1) } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('New Search Result')
+    expect(wrapper.text()).not.toContain('Old Search Result')
+    wrapper.unmount()
+  })
 })
