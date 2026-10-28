@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from flask import Flask
 
 from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
 from internal.entity.conversation_entity import InvokeFrom
@@ -1660,3 +1661,54 @@ class TestConversationServiceBasics:
         service.delete_conversation(conversation.id, account)
         assert len(updates) == 2
         assert updates[1][1] == {"is_deleted": True}
+
+    def test_get_recent_conversations_should_scope_service_api_items_to_app_owner(self):
+        owner_id, foreign_id = uuid4(), uuid4()
+        owner_app = SimpleNamespace(id=uuid4(), name="Owned", account_id=owner_id)
+        foreign_app = SimpleNamespace(id=uuid4(), name="Foreign", account_id=foreign_id)
+        app_owners = {owner_app.id: owner_id, foreign_app.id: foreign_id}
+        owner_conversation = SimpleNamespace(id=uuid4(), name="Owned", created_by=uuid4(), is_deleted=False, created_at=datetime.now(UTC))
+        foreign_conversation = SimpleNamespace(id=uuid4(), name="Foreign", created_by=uuid4(), is_deleted=False, created_at=datetime.now(UTC))
+        messages = [
+            SimpleNamespace(id=uuid4(), conversation_id=owner_conversation.id, invoke_from=InvokeFrom.SERVICE_API.value, app_id=owner_app.id, query="owned prompt", answer="owned answer", created_at=datetime.now(UTC)),
+            SimpleNamespace(id=uuid4(), conversation_id=foreign_conversation.id, invoke_from=InvokeFrom.SERVICE_API.value, app_id=foreign_app.id, query="foreign prompt", answer="foreign answer", created_at=datetime.now(UTC)),
+        ]
+
+        class _Query:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def filter(self, *conditions):
+                for condition in conditions:
+                    if getattr(getattr(condition, "left", None), "key", None) == "app_id":
+                        owner = condition.right.element._where_criteria[0].right.value
+                        self.rows = [row for row in self.rows if app_owners[row.app_id] == owner]
+                return self
+
+            def _chain(self, *_args):
+                return self
+
+            order_by = limit = _chain
+
+            def all(self):
+                return self.rows
+
+        message_results = iter([[], messages])
+        class _Session:
+            def query(self, model):
+                name = getattr(model, "__name__", "")
+                if name == "Message":
+                    return _Query(next(message_results))
+                if name == "Conversation":
+                    return _Query([owner_conversation, foreign_conversation])
+                if name == "App":
+                    return _Query([owner_app, foreign_app])
+                raise AssertionError(f"unexpected query model: {name}")
+
+        service = self._build_service()
+        service.db = SimpleNamespace(session=_Session())
+        account = SimpleNamespace(id=owner_id, assistant_agent_conversation_id=None)
+        with Flask(__name__).app_context():
+            results = service.get_recent_conversations(account)
+
+        assert [item["human_message"] for item in results] == ["owned prompt"]
