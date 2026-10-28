@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   useDeleteDocument,
   useDeleteSegment,
+  useGetDatasetsWithPage,
   useGetDocumentsWithPage,
   useGetSegmentsWithPage,
   useUpdateDocumentEnabled,
@@ -38,6 +39,13 @@ const mocks = vi.hoisted(() => ({
 }))
 
 type DocumentsPageResponse = {
+  data: {
+    paginator: { current_page: number; page_size: number; total_page: number; total_record: number }
+    list: { id: string }[]
+  }
+}
+
+type DatasetsPageResponse = {
   data: {
     paginator: { current_page: number; page_size: number; total_page: number; total_record: number }
     list: { id: string }[]
@@ -271,6 +279,73 @@ describe('useGetDocumentsWithPage', () => {
       },
     })
     await newerRequest
+    expect(loading.value).toBe(false)
+  })
+})
+
+describe('useGetDatasetsWithPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('ignores an older search response after a newer search completes', async () => {
+    const olderResponse = createDeferred<DatasetsPageResponse>()
+    const newerResponse = createDeferred<DatasetsPageResponse>()
+    mocks.getDatasetsWithPage
+      .mockReturnValueOnce(olderResponse.promise)
+      .mockReturnValueOnce(newerResponse.promise)
+
+    const { datasets, loadDatasets } = useGetDatasetsWithPage()
+    const olderRequest = loadDatasets(true, 'old')
+    const newerRequest = loadDatasets(true, 'new')
+
+    newerResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'new-result' }],
+      },
+    })
+    await newerRequest
+    olderResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'old-result' }],
+      },
+    })
+    await olderRequest
+
+    expect(datasets.value).toEqual([{ id: 'new-result' }])
+  })
+
+  it('keeps loading while the latest search is pending', async () => {
+    const olderResponse = createDeferred<DatasetsPageResponse>()
+    const newerResponse = createDeferred<DatasetsPageResponse>()
+    mocks.getDatasetsWithPage
+      .mockReturnValueOnce(olderResponse.promise)
+      .mockReturnValueOnce(newerResponse.promise)
+
+    const { loading, loadDatasets } = useGetDatasetsWithPage()
+    const olderRequest = loadDatasets(true, 'old')
+    const newerRequest = loadDatasets(true, 'new')
+
+    olderResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'old-result' }],
+      },
+    })
+    await olderRequest
+
+    expect(loading.value).toBe(true)
+
+    newerResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'new-result' }],
+      },
+    })
+    await newerRequest
+
     expect(loading.value).toBe(false)
   })
 })

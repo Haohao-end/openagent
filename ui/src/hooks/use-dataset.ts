@@ -36,6 +36,7 @@ import { getErrorMessage } from '@/utils/error'
 export const useGetDatasetsWithPage = () => {
   // 1.定义数据，涵盖数据是否加载，知识库列表以及分页器
   const loading = ref(false)
+  let latestRequest = 0
   const datasets = ref<Record<string, any>[]>([])
   const defaultPaginator = {
     current_page: 1,
@@ -54,6 +55,7 @@ export const useGetDatasetsWithPage = () => {
       return
     }
 
+    const requestId = ++latestRequest
     // 2.2 加载更多数据并更新数据状态
     try {
       // 2.3 调用接口获取响应数据
@@ -63,6 +65,7 @@ export const useGetDatasetsWithPage = () => {
         paginator.value.page_size,
         search_word,
       )
+      if (requestId !== latestRequest) return
       const data = resp.data
 
       // 2.4 更新分页器
@@ -80,7 +83,7 @@ export const useGetDatasetsWithPage = () => {
         datasets.value.push(...data.list)
       }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
