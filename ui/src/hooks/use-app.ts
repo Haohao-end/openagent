@@ -324,9 +324,9 @@ export const useFallbackHistoryToDraft = () => {
       loading.value = true
       const resp = await fallbackHistoryToDraft(app_id, app_config_version_id)
       Message.success(resp.message)
+      callback && callback()
     } finally {
       loading.value = false
-      callback && callback()
     }
   }
 

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useGetApp, useGetDraftAppConfig, useGetVersions } from '@/hooks/use-app'
+import { useFallbackHistoryToDraft, useGetApp, useGetDraftAppConfig, useGetVersions } from '@/hooks/use-app'
 import * as appService from '@/services/app'
 
 vi.mock('@/services/app', async () => {
@@ -10,6 +10,7 @@ vi.mock('@/services/app', async () => {
     getApp: vi.fn(),
     getDraftAppConfig: vi.fn(),
     getVersions: vi.fn(),
+    fallbackHistoryToDraft: vi.fn(),
   }
 })
 
@@ -126,6 +127,22 @@ describe('useGetVersions', () => {
 
     await expect(loadVersions('app-1')).rejects.toThrow('network error')
     expect(loading.value).toBe(false)
+  })
+})
+
+describe('useFallbackHistoryToDraft', () => {
+  it('runs the refresh callback only after a successful rollback', async () => {
+    const callback = vi.fn()
+    const { loading, handleFallbackHistoryToDraft } = useFallbackHistoryToDraft()
+    vi.mocked(appService.fallbackHistoryToDraft).mockRejectedValueOnce(new Error('offline'))
+
+    await expect(handleFallbackHistoryToDraft('app-1', 'version-1', callback)).rejects.toThrow('offline')
+    expect(callback).not.toHaveBeenCalled()
+    expect(loading.value).toBe(false)
+
+    vi.mocked(appService.fallbackHistoryToDraft).mockResolvedValueOnce({ message: 'restored' } as never)
+    await handleFallbackHistoryToDraft('app-1', 'version-1', callback)
+    expect(callback).toHaveBeenCalledTimes(1)
   })
 })
 
