@@ -1,3 +1,4 @@
+import copy
 import json
 from unittest.mock import Mock
 
@@ -73,6 +74,21 @@ class TestIntentRecognitionService:
         result = service._parse_response(json.dumps({"intent": "缺少字段"}))
 
         assert result == service.DEFAULT_INTENT
+
+    @pytest.mark.parametrize(
+        "response",
+        [json.dumps({"intent": "缺少字段"}), "not valid json"],
+    )
+    def test_fallback_result_does_not_mutate_shared_default_intent(self, service, response):
+        default_intent = copy.deepcopy(service.DEFAULT_INTENT)
+        try:
+            result = service._parse_response(response)
+            result["message_signature"] = "user-specific-signature"
+
+            assert "message_signature" not in service.DEFAULT_INTENT
+        finally:
+            service.DEFAULT_INTENT.clear()
+            service.DEFAULT_INTENT.update(default_intent)
 
     def test_should_return_none_when_cached_payload_is_invalid_json(self, service, mock_redis):
         mock_redis.get.return_value = b"{invalid-json"

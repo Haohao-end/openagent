@@ -160,14 +160,14 @@ class IntentRecognitionService(BaseService):
             # 验证必要字段
             if "intent" not in result or "confidence" not in result or "suggested_actions" not in result:
                 logging.warning("Invalid response format from model")
-                return self.DEFAULT_INTENT
+                return self.DEFAULT_INTENT.copy()
 
             result["is_default"] = False
             return result
 
         except json.JSONDecodeError as e:
             logging.error(f"Failed to parse model response: {str(e)}")
-            return self.DEFAULT_INTENT
+            return self.DEFAULT_INTENT.copy()
 
     @classmethod
     def _get_cache_key(cls, user_id: str) -> str:
