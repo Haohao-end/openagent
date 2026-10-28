@@ -25,6 +25,7 @@ const accountStore = useAccountStore()
 const { t, locale } = useI18n()
 
 const loading = ref(false)
+let latestProvidersRequest = 0
 const providers = ref<McpProvider[]>([])
 const hasMore = ref(true)
 const page = ref(1)
@@ -48,7 +49,7 @@ const getCategoryLabel = (value: string) => {
 }
 
 const loadProviders = async (init = false) => {
-  if (loading.value) return
+  if (loading.value && !init) return
   if (!hasMore.value && !init) return
 
   if (init) {
@@ -57,6 +58,7 @@ const loadProviders = async (init = false) => {
     providers.value = []
   }
 
+  const requestId = ++latestProvidersRequest
   loading.value = true
   try {
     const res = await getMcpProvidersWithPage({
@@ -66,6 +68,7 @@ const loadProviders = async (init = false) => {
       category: '',
     })
 
+    if (requestId !== latestProvidersRequest) return
     const list = res.data.list || []
     if (page.value === 1) {
       providers.value = list
@@ -78,9 +81,11 @@ const loadProviders = async (init = false) => {
       page.value += 1
     }
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('space.mcp.loadFailed')))
+    if (requestId === latestProvidersRequest) {
+      Message.error(getErrorMessage(error, t('space.mcp.loadFailed')))
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestProvidersRequest) loading.value = false
   }
 }
 
