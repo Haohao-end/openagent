@@ -199,4 +199,38 @@ describe('McpMarketplacePickerModal', () => {
     )
     expect(wrapper.text()).toContain('路线 MCP')
   })
+
+  it('starts a new first-page request when search changes during loading', async () => {
+    let resolveInitial!: (value: unknown) => void
+    const initialRequest = new Promise((resolve) => { resolveInitial = resolve })
+    mocks.getPublicMcpCategories.mockResolvedValue({ data: { categories: [] } })
+    mocks.getPublicMcpProvidersWithPage.mockReturnValueOnce(initialRequest).mockResolvedValueOnce({
+      data: {
+        list: [makeProvider('latest-provider', 'Latest provider')],
+        paginator: makePaginator(1, 1, 1),
+      },
+    })
+
+    const wrapper = mount(McpMarketplacePickerModal, {
+      props: { visible: true, selected_bindings: [] },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    await wrapper.get('[data-testid="search-input"]').setValue('latest')
+    await wrapper.get('[data-testid="search-button"]').trigger('click')
+
+    expect(mocks.getPublicMcpProvidersWithPage).toHaveBeenCalledTimes(2)
+    expect(mocks.getPublicMcpProvidersWithPage.mock.calls[1][0]).toMatchObject({ search_word: 'latest', current_page: 1 })
+
+    resolveInitial({
+      data: {
+        list: [makeProvider('stale-provider', 'Stale provider')],
+        paginator: makePaginator(1, 1, 1),
+      },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Latest provider')
+    expect(wrapper.text()).not.toContain('Stale provider')
+    wrapper.unmount()
+  })
 })

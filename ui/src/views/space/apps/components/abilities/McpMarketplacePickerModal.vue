@@ -44,6 +44,7 @@ const paginator = ref<PaginatorState>({
   current_page: 0,
   page_size: PAGE_SIZE,
 })
+let latestProvidersRequest = 0
 
 const hideModal = () => emits('update:visible', false)
 
@@ -149,12 +150,13 @@ const loadCategories = async () => {
 }
 
 const loadProviders = async (reset = false) => {
-  if (loading.value) return
+  if (loading.value && !reset) return
   if (!reset && paginator.value.current_page > 0 && paginator.value.current_page >= paginator.value.total_page) {
     return
   }
 
   const nextPage = reset ? 1 : paginator.value.current_page + 1 || 1
+  const requestId = ++latestProvidersRequest
   loading.value = true
   try {
     if (reset) {
@@ -173,6 +175,7 @@ const loadProviders = async (reset = false) => {
       search_word: searchWord.value.trim(),
       category: selectedCategory.value === 'all' ? '' : selectedCategory.value,
     })
+    if (requestId !== latestProvidersRequest) return
     providers.value = reset ? (res.data.list || []) : [...providers.value, ...(res.data.list || [])]
     paginator.value = res.data.paginator || {
       total_page: nextPage,
@@ -181,9 +184,11 @@ const loadProviders = async (reset = false) => {
       page_size: PAGE_SIZE,
     }
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('appStudio.abilities.mcp.loadMarketplaceFailed')))
+    if (requestId === latestProvidersRequest) {
+      Message.error(getErrorMessage(error, t('appStudio.abilities.mcp.loadMarketplaceFailed')))
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestProvidersRequest) loading.value = false
   }
 }
 
