@@ -903,17 +903,6 @@ class PublicAgentA2AService(BaseService):
             for message in messages
         ]
 
-    def get_latest_public_app_conversation_id(self, app_id: UUID | str) -> str:
-        """获取公开应用最近一次会话ID。"""
-        app = self._get_public_app(app_id)
-        conversation = self.db.session.query(Conversation).filter(
-            Conversation.app_id == app.id,
-            Conversation.invoke_from == InvokeFrom.SERVICE_API.value,
-            Conversation.created_by == app.account_id,
-            Conversation.is_deleted == False,
-        ).order_by(desc(Conversation.updated_at)).first()
-        return str(conversation.id) if conversation else ""
-
     def _get_public_app(self, app_id: UUID | str) -> App:
         """获取已发布且公开的应用。"""
         try:
