@@ -419,11 +419,11 @@ class TestPublicAppService:
                     "transport": "streamable_http",
                     "url": "https://mcp.example.com",
                     "enabled": True,
-                    "headers": [],
+                    "headers": [{"key": "Authorization", "value": "Bearer synthetic-fork-secret"}],
                     "tool_names": [],
                     "timeout_seconds": 30,
                     "args": [],
-                    "env": {},
+                    "env": {"MCP_TOKEN": "synthetic-fork-secret"},
                 }
             ],
             workflows=[],
@@ -465,7 +465,9 @@ class TestPublicAppService:
         assert copied.name.endswith("(副本)")
         assert copied.original_app_id == public_app.id
         assert copied.tags == public_app.tags
-        assert session.added[1].mcp_bindings == public_app.app_config.mcp_bindings
+        assert session.added[1].mcp_bindings[0]["url"] == "https://mcp.example.com"
+        assert session.added[1].mcp_bindings[0]["headers"] == []
+        assert session.added[1].mcp_bindings[0]["env"] == {}
         assert len(session.added) == 2
 
     def test_fork_public_app_should_cover_dataset_join_iteration_branch(self, monkeypatch):

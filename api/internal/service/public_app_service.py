@@ -402,7 +402,11 @@ class PublicAppService(BaseService):
             "dialog_round": app_config.dialog_round,
             "preset_prompt": app_config.preset_prompt,
             "tools": app_config.tools,
-            "mcp_bindings": getattr(app_config, "mcp_bindings", []),
+            "mcp_bindings": [
+                {**binding, "headers": [], "env": {}}
+                for binding in (getattr(app_config, "mcp_bindings", []) or [])
+                if isinstance(binding, dict)
+            ],
             "workflows": app_config.workflows,
             "retrieval_config": app_config.retrieval_config,
             "long_term_memory": app_config.long_term_memory,
