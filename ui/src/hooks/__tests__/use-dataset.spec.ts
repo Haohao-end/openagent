@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   useDeleteDocument,
   useDeleteSegment,
+  useGetDataset,
   useGetDatasetsWithPage,
   useGetDocumentsWithPage,
   useGetSegmentsWithPage,
@@ -203,6 +204,32 @@ describe('use-dataset action callbacks', () => {
       handleUpdateDocumentName('dataset-1', 'document-1', 'new-name'),
     ).rejects.toThrow('rename failed')
     expect(mocks.messageError).toHaveBeenCalledWith('rename failed')
+  })
+})
+
+describe('useGetDataset', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('keeps an older route response from replacing the latest dataset', async () => {
+    const olderResponse = createDeferred<{ data: { id: string } }>()
+    const newerResponse = createDeferred<{ data: { id: string } }>()
+    mocks.getDataset.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+
+    const { dataset, loading, loadDataset } = useGetDataset()
+    const olderRequest = loadDataset('dataset-a')
+    const newerRequest = loadDataset('dataset-b')
+
+    olderResponse.resolve({ data: { id: 'dataset-a' } })
+    await olderRequest
+    expect(dataset.value).toEqual({})
+    expect(loading.value).toBe(true)
+
+    newerResponse.resolve({ data: { id: 'dataset-b' } })
+    await newerRequest
+    expect(dataset.value.id).toBe('dataset-b')
+    expect(loading.value).toBe(false)
   })
 })
 
