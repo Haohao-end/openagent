@@ -21,6 +21,7 @@ const searchWord = ref('')
 const page = ref(1)
 const pageSize = ref(20)
 const hasMore = ref(true)
+let latestSkillsRequest = 0
 const showDetailVisible = ref(false)
 const detailLoading = ref(false)
 const activeSkill = ref<SkillPackage | null>(null)
@@ -66,36 +67,41 @@ const loadCategories = async () => {
   }
 }
 
-const loadSkills = async () => {
-  if (loading.value) return
+const loadSkills = async (force = false) => {
+  if (loading.value && !force) return
   if (!hasMore.value && page.value > 1) return
 
+  const requestId = ++latestSkillsRequest
+  const requestPage = page.value
   loading.value = true
   try {
     const res = await getSkillsWithPage({
-      current_page: page.value,
+      current_page: requestPage,
       page_size: pageSize.value,
       search_word: searchWord.value.trim(),
       category: selectedCategory.value === 'all' ? '' : selectedCategory.value,
     })
+    if (requestId !== latestSkillsRequest) return
     const list = res.data.list || []
-    if (page.value === 1) {
+    if (requestPage === 1) {
       skills.value = list
     } else {
       skills.value.push(...list)
     }
-    hasMore.value = page.value < res.data.paginator.total_page
+    hasMore.value = requestPage < res.data.paginator.total_page
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('store.skills.loadFailed')))
+    if (requestId === latestSkillsRequest) {
+      Message.error(getErrorMessage(error, t('store.skills.loadFailed')))
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestSkillsRequest) loading.value = false
   }
 }
 
 const refreshSkills = async () => {
   page.value = 1
   hasMore.value = true
-  await loadSkills()
+  await loadSkills(true)
 }
 
 const handleCategoryChange = async (category: string) => {

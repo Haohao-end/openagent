@@ -26,6 +26,21 @@ const skill = (id: string, label: string) => ({
   executor_type: 'prompt', tool_count: 0, tags: [], tools: [], readme: '', bundle: {}, capabilities: {},
 })
 
+const SearchStub = defineComponent({
+  props: { modelValue: { type: String, default: '' } },
+  emits: ['update:modelValue', 'search'],
+  setup(props, { emit }) {
+    return () => h('div', [
+      h('input', {
+        'data-testid': 'skill-search',
+        value: props.modelValue,
+        onInput: (event: Event) => emit('update:modelValue', (event.target as HTMLInputElement).value),
+      }),
+      h('button', { 'data-testid': 'skill-search-submit', onClick: () => emit('search') }),
+    ])
+  },
+})
+
 describe('Skills list detail requests', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -55,6 +70,33 @@ describe('Skills list detail requests', () => {
 
     expect(wrapper.text()).toContain('Latest Skill B')
     expect(wrapper.text()).not.toContain('Stale Skill A')
+    wrapper.unmount()
+  })
+
+  it('does not drop a search refresh while the initial list request is pending', async () => {
+    const initialRequest = deferred<{ data: { list: ReturnType<typeof skill>[]; paginator: { total_page: number } } }>()
+    getSkillsWithPage.mockReturnValueOnce(initialRequest.promise).mockResolvedValueOnce({
+      data: { list: [skill('new', 'New Search Result')], paginator: { total_page: 1 } },
+    })
+    const { default: ListView } = await import('../ListView.vue')
+    const wrapper = mount(ListView, { global: { stubs: {
+      'a-input-search': SearchStub,
+      'a-card': { template: '<div><slot /></div>' },
+      'a-drawer': true,
+      'resource-card-description': true,
+    } } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="skill-search"]').setValue('new query')
+    await wrapper.get('[data-testid="skill-search-submit"]').trigger('click')
+
+    expect(getSkillsWithPage).toHaveBeenCalledTimes(2)
+    expect(getSkillsWithPage.mock.calls[1][0]).toMatchObject({ search_word: 'new query', current_page: 1 })
+
+    initialRequest.resolve({ data: { list: [skill('old', 'Old Search Result')], paginator: { total_page: 1 } } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('New Search Result')
+    expect(wrapper.text()).not.toContain('Old Search Result')
     wrapper.unmount()
   })
 })
