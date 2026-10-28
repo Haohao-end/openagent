@@ -282,6 +282,7 @@ export const useGetDocument = () => {
 export const useGetSegmentsWithPage = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const segments = ref<Record<string, any>>([])
   const defaultPaginator = {
     current_page: 1,
@@ -305,6 +306,7 @@ export const useGetSegmentsWithPage = () => {
       return
     }
 
+    const requestId = ++latestRequest
     // 2.2 加载数据并更新
     try {
       // 2.3 调用接口获取响应数据
@@ -314,6 +316,7 @@ export const useGetSegmentsWithPage = () => {
         page_size: paginator.value.page_size,
         search_word: search_word,
       })
+      if (requestId !== latestRequest) return
       const data = resp.data
 
       // 2.4 更新分页器
@@ -331,7 +334,7 @@ export const useGetSegmentsWithPage = () => {
         segments.value.push(...data.list)
       }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
