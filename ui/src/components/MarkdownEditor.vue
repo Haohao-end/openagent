@@ -179,6 +179,7 @@ const insertMarkdown = (syntax: string, placeholder = '') => {
   const before = props.modelValue.substring(0, start)
   const after = props.modelValue.substring(end)
   const updatedValue = before + newText + after
+  if (updatedValue.length > props.maxLength) return
 
   emits('update:modelValue', updatedValue)
 
