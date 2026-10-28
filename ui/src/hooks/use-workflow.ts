@@ -28,6 +28,7 @@ import { isValidWorkflowToolCallName } from '@/utils/workflow'
 export const useGetWorkflowsWithPage = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const workflows = ref<GetWorkflowsWithPageResponse['data']['list']>([])
   const defaultPaginator = {
     current_page: 1,
@@ -50,6 +51,7 @@ export const useGetWorkflowsWithPage = () => {
       return
     }
 
+    const requestId = ++latestRequest
     try {
       // 2.2 调用接口获取响应数据
       loading.value = true
@@ -59,6 +61,7 @@ export const useGetWorkflowsWithPage = () => {
         search_word,
         status,
       })
+      if (requestId !== latestRequest) return
       const data = resp.data
 
       // 2.3 更新分页器
@@ -76,7 +79,7 @@ export const useGetWorkflowsWithPage = () => {
         workflows.value.push(...data.list)
       }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
