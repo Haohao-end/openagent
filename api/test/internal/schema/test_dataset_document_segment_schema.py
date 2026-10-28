@@ -219,6 +219,8 @@ def test_validate_rule_should_set_default_when_process_type_is_automatic(form_re
         (None, "自定义处理模式下，rule不能为空"),
         ({}, "自定义处理模式下，rule不能为空"),
         ({"pre_process_rules": "bad"}, "pre_process_rules必须为列表"),
+        ({"pre_process_rules": [None]}, "预处理id格式错误"),
+        ({"pre_process_rules": [7]}, "预处理id格式错误"),
         (
             {"pre_process_rules": [{"id": "bad-id", "enabled": True}], "segment": {"separators": ["\n"], "chunk_size": 200, "chunk_overlap": 50}},
             "预处理id格式错误",
