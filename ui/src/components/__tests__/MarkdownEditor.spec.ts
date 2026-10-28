@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+
+import MarkdownEditor from '../MarkdownEditor.vue'
 
 const markdownEditorSource = readFileSync(
   resolve(process.cwd(), 'src/components/MarkdownEditor.vue'),
@@ -74,5 +77,32 @@ describe('MarkdownEditor.vue', () => {
     expect(markdownEditorSource).not.toContain(":type=\"mode === 'edit' ? 'primary' : 'text'\"")
     expect(markdownEditorSource).not.toContain(":type=\"mode === 'split' ? 'primary' : 'text'\"")
     expect(markdownEditorSource).not.toContain(":type=\"mode === 'preview' ? 'primary' : 'text'\"")
+  })
+
+  it('does not let toolbar formatting exceed the editor length limit', async () => {
+    const wrapper = mount(MarkdownEditor, {
+      props: { modelValue: 'a'.repeat(5), maxLength: 5, toolbarVariant: 'compact' },
+      global: {
+        stubs: {
+          '*': true,
+          'a-space': { template: '<div><slot /></div>' },
+          'a-button': {
+            emits: ['click'],
+            template: '<button class="toolbar-btn" @click="$emit(\'click\')"><slot /></button>',
+          },
+        },
+      },
+    })
+    const textarea = wrapper.get('textarea').element as HTMLTextAreaElement
+    textarea.setSelectionRange(4, 5)
+
+    await wrapper.findAll('button.toolbar-btn')[3].trigger('click')
+
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    await wrapper.setProps({ modelValue: 'a', maxLength: 10 })
+    textarea.setSelectionRange(0, 1)
+    await wrapper.findAll('button.toolbar-btn')[3].trigger('click')
+    expect(wrapper.emitted('update:modelValue')).toEqual([['**a**']])
+    wrapper.unmount()
   })
 })
