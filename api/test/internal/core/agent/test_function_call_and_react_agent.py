@@ -334,6 +334,7 @@ def test_function_call_agent_llm_node_should_cover_none_chunk_and_no_generation_
         QueueEvent.AGENT_END,
     ]
 
+
 def test_function_call_agent_llm_node_should_end_when_stream_has_no_chunks():
     agent = _new_function_call_agent(_NodeLLM(features=[], stream_chunks=[]), _build_agent_config())
     result = agent._llm_node({"task_id": uuid4(), "messages": [HumanMessage(content="q")], "iteration_count": 0})
