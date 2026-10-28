@@ -190,16 +190,22 @@ onMounted(() => {
                 </div>
                 <a-divider direction="vertical" />
                 <a-switch
-                  v-model:model-value="segment.enabled"
+                  :model-value="segment.enabled"
                   :disabled="segment.status !== 'completed'"
                   @change="
-                    async (value) =>
-                      await handleUpdateSegmentEnabled(
-                        route.params?.dataset_id as string,
-                        route.params?.document_id as string,
-                        segment.id,
-                        value as boolean,
-                      )
+                    async (value) => {
+                      try {
+                        await handleUpdateSegmentEnabled(
+                          route.params?.dataset_id as string,
+                          route.params?.document_id as string,
+                          segment.id,
+                          value as boolean,
+                        )
+                        segment.enabled = value as boolean
+                      } catch {
+                        // The update hook already displays the error.
+                      }
+                    }
                   "
                   type="round"
                   size="small"
