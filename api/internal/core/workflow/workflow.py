@@ -80,7 +80,7 @@ class Workflow(BaseTool):
 
             fields[field_name] = (
                 field_type if field_required else Optional[field_type],
-                Field(description=field_description),
+                Field(default=... if field_required else None, description=field_description),
             )
 
         # 3.调用create_model创建一个BaseModel类，并使用上述分析好的字段
