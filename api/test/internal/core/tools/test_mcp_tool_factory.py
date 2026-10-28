@@ -113,6 +113,28 @@ def test_mcp_tool_factory_should_list_remote_tools_and_call_selected_tool(monkey
     assert calls[0]["headers"]["Authorization"] == "Bearer token"
 
 
+def test_mcp_tool_factory_should_parse_final_sse_event_after_progress(monkeypatch):
+    def _fake_safe_request(_method, _url, **kwargs):
+        response = _FakeResponse({})
+        response.text = "\n\n".join(
+            f"data: {json.dumps(event)}"
+            for event in (
+                {"jsonrpc": "2.0", "method": "notifications/progress", "params": {"progress": 1}},
+                {"jsonrpc": "2.0", "id": kwargs["json"]["id"], "result": {"tools": [{"name": "weather"}]}},
+            )
+        )
+        return response
+
+    monkeypatch.setattr(
+        "internal.core.tools.mcp_tools.providers.mcp_tool_factory.safe_request",
+        _fake_safe_request,
+    )
+
+    tools = McpToolFactory()._list_remote_tools({"url": "https://mcp.example.com", "headers": []})
+
+    assert tools == [{"name": "weather"}]
+
+
 def test_mcp_tool_factory_should_compile_complex_json_schema_and_keep_metadata(monkeypatch):
     complex_input_schema = {
         "type": "object",

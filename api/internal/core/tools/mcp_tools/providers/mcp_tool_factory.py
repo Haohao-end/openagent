@@ -37,7 +37,7 @@ def _normalize_headers(raw_headers: Any) -> dict[str, str]:
     return headers
 
 
-def _parse_json_payload(text: str) -> dict[str, Any] | list[Any] | str | None:
+def _parse_json_payload(text: str, expected_id: str | None = None) -> dict[str, Any] | list[Any] | str | None:
     normalized = _normalize_text(text)
     if not normalized:
         return None
@@ -50,18 +50,30 @@ def _parse_json_payload(text: str) -> dict[str, Any] | list[Any] | str | None:
         return payload
 
     data_blocks: list[str] = []
+    current_data: list[str] = []
     for line in normalized.splitlines():
         if line.startswith("data:"):
-            data_blocks.append(line[5:].strip())
+            current_data.append(line[5:].strip())
+        elif not line and current_data:
+            data_blocks.append("\n".join(current_data))
+            current_data = []
 
-    if data_blocks:
-        merged = "\n".join(data_blocks).strip()
+    if current_data:
+        data_blocks.append("\n".join(current_data))
+
+    last_payload = None
+    for block in data_blocks:
         try:
-            payload = json.loads(merged)
+            payload = json.loads(block)
         except Exception:
-            payload = None
+            continue
         if isinstance(payload, (dict, list)):
-            return payload
+            last_payload = payload
+            if isinstance(payload, dict) and payload.get("id") == expected_id:
+                return payload
+
+    if last_payload is not None:
+        return last_payload
 
     return normalized
 
@@ -726,7 +738,7 @@ class McpToolFactory:
         )
         response.raise_for_status()
 
-        decoded = _parse_json_payload(response.text)
+        decoded = _parse_json_payload(response.text, expected_id=payload["id"])
         if isinstance(decoded, dict):
             if "error" in decoded and decoded["error"]:
                 error = decoded["error"]
