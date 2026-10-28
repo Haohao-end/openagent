@@ -75,9 +75,15 @@ class OpenAPISchema(BaseModel):
         operation_ids = []
         for interface in interfaces:
             # 校验description/operationId/parameters字段
-            if not isinstance(interface["operation"].get("description"),str):
+            if (
+                not isinstance(interface["operation"].get("description"), str)
+                or not interface["operation"]["description"].strip()
+            ):
                 raise ValidateErrorException("description为字符串且不能为空")
-            if not isinstance(interface["operation"].get("operationId"),str):
+            if (
+                not isinstance(interface["operation"].get("operationId"), str)
+                or not interface["operation"]["operationId"].strip()
+            ):
                 raise ValidateErrorException("operationId为字符串且不能为空")
             if not isinstance(interface["operation"].get("parameters",[]), list):
                 raise ValidateErrorException("parameters必须是列表或者为空")
@@ -90,9 +96,9 @@ class OpenAPISchema(BaseModel):
             # 校验parameters参数格式是否正确
             for parameter in interface["operation"].get("parameters",[]):
                 """校验name/in/description/required/type参数是否存在 并且类型正确"""
-                if not isinstance(parameter.get("name"), str):
+                if not isinstance(parameter.get("name"), str) or not parameter["name"].strip():
                     raise ValidateErrorException("parameter.name为字符串且不能为空")
-                if not isinstance(parameter.get("description"), str):
+                if not isinstance(parameter.get("description"), str) or not parameter["description"].strip():
                     raise ValidateErrorException("parameter.description为字符串且不能为空")
                 if not isinstance(parameter.get("required"), bool):
                     raise ValidateErrorException("parameter.required为布尔值且不能为空")

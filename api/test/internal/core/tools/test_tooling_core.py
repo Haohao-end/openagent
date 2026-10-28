@@ -334,6 +334,23 @@ def test_openapi_schema_should_reject_non_object_path_items(path_item):
         OpenAPISchema(server="https://a.com", description="d", paths={"/items": path_item})
 
 
+@pytest.mark.parametrize("value", ["", "   "])
+@pytest.mark.parametrize(
+    "target,field",
+    [("operation", "description"), ("operation", "operationId"), ("parameter", "name"), ("parameter", "description")],
+)
+def test_openapi_schema_should_reject_blank_required_text_fields(target, field, value):
+    operation = {
+        "description": "query",
+        "operationId": "get_items",
+        "parameters": [{"name": "q", "in": "query", "description": "query", "required": False, "type": "str"}],
+    }
+    (operation if target == "operation" else operation["parameters"][0])[field] = value
+
+    with pytest.raises(ValidateErrorException, match="不能为空"):
+        OpenAPISchema(server="https://a.com", description="d", paths={"/items": {"get": operation}})
+
+
 @pytest.mark.parametrize(
     "parameter, message",
     [
