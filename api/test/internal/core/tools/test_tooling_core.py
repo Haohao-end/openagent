@@ -328,6 +328,12 @@ def test_openapi_schema_should_raise_for_operation_level_type_errors():
     assert base["/items"]["post"]["operationId"] == "create_item"
 
 
+@pytest.mark.parametrize("path_item", [1, "invalid", {"get": 3}])
+def test_openapi_schema_should_reject_non_object_path_items(path_item):
+    with pytest.raises(ValidateErrorException):
+        OpenAPISchema(server="https://a.com", description="d", paths={"/items": path_item})
+
+
 @pytest.mark.parametrize(
     "parameter, message",
     [
