@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { markRaw, onMounted, ref, nextTick, provide, defineAsyncComponent, computed, watch } from 'vue'
+import { markRaw, onUnmounted, ref, nextTick, provide, defineAsyncComponent, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ConnectionMode, Panel, useVueFlow, VueFlow, type Edge, type Node } from '@vue-flow/core'
@@ -163,12 +163,13 @@ const {
 // 使用普通的 ref，不使用 useVueFlow 的 nodes 和 edges
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
+let previewRequestId = 0
 
 // 加载工作流详情
-const loadWorkflow = async () => {
+const loadWorkflow = async (id: string, requestId: number) => {
   try {
-    loading.value = true
-    const res = await getPublicWorkflowDetail(workflowId.value)
+    const res = await getPublicWorkflowDetail(id)
+    if (requestId !== previewRequestId) return
     workflow.value = res.data
     workflowIconCandidates.value = getIconCandidates(res.data.icon)
     workflowIconIndex.value = 0
@@ -177,9 +178,11 @@ const loadWorkflow = async () => {
     accountAvatarIndex.value = 0
     accountAvatarSrc.value = accountAvatarCandidates.value[0] || ''
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('store.workflows.loadFailed')))
+    if (requestId === previewRequestId) {
+      Message.error(getErrorMessage(error, t('store.workflows.loadFailed')))
+    }
   } finally {
-    loading.value = false
+    if (requestId === previewRequestId) loading.value = false
   }
 }
 
@@ -214,9 +217,10 @@ const onAccountAvatarError = () => {
 }
 
 // 加载工作流图
-const loadDraftGraph = async () => {
+const loadDraftGraph = async (id: string, requestId: number) => {
   try {
-    const res = await getPublicWorkflowDraftGraph(workflowId.value)
+    const res = await getPublicWorkflowDraftGraph(id)
+    if (requestId !== previewRequestId) return
     const data = res.data
 
     // 清空现有数据
@@ -255,9 +259,50 @@ const loadDraftGraph = async () => {
       })
     }
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('store.workflows.loadGraphFailed')))
+    if (requestId === previewRequestId) {
+      Message.error(getErrorMessage(error, t('store.workflows.loadGraphFailed')))
+    }
   }
 }
+
+const loadPreview = async (id: string) => {
+  const requestId = ++previewRequestId
+  workflowId.value = id
+  workflow.value = null
+  nodes.value = []
+  edges.value = []
+  selectedNode.value = null
+  nodeInfoVisible.value = false
+  loading.value = true
+
+  await loadWorkflow(id, requestId)
+  if (requestId !== previewRequestId) return
+  await loadDraftGraph(id, requestId)
+  if (requestId !== previewRequestId) return
+
+  await nextTick()
+  setTimeout(() => {
+    if (requestId === previewRequestId && instance.value && nodes.value.length > 0) {
+      try {
+        instance.value.fitView({ padding: 0.2, duration: 200 })
+      } catch {
+        // Ignore fitView failures when graph is not fully laid out yet.
+      }
+    }
+  }, 500)
+}
+
+watch(
+  () => String(route.params?.workflow_id ?? ''),
+  (id) => {
+    if (id) void loadPreview(id)
+  },
+  { immediate: true },
+)
+
+onUnmounted(() => {
+  previewRequestId += 1
+})
 
 onPaneReady((vueFlowInstance) => {
   instance.value = vueFlowInstance as FlowInstance
@@ -288,27 +333,6 @@ onEdgeClick(() => {
   nodeInfoVisible.value = false
 })
 
-onMounted(async () => {
-  // 先加载工作流基本信息
-  await loadWorkflow()
-
-  // 再加载图数据
-  await loadDraftGraph()
-
-  // 使用 nextTick 确保 DOM 更新完成
-  await nextTick()
-
-  // 等待 Vue Flow 完全初始化后调整视图
-  setTimeout(() => {
-    if (instance.value && nodes.value.length > 0) {
-      try {
-        instance.value.fitView({ padding: 0.2, duration: 200 })
-      } catch {
-        // Ignore fitView failures when graph is not fully laid out yet.
-      }
-    }
-  }, 500)
-})
 </script>
 
 <template>
