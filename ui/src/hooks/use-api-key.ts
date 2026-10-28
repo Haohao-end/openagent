@@ -111,9 +111,9 @@ export const useUpdateApiKeyIsActive = () => {
       loading.value = true
       const resp = await updateApiKeyIsActive(api_key_id, is_active)
       Message.success(resp.message)
+      callback && callback()
     } finally {
       loading.value = false
-      callback && callback()
     }
   }
 
