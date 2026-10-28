@@ -178,10 +178,24 @@ def test_delete_tag_should_delegate_and_return_success(http_client, tag_user, mo
     assert captures["account_id"] is tag_user.id
 
 
-def test_get_hot_tags_should_return_expected_structure(http_client, monkeypatch):
+def test_get_hot_tags_should_require_authentication(http_client, app, monkeypatch):
+    app.config["LOGIN_DISABLED"] = False
     monkeypatch.setattr(
         "internal.service.tag_service.TagService.get_hot_tags",
-        lambda _self: {
+        lambda _self, **_kwargs: {"custom": []},
+    )
+
+    resp = http_client.get("/tags/hot")
+
+    assert resp.json["code"] == HttpCode.UNAUTHORIZED
+
+
+def test_get_hot_tags_should_return_expected_structure(http_client, tag_user, monkeypatch):
+    captures = {}
+
+    def _get_hot_tags(_self, account_id):
+        captures["account_id"] = account_id
+        return {
             "custom": [
                 {
                     "id": TAG_ID,
@@ -192,7 +206,11 @@ def test_get_hot_tags_should_return_expected_structure(http_client, monkeypatch)
             ],
             "system": [],
             "category": [],
-        },
+        }
+
+    monkeypatch.setattr(
+        "internal.service.tag_service.TagService.get_hot_tags",
+        _get_hot_tags,
     )
 
     resp = http_client.get("/tags/hot")
@@ -202,6 +220,7 @@ def test_get_hot_tags_should_return_expected_structure(http_client, monkeypatch)
     assert resp.json["data"]["hot_tags"]["custom"][0]["id"] == TAG_ID
     assert resp.json["data"]["hot_tags"]["custom"][0]["dimension"] == "custom"
     assert resp.json["data"]["hot_tags"]["custom"][0]["use_count"] == 3
+    assert captures["account_id"] is tag_user.id
 
 
 def test_get_tag_dimensions_should_return_expected_structure(http_client, monkeypatch):

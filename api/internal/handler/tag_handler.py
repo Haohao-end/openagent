@@ -122,9 +122,10 @@ class TagHandler:
             "dimensions": self.tag_service.get_tag_dimensions(),
         }))
 
+    @login_required
     def get_hot_tags(self) -> ResponseReturnValue:
         """获取热门标签"""
         resp = GetHotTagsResp()
         return success_json(resp.dump({
-            "hot_tags": self.tag_service.get_hot_tags(),
+            "hot_tags": self.tag_service.get_hot_tags(account_id=current_user.id),
         }))
