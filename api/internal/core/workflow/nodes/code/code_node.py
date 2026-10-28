@@ -18,7 +18,7 @@ class CodeNode(BaseNode):
     node_data: CodeNodeData
 
     # 腾讯云函数沙箱地址
-    Sandbox_URL: ClassVar[str] = os.getenv("SANDBOX_URL").rstrip("/")
+    Sandbox_URL: ClassVar[str] = os.getenv("SANDBOX_URL", "").rstrip("/")
 
     def invoke(self, state: WorkflowState, config: Optional[RunnableConfig] = None) -> WorkflowState:
         """Python代码运行节点，执行的代码函数名字必须为main，并且参数名为params，有且只有一个参数，通过腾讯云函数沙箱执行"""
