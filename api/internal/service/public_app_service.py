@@ -537,7 +537,11 @@ class PublicAppService(BaseService):
                 "dialog_round": app_config.dialog_round,
                 "preset_prompt": app_config.preset_prompt,
                 "tools": self._enrich_tools(app_config.tools),  # 填充完整的 tool 信息
-                "mcp_bindings": getattr(app_config, "mcp_bindings", []),
+                "mcp_bindings": [
+                    {**binding, "headers": [], "env": {}}
+                    for binding in (getattr(app_config, "mcp_bindings", []) or [])
+                    if isinstance(binding, dict)
+                ],
                 "workflows": self._enrich_workflows(app_config.workflows),
                 "datasets": [],  # 公共应用不暴露知识库详情
                 "retrieval_config": app_config.retrieval_config,
