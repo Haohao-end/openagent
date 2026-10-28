@@ -49,16 +49,18 @@ const t = (key: string, params?: Record<string, unknown>) =>
 export const useGetApp = () => {
   // 1.定义hooks所需的基础数据
   const loading = ref(false)
+  let latestRequest = 0
   const app = ref<Record<string, any>>({})
 
   // 2.定义加载数据所需的函数
   const loadApp = async (app_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getApp(app_id)
-      app.value = resp.data
+      if (requestId === latestRequest) app.value = resp.data
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
