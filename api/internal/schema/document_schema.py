@@ -59,7 +59,8 @@ class CreateDocumentsReq(FlaskForm):
             for pre_process_rule in field.data["pre_process_rules"]:
                 # 5.校验id参数，非空、id规范
                 if (
-                        "id" not in pre_process_rule
+                        not isinstance(pre_process_rule, dict)
+                        or "id" not in pre_process_rule
                         or pre_process_rule["id"] not in ["remove_extra_space", "remove_url_and_email"]
                 ):
                     raise ValidationError("预处理id格式错误")
