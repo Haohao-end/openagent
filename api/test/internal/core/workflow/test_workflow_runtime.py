@@ -98,8 +98,10 @@ def test_workflow_build_args_schema_should_build_required_and_optional_fields():
 
     assert set(fields.keys()) == {"query", "top_k"}
     assert fields["query"].is_required() is True
-    # 目前实现未给可选字段设置默认值，Pydantic 会将其判定为 required。
-    assert fields["top_k"].is_required() is True
+    assert fields["top_k"].is_required() is False
+    assert model_cls(query="search query").top_k is None
+    with pytest.raises(ValueError):
+        model_cls(top_k=5)
 
 
 def test_workflow_build_workflow_should_register_nodes_edges_and_special_points(monkeypatch, app):
