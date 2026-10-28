@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, type PropType, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, type PropType, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { cloneDeep, isEqual } from 'lodash'
 import { apiPrefix } from '@/config'
@@ -52,6 +52,7 @@ const originSkills = ref<SkillBindingForm[]>([])
 const showMarketplacePickerModal = ref(false)
 const skillDetailLoading = ref(false)
 const skillDetail = ref<SkillPackage | null>(null)
+let latestSkillDetailRequest = 0
 const { renderMarkdown } = useMarkdownRenderer()
 const skillDetailMarkdown = computed(() =>
   renderMarkdown(
@@ -125,17 +126,21 @@ const openDetailModal = async (idx: number) => {
   const binding = activateSkills.value[idx]
   if (!binding) return
 
+  const requestId = ++latestSkillDetailRequest
   skillsModalVisible.value = true
   skillDetailLoading.value = true
 
   try {
     const res = await getSkill(binding.skill_id || binding.id)
+    if (requestId !== latestSkillDetailRequest) return
     skillDetail.value = res.data
   } catch (error: unknown) {
-    Message.error(error instanceof Error ? error.message : t('appStudio.abilities.skills.detailLoadFailed'))
-    skillsModalVisible.value = false
+    if (requestId === latestSkillDetailRequest) {
+      Message.error(error instanceof Error ? error.message : t('appStudio.abilities.skills.detailLoadFailed'))
+      skillsModalVisible.value = false
+    }
   } finally {
-    skillDetailLoading.value = false
+    if (requestId === latestSkillDetailRequest) skillDetailLoading.value = false
   }
 }
 
@@ -144,10 +149,15 @@ const openMarketplacePicker = () => {
 }
 
 const handleCloseSkillsModal = () => {
+  latestSkillDetailRequest += 1
   skillsModalVisible.value = false
   skillDetail.value = null
   skillDetailLoading.value = false
 }
+
+onUnmounted(() => {
+  latestSkillDetailRequest += 1
+})
 
 const persistSkills = async (newSkills: SkillBindingForm[]) => {
   await handleUpdateDraftAppConfig(props.app_id, {

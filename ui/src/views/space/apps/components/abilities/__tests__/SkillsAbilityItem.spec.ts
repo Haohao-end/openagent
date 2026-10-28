@@ -7,6 +7,7 @@ import SkillsAbilityItem from '../SkillsAbilityItem.vue'
 const mocks = vi.hoisted(() => ({
   updateDraftAppConfig: vi.fn().mockResolvedValue({}),
   getSkill: vi.fn(),
+  messageError: vi.fn(),
 }))
 
 vi.mock('@/hooks/use-app', () => ({
@@ -29,7 +30,7 @@ vi.mock('@arco-design/web-vue', () => ({
   Message: {
     warning: vi.fn(),
     success: vi.fn(),
-    error: vi.fn(),
+    error: mocks.messageError,
   },
 }))
 
@@ -74,6 +75,13 @@ const makeSkillBinding = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail })
+  return { promise, resolve, reject }
+}
+
 describe('SkillsAbilityItem', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -109,5 +117,62 @@ describe('SkillsAbilityItem', () => {
 
     expect(wrapper.text()).toContain('代码工坊 Pro')
     expect(wrapper.text()).toContain('新摘要')
+  })
+
+  it('keeps the latest selected skill detail when an earlier request resolves last', async () => {
+    const olderRequest = deferred<{ data: ReturnType<typeof makeSkillBinding> }>()
+    mocks.getSkill.mockReturnValueOnce(olderRequest.promise).mockResolvedValueOnce({
+      data: makeSkillBinding({ id: 'skill-2', skill_id: 'skill-2', label: 'Latest skill', readme: 'latest content' }),
+    })
+    const wrapper = mount(SkillsAbilityItem, {
+      props: {
+        app_id: 'app-1',
+        skills: [
+          makeSkillBinding({ id: 'skill-1', skill_id: 'skill-1', label: 'First skill' }),
+          makeSkillBinding({ id: 'skill-2', skill_id: 'skill-2', label: 'Second skill' }),
+        ],
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    const skillRows = wrapper.findAll('.cursor-pointer').filter((row) => /First skill|Second skill/.test(row.text()))
+    await skillRows[0].trigger('click')
+    await skillRows[1].trigger('click')
+    await flushPromises()
+    olderRequest.resolve({ data: makeSkillBinding({ label: 'Stale skill', readme: 'stale content' }) })
+    await flushPromises()
+
+    expect(wrapper.find('.skill-markdown').text()).toBe('latest content')
+    wrapper.unmount()
+  })
+
+  it('ignores an earlier detail failure after a newer skill was selected', async () => {
+    const olderRequest = deferred<{ data: ReturnType<typeof makeSkillBinding> }>()
+    mocks.getSkill.mockReturnValueOnce(olderRequest.promise).mockResolvedValueOnce({
+      data: makeSkillBinding({ id: 'skill-2', skill_id: 'skill-2', label: 'Latest skill', readme: 'latest content' }),
+    })
+    const wrapper = mount(SkillsAbilityItem, {
+      props: {
+        app_id: 'app-1',
+        skills: [
+          makeSkillBinding({ id: 'skill-1', skill_id: 'skill-1', label: 'First skill' }),
+          makeSkillBinding({ id: 'skill-2', skill_id: 'skill-2', label: 'Second skill' }),
+        ],
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    const skillRows = wrapper.findAll('.cursor-pointer').filter((row) => /First skill|Second skill/.test(row.text()))
+    await skillRows[0].trigger('click')
+    await skillRows[1].trigger('click')
+    await flushPromises()
+    olderRequest.reject(new Error('stale request failure'))
+    await flushPromises()
+
+    expect(mocks.messageError).not.toHaveBeenCalled()
+    expect(wrapper.find('.skill-markdown').text()).toBe('latest content')
+    wrapper.unmount()
   })
 })
