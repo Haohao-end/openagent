@@ -25,6 +25,7 @@ const { renderMarkdown } = useMarkdownRenderer()
 // State
 const searchQuery = ref('')
 let searchTimer: ReturnType<typeof setTimeout> | undefined
+let latestSearchRequest = 0
 const conversations = ref<SearchConversation[]>([])
 const loading = ref(false)
 const updateConversationNameVisible = ref(false)
@@ -79,20 +80,22 @@ const filteredConversations = computed(() => {
 
 // Methods
 const handleSearch = async () => {
+  const requestId = ++latestSearchRequest
   // 如果搜索查询为空，不调用搜索
   if (!searchQuery.value.trim()) {
     conversations.value = []
+    loading.value = false
     return
   }
 
   loading.value = true
   try {
     const response = await searchConversations(searchQuery.value, 100)
-    conversations.value = response.data || []
+    if (requestId === latestSearchRequest) conversations.value = response.data || []
   } catch (error) {
-    console.error('Search failed:', error)
+    if (requestId === latestSearchRequest) console.error('Search failed:', error)
   } finally {
-    loading.value = false
+    if (requestId === latestSearchRequest) loading.value = false
   }
 }
 
@@ -367,11 +370,15 @@ watch(recentConversations, async () => {
 }, { deep: true })
 
 watch(searchQuery, () => {
+  latestSearchRequest += 1
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => void handleSearch(), 300)
 })
 
-onUnmounted(() => clearTimeout(searchTimer))
+onUnmounted(() => {
+  latestSearchRequest += 1
+  clearTimeout(searchTimer)
+})
 
 onMounted(() => {
   handleSearch()

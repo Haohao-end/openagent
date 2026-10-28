@@ -64,6 +64,12 @@ const buildConversation = (overrides: Record<string, unknown> = {}) => ({
  ...overrides,
 })
 
+const deferred = <T,>() => {
+ let resolve!: (value: T) => void
+ const promise = new Promise<T>((done) => { resolve = done })
+ return { promise, resolve }
+}
+
 const mountView = () => {
  return mount(ConversationSearchView, {
  global: {
@@ -165,6 +171,30 @@ describe('ConversationSearchView', () => {
    wrapper.unmount()
    vi.useRealTimers()
   }
+ })
+
+ it('ignores an older search response while a newer query is loading', async () => {
+  const olderRequest = deferred<{ data: ReturnType<typeof buildConversation>[] }>()
+  const latestRequest = deferred<{ data: ReturnType<typeof buildConversation>[] }>()
+  vi.mocked(conversationSearchService.searchConversations)
+   .mockReturnValueOnce(olderRequest.promise as never)
+   .mockReturnValueOnce(latestRequest.promise as never)
+
+  const wrapper = mountView()
+  await searchFor(wrapper, 'old query')
+  await searchFor(wrapper, 'new query')
+
+  olderRequest.resolve({ data: [buildConversation({ id: 'old', name: 'Old result' })] })
+  await flushPromises()
+  expect(wrapper.text()).not.toContain('Old result')
+  expect(wrapper.find('.animate-spin').exists()).toBe(true)
+
+  latestRequest.resolve({ data: [buildConversation({ id: 'new', name: 'New result' })] })
+  await flushPromises()
+  expect(wrapper.text()).toContain('New result')
+  expect(wrapper.text()).not.toContain('Old result')
+  expect(wrapper.find('.animate-spin').exists()).toBe(false)
+  wrapper.unmount()
  })
 
  it('highlights matched keywords in title and message preview', async () => {
