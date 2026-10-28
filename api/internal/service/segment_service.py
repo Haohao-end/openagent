@@ -163,6 +163,10 @@ class SegmentService(BaseService):
         if segment.status != SegmentStatus.COMPLETED.value:
             raise FailException("当前片段不可修改状态，请稍后尝试")
 
+        token_count = self.embeddings_service.calculate_token_count(req.content.data)
+        if token_count > 1000:
+            raise ValidateErrorException("片段内容的长度不能超过1000 token")
+
         # 3.检测是否传递了keywords，如果没有传递的话，调用jieba服务生成关键词
         if req.keywords.data is None or len(req.keywords.data) == 0:
             req.keywords.data = self.jieba_service.extract_keywords(req.content.data, 10)
@@ -179,7 +183,7 @@ class SegmentService(BaseService):
                 content=req.content.data,
                 hash=new_hash,
                 character_count=len(req.content.data),
-                token_count=self.embeddings_service.calculate_token_count(req.content.data),
+                token_count=token_count,
             )
 
             # 6.更新片段归属关键词信息
