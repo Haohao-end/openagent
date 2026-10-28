@@ -783,17 +783,19 @@ class PublicAgentA2AService(BaseService):
         owner_id = app.account_id
         if normalized_context_id:
             try:
-                conversation = self.db.session.query(Conversation).filter(
-                    Conversation.id == UUID(normalized_context_id),
-                    Conversation.app_id == app.id,
-                    Conversation.invoke_from == InvokeFrom.SERVICE_API.value,
-                    Conversation.created_by == owner_id,
-                    Conversation.is_deleted == False,
-                ).one_or_none()
-            except Exception:
-                conversation = None
+                conversation_id = UUID(normalized_context_id)
+            except ValueError as exc:
+                raise ValidateErrorException("A2A contextId 格式无效") from exc
 
-        if conversation:
+            conversation = self.db.session.query(Conversation).filter(
+                Conversation.id == conversation_id,
+                Conversation.app_id == app.id,
+                Conversation.invoke_from == InvokeFrom.SERVICE_API.value,
+                Conversation.created_by == owner_id,
+                Conversation.is_deleted == False,
+            ).one_or_none()
+            if not conversation:
+                raise NotFoundException("A2A会话不存在")
             return conversation
 
         return self.create(

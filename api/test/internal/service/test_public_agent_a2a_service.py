@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from flask import Flask, has_app_context
 
-from internal.exception import ValidateErrorException
+from internal.exception import NotFoundException, ValidateErrorException
 from internal.service.public_agent_a2a_service import PublicAgentA2AService
 
 
@@ -511,3 +511,31 @@ class TestPublicAgentA2AService:
 
         assert captured["history"] == history
         assert captured["memory_conversation"] is conversation
+
+    @pytest.mark.parametrize(
+        ("context_id", "error_type"),
+        [("client-session", ValidateErrorException), (str(uuid4()), NotFoundException)],
+    )
+    def test_resolve_public_conversation_should_reject_unavailable_supplied_context(self, monkeypatch, context_id, error_type):
+        class _Query:
+            def filter(self, *_args):
+                return self
+
+            def one_or_none(self):
+                return None
+
+        create_calls = []
+        service = _build_service(db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args: _Query())))
+        monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: create_calls.append(True))
+
+        with pytest.raises(error_type):
+            service._resolve_public_conversation(SimpleNamespace(id=uuid4(), account_id=uuid4()), context_id)
+
+        assert create_calls == []
+
+    def test_resolve_public_conversation_should_create_when_context_is_omitted(self, monkeypatch):
+        conversation = SimpleNamespace(id=uuid4())
+        service = _build_service()
+        monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: conversation)
+
+        assert service._resolve_public_conversation(SimpleNamespace(id=uuid4(), account_id=uuid4()), "") is conversation
