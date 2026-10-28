@@ -53,6 +53,7 @@ const modelOptions = computed(() => {
     }
   })
 })
+let modelDetailLoad: Promise<void> = Promise.resolve()
 
 // 2.定义选择模型处理器
 const changeModel = (value: string) => {
@@ -60,7 +61,7 @@ const changeModel = (value: string) => {
   const [provider_name, model_name] = value.split('/')
 
   // 2.2 发起请求获取模型详情
-  loadLanguageModel(provider_name, model_name).then(() => {
+  modelDetailLoad = loadLanguageModel(provider_name, model_name).then(() => {
     // 2.3 重新赋值parameters
     form.value.parameters = language_model.value.parameters.reduce(
       (acc: Record<string, unknown>, parameter: { name: string; default?: unknown }) => {
@@ -73,7 +74,9 @@ const changeModel = (value: string) => {
 }
 
 // 3.触发器隐藏处理器，提交数据进行更新
-const hideModelTrigger = () => {
+const hideModelTrigger = async () => {
+  await modelDetailLoad
+
   // 3.1 处理表单数据
   const [provider_name, model_name] = form.value.selectValue.split('/')
 
