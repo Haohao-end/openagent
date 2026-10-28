@@ -9,6 +9,7 @@ import { formatTimestampTime } from '@/utils/time-formatter'
 const route = useRoute()
 const publishHistoryDrawerVisible = ref(false)
 const publishedRefreshToken = ref(0)
+const draftConfigRefreshToken = ref(0)
 const { loading, app, loadApp } = useGetApp()
 const { loading: publishLoading, handlePublish } = usePublish()
 const { handleCancelPublish } = useCancelPublish()
@@ -33,6 +34,11 @@ watch(
 const refreshPublishedView = () => {
   publishedRefreshToken.value += 1
 }
+
+const refreshDraftConfig = () => {
+  draftConfigRefreshToken.value += 1
+}
+
 </script>
 
 <template>
@@ -220,7 +226,7 @@ const refreshPublishedView = () => {
       <router-view v-slot="{ Component }">
         <component
           :is="Component"
-          :key="String(route.params?.app_id ?? '')"
+          :key="`${String(route.params?.app_id ?? '')}-${draftConfigRefreshToken}`"
           class="flex h-full min-h-0 w-full flex-1"
           :app="app"
           :published-refresh-token="publishedRefreshToken"
@@ -231,7 +237,7 @@ const refreshPublishedView = () => {
     <publish-history-drawer
       :app="app"
       v-model:visible="publishHistoryDrawerVisible"
-      @load-draft-app-config="() => {}"
+      @load-draft-app-config="refreshDraftConfig"
     />
   </div>
 </template>
