@@ -144,6 +144,7 @@ export const useGetAccountSessions = () => {
 
 export const useGetAccountLoginHistory = () => {
   const loading = ref(false)
+  let requestId = 0
   const history_state = ref<{
     history: Array<Record<string, any>>
     total: number
@@ -162,12 +163,13 @@ export const useGetAccountLoginHistory = () => {
     current_page?: number
     page_size?: number
   }) => {
+    const currentRequestId = ++requestId
     try {
       loading.value = true
       const resp = await getAccountLoginHistory(params)
-      history_state.value = resp.data
+      if (currentRequestId === requestId) history_state.value = resp.data
     } finally {
-      loading.value = false
+      if (currentRequestId === requestId) loading.value = false
     }
   }
 
