@@ -3,11 +3,12 @@ from types import SimpleNamespace
 
 import pytest
 from flask import Flask
+from werkzeug.datastructures import MultiDict
 
 from pkg.oauth.github_oauth import GithubOAuth
 from pkg.oauth.google_oauth import GoogleOAuth
 from pkg.oauth.oauth import OAuth, OAuthUserInfo
-from pkg.paginator.paginator import Paginator
+from pkg.paginator.paginator import Paginator, PaginatorReq
 from pkg.password.password import compare_password, hash_password, validate_password
 from pkg.response.http_code import HttpCode
 from pkg.response.response import (
@@ -209,6 +210,21 @@ class TestPaginatorPasswordResponseAndDB:
         assert paginator.total_page == 1
         assert query_paginate_calls == [(1, 20, False)]
         assert db_paginate_calls == []
+
+    def test_paginator_should_default_blank_optional_query_parameters(self):
+        app = Flask(__name__)
+        app.config["WTF_CSRF_ENABLED"] = False
+        with app.test_request_context("/"):
+            req = PaginatorReq(formdata=MultiDict({"current_page": "", "page_size": ""}))
+            assert req.validate()
+            calls = []
+            db = SimpleNamespace(
+                paginate=lambda query, page, per_page, error_out: calls.append((query, page, per_page, error_out))
+                or SimpleNamespace(total=0, items=[]),
+            )
+
+            assert Paginator(db=db, req=req).paginate("query") == []
+            assert calls == [("query", 1, 20, False)]
 
     def test_password_helpers_should_validate_hash_and_compare(self):
         validate_password("abc12345")
