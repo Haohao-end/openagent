@@ -162,16 +162,18 @@ export const useCreateOrUpdateDataset = () => {
 export const useGetDataset = () => {
   // 1.定义获取知识库详情的数据
   const loading = ref(false)
+  let latestRequest = 0
   const dataset = ref<Record<string, any>>({})
 
   // 2.定义加载数据函数
   const loadDataset = async (dataset_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getDataset(dataset_id)
-      dataset.value = resp.data
+      if (requestId === latestRequest) dataset.value = resp.data
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
