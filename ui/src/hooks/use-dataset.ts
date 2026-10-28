@@ -178,6 +178,7 @@ export const useGetDataset = () => {
 export const useGetDocumentsWithPage = () => {
   // 1.定义获取文档列表的数据结构
   const loading = ref(false)
+  let latestRequest = 0
   const documents = ref<Record<string, any>[]>([])
   const defaultPaginator = {
     current_page: 1,
@@ -196,17 +197,19 @@ export const useGetDocumentsWithPage = () => {
       search_word: '',
     },
   ) => {
+    const requestId = ++latestRequest
     try {
       // 2.1 调用接口获取响应数据
       loading.value = true
       const resp = await getDocumentsWithPage(dataset_id, req)
+      if (requestId !== latestRequest) return
       const data = resp.data
 
       // 2.2 对于表格式+分页器实现的分页，可以直接填充数据进行替换
       paginator.value = data.paginator
       documents.value = data.list
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
