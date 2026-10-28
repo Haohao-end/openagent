@@ -157,8 +157,13 @@ class TagAssignmentService:
                 for tool_call in response.tool_calls:
                     if tool_call.get('name') == 'assign_tags':
                         tags = tool_call.get('args', {}).get('tags', [])
-                        if tags:
-                            return sort_tags_by_priority(tags)
+                        if isinstance(tags, list):
+                            valid_tags = [
+                                tag for tag in tags
+                                if isinstance(tag, str) and tag in TAG_KEYWORDS_MAPPING
+                            ]
+                            if valid_tags:
+                                return sort_tags_by_priority(valid_tags)
 
             # 如果解析失败，返回空列表
             return []
