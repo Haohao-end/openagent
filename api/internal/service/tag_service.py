@@ -161,6 +161,7 @@ class TagService(BaseService):
 
     def get_hot_tags(
         self,
+        account_id: UUID,
         status: str = TagStatus.ACTIVE.value,
         limit_per_dimension: int = 10,
     ) -> dict[str, list[dict[str, Any]]]:
@@ -169,17 +170,17 @@ class TagService(BaseService):
             self.db.session.query(
                 AppTag.tag_id,
                 func.count(AppTag.id),
-            ).group_by(AppTag.tag_id).all()
+            ).filter(AppTag.account_id == account_id).group_by(AppTag.tag_id).all()
         )
         workflow_tag_counts = dict(
             self.db.session.query(
                 WorkflowTag.tag_id,
                 func.count(WorkflowTag.id),
-            ).group_by(WorkflowTag.tag_id).all()
+            ).filter(WorkflowTag.account_id == account_id).group_by(WorkflowTag.tag_id).all()
         )
         tags = (
             self.db.session.query(Tag)
-            .filter(Tag.status == status)
+            .filter(and_(Tag.account_id == account_id, Tag.status == status))
             .order_by(desc(Tag.created_at))
             .all()
         )

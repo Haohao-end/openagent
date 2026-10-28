@@ -121,6 +121,7 @@ def test_get_tags_with_page_should_filter_owner_and_build_paginator(monkeypatch)
 
 
 def test_get_hot_tags_should_group_by_dimension_and_count_usage():
+    account_id = uuid4()
     hot_tag_id = uuid4()
     system_tag_id = uuid4()
     category_tag_id = uuid4()
@@ -144,7 +145,7 @@ def test_get_hot_tags_should_group_by_dimension_and_count_usage():
 
     service = TagService(db=SimpleNamespace(session=SimpleNamespace(query=_query)))
 
-    hot_tags = service.get_hot_tags(limit_per_dimension=5)
+    hot_tags = service.get_hot_tags(account_id=account_id, limit_per_dimension=5)
 
     assert hot_tags["custom"] == [
         {
@@ -172,8 +173,11 @@ def test_get_hot_tags_should_group_by_dimension_and_count_usage():
     ]
     assert len(tags_query.filters) == 1
     assert "tag.status" in str(tags_query.filters[0])
+    assert "tag.account_id" in str(tags_query.filters[0])
     assert app_counts_query.group_bys == [AppTag.tag_id]
     assert workflow_counts_query.group_bys == [WorkflowTag.tag_id]
+    assert "app_tag.account_id" in str(app_counts_query.filters[0])
+    assert "workflow_tag.account_id" in str(workflow_counts_query.filters[0])
 
 
 def test_get_tag_dimensions_should_return_expected_labels():
