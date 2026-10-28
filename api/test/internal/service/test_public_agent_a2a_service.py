@@ -37,6 +37,10 @@ class TestPublicAgentA2AService:
         if execution_path == "invoke":
             service._invoke_public_agent(app, "hello")
         else:
+            monkeypatch.setattr(
+                "internal.service.public_agent_a2a_service.TokenBufferMemory",
+                lambda **_kwargs: SimpleNamespace(get_history_prompt_messages=lambda: []),
+            )
             conversation = SimpleNamespace(id=uuid4(), summary="", name="Existing")
             monkeypatch.setattr(service, "_resolve_public_conversation", lambda *_args: conversation)
             monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: SimpleNamespace(id=uuid4()))
@@ -472,3 +476,38 @@ class TestPublicAgentA2AService:
 
         assert exc.value.data["capabilities"]["image_input"]["enabled"] is False
         assert exc.value.data["capabilities"]["image_input"]["reason_code"] == "PUBLIC_A2A_IMAGE_INPUT_UNSUPPORTED"
+
+    def test_stream_message_should_pass_existing_conversation_history_to_agent(self, monkeypatch):
+        history = [object()]
+        captured = {}
+        conversation = SimpleNamespace(id=uuid4(), summary="saved summary", name="Existing")
+        runtime_agent = SimpleNamespace(stream=lambda state: captured.update(state) or iter(()))
+
+        def _fake_token_buffer_memory(*, conversation, **_kwargs):
+            captured["memory_conversation"] = conversation
+            return SimpleNamespace(get_history_prompt_messages=lambda: history)
+
+        monkeypatch.setattr(
+            "internal.service.public_agent_a2a_service.TokenBufferMemory",
+            _fake_token_buffer_memory,
+        )
+        service = _build_service(
+            app_service=SimpleNamespace(
+                _build_runtime_tools=lambda *_args, **_kwargs: [],
+                _create_runtime_agent=lambda *_args, **_kwargs: runtime_agent,
+            ),
+            app_config_service=SimpleNamespace(get_app_config=lambda _app: {}),
+            language_model_service=SimpleNamespace(
+                load_language_model=lambda _config: SimpleNamespace(
+                    convert_to_human_message=lambda query, _images: query
+                )
+            ),
+        )
+        monkeypatch.setattr(service, "_resolve_public_conversation", lambda *_args: conversation)
+        monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: SimpleNamespace(id=uuid4()))
+        monkeypatch.setattr(service, "_save_public_agent_thoughts", lambda **_kwargs: None)
+
+        list(service._stream_public_agent_events(SimpleNamespace(id=uuid4(), account_id=uuid4()), "follow up", "ctx", {}))
+
+        assert captured["history"] == history
+        assert captured["memory_conversation"] is conversation

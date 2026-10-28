@@ -19,6 +19,7 @@ from internal.lib.helper import build_input_parts, build_output_payload
 from internal.model import App, Conversation, Message, MessageAgentThought
 from internal.core.agent.entities.queue_entity import QueueEvent
 from internal.core.agent.usage_utils import summarize_agent_thoughts
+from internal.core.memory import TokenBufferMemory
 from sqlalchemy import desc
 from sqlalchemy.orm import selectinload
 from pkg.sqlalchemy import SQLAlchemy
@@ -666,10 +667,15 @@ class PublicAgentA2AService(BaseService):
         message_id = str(message.id)
         task_id = conversation_id
         agent_thoughts: dict[str, Any] = {}
+        history = TokenBufferMemory(
+            db=self.db,
+            conversation=conversation,
+            model_instance=llm,
+        ).get_history_prompt_messages()
 
         for agent_thought in agent.stream({
             "messages": [llm.convert_to_human_message(query, [])],
-            "history": [],
+            "history": history,
             "long_term_memory": conversation.summary,
         }):
             event_id = str(agent_thought.id)
