@@ -11,7 +11,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from internal.core.language_model.providers.deepseek.chat import Chat
 from internal.entity.assistant_agent_entity import ASSISTANT_AGENT_DISPLAY_NAME
-from sqlalchemy import desc
+from sqlalchemy import desc, select
 from sqlalchemy.orm import selectinload
 from internal.entity.conversation_entity import (
     SUMMARIZER_TEMPLATE,
@@ -428,9 +428,11 @@ class ConversationService(BaseService):
         )
 
         # 2.查询公开广场产生的最近消息，并按会话去重
+        owned_app_ids = select(App.id).where(App.account_id == account.id)
         public_recent_messages = (
             self.db.session.query(Message)
             .filter(
+                Message.app_id.in_(owned_app_ids),
                 Message.invoke_from == InvokeFrom.SERVICE_API.value,
                 Message.status.in_([MessageStatus.STOP.value, MessageStatus.NORMAL.value]),
                 Message.answer != "",
