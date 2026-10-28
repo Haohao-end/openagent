@@ -1,4 +1,8 @@
 import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -992,6 +996,22 @@ class TestCodeNode:
 
         with pytest.raises(FailException, match="返回值必须是一个字典"):
             node.invoke({"inputs": {}, "outputs": {}, "node_results": []})
+
+    def test_code_node_import_should_allow_missing_sandbox_url(self):
+        env = {
+            "PATH": os.environ.get("PATH", ""),
+            "OPENAI_API_KEY": "sk-test-only",
+            "SQLALCHEMY_DATABASE_URI": "sqlite:////tmp/openagent-v31-code-node-isolated.sqlite",
+        }
+        result = subprocess.run(
+            [sys.executable, "-c", "from internal.core.workflow.nodes.code.code_node import CodeNode"],
+            cwd=Path(__file__).resolve().parents[4],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
 
     def test_execute_function_should_raise_when_sandbox_url_not_configured(
         self, monkeypatch
