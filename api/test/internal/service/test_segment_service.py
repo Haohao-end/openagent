@@ -146,6 +146,31 @@ class TestSegmentService:
         with pytest.raises(ValidateErrorException):
             service.create_segment(uuid4(), uuid4(), req, SimpleNamespace(id=uuid4()))
 
+    def test_update_segment_should_raise_when_token_too_large(self, monkeypatch):
+        service = self._build_service()
+        service.embeddings_service = SimpleNamespace(calculate_token_count=lambda _content: 1001)
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        document_id = uuid4()
+        segment = SimpleNamespace(
+            id=uuid4(),
+            account_id=account.id,
+            dataset_id=dataset_id,
+            document_id=document_id,
+            status=SegmentStatus.COMPLETED.value,
+            hash="existing-hash",
+        )
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: segment)
+        monkeypatch.setattr("internal.service.segment_service.generate_text_hash", lambda _text: "existing-hash")
+        updates = []
+        monkeypatch.setattr(service, "update", lambda *_args, **_kwargs: updates.append(True))
+        req = SimpleNamespace(content=SimpleNamespace(data="x"), keywords=SimpleNamespace(data=["keyword"]))
+
+        with pytest.raises(ValidateErrorException):
+            service.update_segment(dataset_id, document_id, segment.id, req, account)
+
+        assert updates == []
+
     def test_update_segment_enabled_should_raise_when_status_not_changed(self, monkeypatch):
         service = self._build_service()
         account = SimpleNamespace(id=uuid4())
