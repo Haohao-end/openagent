@@ -135,6 +135,41 @@ def test_get_public_mcp_providers_with_page_should_fallback_to_catalog_when_tabl
     assert paginator.total_page == 1
 
 
+@pytest.mark.parametrize(("is_public", "expected_headers", "expected_env"), [
+    (True, [], {}),
+    (False, [{"key": "Authorization", "value": "Bearer test-secret"}], {"API_TOKEN": "test-secret"}),
+])
+def test_provider_payload_only_exposes_credentials_for_private_providers(is_public, expected_headers, expected_env):
+    service = _build_service(table_exists=False, stub_catalog_payload=False)
+
+    payload = service._build_provider_payload(
+        provider_key="provider-key",
+        provider_id="provider-id",
+        name="test-provider",
+        label="Test Provider",
+        icon="",
+        description="",
+        category="",
+        transport="streamable_http",
+        url="https://mcp.example.com",
+        command="",
+        headers=[{"key": "Authorization", "value": "Bearer test-secret"}],
+        tool_names=[],
+        args=[],
+        env={"API_TOKEN": "test-secret"},
+        timeout_seconds=30,
+        source_type="custom",
+        source_key="provider-key",
+        source_url="",
+        is_public=is_public,
+    )
+
+    assert payload["headers"] == expected_headers
+    assert payload["env"] == expected_env
+    assert payload["binding"]["headers"] == expected_headers
+    assert payload["binding"]["env"] == expected_env
+
+
 def test_get_public_mcp_provider_should_reject_invalid_catalog_key_encoding():
     service = _build_service(table_exists=False)
 
