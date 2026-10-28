@@ -47,6 +47,8 @@ const activeTab = ref<'own' | 'public'>('own')
 const searchWord = ref('')
 const loadingOwn = ref(false)
 const loadingPublic = ref(false)
+let latestOwnRequest = 0
+let latestPublicRequest = 0
 const ownApps = ref<BindingTarget[]>([])
 const publicApps = ref<BindingTarget[]>([])
 const ownPaginator = ref<PaginatorState>({
@@ -144,12 +146,13 @@ const hasMoreActiveApps = computed(() => {
 })
 
 const loadOwnApps = async (reset = false) => {
-  if (loadingOwn.value) return
+  if (loadingOwn.value && !reset) return
   if (!reset && ownPaginator.value.current_page > 0 && ownPaginator.value.current_page >= ownPaginator.value.total_page) {
     return
   }
 
   const nextPage = reset ? 1 : ownPaginator.value.current_page + 1 || 1
+  const requestId = ++latestOwnRequest
   loadingOwn.value = true
   try {
     if (reset) {
@@ -168,6 +171,7 @@ const loadOwnApps = async (reset = false) => {
       search_word: searchWord.value.trim(),
       published_only: true,
     })
+    if (requestId !== latestOwnRequest) return
 
     const nextApps = (res.data.list || [])
       .map((app) => normalizeOwnApp(app))
@@ -181,19 +185,22 @@ const loadOwnApps = async (reset = false) => {
       page_size: PAGE_SIZE,
     }
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('appStudio.abilities.agents.loadOwnFailed')))
+    if (requestId === latestOwnRequest) {
+      Message.error(getErrorMessage(error, t('appStudio.abilities.agents.loadOwnFailed')))
+    }
   } finally {
-    loadingOwn.value = false
+    if (requestId === latestOwnRequest) loadingOwn.value = false
   }
 }
 
 const loadPublicApps = async (reset = false) => {
-  if (loadingPublic.value) return
+  if (loadingPublic.value && !reset) return
   if (!reset && publicPaginator.value.current_page > 0 && publicPaginator.value.current_page >= publicPaginator.value.total_page) {
     return
   }
 
   const nextPage = reset ? 1 : publicPaginator.value.current_page + 1 || 1
+  const requestId = ++latestPublicRequest
   loadingPublic.value = true
   try {
     if (reset) {
@@ -211,6 +218,7 @@ const loadPublicApps = async (reset = false) => {
       page_size: PAGE_SIZE,
       search_word: searchWord.value.trim(),
     })
+    if (requestId !== latestPublicRequest) return
 
     const nextApps = (res.data.list || [])
       .map((app) => normalizePublicApp(app))
@@ -224,9 +232,11 @@ const loadPublicApps = async (reset = false) => {
       page_size: PAGE_SIZE,
     }
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('appStudio.abilities.agents.loadMarketplaceFailed')))
+    if (requestId === latestPublicRequest) {
+      Message.error(getErrorMessage(error, t('appStudio.abilities.agents.loadMarketplaceFailed')))
+    }
   } finally {
-    loadingPublic.value = false
+    if (requestId === latestPublicRequest) loadingPublic.value = false
   }
 }
 

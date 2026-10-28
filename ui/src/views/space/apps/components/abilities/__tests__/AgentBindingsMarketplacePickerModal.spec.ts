@@ -55,6 +55,22 @@ const makePublicApp = (id: string, name: string, overrides: Record<string, unkno
   ...overrides,
 })
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
+const ownAppsResponse = (id: string, name: string) => ({
+  data: { list: [makeOwnApp(id, name)], paginator: makePaginator(1, 1, 1) },
+})
+
+const publicAppsResponse = (id: string, name: string) => ({
+  data: { list: [makePublicApp(id, name)], paginator: makePaginator(1, 1, 1) },
+})
+
 const makeSelectedBinding = (appId: string): AgentBinding => ({
   app_id: appId,
   invoke_mode: 'tool',
@@ -287,5 +303,62 @@ describe('AgentBindingsMarketplacePickerModal', () => {
       }),
     )
     expect(wrapper.text()).toContain('应用广场二号')
+  })
+
+  it('refreshes my-app search while the previous request is pending', async () => {
+    const oldRequest = deferred<ReturnType<typeof ownAppsResponse>>()
+    const newRequest = deferred<ReturnType<typeof ownAppsResponse>>()
+    mocks.getAppsWithPage.mockReturnValueOnce(oldRequest.promise).mockReturnValueOnce(newRequest.promise)
+
+    const wrapper = mount(AgentBindingsMarketplacePickerModal, {
+      props: { visible: true, selected_bindings: [], current_app_id: 'current-app' },
+      global: { stubs: globalStubs },
+    })
+    await nextTick()
+    await wrapper.get('[data-testid="search-input"]').setValue('new query')
+    await wrapper.get('[data-testid="search-button"]').trigger('click')
+    await nextTick()
+    const callsAfterSearch = mocks.getAppsWithPage.mock.calls.length
+
+    newRequest.resolve(ownAppsResponse('new-app', 'New Own App'))
+    await flushPromises()
+    oldRequest.resolve(ownAppsResponse('old-app', 'Old Own App'))
+    await flushPromises()
+
+    expect(callsAfterSearch).toBe(2)
+    expect(mocks.getAppsWithPage.mock.calls[1][0].search_word).toBe('new query')
+    expect(wrapper.text()).toContain('New Own App')
+    expect(wrapper.text()).not.toContain('Old Own App')
+    wrapper.unmount()
+  })
+
+  it('refreshes public-app search while the previous request is pending', async () => {
+    mocks.getAppsWithPage.mockResolvedValue(ownAppsResponse('own-app', 'Own App'))
+    const oldRequest = deferred<ReturnType<typeof publicAppsResponse>>()
+    const newRequest = deferred<ReturnType<typeof publicAppsResponse>>()
+    mocks.getPublicApps.mockReturnValueOnce(oldRequest.promise).mockReturnValueOnce(newRequest.promise)
+
+    const wrapper = mount(AgentBindingsMarketplacePickerModal, {
+      props: { visible: true, selected_bindings: [], current_app_id: 'current-app' },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    await wrapper.get('[data-testid="agent-source-public"]').trigger('click')
+    await nextTick()
+    await wrapper.get('[data-testid="search-input"]').setValue('new query')
+    await wrapper.get('[data-testid="search-button"]').trigger('click')
+    await nextTick()
+    const callsAfterSearch = mocks.getPublicApps.mock.calls.length
+
+    newRequest.resolve(publicAppsResponse('new-app', 'New Public App'))
+    await flushPromises()
+    oldRequest.resolve(publicAppsResponse('old-app', 'Old Public App'))
+    await flushPromises()
+
+    expect(callsAfterSearch).toBe(2)
+    expect(mocks.getPublicApps.mock.calls[1][0].search_word).toBe('new query')
+    expect(wrapper.text()).toContain('New Public App')
+    expect(wrapper.text()).not.toContain('Old Public App')
+    wrapper.unmount()
   })
 })
