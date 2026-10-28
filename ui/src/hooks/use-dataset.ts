@@ -268,16 +268,18 @@ export const useUpdateDocumentEnabled = () => {
 export const useGetDocument = () => {
   // 1.定义hooks所需的基础数据
   const loading = ref(false)
+  let latestRequest = 0
   const document = ref<Record<string, any>>({})
 
   // 2.定义加载文档函数
   const loadDocument = async (dataset_id: string, document_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getDocument(dataset_id, document_id)
-      document.value = resp.data
+      if (requestId === latestRequest) document.value = resp.data
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
