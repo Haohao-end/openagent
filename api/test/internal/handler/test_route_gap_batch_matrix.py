@@ -629,21 +629,10 @@ class TestRouteGapBatchMatrix:
         assert resp.json["code"] == HttpCode.SUCCESS
         assert resp.json["data"] == [{"id": "msg-1", "conversation_id": "conv-1"}]
 
-    def test_public_app_a2a_latest_conversation_should_delegate_to_service(
-        self, http_client, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "internal.service.public_agent_a2a_service.PublicAgentA2AService.get_latest_public_app_conversation_id",
-            lambda *_args, **_kwargs: "conv-1",
-        )
+    def test_public_app_a2a_latest_conversation_is_not_exposed(self, app):
+        route_paths = {rule.rule for rule in app.url_map.iter_rules()}
 
-        resp = http_client.get(
-            f"/public/apps/{PUBLIC_STRING_APP_ID}/a2a/conversations/latest"
-        )
-
-        assert resp.status_code == 200
-        assert resp.json["code"] == HttpCode.SUCCESS
-        assert resp.json["data"]["conversation_id"] == "conv-1"
+        assert "/public/apps/<string:app_id>/a2a/conversations/latest" not in route_paths
 
     def test_auth_send_reset_code_should_return_generic_success_message(
         self, http_client, monkeypatch

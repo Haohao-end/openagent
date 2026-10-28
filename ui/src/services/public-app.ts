@@ -3,7 +3,6 @@
  */
 import { get, post, ssePost } from '@/utils/request'
 import type { BaseResponse, BasePaginatorResponse } from '@/models/base'
-import type { ChatConversationMessage } from '@/models/chat'
 
 export interface PublicApp {
   id: string
@@ -125,10 +124,4 @@ export function getPublicAppA2aConversationMessages(appId: string, conversationI
     latency: number
     suggested_questions: string[]
   }>>>(`/public/apps/${appId}/a2a/conversations/${conversationId}/messages`)
-}
-
-export function getLatestPublicAppA2aConversation(appId: string) {
-  return get<BaseResponse<{ conversation_id: string }>>(
-    `/public/apps/${appId}/a2a/conversations/latest`,
-  )
 }

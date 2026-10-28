@@ -757,11 +757,6 @@ class Router:
             view_func=self.public_app_handler.get_public_app_a2a_conversation_messages,
         )
         bp.add_url_rule(
-            "/public/apps/<string:app_id>/a2a/conversations/latest",
-            methods=["GET"],
-            view_func=self.public_app_handler.get_latest_public_app_a2a_conversation,
-        )
-        bp.add_url_rule(
             "/public/apps/tags",
             view_func=self.public_app_handler.get_app_tags,
         )

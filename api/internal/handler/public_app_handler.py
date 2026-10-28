@@ -121,10 +121,3 @@ class PublicAppHandler:
         except Exception:
             return jsonify({"error": "Failed to retrieve conversation messages"}), 500
         return success_json(messages)
-
-    def get_latest_public_app_a2a_conversation(self, app_id: str):
-        """获取公共应用最近一次会话。"""
-        if not self.public_agent_a2a_service:
-            return jsonify({"error": "A2A service unavailable"}), 503
-        conversation_id = self.public_agent_a2a_service.get_latest_public_app_conversation_id(app_id)
-        return success_json({"conversation_id": conversation_id})
