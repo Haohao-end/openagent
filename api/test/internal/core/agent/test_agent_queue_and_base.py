@@ -1,4 +1,6 @@
 from contextlib import nullcontext
+from concurrent.futures import ThreadPoolExecutor
+import threading
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -64,6 +66,29 @@ def test_agent_queue_manager_queue_should_create_cache_key_and_reuse_queue(monke
     assert cache_key == manager.generate_task_belong_cache_key(task_id)
     assert ttl == 1800
     assert cache_value == f"{expected_prefix}-{user_id}"
+
+
+def test_agent_queue_manager_queue_should_reuse_one_queue_on_concurrent_first_access(monkeypatch):
+    redis_client = _FakeRedis()
+    concurrent_setex = threading.Barrier(2)
+    original_setex = redis_client.setex
+
+    def synchronize_setex(*args):
+        try:
+            concurrent_setex.wait(timeout=1)
+        except threading.BrokenBarrierError:
+            pass
+        original_setex(*args)
+
+    redis_client.setex = synchronize_setex
+    monkeypatch.setattr("app.http.module.injector", _FakeInjector(redis_client))
+    manager = AgentQueueManager(user_id=uuid4(), invoke_from=InvokeFrom.WEB_APP)
+    task_id = uuid4()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        queues = list(executor.map(manager.queue, [task_id, task_id]))
+
+    assert queues[0] is queues[1] and len(redis_client.setex_calls) == 1
 
 
 def test_agent_queue_manager_publish_and_publish_error_should_enqueue_and_stop(monkeypatch):
