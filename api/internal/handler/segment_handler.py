@@ -64,6 +64,8 @@ class SegmentHandler:
     def update_segment_enabled(self, dataset_id: UUID, document_id: UUID, segment_id: UUID):
         """根据传递的信息更新指定的文档片段启用状态"""
         payload = request.get_json(silent=True)
+        if not request.is_json and "enabled" not in request.form:
+            return validate_error_json({"enabled": ["启用状态必须为布尔值"]})
         if request.is_json and (
             not isinstance(payload, dict) or not isinstance(payload.get("enabled"), bool)
         ):
