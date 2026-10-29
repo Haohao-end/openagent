@@ -40,10 +40,10 @@ const deferred = <T,>() => {
   return { promise, resolve }
 }
 
-const appsResponse = (id: string, name: string) => ({
+const appsResponse = (id: string, name: string, totalPage = 1) => ({
   data: {
     list: [{ id, name, icon: '', description: '', tags: [] }],
-    paginator: { total_page: 1 },
+    paginator: { total_page: totalPage },
   },
 })
 
@@ -78,6 +78,26 @@ describe('PublicAppsListView request ordering', () => {
 
     expect(wrapper.text()).toContain('New App')
     expect(wrapper.text()).not.toContain('Old App')
+    wrapper.unmount()
+  })
+
+  it('retries the same page after an infinite-scroll request fails', async () => {
+    mockGetPublicApps
+      .mockResolvedValueOnce(appsResponse('app-1', 'Page 1', 2))
+      .mockRejectedValueOnce(new Error('temporary failure'))
+      .mockResolvedValueOnce(appsResponse('app-2', 'Page 2', 2))
+    const { default: ListView } = await import('../ListView.vue')
+    const wrapper = mount(ListView)
+    await flushPromises()
+
+    const list = wrapper.find('.overflow-y-auto')
+    await list.trigger('scroll')
+    await flushPromises()
+    await list.trigger('scroll')
+    await flushPromises()
+
+    expect(mockGetPublicApps.mock.calls.map(([params]) => params.current_page)).toEqual([1, 2, 2])
+    expect(wrapper.text()).toContain('Page 2')
     wrapper.unmount()
   })
 })

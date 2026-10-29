@@ -50,6 +50,7 @@ const loadWorkflows = async (force = false) => {
     hasMore.value = requestPage < res.data.paginator.total_page
   } catch (error: unknown) {
     if (requestId === latestWorkflowsRequest) {
+      if (requestPage > 1 && page.value === requestPage) page.value -= 1
       Message.error(getErrorMessage(error, t('store.workflows.loadFailed')))
     }
   } finally {

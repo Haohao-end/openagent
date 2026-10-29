@@ -51,6 +51,7 @@ const loadApps = async (force = false) => {
     hasMore.value = requestPage < res.data.paginator.total_page
   } catch (error: unknown) {
     if (requestId === latestAppsRequest) {
+      if (requestPage > 1 && page.value === requestPage) page.value -= 1
       Message.error(getErrorMessage(error, t('publicApps.list.loadAppsFailed')))
     }
   } finally {
