@@ -176,6 +176,7 @@ class TestLLMAndDatasetNodes:
             @staticmethod
             def stream(_prompt):
                 yield SimpleNamespace(content="hello ")
+                yield None
                 yield SimpleNamespace(content="world")
 
         class _FakeLanguageModelService:
