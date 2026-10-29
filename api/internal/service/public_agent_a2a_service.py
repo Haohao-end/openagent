@@ -626,6 +626,11 @@ class PublicAgentA2AService(BaseService):
         runtime_context: dict[str, Any] | None = None,
     ) -> Generator[str, None, None]:
         """流式输出公开Agent事件。"""
+        conversation = (
+            self._resolve_public_conversation(app, context_id)
+            if str(context_id or "").strip()
+            else None
+        )
         app_config = self.app_config_service.get_app_config(app)
         if hasattr(self.language_model_service, "resolve_runtime_language_model"):
             model_resolution = self.language_model_service.resolve_runtime_language_model(
@@ -652,7 +657,8 @@ class PublicAgentA2AService(BaseService):
             tools,
             flask_app=flask_app,
         )
-        conversation = self._resolve_public_conversation(app, context_id)
+        if conversation is None:
+            conversation = self._resolve_public_conversation(app, context_id)
         message = self.create(
             Message,
             app_id=app.id,

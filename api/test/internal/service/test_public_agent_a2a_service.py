@@ -19,6 +19,34 @@ def _build_service(**kwargs) -> PublicAgentA2AService:
 
 
 class TestPublicAgentA2AService:
+    def test_invalid_context_should_be_rejected_before_runtime_setup(self, monkeypatch):
+        setup_calls = []
+        context_id = str(uuid4())
+        service = _build_service(
+            app_service=SimpleNamespace(
+                _build_runtime_tools=lambda *_args, **_kwargs: setup_calls.append("tools") or [],
+                _create_runtime_agent=lambda *_args, **_kwargs: setup_calls.append("agent"),
+            ),
+            app_config_service=SimpleNamespace(
+                get_app_config=lambda _app: setup_calls.append("config") or {},
+            ),
+            language_model_service=SimpleNamespace(
+                load_language_model=lambda _config: setup_calls.append("model"),
+            ),
+        )
+
+        def reject_context(_app, _context_id):
+            raise NotFoundException("A2A会话不存在")
+
+        monkeypatch.setattr(service, "_resolve_public_conversation", reject_context)
+
+        with pytest.raises(NotFoundException):
+            list(service._stream_public_agent_events(
+                SimpleNamespace(id=uuid4(), account_id=uuid4()), "hello", context_id, {}
+            ))
+
+        assert setup_calls == []
+
     @pytest.mark.parametrize("execution_path", ["invoke", "stream"])
     def test_public_agent_execution_should_create_one_runtime_agent(self, monkeypatch, execution_path):
         runtime_agent_calls = []
