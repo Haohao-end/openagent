@@ -43,6 +43,7 @@ CASES = [
         "method": "post",
         "url": f"/datasets/{DATASET_ID}/documents/{DOCUMENT_ID}/enabled",
         "patch_target": "internal.handler.document_handler.UpdateDocumentEnabledReq",
+        "data": {"enabled": "false"},
     },
     {
         "name": "platform_wechat_config_validation_fallback",
@@ -55,6 +56,7 @@ CASES = [
         "method": "post",
         "url": f"/datasets/{DATASET_ID}/documents/{DOCUMENT_ID}/segments/{SEGMENT_ID}/enabled",
         "patch_target": "internal.handler.segment_handler.UpdateSegmentEnabledReq",
+        "data": {"enabled": "false"},
     },
     {
         "name": "web_app_conversations_validation_fallback",
@@ -79,7 +81,7 @@ class TestMissingValidationFallbacks:
         monkeypatch.setattr(case["patch_target"], lambda *_args, **_kwargs: invalid_req)
 
         method = getattr(http_client, case["method"])
-        resp = method(case["url"])
+        resp = method(case["url"], **({"data": case["data"]} if "data" in case else {}))
 
         assert resp.status_code == 200
         assert resp.json["code"] == HttpCode.VALIDATE_ERROR
