@@ -825,3 +825,15 @@ def test_react_agent_should_skip_none_stream_chunks(monkeypatch):
     result = agent._llm_node({"task_id": uuid4(), "messages": [HumanMessage(content="q")], "iteration_count": 0})
 
     assert result["messages"][0].content == "valid response"
+
+
+def test_react_agent_should_end_when_stream_is_empty(monkeypatch):
+    monkeypatch.setattr("internal.core.agent.agents.react_agent.tiktoken.get_encoding", lambda _name: _FakeEncoding())
+    agent = _new_react_agent(_NodeLLM(
+        features=[], metadata={"pricing": {"input": 0.1, "output": 0.2, "unit": 0.001}}, stream_chunks=[]
+    ))
+
+    result = agent._llm_node({"task_id": uuid4(), "messages": [HumanMessage(content="q")], "iteration_count": 0})
+
+    assert result["messages"][0].content == ""
+    assert [thought.event for _, thought in agent.agent_queue_manager.published] == [QueueEvent.AGENT_END]
