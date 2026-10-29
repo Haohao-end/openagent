@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import hashlib
+import requests
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -753,7 +754,10 @@ class McpToolFactory:
             headers=headers,
             timeout=int(binding.get("timeout_seconds") or self.timeout_seconds),
         )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.HTTPError:
+            raise RuntimeError(f"MCP 服务返回 HTTP {response.status_code}") from None
 
         decoded = _parse_json_payload(response.text, expected_id=payload["id"])
         if isinstance(decoded, dict):
