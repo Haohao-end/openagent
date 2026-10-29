@@ -4,6 +4,8 @@ from uuid import uuid4
 import pytest
 from flask import Flask, has_app_context
 
+from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
+from internal.entity.conversation_entity import MessageStatus
 from internal.exception import NotFoundException, ValidateErrorException
 from internal.service.public_agent_a2a_service import PublicAgentA2AService
 from internal.service.public_agent_registry_service import PublicAgentRegistryService
@@ -583,6 +585,42 @@ class TestPublicAgentA2AService:
 
         assert captured["history"] == history
         assert captured["memory_conversation"] is conversation
+
+    def test_stream_public_agent_should_save_partial_history_when_client_disconnects(self, monkeypatch):
+        thought = AgentThought(
+            id=uuid4(), task_id=uuid4(), event=QueueEvent.AGENT_MESSAGE, answer="partial answer"
+        )
+        conversation = SimpleNamespace(id=uuid4(), summary="", name="Existing")
+        message = SimpleNamespace(id=uuid4())
+        saved, updates = [], []
+        llm = SimpleNamespace(convert_to_human_message=lambda query, _images: query)
+        runtime_agent = SimpleNamespace(stream=lambda _state: iter([thought]))
+        monkeypatch.setattr(
+            "internal.service.public_agent_a2a_service.TokenBufferMemory",
+            lambda **_kwargs: SimpleNamespace(get_history_prompt_messages=lambda: []),
+        )
+        service = _build_service(
+            app_service=SimpleNamespace(
+                _build_runtime_tools=lambda *_args, **_kwargs: [],
+                _create_runtime_agent=lambda *_args, **_kwargs: runtime_agent,
+            ),
+            app_config_service=SimpleNamespace(get_app_config=lambda _app: {}),
+            language_model_service=SimpleNamespace(load_language_model=lambda _config: llm),
+        )
+        monkeypatch.setattr(service, "_resolve_public_conversation", lambda *_args: conversation)
+        monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: message)
+        monkeypatch.setattr(service, "_save_public_agent_thoughts", lambda **kwargs: saved.append(kwargs))
+        monkeypatch.setattr(service, "update", lambda target, **kwargs: updates.append((target, kwargs)))
+
+        events = service._stream_public_agent_events(
+            SimpleNamespace(id=uuid4(), account_id=uuid4()), "question", "ctx", {}
+        )
+        event = next(events)
+        events.close()
+
+        assert event.startswith("event: agent_message")
+        assert len(saved) == 1 and saved[0]["agent_thoughts"] == [thought]
+        assert updates == [(message, {"status": MessageStatus.STOP.value})]
 
     @pytest.mark.parametrize(
         ("context_id", "error_type"),

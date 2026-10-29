@@ -722,7 +722,17 @@ class PublicAgentA2AService(BaseService):
                 "message_id": message_id,
                 "task_id": task_id,
             }
-            yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data, ensure_ascii=False)}\n\n"
+            try:
+                yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data, ensure_ascii=False)}\n\n"
+            except GeneratorExit:
+                self._save_public_agent_thoughts(
+                    app=app,
+                    conversation=conversation,
+                    message=message,
+                    agent_thoughts=list(agent_thoughts.values()),
+                )
+                self.update(message, status=MessageStatus.STOP.value)
+                raise
 
         self._save_public_agent_thoughts(
             app=app,
