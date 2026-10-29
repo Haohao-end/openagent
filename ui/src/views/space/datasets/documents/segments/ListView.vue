@@ -120,6 +120,7 @@ onMounted(loadRouteData)
       <div class="flex items-center justify-between mb-6">
         <!-- 左侧搜索框 -->
         <a-input-search
+          :key="String(route.query?.search_word || '')"
           :default-value="route.query?.search_word || ''"
           :placeholder="t('space.datasets.documents.segments.searchPlaceholder')"
           class="w-[240px] bg-white rounded-lg border-gray-200"

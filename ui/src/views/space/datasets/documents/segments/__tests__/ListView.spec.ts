@@ -1,10 +1,10 @@
-import { defineComponent, nextTick, reactive } from 'vue'
+import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { beforeEach, expect, it, vi } from 'vitest'
 import SegmentListView from '../ListView.vue'
 
 const mocks = vi.hoisted(() => ({
-  route: { path: '/datasets/dataset/documents/doc/segments', params: { dataset_id: 'dataset', document_id: 'doc' }, query: {} },
+  route: { path: '/datasets/dataset/documents/doc/segments', params: { dataset_id: 'dataset', document_id: 'doc' }, query: { search_word: '' } },
   segment: { id: 'segment', position: 1, enabled: false, status: 'completed', content: 'example', character_count: 7, hit_count: 0 },
   updateEnabled: vi.fn(),
   loadDocument: vi.fn().mockResolvedValue(undefined),
@@ -28,18 +28,42 @@ const switchStub = defineComponent({
   template: '<button data-testid="segment-switch" @click="$emit(\'update:modelValue\', true); $emit(\'change\', true)" />',
 })
 
-const mountView = () => shallowMount(SegmentListView, { global: { stubs: { 'a-switch': switchStub } } })
+const searchStub = defineComponent({
+  props: { defaultValue: { type: String, default: '' } },
+  setup(props) {
+    const value = ref(props.defaultValue)
+    return { value }
+  },
+  template: '<input data-testid="segment-search" :value="value" />',
+})
+
+const mountView = () => shallowMount(SegmentListView, { global: { stubs: { 'a-switch': switchStub, 'a-input-search': searchStub } } })
 
 beforeEach(() => {
   mocks.route = reactive({
     path: '/datasets/dataset/documents/doc/segments',
     params: { dataset_id: 'dataset', document_id: 'doc' },
-    query: {},
+    query: { search_word: '' },
   })
   mocks.segment.enabled = false
   mocks.updateEnabled.mockReset().mockRejectedValue(new Error('offline'))
   mocks.loadDocument.mockClear()
   mocks.loadSegments.mockClear()
+})
+
+it('syncs the search input when the route query changes', async () => {
+  mocks.route.query.search_word = 'alpha'
+  const wrapper = mountView()
+  const searchValue = () => (wrapper.get('[data-testid="segment-search"]').element as HTMLInputElement).value
+
+  expect(searchValue()).toBe('alpha')
+  mocks.route.query.search_word = 'beta'
+  await nextTick()
+  expect(searchValue()).toBe('beta')
+  mocks.route.query.search_word = ''
+  await nextTick()
+  expect(searchValue()).toBe('')
+  wrapper.unmount()
 })
 
 it('keeps the persisted segment status when the update fails', async () => {
