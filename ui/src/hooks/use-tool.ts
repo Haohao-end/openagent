@@ -41,16 +41,20 @@ export const useGetApiToolProvider = () => {
 export const useGetApiTool = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const api_tool = ref<Record<string, any>>({})
 
   // 2.定义加载函数
   const loadApiTool = async (provider_id: string, tool_name: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getApiTool(provider_id, tool_name)
+      if (requestId !== latestRequest) return false
       api_tool.value = resp.data
+      return true
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
