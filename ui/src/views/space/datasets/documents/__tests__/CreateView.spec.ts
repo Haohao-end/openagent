@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { handleCreateDocuments, loadDocumentsStatus } = vi.hoisted(() => ({
   handleCreateDocuments: vi.fn().mockResolvedValue(undefined),
-  loadDocumentsStatus: vi.fn().mockResolvedValue(undefined),
+  loadDocumentsStatus: vi.fn().mockResolvedValue([{ id: 'doc-1', status: 'error' }]),
 }))
 
 vi.mock('@/hooks/use-dataset', async () => {
@@ -44,7 +44,7 @@ const UploadStub = defineComponent({
 describe('document creation status', () => {
   beforeEach(() => {
     handleCreateDocuments.mockReset().mockResolvedValue(undefined)
-    loadDocumentsStatus.mockReset().mockResolvedValue(undefined)
+    loadDocumentsStatus.mockReset().mockResolvedValue([{ id: 'doc-1', status: 'error' }])
   })
 
   it('shows parsing errors when the document has no segments', async () => {

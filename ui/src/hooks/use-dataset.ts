@@ -528,16 +528,20 @@ export const useCreateDocuments = () => {
 export const useGetDocumentsStatus = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const documents_status_result = ref<Record<string, any>[]>([])
 
   // 2.定义加载数据函数
   const loadDocumentsStatus = async (dataset_id: string, batch: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getDocumentsStatus(dataset_id, batch)
+      if (requestId !== latestRequest) return
       documents_status_result.value = resp.data
+      return resp.data
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
