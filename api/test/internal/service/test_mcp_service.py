@@ -143,7 +143,7 @@ def test_get_public_mcp_providers_with_page_should_fallback_to_catalog_when_tabl
         False,
         [{"key": "Authorization", "value": "Bearer test-secret"}],
         {"API_TOKEN": "test-secret"},
-        "https://mcp-user:test-secret@mcp.example.com/mcp?access_token=test-secret&version=1",
+        "https://mcp-user:test-secret@mcp.example.com/mcp?access_token=test-secret&x-api-key=SYNTHETIC_SENTINEL&version=1",
         "node server.js --token=test-secret",
         ["--token", "test-secret"],
     ),
@@ -152,7 +152,7 @@ def test_provider_payload_only_exposes_credentials_for_private_providers(
     is_public, expected_headers, expected_env, expected_url, expected_command, expected_args
 ):
     service = _build_service(table_exists=False, stub_catalog_payload=False)
-    source_url = "https://source-user:test-secret@repo.example.com/source?token=test-secret&version=1"
+    source_url = "https://source-user:test-secret@repo.example.com/source?token=test-secret&x-api-key=SYNTHETIC_SENTINEL&version=1"
     expected_source_url = source_url if not is_public else "https://repo.example.com/source?version=1"
 
     payload = service._build_provider_payload(
@@ -164,7 +164,7 @@ def test_provider_payload_only_exposes_credentials_for_private_providers(
         description="",
         category="",
         transport="streamable_http",
-        url="https://mcp-user:test-secret@mcp.example.com/mcp?access_token=test-secret&version=1",
+        url="https://mcp-user:test-secret@mcp.example.com/mcp?access_token=test-secret&x-api-key=SYNTHETIC_SENTINEL&version=1",
         command="node server.js --token=test-secret",
         headers=[{"key": "Authorization", "value": "Bearer test-secret"}],
         tool_names=[],
