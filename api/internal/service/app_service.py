@@ -2180,7 +2180,11 @@ class AppService(BaseService):
             if retrieval_config["retrieval_strategy"] not in ["semantic", "full_text", "hybrid"]:
                 raise ValidateErrorException("检测策略格式错误")
             # 9.4 校验最大召回数量
-            if not isinstance(retrieval_config["k"], int) or not (0 <= retrieval_config["k"] <= 10):
+            if (
+                    not isinstance(retrieval_config["k"], int)
+                    or isinstance(retrieval_config["k"], bool)
+                    or not (0 <= retrieval_config["k"] <= 10)
+            ):
                 raise ValidateErrorException("最大召回数量范围为0-10")
             # 9.5 校验得分/最小匹配度
             score = retrieval_config["score"]

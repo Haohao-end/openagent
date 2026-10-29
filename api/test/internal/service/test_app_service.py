@@ -3124,6 +3124,8 @@ class TestAppServiceDraftConfigValidation:
             {"retrieval_config": {"retrieval_strategy": "semantic", "k": 2}},
             {"retrieval_config": {"retrieval_strategy": "invalid", "k": 2, "score": 0.3}},
             {"retrieval_config": {"retrieval_strategy": "semantic", "k": 11, "score": 0.3}},
+            {"retrieval_config": {"retrieval_strategy": "semantic", "k": True, "score": 0.3}},
+            {"retrieval_config": {"retrieval_strategy": "semantic", "k": False, "score": 0.3}},
             {"long_term_memory": []},
             {"opening_questions": ["q1", "q2", "q3", "q4"]},
             {"speech_to_text": []},
