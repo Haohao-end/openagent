@@ -1,4 +1,13 @@
-from wtforms import Field
+from wtforms import Field, StringField
+
+
+class StrictStringField(StringField):
+    """Reject JSON scalars instead of accepting them as text."""
+
+    def process_formdata(self, valuelist):
+        if valuelist and not isinstance(valuelist[0], str):
+            raise ValueError("Not a valid string value.")
+        super().process_formdata(valuelist)
 
 class ListField(Field):
     """自定义list字段 用于存储列表型数据"""

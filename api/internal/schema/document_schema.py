@@ -1,14 +1,14 @@
 import uuid
 from flask_wtf import FlaskForm
 from marshmallow import Schema, fields, pre_dump
-from wtforms import StringField, BooleanField
+from wtforms import BooleanField
 from wtforms.validators import DataRequired, AnyOf, ValidationError, Length, Optional
 
 from internal.entity.dataset_entity import ProcessType, DEFAULT_PROCESS_RULE
 from internal.lib.helper import datetime_to_timestamp
 from internal.model import Document
 from pkg.paginator import PaginatorReq
-from .schema import ListField, DictField
+from .schema import DictField, ListField, StrictStringField as StringField
 
 
 class CreateDocumentsReq(FlaskForm):
