@@ -32,8 +32,10 @@ class _QueryStub:
         self._scalar_result = scalar_result
         self._first_result = first_result
         self.deleted = False
+        self.filters = []
 
-    def filter(self, *_args, **_kwargs):
+    def filter(self, *args, **_kwargs):
+        self.filters.extend(args)
         return self
 
     def filter_by(self, **_kwargs):
@@ -640,6 +642,7 @@ class TestIndexingService:
 
         assert queries[Document].deleted is True
         assert queries[Segment].deleted is True
+        assert queries[Segment].filters[0].left.table is Segment.__table__
         assert queries[KeywordTable].deleted is True
         assert queries[DatasetQuery].deleted is True
         assert len(vector_delete_calls) == 1
