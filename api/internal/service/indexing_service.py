@@ -183,7 +183,7 @@ class IndexingService(BaseService):
 
                 # 2.删除关联的片段记录
                 self.db.session.query(Segment).filter(
-                    Document.dataset_id == dataset_id
+                    Segment.dataset_id == dataset_id
                 ).delete()
 
                 # 3.删除关联的关键词表记录
