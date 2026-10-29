@@ -377,7 +377,7 @@ const handleBlur = (event: FocusEvent) => {
           </button>
 
           <button
-            v-else-if="showVoiceButton && isRecording"
+            v-else-if="showVoiceButton && isRecording && !audioToTextLoading"
             type="button"
             :class="[
               actionButtonClass,
