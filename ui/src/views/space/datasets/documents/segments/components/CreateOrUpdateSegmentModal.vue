@@ -16,7 +16,7 @@ const props = defineProps({
 const emits = defineEmits(['update:visible'])
 const { loading: createSegmentLoading, handleCreateSegment } = useCreateSegment()
 const { loading: updateSegmentLoading, handleUpdateSegment } = useUpdateSegment()
-const { segment, loadSegment } = useGetSegment()
+const { loadSegment } = useGetSegment()
 const { t } = useI18n()
 const defaultForm: { content: string; keywords: string[] } = {
   content: '',
@@ -58,9 +58,11 @@ const saveSegment = async ({ errors }: { errors: Record<string, ValidatedError> 
 }
 
 // 4.监听模态窗显示状态变化
+let latestLoadRequest = 0
 watch(
   () => props.visible,
   async (newValue) => {
+    const requestId = ++latestLoadRequest
     // 4.1 清除表单校验信息
     formRef.value?.resetFields()
 
@@ -69,15 +71,22 @@ watch(
       // 4.3 开启弹窗，需要检测下是更新还是创建操作
       if (isUpdateOperation.value) {
         // 4.4 调用接口获取文档片段详情
-        await loadSegment(
+        const segmentId = props.segment_id as string
+        const loadedSegment = await loadSegment(
           props.dataset_id as string,
           props.document_id as string,
-          props.segment_id as string,
+          segmentId,
         )
+        if (
+          requestId !== latestLoadRequest ||
+          !props.visible ||
+          props.segment_id !== segmentId ||
+          !loadedSegment
+        ) return
 
         // 4.5 更新表单数据
-        form.value.content = segment.value.content
-        form.value.keywords = segment.value.keywords
+        form.value.content = loadedSegment.content
+        form.value.keywords = loadedSegment.keywords
       }
     } else {
       // 4.6 关闭弹窗，需要清空表单数据

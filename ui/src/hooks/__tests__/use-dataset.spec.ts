@@ -5,6 +5,7 @@ import {
   useGetDataset,
   useGetDatasetsWithPage,
   useGetDocument,
+  useGetSegment,
   useGetDocumentsWithPage,
   useGetSegmentsWithPage,
   useUpdateDocumentEnabled,
@@ -465,5 +466,25 @@ describe('useGetSegmentsWithPage', () => {
     })
     await newerRequest
     expect(loading.value).toBe(false)
+  })
+})
+
+describe('useGetSegment', () => {
+  it('returns only the latest segment detail response', async () => {
+    const olderResponse = createDeferred<{ data: { id: string } }>()
+    const newerResponse = createDeferred<{ data: { id: string } }>()
+    mocks.getSegment.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+
+    const { segment, loadSegment } = useGetSegment()
+    const olderRequest = loadSegment('dataset-1', 'document-1', 'old')
+    const newerRequest = loadSegment('dataset-1', 'document-1', 'new')
+
+    newerResponse.resolve({ data: { id: 'new' } })
+    const newerResult = await newerRequest
+    olderResponse.resolve({ data: { id: 'old' } })
+    await olderRequest
+
+    expect(segment.value).toEqual({ id: 'new' })
+    expect(newerResult).toEqual({ id: 'new' })
   })
 })
