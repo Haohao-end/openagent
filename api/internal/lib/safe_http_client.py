@@ -283,10 +283,10 @@ def safe_request(
                 )
             except ValidateErrorException:
                 raise
-            except requests.exceptions.Timeout as exc:
-                raise FailException("HTTP请求超时") from exc
+            except requests.exceptions.Timeout:
+                raise FailException("HTTP请求超时") from None
             except requests.exceptions.RequestException as exc:
-                raise FailException(f"HTTP请求失败: {exc}") from exc
+                raise FailException(f"HTTP请求失败: {type(exc).__name__}") from None
 
             if not allow_redirects or not response.is_redirect:
                 return response
