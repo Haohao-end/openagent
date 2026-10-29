@@ -17,6 +17,7 @@ import { Message, Modal } from '@arco-design/web-vue'
 export const useGetConversationMessagesWithPage = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   type ConversationMessage = GetConversationMessagesWithPageResponse['data']['list'][number] & {
     render_id: string
   }
@@ -35,6 +36,7 @@ export const useGetConversationMessagesWithPage = () => {
     conversation_id: string,
     init: boolean = false,
   ) => {
+    const requestId = ++latestRequest
     // 2.1 判断是否为初始化，如果是则先初始化分页器
     if (init) {
       paginator.value = { ...defaultPaginator }
@@ -51,6 +53,7 @@ export const useGetConversationMessagesWithPage = () => {
         page_size: paginator.value.page_size,
         created_at: created_at.value,
       })
+      if (requestId !== latestRequest) return
       const data = resp.data
 
       // 2.3 更新分页器
@@ -73,7 +76,7 @@ export const useGetConversationMessagesWithPage = () => {
         )
       }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 

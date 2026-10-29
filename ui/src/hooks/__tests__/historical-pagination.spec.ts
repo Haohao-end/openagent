@@ -92,6 +92,14 @@ const buildPage = (list: PagedMessage[], paginator: PaginatorResponse) => ({
   },
 })
 
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 describe('historical chat pagination', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -227,6 +235,28 @@ describe('historical chat pagination', () => {
       'conversation-older-2',
       'conversation-older-1',
     ])
+  })
+
+  it('ignores an older conversation response after switching conversations', async () => {
+    const olderResponse = createDeferred<ReturnType<typeof buildPage>>()
+    const newerResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(conversationService.getConversationMessages)
+      .mockReturnValueOnce(olderResponse.promise as never)
+      .mockReturnValueOnce(newerResponse.promise as never)
+    const { messages, loadConversationMessagesWithPage } = useGetConversationMessagesWithPage()
+
+    const olderRequest = loadConversationMessagesWithPage('conversation-old', true)
+    const newerRequest = loadConversationMessagesWithPage('conversation-new', true)
+    newerResponse.resolve(buildPage([buildMessage('new', 200)], {
+      current_page: 1, page_size: 5, total_page: 1, total_record: 1,
+    }))
+    await newerRequest
+    olderResponse.resolve(buildPage([buildMessage('old', 100)], {
+      current_page: 1, page_size: 5, total_page: 1, total_record: 1,
+    }))
+    await olderRequest
+
+    expect(messages.value.map((message) => message.id)).toEqual(['new'])
   })
 
   it('keeps the assistant agent cursor fixed after the first page', async () => {
