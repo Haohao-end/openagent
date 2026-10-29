@@ -1,7 +1,7 @@
 from flask import request
 from flask_wtf import FlaskForm
 from marshmallow import Schema, fields, pre_dump
-from wtforms import StringField, IntegerField, FloatField
+from wtforms import IntegerField, FloatField
 from wtforms.validators import (
     DataRequired,
     Length,
@@ -15,6 +15,7 @@ from internal.model import Dataset, DatasetQuery
 from pkg.paginator import PaginatorReq
 from internal.entity.dataset_entity import RetrievalStrategy
 from internal.lib.helper import datetime_to_timestamp
+from internal.schema.schema import StrictStringField as StringField
 
 
 def _reject_json_boolean(field) -> None:

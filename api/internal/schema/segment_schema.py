@@ -1,12 +1,12 @@
 from flask import request
 from flask_wtf import FlaskForm
 from marshmallow import Schema, fields, pre_dump
-from wtforms import StringField, BooleanField
+from wtforms import BooleanField
 from wtforms.validators import Optional, ValidationError, DataRequired
 from internal.lib.helper import datetime_to_timestamp
 from internal.model import Segment
 from pkg.paginator import PaginatorReq
-from .schema import ListField
+from .schema import ListField, StrictStringField as StringField
 
 
 def _get_keywords_from_json() -> list:

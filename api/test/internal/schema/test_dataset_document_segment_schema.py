@@ -120,6 +120,23 @@ def test_dataset_forms_should_validate_normal_and_boundary_values(form_request):
 
 
 @pytest.mark.parametrize(
+    ("form_cls", "payload", "field"),
+    [
+        (CreateDatasetReq, {"name": 7, "icon": "https://img.example.com/a.png"}, "name"),
+        (UpdateDocumentNameReq, {"name": 7}, "name"),
+        (CreateSegmentReq, {"content": 7}, "content"),
+        (UpdateSegmentReq, {"content": 7}, "content"),
+        (HitReq, {"query": 7, "retrieval_strategy": "semantic", "k": 2}, "query"),
+    ],
+)
+def test_dataset_document_and_segment_forms_should_reject_non_string_json(form_request, form_cls, payload, field):
+    ok, form = _validate_form(form_request, form_cls, json=payload)
+
+    assert not ok
+    assert field in form.errors
+
+
+@pytest.mark.parametrize(
     ("field", "value", "valid"),
     [("k", True, False), ("score", False, False), ("k", 2, True), ("score", 0.5, True)],
 )
