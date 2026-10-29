@@ -418,6 +418,7 @@ class TestPublicAppService:
                     "description": "weather",
                     "transport": "streamable_http",
                     "url": "https://mcp-user:synthetic-fork-url-secret@mcp.example.com",
+                    "source_url": "https://source-user:synthetic-fork-secret@repo.example.com/manifest?token=synthetic-fork-query&version=1",
                     "enabled": True,
                     "headers": [{"key": "Authorization", "value": "Bearer synthetic-fork-secret"}],
                     "tool_names": [],
@@ -466,6 +467,7 @@ class TestPublicAppService:
         assert copied.original_app_id == public_app.id
         assert copied.tags == public_app.tags
         assert session.added[1].mcp_bindings[0]["url"] == "https://mcp.example.com"
+        assert session.added[1].mcp_bindings[0]["source_url"] == "https://repo.example.com/manifest?version=1"
         assert session.added[1].mcp_bindings[0]["headers"] == []
         assert session.added[1].mcp_bindings[0]["env"] == {}
         assert len(session.added) == 2
@@ -704,6 +706,7 @@ class TestPublicAppService:
                         "description": "weather",
                         "transport": "streamable_http",
                         "url": "https://mcp-user:synthetic-public-url-secret@mcp.example.com/mcp?access_token=synthetic-query-secret&version=1",
+                        "source_url": "https://source-user:synthetic-public-secret@repo.example.com/manifest?token=synthetic-public-query&version=2",
                         "enabled": True,
                         "headers": [{"key": "Authorization", "value": "Bearer synthetic-public-secret"}],
                         "tool_names": [],
@@ -745,6 +748,7 @@ class TestPublicAppService:
                 "description": "weather",
                 "transport": "streamable_http",
                 "url": "https://mcp.example.com/mcp?version=1",
+                "source_url": "https://repo.example.com/manifest?version=2",
                 "enabled": True,
                 "headers": [],
                 "tool_names": [],

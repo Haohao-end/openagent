@@ -150,6 +150,8 @@ def test_provider_payload_only_exposes_credentials_for_private_providers(
     is_public, expected_headers, expected_env, expected_url
 ):
     service = _build_service(table_exists=False, stub_catalog_payload=False)
+    source_url = "https://source-user:test-secret@repo.example.com/source?token=test-secret&version=1"
+    expected_source_url = source_url if not is_public else "https://repo.example.com/source?version=1"
 
     payload = service._build_provider_payload(
         provider_key="provider-key",
@@ -169,16 +171,18 @@ def test_provider_payload_only_exposes_credentials_for_private_providers(
         timeout_seconds=30,
         source_type="custom",
         source_key="provider-key",
-        source_url="",
+        source_url=source_url,
         is_public=is_public,
     )
 
     assert payload["headers"] == expected_headers
     assert payload["env"] == expected_env
     assert payload["url"] == expected_url
+    assert payload["source_url"] == expected_source_url
     assert payload["binding"]["headers"] == expected_headers
     assert payload["binding"]["env"] == expected_env
     assert payload["binding"]["url"] == expected_url
+    assert payload["binding"]["source_url"] == expected_source_url
 
 
 def test_get_public_mcp_provider_should_reject_invalid_catalog_key_encoding():
