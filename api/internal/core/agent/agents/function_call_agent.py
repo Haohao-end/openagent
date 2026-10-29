@@ -399,7 +399,8 @@ class FunctionCallAgent(BaseAgent):
             # 7.判断执行工具的名字，提交不同事件，涵盖智能体动作以及知识库检索
             event = (
                 QueueEvent.AGENT_ACTION.value
-                if tool_call["name"] != tool_policy.dataset_retrieval_tool_name
+                if tool_policy.resolve_tool_name(tool_call["name"])
+                != tool_policy.resolve_tool_name(tool_policy.dataset_retrieval_tool_name)
                 else QueueEvent.DATASET_RETRIEVAL.value
             )
             self.agent_queue_manager.publish(state["task_id"], AgentThought(
