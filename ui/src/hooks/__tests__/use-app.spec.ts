@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useFallbackHistoryToDraft, useGetApp, useGetDraftAppConfig, useGetVersions } from '@/hooks/use-app'
+import {
+  useFallbackHistoryToDraft,
+  useGetApp,
+  useGetAppsWithPage,
+  useGetDraftAppConfig,
+  useGetVersions,
+} from '@/hooks/use-app'
 import * as appService from '@/services/app'
 
 vi.mock('@/services/app', async () => {
@@ -8,6 +14,7 @@ vi.mock('@/services/app', async () => {
   return {
     ...actual,
     getApp: vi.fn(),
+    getAppsWithPage: vi.fn(),
     getDraftAppConfig: vi.fn(),
     getVersions: vi.fn(),
     fallbackHistoryToDraft: vi.fn(),
@@ -202,5 +209,33 @@ describe('useGetApp', () => {
     newerResponse.resolve({ data: { id: 'app-new' } })
     await newerRequest
     expect(loading.value).toBe(false)
+  })
+})
+
+describe('useGetAppsWithPage', () => {
+  it('ignores an older search response after a newer search completes', async () => {
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((resolvePromise) => (resolve = resolvePromise))
+      return { promise, resolve }
+    }
+    const response = (id: string) => ({
+      data: { list: [{ id }], paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 } },
+    })
+    const oldResponse = deferred<ReturnType<typeof response>>()
+    const newResponse = deferred<ReturnType<typeof response>>()
+    vi.mocked(appService.getAppsWithPage)
+      .mockReturnValueOnce(oldResponse.promise as never)
+      .mockReturnValueOnce(newResponse.promise as never)
+    const { apps, loadApps } = useGetAppsWithPage()
+
+    const oldRequest = loadApps(true, 'old')
+    const newRequest = loadApps(true, 'new')
+    newResponse.resolve(response('new'))
+    await newRequest
+    oldResponse.resolve(response('old'))
+    await oldRequest
+
+    expect(apps.value.map((app) => app.id)).toEqual(['new'])
   })
 })
