@@ -53,16 +53,15 @@ watch(
     ),
 )
 
-// 3.页面DOM加载完毕时加载数据
-onMounted(() => {
-  loadDocument(String(route.params?.dataset_id), String(route.params?.document_id))
-  loadSegments(
-    String(route.params?.dataset_id),
-    String(route.params?.document_id),
-    true,
-    String(route.query?.search_word ?? ''),
-  )
-})
+const loadRouteData = () => {
+  const datasetId = String(route.params?.dataset_id)
+  const documentId = String(route.params?.document_id)
+  loadDocument(datasetId, documentId)
+  loadSegments(datasetId, documentId, true, String(route.query?.search_word ?? ''))
+}
+
+watch(() => [route.params?.dataset_id, route.params?.document_id], loadRouteData)
+onMounted(loadRouteData)
 </script>
 
 <template>
