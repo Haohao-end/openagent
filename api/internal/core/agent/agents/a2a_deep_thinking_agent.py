@@ -88,6 +88,10 @@ class A2ADeepThinkingAgent(DeepThinkingAgent):
             raise
 
         if gathered is None:
+            self.agent_queue_manager.publish(
+                state["task_id"],
+                AgentThought(id=uuid.uuid4(), task_id=state["task_id"], event=QueueEvent.AGENT_END.value),
+            )
             return {
                 "messages": [AIMessage(content="")],
                 "iteration_count": state["iteration_count"] + 1,
@@ -171,6 +175,11 @@ class A2ADeepThinkingAgent(DeepThinkingAgent):
                     task_id=state["task_id"],
                     event=QueueEvent.AGENT_END.value,
                 ),
+            )
+        else:
+            self.agent_queue_manager.publish(
+                state["task_id"],
+                AgentThought(id=uuid.uuid4(), task_id=state["task_id"], event=QueueEvent.AGENT_END.value),
             )
 
         return {"messages": [gathered], "iteration_count": state["iteration_count"] + 1}
