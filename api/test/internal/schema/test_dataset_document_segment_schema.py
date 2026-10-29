@@ -290,6 +290,12 @@ def test_validate_rule_should_validate_segment_config_boundaries(form_request):
         with pytest.raises(ValidationError, match="块重叠大小不能为空且为整数"):
             form.validate_rule(form.rule)
 
+        boolean_overlap_rule = _valid_custom_rule()
+        boolean_overlap_rule["segment"]["chunk_overlap"] = True  # type: ignore[index]
+        form.rule.data = boolean_overlap_rule
+        with pytest.raises(ValidationError, match="块重叠大小不能为空且为整数"):
+            form.validate_rule(form.rule)
+
         range_overlap_rule = _valid_custom_rule()
         range_overlap_rule["segment"]["chunk_overlap"] = 101
         form.rule.data = range_overlap_rule
