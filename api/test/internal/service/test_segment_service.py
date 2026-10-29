@@ -436,6 +436,7 @@ class TestSegmentService:
                 raise AssertionError("unexpected query count")
 
         vector_calls = []
+        vector_updates = []
         keyword_calls = []
         service = SegmentService(
             db=SimpleNamespace(session=_Session()),
@@ -451,7 +452,8 @@ class TestSegmentService:
             vector_database_service=SimpleNamespace(
                 vector_store=SimpleNamespace(
                     add_documents=lambda documents, ids: vector_calls.append((documents, ids))
-                )
+                ),
+                collection=SimpleNamespace(data=SimpleNamespace(update=lambda **kwargs: vector_updates.append(kwargs))),
             ),
         )
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: document)
@@ -475,10 +477,52 @@ class TestSegmentService:
         assert create_calls[0]["position"] == 4
         assert create_calls[0]["keywords"] == ["kw1", "kw2"]
         assert vector_calls[0][1][0] == str(create_calls[0]["node_id"])
+        assert vector_calls[0][0][0].metadata["segment_enabled"] is False
+        assert vector_updates[0]["properties"]["segment_enabled"] is True
         assert update_calls[0][0] is document
         assert update_calls[0][1]["character_count"] == 18
         assert update_calls[0][1]["token_count"] == 9
         assert keyword_calls and keyword_calls[0][0] == dataset_id
+
+    def test_create_segment_should_keep_vector_disabled_when_followup_and_cleanup_fail(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        document = SimpleNamespace(
+            id=uuid4(), account_id=account.id, dataset_id=dataset_id,
+            status=DocumentStatus.COMPLETED.value, enabled=True,
+        )
+        segment = SimpleNamespace(id=uuid4(), node_id=uuid4())
+        queries = iter([_QueryStub(scalar_result=0), _QueryStub(first_result=(7, 3))])
+        vectors, deletes, vector_updates, updates, keyword_deletes = [], [], [], [], []
+        service = self._build_service()
+        service.db.session = SimpleNamespace(query=lambda *_args, **_kwargs: next(queries))
+        def fail_keyword_add(*_args):
+            raise RuntimeError("keyword boom")
+        service.keyword_table_service.add_keyword_table_from_ids = fail_keyword_add
+        service.keyword_table_service.delete_keyword_table_from_ids = lambda *args: keyword_deletes.append(args)
+        service.vector_database_service.vector_store.add_documents = lambda documents, ids: vectors.extend(documents)
+
+        def fail_vector_delete(key):
+            deletes.append(key)
+            raise RuntimeError("cleanup offline")
+
+        service.vector_database_service.collection.data.delete_by_id = fail_vector_delete
+        service.vector_database_service.collection.data.update = lambda **kwargs: vector_updates.append(kwargs)
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: document)
+        monkeypatch.setattr(service, "create", lambda _model, **kwargs: segment)
+        monkeypatch.setattr(
+            service, "update", lambda target, **kwargs: updates.append((target, kwargs)) or target
+        )
+        req = SimpleNamespace(content=SimpleNamespace(data="new segment"), keywords=SimpleNamespace(data=["kw"]))
+
+        with pytest.raises(FailException):
+            service.create_segment(dataset_id, document.id, req, account)
+
+        assert vectors[0].metadata["segment_enabled"] is False
+        assert keyword_deletes == [(dataset_id, [segment.id])]
+        assert deletes == [str(segment.node_id)]
+        assert vector_updates[-1]["properties"]["segment_enabled"] is False
+        assert updates[-1][0] is segment and updates[-1][1]["enabled"] is False
 
     def test_create_segment_should_skip_jieba_and_keyword_table_when_keywords_given_and_document_disabled(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
@@ -518,7 +562,8 @@ class TestSegmentService:
                 add_keyword_table_from_ids=lambda *_args, **_kwargs: keyword_calls.append("add")
             ),
             vector_database_service=SimpleNamespace(
-                vector_store=SimpleNamespace(add_documents=lambda *_args, **_kwargs: None)
+                vector_store=SimpleNamespace(add_documents=lambda *_args, **_kwargs: None),
+                collection=SimpleNamespace(data=SimpleNamespace(update=lambda **_kwargs: None)),
             ),
         )
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: document)
@@ -592,11 +637,15 @@ class TestSegmentService:
                 calculate_token_count=lambda _content: 3,
                 embeddings=SimpleNamespace(embed_query=lambda _q: [0.1]),
             ),
-            keyword_table_service=SimpleNamespace(add_keyword_table_from_ids=lambda *_args, **_kwargs: None),
+            keyword_table_service=SimpleNamespace(
+                add_keyword_table_from_ids=lambda *_args, **_kwargs: None,
+                delete_keyword_table_from_ids=lambda *_args, **_kwargs: None,
+            ),
             vector_database_service=SimpleNamespace(
                 vector_store=SimpleNamespace(
                     add_documents=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("vector boom"))
-                )
+                ),
+                collection=SimpleNamespace(data=SimpleNamespace(delete_by_id=lambda *_args: None)),
             ),
         )
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: document)

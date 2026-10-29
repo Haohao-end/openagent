@@ -109,7 +109,7 @@ class SegmentService(BaseService):
                         "segment_id": str(segment.id),
                         "node_id": str(segment.node_id),
                         "document_enabled": document.enabled,
-                        "segment_enabled": True,
+                        "segment_enabled": False,
                     }
                 )],
                 ids=[str(segment.node_id)],
@@ -131,10 +131,30 @@ class SegmentService(BaseService):
             # 11.更新关键词表信息
             if document.enabled is True:
                 self.keyword_table_service.add_keyword_table_from_ids(dataset_id, [segment.id])
+            self.vector_database_service.collection.data.update(
+                uuid=segment.node_id,
+                properties={"segment_enabled": True},
+            )
 
         except Exception as e:
             logging.exception(f"新增文档片段内容发生异常, 错误信息: {str(e)}")
             if segment:
+                if document.enabled is True:
+                    try:
+                        self.keyword_table_service.delete_keyword_table_from_ids(dataset_id, [segment.id])
+                    except Exception:
+                        logging.exception("清理新增片段关键词失败, segment_id: %s", segment.id)
+                try:
+                    self.vector_database_service.collection.data.delete_by_id(str(segment.node_id))
+                except Exception:
+                    logging.exception("清理新增片段向量失败, segment_id: %s", segment.id)
+                    try:
+                        self.vector_database_service.collection.data.update(
+                            uuid=segment.node_id,
+                            properties={"segment_enabled": False},
+                        )
+                    except Exception:
+                        logging.exception("禁用失败片段向量失败, segment_id: %s", segment.id)
                 self.update(
                     segment,
                     error=str(e),
