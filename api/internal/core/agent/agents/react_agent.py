@@ -122,6 +122,8 @@ class ReACTAgent(FunctionCallAgent):
 
         # 5.流式输出调用LLM，并判断输出内容是否以"```json"为开头，用于区分工具调用和文本生成
         for chunk in llm.stream(llm_messages):
+            if chunk is None:
+                continue
             # 6.处理流式输出内容块叠加
             if is_first_chunk:
                 gathered = chunk
