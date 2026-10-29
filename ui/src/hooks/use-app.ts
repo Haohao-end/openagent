@@ -70,6 +70,7 @@ export const useGetApp = () => {
 export const useGetAppsWithPage = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const apps = ref<GetAppsWithPageResponse['data']['list']>([])
   const defaultPaginator = {
     current_page: 1,
@@ -87,6 +88,7 @@ export const useGetAppsWithPage = () => {
     } else if (paginator.value.current_page > paginator.value.total_page) {
       return
     }
+    const requestId = ++latestRequest
 
     // 2.2 加载数据并更新
     try {
@@ -98,6 +100,7 @@ export const useGetAppsWithPage = () => {
         search_word: search_word,
       })
       const data = resp.data
+      if (requestId !== latestRequest) return
 
       // 2.4 更新分页器
       paginator.value = data.paginator
@@ -114,7 +117,7 @@ export const useGetAppsWithPage = () => {
         apps.value.push(...data.list)
       }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
