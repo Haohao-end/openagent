@@ -3,7 +3,7 @@ from uuid import uuid4
 import asyncio
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from internal.core.workflow.entities.node_entity import NodeType
 from internal.core.workflow.workflow import Workflow
@@ -102,6 +102,25 @@ def test_workflow_build_args_schema_should_build_required_and_optional_fields():
     assert model_cls(query="search query").top_k is None
     with pytest.raises(ValueError):
         model_cls(top_k=5)
+
+
+def test_workflow_stream_should_validate_inputs_before_running_nodes(monkeypatch):
+    compiled = _FakeCompiledGraph()
+    monkeypatch.setattr(Workflow, "_build_workflow", lambda _self: compiled)
+    workflow = Workflow(workflow_config=SimpleNamespace(
+        name="wf_stream_validation",
+        description="demo",
+        account_id=uuid4(),
+        nodes=[SimpleNamespace(node_type=NodeType.START.value, inputs=[
+            SimpleNamespace(name="count", type="int", required=True, description="count"),
+        ])],
+        edges=[],
+    ))
+
+    with pytest.raises(ValidationError):
+        list(workflow.stream({"count": "not-an-int"}))
+
+    assert compiled.stream_payloads == []
 
 
 def test_workflow_build_workflow_should_register_nodes_edges_and_special_points(monkeypatch, app):
@@ -275,10 +294,19 @@ def test_workflow_build_workflow_should_raise_validate_error_for_non_string_unkn
         Workflow._build_workflow(workflow)
 
 
-def test_workflow_run_and_stream_should_delegate_to_compiled_graph():
-    workflow = object.__new__(Workflow)
+def test_workflow_run_and_stream_should_delegate_to_compiled_graph(monkeypatch):
     compiled = _FakeCompiledGraph()
-    workflow._workflow = compiled
+    config = SimpleNamespace(
+        name="wf_stream",
+        description="demo",
+        account_id=uuid4(),
+        nodes=[SimpleNamespace(node_type=NodeType.START.value, inputs=[
+            SimpleNamespace(name="query", type="string", required=True, description="query"),
+        ])],
+        edges=[],
+    )
+    monkeypatch.setattr(Workflow, "_build_workflow", lambda _self: compiled)
+    workflow = Workflow(workflow_config=config)
 
     run_result = Workflow._run(workflow, query="hi")
     stream_result = list(Workflow.stream(workflow, {"query": "hi"}))
