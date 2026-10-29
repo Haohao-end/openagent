@@ -11,6 +11,7 @@ from uuid import uuid4
 from langchain_core.tools import BaseTool, StructuredTool
 
 from .mcp_schema_compiler import McpSchemaCompiler
+from internal.exception import FailException
 from internal.lib.safe_http_client import safe_request
 
 DEFAULT_MCP_TOOL_TIMEOUT_SECONDS = 30
@@ -46,8 +47,16 @@ def _parse_json_payload(text: str, expected_id: str | None = None) -> dict[str, 
         payload = json.loads(normalized)
     except Exception:
         payload = None
-    if isinstance(payload, (dict, list)):
+    if isinstance(payload, dict) and (expected_id is None or payload.get("id") == expected_id):
         return payload
+    if isinstance(payload, list):
+        if expected_id is None:
+            return payload
+        matched = next(
+            (item for item in payload if isinstance(item, dict) and item.get("id") == expected_id), None
+        )
+        if matched is not None:
+            return matched
 
     data_blocks: list[str] = []
     current_data: list[str] = []
@@ -71,7 +80,15 @@ def _parse_json_payload(text: str, expected_id: str | None = None) -> dict[str, 
             last_payload = payload
             if isinstance(payload, dict) and payload.get("id") == expected_id:
                 return payload
+            if isinstance(payload, list):
+                matched = next(
+                    (item for item in payload if isinstance(item, dict) and item.get("id") == expected_id), None
+                )
+                if matched is not None:
+                    return matched
 
+    if expected_id is not None:
+        raise FailException("未找到与请求ID匹配的MCP响应")
     if last_payload is not None:
         return last_payload
 
