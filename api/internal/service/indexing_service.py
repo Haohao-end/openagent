@@ -388,6 +388,12 @@ class IndexingService(BaseService):
 
         except Exception as e:
             logging.exception(f"完成文档处理时出错: {str(e)}")
+            try:
+                self.vector_database_service.collection.data.delete_many(
+                    where=Filter.by_property("document_id").equal(str(document.id))
+                )
+            except Exception:
+                logging.exception(f"清理失败文档的向量数据失败，文档ID：{document.id}")
             self.update(
                 document,
                 status=DocumentStatus.ERROR.value,

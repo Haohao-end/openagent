@@ -152,6 +152,46 @@ class TestIndexingService:
         assert "\uFFFE" not in result
         assert "<world>" in result
 
+    def test_completed_should_delete_partial_vectors_when_later_batch_fails(self, monkeypatch):
+        document = SimpleNamespace(id=uuid4())
+        stored_vectors = []
+        write_count = 0
+
+        def add_documents(*, documents, ids):
+            nonlocal write_count
+            write_count += 1
+            if write_count == 2:
+                raise RuntimeError("second batch failed")
+            stored_vectors.extend(documents)
+
+        delete_filters = []
+
+        def delete_many(*, where):
+            delete_filters.append(where)
+            stored_vectors.clear()
+
+        service = self._build_service(db=_DBStub(SimpleNamespace(query=lambda _model: _QueryStub())))
+        service.vector_database_service = SimpleNamespace(
+            vector_store=SimpleNamespace(add_documents=add_documents),
+            collection=SimpleNamespace(data=SimpleNamespace(delete_many=delete_many)),
+        )
+        monkeypatch.setattr(service, "update", lambda *_args, **_kwargs: None)
+        segments = [
+            LCDocument(
+                page_content=f"segment-{index}",
+                metadata={"document_id": str(document.id), "node_id": str(uuid4())},
+            )
+            for index in range(11)
+        ]
+
+        with pytest.raises(RuntimeError, match="second batch failed"):
+            service._completed(document, segments)
+
+        assert stored_vectors == []
+        assert len(delete_filters) == 1
+        assert delete_filters[0].target == "document_id"
+        assert delete_filters[0].value == str(document.id)
+
     def test_update_document_enabled_should_raise_when_document_not_found(self, monkeypatch):
         service = self._build_service()
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: None)
