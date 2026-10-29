@@ -1,4 +1,5 @@
 import json
+import requests
 
 from internal.core.tools.mcp_tools.providers.mcp_tool_factory import McpToolFactory
 
@@ -6,6 +7,8 @@ from internal.core.tools.mcp_tools.providers.mcp_tool_factory import McpToolFact
 class _FakeResponse:
     def __init__(self, payload: dict):
         self.text = json.dumps(payload, ensure_ascii=False)
+        self.headers = {}
+        self.is_redirect = False
 
     def raise_for_status(self):
         return None
@@ -133,6 +136,38 @@ def test_mcp_tool_factory_should_parse_final_sse_event_after_progress(monkeypatc
     tools = McpToolFactory()._list_remote_tools({"url": "https://mcp.example.com", "headers": []})
 
     assert tools == [{"name": "weather"}]
+
+
+def test_mcp_connection_error_should_not_expose_query_credentials(monkeypatch, caplog):
+    sentinel = "SYNTHETIC_SENTINEL"
+
+    class _Session:
+        def request(self, _method, url, **kwargs):
+            if kwargs["json"]["method"] == "tools/list":
+                return _FakeResponse({
+                    "jsonrpc": "2.0",
+                    "id": kwargs["json"]["id"],
+                    "result": {"tools": [{"name": "private_tool"}]},
+                })
+            raise requests.ConnectionError(f"connection failed for {url}")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr("internal.lib.safe_http_client._build_session", lambda **_kwargs: _Session())
+    tools = McpToolFactory().get_tools([{
+        "name": "private_provider",
+        "url": f"https://mcp.example.invalid/mcp?token={sentinel}",
+        "enabled": True,
+        "transport": "streamable_http",
+    }])
+
+    result = tools[0].invoke({})
+    result_text = result.content if hasattr(result, "content") else result
+
+    assert "失败" in result_text
+    assert sentinel not in result_text
+    assert sentinel not in caplog.text
 
 
 def test_mcp_tool_factory_should_compile_complex_json_schema_and_keep_metadata(monkeypatch):
