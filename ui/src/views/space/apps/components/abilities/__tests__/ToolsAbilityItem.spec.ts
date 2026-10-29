@@ -231,4 +231,22 @@ describe('ToolsAbilityItem', () => {
     expect(wrapper.find('[data-testid="tools-modal"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('关联插件')
   })
+
+  it('does not open tool settings for a stale detail response', async () => {
+    const wrapper = mountToolsAbilityItem()
+    await wrapper.setProps({
+      tools: [{
+        type: 'builtin_tool',
+        provider: { id: 'provider', name: 'provider', label: 'Provider', icon: '', description: '' },
+        tool: { id: 'tool', name: 'tool', label: 'Tool', description: '', params: {} },
+      }],
+    })
+    mocks.loadBuiltinTool.mockResolvedValueOnce(false)
+
+    await wrapper.get('button.rounded').trigger('click')
+    await flushPromises()
+
+    expect(mocks.loadBuiltinTool).toHaveBeenCalledWith('provider', 'tool')
+    expect(wrapper.find('[data-testid="tools-modal"]').exists()).toBe(false)
+  })
 })

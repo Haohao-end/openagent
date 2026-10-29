@@ -155,7 +155,7 @@ const handleShowToolInfoModal = async (idx: number) => {
 
   // 2.2 检测不同的工具类型调用不同API接口
   if (tool.type === 'builtin_tool') {
-    await loadBuiltinTool(tool.provider.name, tool.tool.name)
+    if (!(await loadBuiltinTool(tool.provider.name, tool.tool.name))) return
     toolInfo.value = {
       type: 'builtin_tool',
       provider: {
