@@ -1,3 +1,4 @@
+from flask import request
 from flask_wtf import FlaskForm
 from marshmallow import Schema, fields, pre_dump
 from wtforms import StringField, IntegerField, FloatField
@@ -7,12 +8,19 @@ from wtforms.validators import (
     URL,
     Optional,
     AnyOf,
-    NumberRange
+    NumberRange,
+    ValidationError,
 )
 from internal.model import Dataset, DatasetQuery
 from pkg.paginator import PaginatorReq
 from internal.entity.dataset_entity import RetrievalStrategy
 from internal.lib.helper import datetime_to_timestamp
+
+
+def _reject_json_boolean(field) -> None:
+    payload = request.get_json(silent=True)
+    if isinstance(payload, dict) and isinstance(payload.get(field.name), bool):
+        raise ValidationError("布尔值不能用作数值")
 
 
 class CreateDatasetReq(FlaskForm):
@@ -130,6 +138,12 @@ class HitReq(FlaskForm):
     score = FloatField("score", validators=[
         NumberRange(min=0, max=0.99, message="最小匹配度范围在0~0.99")
     ])
+
+    def validate_k(self, field):
+        _reject_json_boolean(field)
+
+    def validate_score(self, field):
+        _reject_json_boolean(field)
 
 
 class GetDatasetQueriesResp(Schema):

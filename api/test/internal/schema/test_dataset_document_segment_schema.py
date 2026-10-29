@@ -119,6 +119,21 @@ def test_dataset_forms_should_validate_normal_and_boundary_values(form_request):
     assert "score" in form.errors
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "valid"),
+    [("k", True, False), ("score", False, False), ("k", 2, True), ("score", 0.5, True)],
+)
+def test_hit_req_should_reject_boolean_json_numbers(form_request, field, value, valid):
+    payload = {"query": "hello", "retrieval_strategy": "semantic", "k": 2, "score": 0.5}
+    payload[field] = value
+
+    ok, form = _validate_form(form_request, HitReq, json=payload)
+
+    assert ok is valid
+    if not valid:
+        assert field in form.errors
+
+
 def test_dataset_response_schema_should_dump_expected_fields():
     dataset = ns(
         id=uuid4(),
