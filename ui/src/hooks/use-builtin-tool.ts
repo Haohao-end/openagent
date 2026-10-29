@@ -24,15 +24,19 @@ export const useGetBuiltinTool = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const builtin_tool = ref<Record<string, any>>({})
+  let requestId = 0
 
   // 2.定义加载函数
   const loadBuiltinTool = async (provider_name: string, tool_name: string) => {
+    const currentRequestId = ++requestId
     try {
       loading.value = true
       const resp = await getBuiltinTool(provider_name, tool_name)
+      if (currentRequestId !== requestId) return false
       builtin_tool.value = resp.data
+      return true
     } finally {
-      loading.value = false
+      if (currentRequestId === requestId) loading.value = false
     }
   }
 
