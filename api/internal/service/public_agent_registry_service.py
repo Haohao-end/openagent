@@ -399,13 +399,9 @@ class PublicAgentRegistryService(BaseService):
                 continue
             name = str(binding.get("name", "")).strip()
             transport = str(binding.get("transport", "")).strip()
-            target = str(binding.get("url") or binding.get("command") or "").strip()
             if not name:
                 continue
-            if target:
-                summaries.append(f"{name}:{transport}:{target}")
-            else:
-                summaries.append(f"{name}:{transport}")
+            summaries.append(f"{name}:{transport}")
         return ", ".join(summaries[:10])
 
     def _build_workflows_summary(self, workflow_ids: list[Any] | None) -> str:

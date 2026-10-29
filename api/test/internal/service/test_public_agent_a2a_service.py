@@ -6,6 +6,7 @@ from flask import Flask, has_app_context
 
 from internal.exception import NotFoundException, ValidateErrorException
 from internal.service.public_agent_a2a_service import PublicAgentA2AService
+from internal.service.public_agent_registry_service import PublicAgentRegistryService
 
 
 def _build_service(**kwargs) -> PublicAgentA2AService:
@@ -48,6 +49,49 @@ class TestPublicAgentA2AService:
             list(service._stream_public_agent_events(app, "hello", "ctx", {}))
 
         assert runtime_agent_calls == [True]
+
+    def test_public_agent_search_should_hide_foreign_mcp_targets(self, monkeypatch):
+        owner_id, caller_id = uuid4(), uuid4()
+        url = "https://mcp.example/api?access_token=SYNTHETIC_SENTINEL"
+        command = "mcp-server --token SYNTHETIC_COMMAND_SENTINEL"
+        public_app = SimpleNamespace(
+            id=uuid4(), account_id=owner_id, name="Clinic Agent", description="medical advice",
+            tags=[], is_public=True, published_at=None,
+            app_config=SimpleNamespace(
+                opening_statement="", tools=[], workflows=[],
+                mcp_bindings=[
+                    {"name": "clinic", "transport": "streamable_http", "url": url},
+                    {"name": "stdio", "transport": "stdio", "command": command},
+                ],
+            ),
+        )
+
+        class _Query:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return [public_app]
+
+        registry = PublicAgentRegistryService(
+            db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args, **_kwargs: _Query())),
+            faiss_service=SimpleNamespace(),
+        )
+        document = registry.build_public_agent_document(public_app)
+        registry.faiss_service.search_public_agents = lambda **_kwargs: [document]
+        service = _build_service(public_agent_registry_service=registry)
+        monkeypatch.setattr(service, "send_message", lambda **_kwargs: {
+            "message": {"parts": []}, "metadata": {"status": "success", "error": ""}
+        })
+
+        result = service.route_public_agents("clinic agent", caller_account_id=caller_id)
+
+        assert owner_id != caller_id
+        assert result["matches"][0]["app_id"] == str(public_app.id)
+        content = result["matches"][0]["page_content"]
+        assert url not in content and command not in content
+        assert "clinic:streamable_http" in content and "stdio:stdio" in content
+        assert public_app.app_config.mcp_bindings[0]["url"] == url
 
     def test_route_public_agents_should_search_and_delegate(self, monkeypatch):
         caller_account_id = uuid4()
