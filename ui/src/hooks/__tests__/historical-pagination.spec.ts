@@ -304,4 +304,26 @@ describe('historical chat pagination', () => {
       'assistant-older-1',
     ])
   })
+
+  it('ignores an older assistant-agent response after switching conversations', async () => {
+    const olderResponse = createDeferred<ReturnType<typeof buildPage>>()
+    const newerResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage)
+      .mockReturnValueOnce(olderResponse.promise as never)
+      .mockReturnValueOnce(newerResponse.promise as never)
+    const { messages, loadAssistantAgentMessages } = useGetAssistantAgentMessagesWithPage()
+
+    const olderRequest = loadAssistantAgentMessages(true, 'conversation-old')
+    const newerRequest = loadAssistantAgentMessages(true, 'conversation-new')
+    newerResponse.resolve(buildPage([buildMessage('agent-new', 200)], {
+      current_page: 1, page_size: 20, total_page: 1, total_record: 1,
+    }))
+    await newerRequest
+    olderResponse.resolve(buildPage([buildMessage('agent-old', 100)], {
+      current_page: 1, page_size: 20, total_page: 1, total_record: 1,
+    }))
+    await olderRequest
+
+    expect(messages.value.map((message) => message.id)).toEqual(['agent-new'])
+  })
 })
