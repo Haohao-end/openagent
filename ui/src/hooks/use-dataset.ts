@@ -486,16 +486,20 @@ export const useUpdateSegment = () => {
 export const useGetSegment = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const segment = ref<Record<string, any>>({})
 
   // 2.定义加载数据处理器
   const loadSegment = async (dataset_id: string, document_id: string, segment_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getSegment(dataset_id, document_id, segment_id)
+      if (requestId !== latestRequest) return
       segment.value = resp.data
+      return resp.data
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
