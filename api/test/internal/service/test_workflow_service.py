@@ -392,7 +392,7 @@ class TestWorkflowService:
         assert result is workflow
         assert updates == [(workflow, {"draft_graph": validated_graph, "is_debug_passed": False})]
 
-    def test_debug_workflow_should_stream_chunks_and_persist_success_state(self, monkeypatch):
+    def test_debug_workflow_should_persist_success_and_disconnect_state(self, monkeypatch):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
         workflow = SimpleNamespace(
@@ -440,6 +440,15 @@ class TestWorkflowService:
             for target, payload in updates
         )
         assert all(target is not workflow for target, _ in updates)
+
+        updates.clear()
+        events = service.debug_workflow(workflow.id, {"query": "hello"}, account)
+        next(events)
+        events.close()
+
+        assert len(updates) == 1
+        assert updates[0][1]["status"] == WorkflowResultStatus.FAILED.value
+        assert updates[0][1]["state"] == [{"node_id": "node_1", "status": "succeeded"}]
 
     @pytest.mark.parametrize(
         ("failure", "event_name"),
