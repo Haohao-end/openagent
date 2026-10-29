@@ -64,7 +64,7 @@ class ParameterExtractorNode(BaseNode):
 
         if mode in (ParameterExtractorMode.AUTO, ParameterExtractorMode.JSON):
             mapping = self._try_parse_json(source_text)
-            if mapping:
+            if mapping is not None:
                 return mapping
             if mode == ParameterExtractorMode.JSON:
                 raise FailException("参数提取失败，输入内容不是有效的JSON对象")
@@ -75,12 +75,12 @@ class ParameterExtractorNode(BaseNode):
         return mapping
 
     @staticmethod
-    def _try_parse_json(source_text: str) -> dict[str, Any]:
+    def _try_parse_json(source_text: str) -> Optional[dict[str, Any]]:
         try:
             data = json.loads(source_text)
         except Exception:
-            return {}
-        return data if isinstance(data, dict) else {}
+            return None
+        return data if isinstance(data, dict) else None
 
     @staticmethod
     def _parse_key_value(source_text: str) -> dict[str, Any]:

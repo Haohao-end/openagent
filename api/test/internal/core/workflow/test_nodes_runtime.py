@@ -903,6 +903,24 @@ class TestVariableAssignerAndParameterExtractorNodes:
         with pytest.raises(FailException, match="不是有效的JSON对象"):
             node.invoke({"inputs": {}, "outputs": {}, "node_results": []})
 
+    @pytest.mark.parametrize("required", [True, False])
+    def test_parameter_extractor_node_should_accept_empty_json_object(self, required):
+        node = ParameterExtractorNode(
+            node_data=ParameterExtractorNodeData(
+                id=uuid4(), node_type="parameter_extractor", title="extractor",
+                mode=ParameterExtractorMode.JSON,
+                inputs=[VariableEntity(name="text", type="string", value={"type": "literal", "content": "{}"})],
+                outputs=[VariableEntity(name="name", type="string", required=required)],
+            )
+        )
+
+        if required:
+            with pytest.raises(FailException, match="缺少必填字段\\[name\\]"):
+                node.invoke({"inputs": {}, "outputs": {}, "node_results": []})
+        else:
+            result = node.invoke({"inputs": {}, "outputs": {}, "node_results": []})
+            assert result["node_results"][0].outputs == {"name": ""}
+
     def test_parameter_extractor_node_should_raise_when_required_field_missing(self):
         node_data = ParameterExtractorNodeData(
             id=uuid4(),
