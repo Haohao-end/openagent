@@ -273,6 +273,28 @@ def test_workflow_config_should_reject_unknown_if_else_condition_input():
     assert len(WorkflowConfig(**payload).nodes) == 3
 
 
+def test_workflow_config_should_reserve_if_else_result_input_name():
+    payload = _build_valid_payload()
+    start_id, end_id = (node["id"] for node in payload["nodes"])
+    branch_id = uuid4()
+    payload["nodes"].insert(1, {
+        "id": branch_id, "node_type": "if_else", "title": "branch",
+        "conditions": [{"variable_name": "result", "operator": "equals", "compare_value": "true"}],
+        "inputs": [{"name": "result", "type": "string", "value": {"type": "literal", "content": "false"}}],
+    })
+    payload["edges"] = [
+        _edge(uuid4(), start_id, "start", branch_id, "if_else"),
+        {**_edge(uuid4(), branch_id, "if_else", end_id, "end"), "source_handle": "true"},
+        {**_edge(uuid4(), branch_id, "if_else", end_id, "end"), "source_handle": "false"},
+    ]
+
+    with pytest.raises(ValidateErrorException, match="result.*保留|保留.*result"):
+        WorkflowConfig(**payload)
+    payload["nodes"][1]["inputs"][0]["name"] = "query"
+    payload["nodes"][1]["conditions"][0]["variable_name"] = "query"
+    assert len(WorkflowConfig(**payload).nodes) == 3
+
+
 @pytest.mark.parametrize(
     "mutator, error_message",
     [

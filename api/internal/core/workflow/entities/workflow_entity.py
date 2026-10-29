@@ -298,6 +298,10 @@ class WorkflowConfig(BaseModel):
                     else node_data.outputs
                 )
                 if node_data.node_type == NodeType.IF_ELSE.value and any(
+                    item.name == "result" for item in node_data.inputs
+                ):
+                    raise ValidateErrorException("条件分支节点[result]是保留输出，不能作为输入变量")
+                if node_data.node_type == NodeType.IF_ELSE.value and any(
                     condition.variable_name not in {item.name for item in node_data.inputs}
                     for condition in node_data.conditions
                 ):
