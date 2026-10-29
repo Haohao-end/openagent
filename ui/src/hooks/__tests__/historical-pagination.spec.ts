@@ -159,6 +159,28 @@ describe('historical chat pagination', () => {
     ])
   })
 
+  it('ignores an older debug conversation response after switching conversations', async () => {
+    const olderResponse = createDeferred<ReturnType<typeof buildPage>>()
+    const newerResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(appService.getDebugConversationMessagesWithPage)
+      .mockReturnValueOnce(olderResponse.promise as never)
+      .mockReturnValueOnce(newerResponse.promise as never)
+    const { messages, loadDebugConversationMessages } = useGetDebugConversationMessagesWithPage()
+
+    const olderRequest = loadDebugConversationMessages('app-1', true, 'conversation-old')
+    const newerRequest = loadDebugConversationMessages('app-1', true, 'conversation-new')
+    newerResponse.resolve(buildPage([buildMessage('debug-new', 200)], {
+      current_page: 1, page_size: 5, total_page: 1, total_record: 1,
+    }))
+    await newerRequest
+    olderResponse.resolve(buildPage([buildMessage('debug-old', 100)], {
+      current_page: 1, page_size: 5, total_page: 1, total_record: 1,
+    }))
+    await olderRequest
+
+    expect(messages.value.map((message) => message.id)).toEqual(['debug-new'])
+  })
+
   it('deduplicates overlapping debug history pages by message id', async () => {
     vi.mocked(appService.getDebugConversationMessagesWithPage)
       .mockResolvedValueOnce(

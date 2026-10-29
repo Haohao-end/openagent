@@ -462,6 +462,7 @@ export const useDeleteDebugConversation = () => {
 export const useGetDebugConversationMessagesWithPage = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   type DebugConversationMessage = GetDebugConversationMessagesWithPageResponse['data']['list'][number] & {
     render_id: string
   }
@@ -481,6 +482,7 @@ export const useGetDebugConversationMessagesWithPage = () => {
     init: boolean = false,
     conversation_id: string = '',
   ) => {
+    const requestId = ++latestRequest
     // 2.1 判断是否是初始化，如果是则先初始化分页器
     if (init) {
       paginator.value = { ...defaultPaginator }
@@ -498,6 +500,7 @@ export const useGetDebugConversationMessagesWithPage = () => {
         created_at: created_at.value,
         conversation_id,
       })
+      if (requestId !== latestRequest) return
       const data = resp.data
 
       // 2.3 更新分页器
@@ -520,7 +523,7 @@ export const useGetDebugConversationMessagesWithPage = () => {
         )
       }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
