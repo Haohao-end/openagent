@@ -277,6 +277,9 @@ class ReACTAgent(FunctionCallAgent):
                 total_price=total_price,
                 latency=(time.perf_counter() - start_at),
             ))
+            self.agent_queue_manager.publish(state["task_id"], AgentThought(
+                id=id, task_id=state["task_id"], event=QueueEvent.AGENT_END.value,
+            ))
 
         return {
             "messages": [gathered],
