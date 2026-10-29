@@ -337,12 +337,54 @@ class TestSegmentService:
 
         assert result is segment
         assert updates[0][0] is segment
-        assert updates[0][1]["hash"] == "new-hash"
+        assert updates[-1][1]["hash"] == "new-hash"
         assert updates[1][0] is document
         assert updates[1][1]["character_count"] == 12
         assert updates[1][1]["token_count"] == 8
         assert keyword_calls == ["delete", "add"]
         assert vector_calls[0]["uuid"] == str(segment.node_id)
+
+    def test_update_segment_should_retry_vector_update_after_failure(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id, document_id = uuid4(), uuid4()
+        segment = SimpleNamespace(
+            id=uuid4(), account_id=account.id, dataset_id=dataset_id, document_id=document_id,
+            status=SegmentStatus.COMPLETED.value, hash="old-hash", node_id=uuid4(),
+            document=SimpleNamespace(id=document_id),
+        )
+        vector_attempts = []
+
+        def update_vector(**kwargs):
+            vector_attempts.append(kwargs)
+            if len(vector_attempts) == 1:
+                raise RuntimeError("temporary vector failure")
+
+        service = SegmentService(
+            db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args: _QueryStub(first_result=(12, 8)))),
+            redis_client=_RedisStub(),
+            jieba_service=SimpleNamespace(),
+            embeddings_service=SimpleNamespace(
+                calculate_token_count=lambda _content: 6,
+                embeddings=SimpleNamespace(embed_query=lambda _text: [0.1]),
+            ),
+            keyword_table_service=SimpleNamespace(
+                delete_keyword_table_from_ids=lambda *_args: None,
+                add_keyword_table_from_ids=lambda *_args: None,
+            ),
+            vector_database_service=SimpleNamespace(
+                collection=SimpleNamespace(data=SimpleNamespace(update=update_vector))
+            ),
+        )
+        monkeypatch.setattr(service, "get", lambda *_args: segment)
+        monkeypatch.setattr("internal.service.segment_service.generate_text_hash", lambda _text: "new-hash")
+        monkeypatch.setattr(service, "update", lambda target, **values: (target.__dict__.update(values), target)[1])
+        req = SimpleNamespace(content=SimpleNamespace(data="new content"), keywords=SimpleNamespace(data=["kw"]))
+
+        with pytest.raises(FailException):
+            service.update_segment(dataset_id, document_id, segment.id, req, account)
+        service.update_segment(dataset_id, document_id, segment.id, req, account)
+
+        assert len(vector_attempts) == 2
 
     def test_create_segment_should_raise_when_document_not_found(self, monkeypatch):
         service = self._build_service()

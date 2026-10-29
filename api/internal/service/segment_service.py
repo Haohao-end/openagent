@@ -181,7 +181,6 @@ class SegmentService(BaseService):
                 segment,
                 keywords=req.keywords.data,
                 content=req.content.data,
-                hash=new_hash,
                 character_count=len(req.content.data),
                 token_count=token_count,
             )
@@ -212,6 +211,7 @@ class SegmentService(BaseService):
                     },
                     vector=self.embeddings_service.embeddings.embed_query(req.content.data)
                 )
+                self.update(segment, hash=new_hash)
         except Exception as e:
             logging.exception(f"更新文档片段记录失败, segment_id: {segment}, 错误信息: {str(e)}")
             raise FailException("更新文档片段记录失败，请稍后尝试")
