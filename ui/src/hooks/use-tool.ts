@@ -68,6 +68,7 @@ export const useGetApiToolProvidersWithPage = () => {
     total_record: 0,
   }
   const paginator = ref(defaultPaginator)
+  let latestProviderRequest = 0
 
   // 2.定义加载数据函数
   const loadApiToolProviders = async (init: boolean = false, search_word: string = '') => {
@@ -78,6 +79,7 @@ export const useGetApiToolProvidersWithPage = () => {
     } else if (paginator.value.current_page > paginator.value.total_page) {
       return
     }
+    const requestId = ++latestProviderRequest
 
     // 2.2 加载更多数据并更新数据状态
     try {
@@ -88,6 +90,7 @@ export const useGetApiToolProvidersWithPage = () => {
         paginator.value.page_size,
         search_word,
       )
+      if (requestId !== latestProviderRequest) return
       const data = resp.data
 
       // 2.4 更新分页器
@@ -105,7 +108,7 @@ export const useGetApiToolProvidersWithPage = () => {
         api_tool_providers.value.push(...data.list)
       }
     } finally {
-      loading.value = false
+      if (requestId === latestProviderRequest) loading.value = false
     }
   }
 
