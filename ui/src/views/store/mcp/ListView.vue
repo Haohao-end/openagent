@@ -24,6 +24,7 @@ const searchWord = ref('')
 const showDetailVisible = ref(false)
 const detailLoading = ref(false)
 const activeProvider = ref<McpProvider | null>(null)
+let latestDetailRequest = 0
 const showCreateMcpModalVisible = ref(false)
 
 const avatarPalettes = [
@@ -126,16 +127,19 @@ const handleCategoryChange = async (category: string) => {
 }
 
 const loadProviderDetail = async (providerKey: string) => {
+  const requestId = ++latestDetailRequest
   detailLoading.value = true
   showDetailVisible.value = true
   try {
     const res = await getPublicMcpProvider(providerKey)
+    if (requestId !== latestDetailRequest) return
     activeProvider.value = res.data
   } catch (error: unknown) {
+    if (requestId !== latestDetailRequest) return
     Message.error(getErrorMessage(error, t('store.mcp.detailLoadFailed')))
     showDetailVisible.value = false
   } finally {
-    detailLoading.value = false
+    if (requestId === latestDetailRequest) detailLoading.value = false
   }
 }
 

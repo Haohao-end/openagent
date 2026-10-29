@@ -42,6 +42,34 @@ const buttonStub = defineComponent({
   template: '<button type="button" v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>',
 })
 
+const cardStub = defineComponent({
+  emits: ['click'],
+  template: '<div @click="$emit(\'click\')"><slot /></div>',
+})
+
+const drawerStub = defineComponent({
+  props: ['visible'],
+  emits: ['cancel'],
+  template:
+    '<section v-if="visible" data-testid="detail-drawer"><button data-testid="close-detail" @click="$emit(\'cancel\')" /><slot /></section>',
+})
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((yes, no) => ((resolve = yes), (reject = no)))
+  return { promise, resolve, reject }
+}
+
+const provider = (key: string) => ({
+  provider_key: key,
+  name: key,
+  label: key,
+  category: 'general',
+  created_at: 1,
+  tools: [],
+})
+
 const globalStubs = {
   'a-spin': {
     template: '<div><slot /></div>',
@@ -53,9 +81,7 @@ const globalStubs = {
   'a-tag': {
     template: '<span><slot /></span>',
   },
-  'a-card': {
-    template: '<div><slot /></div>',
-  },
+  'a-card': cardStub,
   'a-col': {
     template: '<div><slot /></div>',
   },
@@ -65,9 +91,7 @@ const globalStubs = {
   'a-row': {
     template: '<div><slot /></div>',
   },
-  'a-drawer': {
-    template: '<div><slot /></div>',
-  },
+  'a-drawer': drawerStub,
   'a-input-search': {
     template: '<input />',
   },
@@ -219,5 +243,30 @@ describe('store mcp list', () => {
     await flushPromises()
 
     expect(wrapper.get('create-or-update-mcp-modal-stub').attributes('visible')).toBe('true')
+  })
+
+  it('ignores stale provider detail success and failure after switching providers', async () => {
+    const requests = Array.from({ length: 4 }, () => deferred<{ data: ReturnType<typeof provider> }>())
+    mocks.getPublicMcpProvider.mockImplementation(() => requests.shift()!.promise as never)
+    mocks.getPublicMcpProvidersWithPage.mockResolvedValueOnce({ data: { list: [provider('provider-a'), provider('provider-b')] } } as never)
+    const wrapper = shallowMount(McpListView, { global: { stubs: globalStubs } })
+    const issues: string[] = []
+    await flushPromises()
+    const [providerA, providerB] = wrapper.findAllComponents(cardStub)
+    const closeDetail = () => wrapper.get('[data-testid="close-detail"]').trigger('click')
+
+    for (const [index, [stale, latest]] of [[requests[0], requests[1]], [requests[2], requests[3]]].entries()) {
+      await providerA.trigger('click')
+      await closeDetail()
+      await providerB.trigger('click')
+      latest.resolve({ data: provider('provider-b') })
+      await flushPromises()
+      index ? stale.reject(new Error('stale failure')) : stale.resolve({ data: provider('provider-a') })
+      await flushPromises()
+      const drawer = wrapper.find('[data-testid="detail-drawer"]')
+      if (!drawer.exists() || !drawer.text().includes('provider-b')) issues.push(`stale ${index ? 'failure' : 'success'}`)
+    }
+    expect(issues).toEqual([])
+    wrapper.unmount()
   })
 })
