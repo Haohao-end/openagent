@@ -813,3 +813,15 @@ def test_react_agent_long_term_memory_recall_should_raise_for_odd_history():
             }
         )
     assert agent.agent_queue_manager.errors[-1][1] == "智能体历史消息列表格式错误"
+
+
+def test_react_agent_should_skip_none_stream_chunks(monkeypatch):
+    monkeypatch.setattr("internal.core.agent.agents.react_agent.tiktoken.get_encoding", lambda _name: _FakeEncoding())
+    agent = _new_react_agent(_NodeLLM(
+        features=[], metadata={"pricing": {"input": 0.1, "output": 0.2, "unit": 0.001}},
+        stream_chunks=[None, _Chunk("valid response")],
+    ))
+
+    result = agent._llm_node({"task_id": uuid4(), "messages": [HumanMessage(content="q")], "iteration_count": 0})
+
+    assert result["messages"][0].content == "valid response"
