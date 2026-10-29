@@ -741,6 +741,7 @@ def test_react_agent_should_delegate_and_cover_message_and_tool_json_branches(mo
         {"task_id": task_id, "messages": [HumanMessage(content="q")], "iteration_count": 0}
     )
     assert short_result["messages"][0].content == "ab"
+    assert any(thought.event == QueueEvent.AGENT_MESSAGE and thought.thought == "ab" for _, thought in short_content_agent.agent_queue_manager.published)
 
     prompt_full = "# 前端技能\n\n用于视觉层次、留白和布局质量要求高的前端页面设计与实现任务。"
     captured_prompt_messages = {}

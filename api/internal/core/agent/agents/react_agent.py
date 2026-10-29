@@ -166,6 +166,13 @@ class ReACTAgent(FunctionCallAgent):
                             answer=gathered.content,
                             latency=(time.perf_counter() - start_at),
                         ))
+        if not generation_type and gathered is not None:
+            generation_type = "message"
+            self.agent_queue_manager.publish(state["task_id"], AgentThought(
+                id=id, task_id=state["task_id"], event=QueueEvent.AGENT_MESSAGE.value,
+                thought=gathered.content, message=messages_to_dict(state["messages"]),
+                answer=gathered.content, latency=(time.perf_counter() - start_at),
+            ))
         # 12.计算LLM的输入+输出的token总数
         encoding = tiktoken.get_encoding("cl100k_base")
         input_token_count = len(encoding.encode(normalize_usage_text(state["messages"])))
