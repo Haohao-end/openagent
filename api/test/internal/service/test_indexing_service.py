@@ -645,6 +645,7 @@ class TestIndexingService:
         assert queries[Segment].filters[0].left.table is Segment.__table__
         assert queries[KeywordTable].deleted is True
         assert queries[DatasetQuery].deleted is True
+        assert queries[DatasetQuery].filters[0].left.table is DatasetQuery.__table__
         assert len(vector_delete_calls) == 1
 
     def test_delete_dataset_should_swallow_exception_when_vector_delete_fails(self):

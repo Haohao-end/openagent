@@ -193,7 +193,7 @@ class IndexingService(BaseService):
 
                 # 4.删除关联的知识库查询记录
                 self.db.session.query(DatasetQuery).filter(
-                    KeywordTable.dataset_id == dataset_id
+                    DatasetQuery.dataset_id == dataset_id
                 ).delete()
             # 5.调用向量数据库删除知识库的关联记录
             self.vector_database_service.collection.data.delete_many(
