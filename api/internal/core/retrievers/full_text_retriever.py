@@ -5,7 +5,8 @@ from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document as LCDocument
 from pydantic import Field
 from langchain_core.retrievers import BaseRetriever
-from internal.model import KeywordTable, Segment
+from internal.entity.dataset_entity import DocumentStatus, SegmentStatus
+from internal.model import Document, KeywordTable, Segment
 from internal.service import JiebaService
 from pkg.sqlalchemy import SQLAlchemy
 
@@ -50,10 +51,22 @@ class FullTextRetriever(BaseRetriever):
 
         # 8.根据得到的id列表检索数据库得到片段列表信息
         segments = self.db.session.query(Segment).filter(
-            Segment.id.in_([id for id, _ in top_k_ids])
+            Segment.id.in_([id for id, _ in top_k_ids]),
+            Segment.dataset_id.in_(self.dataset_ids),
         ).all()
+        document_dict = {
+            str(document.id): document
+            for document in self.db.session.query(Document).filter(
+                Document.id.in_([segment.document_id for segment in segments])
+            ).all()
+        }
         segment_dict = {
             str(segment.id): segment for segment in segments
+            if segment.enabled
+            and segment.status == SegmentStatus.COMPLETED.value
+            and (document := document_dict.get(str(segment.document_id)))
+            and document.enabled
+            and document.status == DocumentStatus.COMPLETED.value
         }
 
         # 9.根据频率进行排序
@@ -68,8 +81,8 @@ class FullTextRetriever(BaseRetriever):
                 "document_id": str(segment.document_id),
                 "segment_id": str(segment.id),
                 "node_id": str(segment.node_id),
-                "document_enabled": True,
-                "segment_enabled": True,
+                "document_enabled": document_dict[str(segment.document_id)].enabled,
+                "segment_enabled": segment.enabled,
                 "score": 0,
             }
         ) for segment in sorted_segments]
