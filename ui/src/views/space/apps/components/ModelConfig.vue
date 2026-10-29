@@ -67,7 +67,8 @@ const changeModel = (value: string) => {
   const [provider_name, model_name] = value.split('/')
 
   // 2.2 发起请求获取模型详情
-  modelDetailLoad = loadLanguageModel(provider_name, model_name).then(() => {
+  modelDetailLoad = loadLanguageModel(provider_name, model_name).then((isLatest) => {
+    if (!isLatest) return
     // 2.3 重新赋值parameters
     form.value.parameters = language_model.value.parameters.reduce(
       (acc: Record<string, unknown>, parameter: { name: string; default?: unknown }) => {

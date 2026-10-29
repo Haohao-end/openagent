@@ -24,17 +24,20 @@ export const useGetLanguageModels = () => {
 export const useGetLanguageModel = () => {
   // 1.定义自定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const language_model = ref<Record<string, any>>({})
 
   // 2.定义加载数据函数
   const loadLanguageModel = async (provider_name: string, model_name: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getLanguageModel(provider_name, model_name)
-
+      if (requestId !== latestRequest) return false
       language_model.value = resp.data
+      return true
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 

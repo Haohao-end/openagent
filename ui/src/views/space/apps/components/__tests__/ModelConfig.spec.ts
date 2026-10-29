@@ -32,6 +32,7 @@ describe('ModelConfig', () => {
     mocks.loadLanguageModel.mockImplementation(async (_provider: string, model: string) => {
       if (model === 'new-model') await pendingLoad.promise
       mocks.languageModel.value = { parameters: [{ name: 'temperature', default: 0.2 }] }
+      return true
     })
   })
 
