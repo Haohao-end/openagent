@@ -493,6 +493,7 @@ def test_function_call_agent_tools_node_should_resolve_common_agent_aliases():
 
     assert dataset_tool.invocations == [{}]
     assert train_tool.invocations == []
+    assert agent.agent_queue_manager.published[0][1].event == QueueEvent.DATASET_RETRIEVAL
     published_observation = agent.agent_queue_manager.published[-1][1].observation
     assert "请从当前可用工具列表中重新选择" in published_observation
     assert "mcp__12306-mcp__12306_mcp_query_ticket_price" in published_observation
