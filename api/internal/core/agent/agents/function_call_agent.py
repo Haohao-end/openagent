@@ -348,6 +348,7 @@ class FunctionCallAgent(BaseAgent):
             id = uuid.uuid4()
             start_at = time.perf_counter()
 
+            tool = None
             try:
                 # 5.获取工具并调用工具
                 tool = self._resolve_tool(tool_call["name"], tools_by_name, tools_by_alias)
@@ -355,6 +356,11 @@ class FunctionCallAgent(BaseAgent):
                     raise LookupError(self._build_tool_not_found_result(tool_call["name"], tools_by_name))
                 tool_result = tool.invoke(tool_call["args"])
             except LookupError as e:
+                if tool is not None and tool_policy.is_hard_fail_tool(tool_call["name"]):
+                    self.agent_queue_manager.publish_failure(
+                        state["task_id"], e, context=f"{tool_call['name']}执行失败"
+                    )
+                    raise
                 tool_result = str(e)
             except Exception as e:
                 if tool_policy.is_hard_fail_tool(tool_call["name"]):

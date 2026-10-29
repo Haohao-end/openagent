@@ -498,7 +498,8 @@ def test_function_call_agent_tools_node_should_resolve_common_agent_aliases():
     assert "mcp__12306-mcp__12306_mcp_query_ticket_price" in published_observation
 
 
-def test_function_call_agent_tools_node_should_use_configured_tool_policy():
+@pytest.mark.parametrize("failure", [RuntimeError("boom"), LookupError("resource missing")])
+def test_function_call_agent_tools_node_should_use_configured_tool_policy(failure):
     class _Tool:
         def __init__(self, name, result=None, error=None):
             self.name = name
@@ -515,7 +516,7 @@ def test_function_call_agent_tools_node_should_use_configured_tool_policy():
     config = _build_agent_config(
         tools=[
             _Tool("custom_dataset_tool", result="retrieved"),
-            _Tool("custom_hard_fail_tool", error=RuntimeError("boom")),
+            _Tool("custom_hard_fail_tool", error=failure),
         ],
         tool_policy=ToolPolicy(
             dataset_retrieval_tool_name="recall_dataset",
@@ -527,7 +528,7 @@ def test_function_call_agent_tools_node_should_use_configured_tool_policy():
     agent = _new_function_call_agent(_NodeLLM(features=[]), config)
     task_id = uuid4()
 
-    with pytest.raises(RuntimeError, match="boom"):
+    with pytest.raises(type(failure), match=str(failure)):
         agent._tools_node(
             {
                 "task_id": task_id,
@@ -548,7 +549,7 @@ def test_function_call_agent_tools_node_should_use_configured_tool_policy():
     failure_task_id, failure_error, failure_context = agent.agent_queue_manager.failures[-1]
     assert failure_task_id == task_id
     assert "custom_hard_fail_tool" in failure_context
-    assert isinstance(failure_error, RuntimeError)
+    assert isinstance(failure_error, type(failure))
     first_event = agent.agent_queue_manager.published[0][1]
     assert first_event.event == QueueEvent.DATASET_RETRIEVAL
 
