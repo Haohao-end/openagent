@@ -1109,6 +1109,50 @@ class TestConversationServiceBasics:
         assert len(conversations) == 1
         assert conversations[0]["id"] == str(conversation_a.id)
 
+    def test_get_recent_conversations_should_merge_sources_by_recency(self, app_ctx):
+        service = self._build_service()
+        account_id = uuid4()
+        old_time = datetime(2026, 1, 1, tzinfo=UTC)
+        new_time = datetime(2026, 1, 2, tzinfo=UTC)
+        older_conversation = SimpleNamespace(id=uuid4(), name="Older", created_by=account_id,
+                                              is_deleted=False, created_at=old_time)
+        newer_conversation = SimpleNamespace(id=uuid4(), name="Newer", created_by=uuid4(),
+                                              is_deleted=False, created_at=new_time)
+        public_app = SimpleNamespace(id=uuid4(), name="Owned app", account_id=account_id)
+        older_message = SimpleNamespace(
+            id=uuid4(), conversation_id=older_conversation.id,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None,
+            query="older", answer="answer", created_at=old_time,
+        )
+        newer_message = SimpleNamespace(
+            id=uuid4(), conversation_id=newer_conversation.id,
+            invoke_from=InvokeFrom.SERVICE_API.value, app_id=public_app.id,
+            query="newer", answer="answer", created_at=new_time,
+        )
+
+        class _Query:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            order_by = limit = filter
+
+            def all(self):
+                return self.rows
+
+        query_results = iter([
+            _Query([older_message]), _Query([newer_message]),
+            _Query([older_conversation, newer_conversation]), _Query([public_app]),
+        ])
+        service.db = SimpleNamespace(session=SimpleNamespace(query=lambda _model: next(query_results)))
+        account = SimpleNamespace(id=account_id, assistant_agent_conversation_id=None)
+
+        conversations = service.get_recent_conversations(account, limit=1)
+
+        assert (conversations[0]["id"], conversations[0]["source_type"]) == (str(newer_conversation.id), "public_app")
+
     def test_get_recent_conversations_should_skip_message_when_conversation_not_found(self, app_ctx):
         service = self._build_service()
         account_id = uuid4()

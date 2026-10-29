@@ -444,7 +444,11 @@ class ConversationService(BaseService):
         )
 
         message_by_conversation = OrderedDict()
-        for message in private_recent_messages + public_recent_messages:
+        for message in sorted(
+            private_recent_messages + public_recent_messages,
+            key=lambda message: message.created_at,
+            reverse=True,
+        ):
             if message.conversation_id in message_by_conversation:
                 continue
             message_by_conversation[message.conversation_id] = message
