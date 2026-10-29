@@ -114,6 +114,8 @@ class WorkflowConfig(BaseModel):
 
             # 9.判断开始和结束节点是否唯一
             if node_data.node_type == NodeType.START.value:
+                if len({item.name for item in node_data.inputs}) != len(node_data.inputs):
+                    raise ValidateErrorException("开始节点输入变量名必须唯一")
                 if start_nodes >= 1:
                     raise ValidateErrorException("工作流中只允许有1个开始节点")
                 start_nodes += 1

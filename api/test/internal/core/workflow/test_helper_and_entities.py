@@ -273,6 +273,18 @@ def test_workflow_config_should_reject_unknown_if_else_condition_input():
     assert len(WorkflowConfig(**payload).nodes) == 3
 
 
+def test_workflow_config_should_reject_duplicate_start_input_names():
+    payload = _build_valid_payload()
+    payload["nodes"][0]["inputs"] = [
+        {"name": "x", "required": True, "type": "int", "value": {"type": "generated", "content": ""}},
+        {"name": "x", "required": False, "type": "string", "value": {"type": "generated", "content": ""}},
+    ]
+    payload["nodes"][1]["outputs"][0]["value"]["content"]["ref_var_name"] = "x"
+
+    with pytest.raises(ValidateErrorException, match="开始节点.*输入变量名必须唯一"):
+        WorkflowConfig(**payload)
+
+
 def test_workflow_config_should_reserve_if_else_result_input_name():
     payload = _build_valid_payload()
     start_id, end_id = (node["id"] for node in payload["nodes"])
