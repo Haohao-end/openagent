@@ -407,6 +407,8 @@ class PublicAppService(BaseService):
                     **binding,
                     "url": sanitize_public_url(binding.get("url")),
                     "source_url": sanitize_public_url(binding.get("source_url")),
+                    "command": "",
+                    "args": [],
                     "headers": [],
                     "env": {},
                 }
@@ -552,6 +554,8 @@ class PublicAppService(BaseService):
                         **binding,
                         "url": sanitize_public_url(binding.get("url")),
                         "source_url": sanitize_public_url(binding.get("source_url")),
+                        "command": "",
+                        "args": [],
                         "headers": [],
                         "env": {},
                     }

@@ -254,6 +254,8 @@ class McpService(BaseService):
         if is_public:
             url = sanitize_public_url(url)
             source_url = sanitize_public_url(source_url)
+            command = ""
+            args = []
         headers = [] if is_public else headers
         env = {} if is_public else env
         normalized_category = normalize_mcp_category(category, name=name, description=description)
