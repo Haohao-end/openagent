@@ -334,18 +334,19 @@ class SegmentService(BaseService):
         if segment.status not in [SegmentStatus.COMPLETED.value, SegmentStatus.ERROR.value]:
             raise FailException("当前文档片段处于不可删除状态，请稍后尝试")
 
-        # 3.删除文档片段并获取该片段的文档信息
+        # 3.获取文档信息
         document = segment.document
-        self.delete(segment)
 
-        # 4.同步删除关键词表中属于该片段的关键词
-        self.keyword_table_service.delete_keyword_table_from_ids(dataset_id, [segment_id])
-
-        # 5.同步删除向量数据库存储的记录
+        # 4.同步删除向量数据库存储的记录
         try:
             self.vector_database_service.collection.data.delete_by_id(str(segment.node_id))
         except Exception as e:
             logging.exception(f"删除文档片段记录失败, segment_id: {segment_id}, 错误信息: {str(e)}")
+            raise FailException("删除文档片段失败，请稍后重试") from e
+
+        # 5.删除文档片段和关键词
+        self.delete(segment)
+        self.keyword_table_service.delete_keyword_table_from_ids(dataset_id, [segment_id])
 
         # 6.更新文档信息，涵盖字符总数、token总次数
         document_character_count, document_token_count = self.db.session.query(

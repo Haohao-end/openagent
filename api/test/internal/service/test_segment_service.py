@@ -1005,7 +1005,7 @@ class TestSegmentService:
         with pytest.raises(NotFoundException):
             service.delete_segment(uuid4(), uuid4(), uuid4(), SimpleNamespace(id=uuid4()))
 
-    def test_delete_segment_should_continue_when_vector_delete_failed(self, monkeypatch):
+    def test_delete_segment_should_preserve_segment_when_vector_delete_failed(self, monkeypatch):
         document = SimpleNamespace(id=uuid4())
         segment = SimpleNamespace(
             id=uuid4(),
@@ -1018,6 +1018,8 @@ class TestSegmentService:
         )
 
         query_stub = _QueryStub(first_result=(10, 5))
+        keyword_deletes = []
+        segment_deletes = []
         service = SegmentService(
             db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args, **_kwargs: query_stub)),
             redis_client=_RedisStub(),
@@ -1026,7 +1028,9 @@ class TestSegmentService:
                 embeddings=SimpleNamespace(embed_query=lambda _q: [0.1]),
                 calculate_token_count=lambda _q: 1,
             ),
-            keyword_table_service=SimpleNamespace(delete_keyword_table_from_ids=lambda *_args, **_kwargs: None),
+            keyword_table_service=SimpleNamespace(
+                delete_keyword_table_from_ids=lambda *args, **_kwargs: keyword_deletes.append(args)
+            ),
             vector_database_service=SimpleNamespace(
                 collection=SimpleNamespace(
                     data=SimpleNamespace(
@@ -1036,7 +1040,7 @@ class TestSegmentService:
             ),
         )
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: segment)
-        monkeypatch.setattr(service, "delete", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(service, "delete", lambda target: segment_deletes.append(target))
         update_calls = []
         monkeypatch.setattr(
             service,
@@ -1045,9 +1049,19 @@ class TestSegmentService:
         )
         account = SimpleNamespace(id=segment.account_id)
 
+        with pytest.raises(FailException):
+            service.delete_segment(segment.dataset_id, segment.document_id, segment.id, account)
+
+        assert segment_deletes == []
+        assert keyword_deletes == []
+        assert update_calls == []
+
+        monkeypatch.setattr(service.vector_database_service.collection.data, "delete_by_id", lambda *_args: None)
         result = service.delete_segment(segment.dataset_id, segment.document_id, segment.id, account)
 
         assert result is segment
+        assert segment_deletes == [segment]
+        assert len(keyword_deletes) == 1
         assert update_calls[-1][0] is document
         assert update_calls[-1][1]["character_count"] == 10
         assert update_calls[-1][1]["token_count"] == 5
