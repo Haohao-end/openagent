@@ -63,6 +63,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const uploadFileLoading = ref(false)
 const isRecording = ref(false)
 const chatContextId = ref('')
+let contextGeneration = 0
 const accountStore = useAccountStore()
 const activeAccount = computed(() => ({
   name:
@@ -129,6 +130,7 @@ const createStreamMessage = (queryText: string): PublicStreamMessage =>
   )
 
 const clearConversation = () => {
+  contextGeneration += 1
   messages.value = []
   chatContextId.value = ''
   saveContextId('')
@@ -139,7 +141,9 @@ const clearConversation = () => {
 
 const loadPublicConversationMessages = async (conversationId: string) => {
   if (!conversationId) return
+  const generation = contextGeneration
   const res = await getPublicAppA2aConversationMessages(String(route.params?.app_id), conversationId)
+  if (generation !== contextGeneration) return
   const history = [...(res.data || [])].reverse()
   messages.value = history.map((item) =>
     withChatRenderId(
@@ -207,6 +211,7 @@ const handleSubmit = async () => {
     conversation_id: chatContextId.value,
   }
   const humanImageUrls = [...image_urls.value]
+  const streamGeneration = contextGeneration
   query.value = ''
   image_urls.value = []
   loading.value = true
@@ -226,7 +231,7 @@ const handleSubmit = async () => {
         streamState.message_id = streamResult.state.message_id
         streamState.task_id = streamResult.state.task_id
         streamState.conversation_id = streamResult.state.conversation_id
-        if (streamState.conversation_id) {
+        if (streamState.conversation_id && streamGeneration === contextGeneration) {
           chatContextId.value = streamState.conversation_id
           saveContextId(streamState.conversation_id)
         }
@@ -263,6 +268,7 @@ watch(
   () => [String(route.params?.app_id ?? ''), String(route.query.conversation_id ?? '')],
   async ([appId, conversationId], [prevAppId, prevConversationId]) => {
     if (appId === prevAppId && conversationId === prevConversationId) return
+    contextGeneration += 1
     messages.value = []
     chatContextId.value = ''
     await loadConversationFromRoute()
