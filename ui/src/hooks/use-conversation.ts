@@ -123,16 +123,19 @@ export const useDeleteMessage = () => {
 export const useGetConversationName = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const name = ref<string>('')
 
   // 2.定义加载数据处理器
   const loadConversationName = async (conversation_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getConversationName(conversation_id)
+      if (requestId !== latestRequest) return
       name.value = resp.data.name
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 

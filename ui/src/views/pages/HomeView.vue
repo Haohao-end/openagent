@@ -241,7 +241,7 @@ const loadSelectedConversationName = async (conversation_id: string = selectedCo
   try {
     await loadConversationName(normalizedConversationId)
   } catch {
-    currentConversationName.value = ''
+    if (selectedConversationId.value === normalizedConversationId) currentConversationName.value = ''
   }
 }
 
