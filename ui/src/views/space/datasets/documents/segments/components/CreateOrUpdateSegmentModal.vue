@@ -18,11 +18,8 @@ const { loading: createSegmentLoading, handleCreateSegment } = useCreateSegment(
 const { loading: updateSegmentLoading, handleUpdateSegment } = useUpdateSegment()
 const { loadSegment } = useGetSegment()
 const { t } = useI18n()
-const defaultForm: { content: string; keywords: string[] } = {
-  content: '',
-  keywords: [],
-}
-const form = ref(defaultForm)
+const createDefaultForm = (): { content: string; keywords: string[] } => ({ content: '', keywords: [] })
+const form = ref(createDefaultForm())
 const formRef = ref<InstanceType<typeof Form>>()
 const isUpdateOperation = computed(() => props.segment_id && props.segment_id !== '')
 
@@ -91,7 +88,7 @@ watch(
     } else {
       // 4.6 关闭弹窗，需要清空表单数据
       formRef.value?.resetFields()
-      form.value = defaultForm
+      form.value = createDefaultForm()
     }
   },
 )
