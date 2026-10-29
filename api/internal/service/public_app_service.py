@@ -12,7 +12,7 @@ from internal.core.tools.builtin_tools.providers import BuiltinProviderManager
 from internal.entity.app_entity import AppStatus
 from internal.entity.workflow_entity import WorkflowStatus
 from internal.entity.tag_entity import sort_tags_by_priority
-from internal.lib.helper import datetime_to_timestamp, utc_now_naive
+from internal.lib.helper import datetime_to_timestamp, sanitize_public_url, utc_now_naive
 from internal.task.app_task import sync_public_app_registry
 from internal.service.tag_assignment_service import TagAssignmentService
 from internal.exception import NotFoundException, ForbiddenException, ValidateErrorException, FailException
@@ -403,7 +403,12 @@ class PublicAppService(BaseService):
             "preset_prompt": app_config.preset_prompt,
             "tools": app_config.tools,
             "mcp_bindings": [
-                {**binding, "headers": [], "env": {}}
+                {
+                    **binding,
+                    "url": sanitize_public_url(binding.get("url")),
+                    "headers": [],
+                    "env": {},
+                }
                 for binding in (getattr(app_config, "mcp_bindings", []) or [])
                 if isinstance(binding, dict)
             ],
@@ -542,7 +547,12 @@ class PublicAppService(BaseService):
                 "preset_prompt": app_config.preset_prompt,
                 "tools": self._enrich_tools(app_config.tools),  # 填充完整的 tool 信息
                 "mcp_bindings": [
-                    {**binding, "headers": [], "env": {}}
+                    {
+                        **binding,
+                        "url": sanitize_public_url(binding.get("url")),
+                        "headers": [],
+                        "env": {},
+                    }
                     for binding in (getattr(app_config, "mcp_bindings", []) or [])
                     if isinstance(binding, dict)
                 ],

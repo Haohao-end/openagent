@@ -135,11 +135,20 @@ def test_get_public_mcp_providers_with_page_should_fallback_to_catalog_when_tabl
     assert paginator.total_page == 1
 
 
-@pytest.mark.parametrize(("is_public", "expected_headers", "expected_env"), [
-    (True, [], {}),
-    (False, [{"key": "Authorization", "value": "Bearer test-secret"}], {"API_TOKEN": "test-secret"}),
+@pytest.mark.parametrize((
+    "is_public", "expected_headers", "expected_env", "expected_url",
+), [
+    (True, [], {}, "https://mcp.example.com/mcp?version=1"),
+    (
+        False,
+        [{"key": "Authorization", "value": "Bearer test-secret"}],
+        {"API_TOKEN": "test-secret"},
+        "https://mcp-user:test-secret@mcp.example.com/mcp?access_token=test-secret&version=1",
+    ),
 ])
-def test_provider_payload_only_exposes_credentials_for_private_providers(is_public, expected_headers, expected_env):
+def test_provider_payload_only_exposes_credentials_for_private_providers(
+    is_public, expected_headers, expected_env, expected_url
+):
     service = _build_service(table_exists=False, stub_catalog_payload=False)
 
     payload = service._build_provider_payload(
@@ -151,7 +160,7 @@ def test_provider_payload_only_exposes_credentials_for_private_providers(is_publ
         description="",
         category="",
         transport="streamable_http",
-        url="https://mcp.example.com",
+        url="https://mcp-user:test-secret@mcp.example.com/mcp?access_token=test-secret&version=1",
         command="",
         headers=[{"key": "Authorization", "value": "Bearer test-secret"}],
         tool_names=[],
@@ -166,8 +175,10 @@ def test_provider_payload_only_exposes_credentials_for_private_providers(is_publ
 
     assert payload["headers"] == expected_headers
     assert payload["env"] == expected_env
+    assert payload["url"] == expected_url
     assert payload["binding"]["headers"] == expected_headers
     assert payload["binding"]["env"] == expected_env
+    assert payload["binding"]["url"] == expected_url
 
 
 def test_get_public_mcp_provider_should_reject_invalid_catalog_key_encoding():

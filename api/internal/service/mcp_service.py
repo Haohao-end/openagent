@@ -20,7 +20,7 @@ from internal.entity.mcp_entity import (
     normalize_mcp_transport,
 )
 from internal.exception import ForbiddenException, NotFoundException, ValidateErrorException
-from internal.lib.helper import datetime_to_timestamp, utc_now_naive
+from internal.lib.helper import datetime_to_timestamp, sanitize_public_url, utc_now_naive
 from internal.model import Account, McpProvider
 from internal.schema.mcp_schema import CreateMcpProviderReq, GetMcpProvidersWithPageReq, UpdateMcpProviderReq
 from pkg.paginator import Paginator
@@ -251,6 +251,8 @@ class McpService(BaseService):
         updated_at=None,
         include_tools: bool = False,
     ) -> dict[str, Any]:
+        if is_public:
+            url = sanitize_public_url(url)
         headers = [] if is_public else headers
         env = {} if is_public else env
         normalized_category = normalize_mcp_category(category, name=name, description=description)
