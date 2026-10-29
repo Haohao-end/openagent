@@ -250,4 +250,4 @@ class Workflow(BaseTool):
     ) -> Iterator[Output]:
         """工作流流式输出每个节点对应的结果"""
         validated_input = self.args_schema.model_validate(input).model_dump(exclude_unset=True)
-        return self._workflow.stream({"inputs": validated_input})
+        return self._workflow.stream({"inputs": validated_input}, config=config)

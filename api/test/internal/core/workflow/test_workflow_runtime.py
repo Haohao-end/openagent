@@ -14,13 +14,15 @@ class _FakeCompiledGraph:
     def __init__(self):
         self.invocations = []
         self.stream_payloads = []
+        self.stream_configs = []
 
     def invoke(self, payload):
         self.invocations.append(payload)
         return {"outputs": {"answer": "ok"}}
 
-    def stream(self, payload):
+    def stream(self, payload, config=None):
         self.stream_payloads.append(payload)
+        self.stream_configs.append(config)
         yield {"node": "start"}
         yield {"node": "end"}
 
@@ -309,11 +311,13 @@ def test_workflow_run_and_stream_should_delegate_to_compiled_graph(monkeypatch):
     workflow = Workflow(workflow_config=config)
 
     run_result = Workflow._run(workflow, query="hi")
-    stream_result = list(Workflow.stream(workflow, {"query": "hi"}))
+    stream_config = {"recursion_limit": 7, "metadata": {"trace_id": "synthetic"}}
+    stream_result = list(Workflow.stream(workflow, {"query": "hi"}, config=stream_config))
 
     assert run_result == {"answer": "ok"}
     assert compiled.invocations == [{"inputs": {"query": "hi"}}]
     assert compiled.stream_payloads == [{"inputs": {"query": "hi"}}]
+    assert compiled.stream_configs == [stream_config]
     assert stream_result == [{"node": "start"}, {"node": "end"}]
 
 
