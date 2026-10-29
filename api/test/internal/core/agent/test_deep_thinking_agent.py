@@ -31,6 +31,7 @@ from internal.core.agent.agents.deep_thinking_agent import (
     StructuredDocumentOutlinePlan,
     StructuredDocumentSectionPlan,
 )
+from internal.core.agent.agents.a2a_deep_thinking_agent import A2ADeepThinkingAgent
 from internal.core.agent.backends.baidu_cfc_sandbox_backend import BaiduCfcSandboxBackend
 from internal.core.agent.entities.artifact_policy_entity import ArtifactPolicy
 from internal.core.agent.entities.agent_entity import AgentConfig, DEEP_THINKING_SYSTEM_PROMPT
@@ -517,6 +518,25 @@ class TestQueueEvent:
 
 class TestDeepThinkingAgentGraph:
     """DeepThinkingAgent LangGraph 图结构测试。"""
+
+    @pytest.mark.parametrize("empty_chunk", [False, True])
+    def test_a2a_deep_thinking_agent_should_end_without_text(self, empty_chunk):
+        chunks = [_make_chunk("")] if empty_chunk else []
+        agent = A2ADeepThinkingAgent(
+            llm=_make_llm(stream_chunks=chunks),
+            agent_config=_make_agent_config(),
+        )
+        published = []
+        agent.agent_queue_manager.publish = lambda _task_id, event: published.append(event)
+
+        result = agent._llm_node({
+            "messages": [HumanMessage(content="q")],
+            "task_id": uuid4(),
+            "iteration_count": 0,
+        })
+
+        assert result["messages"][0].content == ""
+        assert [event.event for event in published] == [QueueEvent.AGENT_END]
 
     def _build_agent(self):
         llm = _make_llm()
