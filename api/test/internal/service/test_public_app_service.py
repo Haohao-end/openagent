@@ -419,11 +419,12 @@ class TestPublicAppService:
                     "transport": "streamable_http",
                     "url": "https://mcp-user:synthetic-fork-url-secret@mcp.example.com",
                     "source_url": "https://source-user:synthetic-fork-secret@repo.example.com/manifest?token=synthetic-fork-query&version=1",
+                    "command": "node server.js --token=synthetic-fork-args-secret",
                     "enabled": True,
                     "headers": [{"key": "Authorization", "value": "Bearer synthetic-fork-secret"}],
                     "tool_names": [],
                     "timeout_seconds": 30,
-                    "args": [],
+                    "args": ["--token=synthetic-fork-args-secret"],
                     "env": {"MCP_TOKEN": "synthetic-fork-secret"},
                 }
             ],
@@ -468,6 +469,8 @@ class TestPublicAppService:
         assert copied.tags == public_app.tags
         assert session.added[1].mcp_bindings[0]["url"] == "https://mcp.example.com"
         assert session.added[1].mcp_bindings[0]["source_url"] == "https://repo.example.com/manifest?version=1"
+        assert session.added[1].mcp_bindings[0]["command"] == ""
+        assert session.added[1].mcp_bindings[0]["args"] == []
         assert session.added[1].mcp_bindings[0]["headers"] == []
         assert session.added[1].mcp_bindings[0]["env"] == {}
         assert len(session.added) == 2
@@ -707,11 +710,12 @@ class TestPublicAppService:
                         "transport": "streamable_http",
                         "url": "https://mcp-user:synthetic-public-url-secret@mcp.example.com/mcp?access_token=synthetic-query-secret&version=1",
                         "source_url": "https://source-user:synthetic-public-secret@repo.example.com/manifest?token=synthetic-public-query&version=2",
+                        "command": "node server.js --token=synthetic-public-args-secret",
                         "enabled": True,
                         "headers": [{"key": "Authorization", "value": "Bearer synthetic-public-secret"}],
                         "tool_names": [],
                         "timeout_seconds": 30,
-                        "args": [],
+                        "args": ["--token=synthetic-public-args-secret"],
                         "env": {"MCP_TOKEN": "synthetic-public-secret"},
                     }
                 ],
@@ -749,6 +753,7 @@ class TestPublicAppService:
                 "transport": "streamable_http",
                 "url": "https://mcp.example.com/mcp?version=1",
                 "source_url": "https://repo.example.com/manifest?version=2",
+                "command": "",
                 "enabled": True,
                 "headers": [],
                 "tool_names": [],

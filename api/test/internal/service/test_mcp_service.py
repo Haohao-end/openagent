@@ -136,18 +136,20 @@ def test_get_public_mcp_providers_with_page_should_fallback_to_catalog_when_tabl
 
 
 @pytest.mark.parametrize((
-    "is_public", "expected_headers", "expected_env", "expected_url",
+    "is_public", "expected_headers", "expected_env", "expected_url", "expected_command", "expected_args",
 ), [
-    (True, [], {}, "https://mcp.example.com/mcp?version=1"),
+    (True, [], {}, "https://mcp.example.com/mcp?version=1", "", []),
     (
         False,
         [{"key": "Authorization", "value": "Bearer test-secret"}],
         {"API_TOKEN": "test-secret"},
         "https://mcp-user:test-secret@mcp.example.com/mcp?access_token=test-secret&version=1",
+        "node server.js --token=test-secret",
+        ["--token", "test-secret"],
     ),
 ])
 def test_provider_payload_only_exposes_credentials_for_private_providers(
-    is_public, expected_headers, expected_env, expected_url
+    is_public, expected_headers, expected_env, expected_url, expected_command, expected_args
 ):
     service = _build_service(table_exists=False, stub_catalog_payload=False)
     source_url = "https://source-user:test-secret@repo.example.com/source?token=test-secret&version=1"
@@ -163,10 +165,10 @@ def test_provider_payload_only_exposes_credentials_for_private_providers(
         category="",
         transport="streamable_http",
         url="https://mcp-user:test-secret@mcp.example.com/mcp?access_token=test-secret&version=1",
-        command="",
+        command="node server.js --token=test-secret",
         headers=[{"key": "Authorization", "value": "Bearer test-secret"}],
         tool_names=[],
-        args=[],
+        args=["--token", "test-secret"],
         env={"API_TOKEN": "test-secret"},
         timeout_seconds=30,
         source_type="custom",
@@ -178,10 +180,14 @@ def test_provider_payload_only_exposes_credentials_for_private_providers(
     assert payload["headers"] == expected_headers
     assert payload["env"] == expected_env
     assert payload["url"] == expected_url
+    assert payload["command"] == expected_command
+    assert payload["args"] == expected_args
     assert payload["source_url"] == expected_source_url
     assert payload["binding"]["headers"] == expected_headers
     assert payload["binding"]["env"] == expected_env
     assert payload["binding"]["url"] == expected_url
+    assert payload["binding"]["command"] == expected_command
+    assert payload["binding"]["args"] == expected_args
     assert payload["binding"]["source_url"] == expected_source_url
 
 
