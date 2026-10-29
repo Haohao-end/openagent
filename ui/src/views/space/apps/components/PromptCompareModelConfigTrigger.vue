@@ -58,7 +58,8 @@ const syncFormFromProps = (value: Record<string, any>) => {
 const changeModel = (value: string) => {
   const [provider_name, model_name] = value.split('/')
 
-  loadLanguageModel(provider_name, model_name).then(() => {
+  loadLanguageModel(provider_name, model_name).then((isLatest) => {
+    if (!isLatest) return
     form.value.provider = provider_name
     form.value.model = model_name
     form.value.parameters = language_model.value.parameters.reduce(
