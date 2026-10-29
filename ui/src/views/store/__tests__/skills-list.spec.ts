@@ -200,4 +200,21 @@ describe('skills store list', () => {
 
     expect(wrapper.text()).toContain('GG')
   })
+
+  it('retries the same page after an infinite-scroll request fails', async () => {
+    mocks.getSkillsWithPage
+      .mockResolvedValueOnce({ data: { list: [], paginator: { total_page: 2 } } })
+      .mockRejectedValueOnce(new Error('temporary failure'))
+      .mockResolvedValueOnce({ data: { list: [], paginator: { total_page: 2 } } })
+    const wrapper = shallowMount(SkillsListView, { global: { stubs: globalStubs } })
+    await flushPromises()
+
+    const list = wrapper.find('.overflow-y-auto')
+    await list.trigger('scroll')
+    await flushPromises()
+    await list.trigger('scroll')
+    await flushPromises()
+
+    expect(mocks.getSkillsWithPage.mock.calls.map(([params]) => params.current_page)).toEqual([1, 2, 2])
+  })
 })

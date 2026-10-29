@@ -91,6 +91,7 @@ const loadSkills = async (force = false) => {
     hasMore.value = requestPage < res.data.paginator.total_page
   } catch (error: unknown) {
     if (requestId === latestSkillsRequest) {
+      if (requestPage > 1) page.value = requestPage - 1
       Message.error(getErrorMessage(error, t('store.skills.loadFailed')))
     }
   } finally {
