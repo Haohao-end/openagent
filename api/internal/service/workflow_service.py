@@ -392,6 +392,13 @@ class WorkflowService(BaseService):
                         "state": node_results,
                         "latency": (time.perf_counter() - start_at),
                     })
+            except GeneratorExit:
+                self.update(workflow_result, **{
+                    "status": WorkflowResultStatus.FAILED.value,
+                    "state": node_results,
+                    "latency": (time.perf_counter() - start_at),
+                })
+                raise
             except Exception as e:
                 logging.error(f"工作流调试失败: {str(e)}", exc_info=True)
                 self.update(workflow_result, **{
