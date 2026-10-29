@@ -36,6 +36,7 @@ const defaultForm: AppForm = {
 }
 const form = ref<AppForm>({ ...defaultForm })
 const formRef = ref<InstanceType<typeof Form>>()
+let detailRequest = 0
 
 // 2.定义隐藏模态窗函数
 const hideModal = () => emits('update:visible', false)
@@ -101,17 +102,19 @@ const saveApp = async ({ errors }: { errors: Record<string, ValidatedError> | un
 
 // 4.监听模态窗显示状态变化
 watch(
-  () => props.visible,
-  async (newValue) => {
+  () => [props.visible, props.app_id] as const,
+  async ([newValue, appId]) => {
+    const requestId = ++detailRequest
     // 4.1 清除表单校验信息
     formRef.value?.resetFields()
 
     // 4.2 判断弹窗是打开还是关闭
     if (newValue) {
       // 4.3 开启弹窗，需要检测下是更新还是创建操作
-      if (props.app_id) {
+      if (appId) {
         // 4.4 调用接口获取文档片段详情
-        await loadApp(props.app_id)
+        await loadApp(appId)
+        if (requestId !== detailRequest) return
 
         // 4.5 更新表单数据
         form.value = {
