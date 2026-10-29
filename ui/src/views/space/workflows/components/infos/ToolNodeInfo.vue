@@ -254,7 +254,7 @@ const handleSelectTool = async (provider_idx: number, tool_idx: number) => {
     // 6.7 根据不同的工具类型调用API接口获取工具的输入
     if (selectTool.type === 'builtin_tool') {
       // 6.8 调用hooks获取内置工具信息，并提取inputs+params
-      await loadBuiltinTool(selectTool.provider.name, selectTool.tool.name)
+      if (!(await loadBuiltinTool(selectTool.provider.name, selectTool.tool.name))) return
       const inputs = builtin_tool.value.inputs
       const params = builtin_tool.value.params
 
