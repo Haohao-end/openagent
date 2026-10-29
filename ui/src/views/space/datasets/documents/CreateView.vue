@@ -52,7 +52,7 @@ const {
   handleCreateDocuments,
 } = useCreateDocuments()
 const { upload_file, handleUploadFile } = useUploadFile()
-const { documents_status_result, loadDocumentsStatus } = useGetDocumentsStatus()
+const { loadDocumentsStatus } = useGetDocumentsStatus()
 const currentStep = ref(1)
 const createDocumentsForm = ref<CreateDocumentsForm>({
   file_list: [],
@@ -160,16 +160,17 @@ const nextStep = async () => {
 const fetchDocumentsStatus = async () => {
   // 3.1 调用接口获取文档状态数据
   fetchCount++
-  await loadDocumentsStatus(String(route.params?.dataset_id), batch)
+  const statusResult = await loadDocumentsStatus(String(route.params?.dataset_id), batch)
+  if (!statusResult) return
 
   // 3.2 同步文档状态信息
-  documents.value = documents_status_result.value as unknown as GetDocumentsStatusResponse['data']
+  documents.value = statusResult as GetDocumentsStatusResponse['data']
 
   // 3.3 如果请求次数超过限制，则停止
   if (fetchCount >= 30) stopTimer()
 
   // 3.4 如果文档全部都处理完成（涵盖处理完成+错误），则停止
-  const isCompleted = documents_status_result.value.every(
+  const isCompleted = statusResult.every(
     (document) => document.status === 'completed' || document.status === 'error',
   )
   if (isCompleted) stopTimer()

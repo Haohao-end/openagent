@@ -5,6 +5,7 @@ import {
   useGetDataset,
   useGetDatasetsWithPage,
   useGetDocument,
+  useGetDocumentsStatus,
   useGetSegment,
   useGetDocumentsWithPage,
   useGetSegmentsWithPage,
@@ -486,5 +487,25 @@ describe('useGetSegment', () => {
 
     expect(segment.value).toEqual({ id: 'new' })
     expect(newerResult).toEqual({ id: 'new' })
+  })
+})
+
+describe('useGetDocumentsStatus', () => {
+  it('keeps the newest polling response when requests overlap', async () => {
+    const olderResponse = createDeferred<{ data: { status: string }[] }>()
+    const newerResponse = createDeferred<{ data: { status: string }[] }>()
+    mocks.getDocumentsStatus.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+
+    const { documents_status_result, loadDocumentsStatus } = useGetDocumentsStatus()
+    const olderRequest = loadDocumentsStatus('dataset-1', 'batch-1')
+    const newerRequest = loadDocumentsStatus('dataset-1', 'batch-1')
+
+    newerResponse.resolve({ data: [{ status: 'completed' }] })
+    const newestResult = await newerRequest
+    olderResponse.resolve({ data: [{ status: 'processing' }] })
+    await olderRequest
+
+    expect(documents_status_result.value).toEqual([{ status: 'completed' }])
+    expect(newestResult).toEqual([{ status: 'completed' }])
   })
 })
