@@ -252,6 +252,27 @@ def test_workflow_config_should_validate_for_minimal_valid_graph():
     assert len(config.edges) == 1
 
 
+def test_workflow_config_should_reject_unknown_if_else_condition_input():
+    payload = _build_valid_payload()
+    start_id, end_id = (node["id"] for node in payload["nodes"])
+    branch_id = uuid4()
+    payload["nodes"].insert(1, {
+        "id": branch_id, "node_type": "if_else", "title": "branch",
+        "conditions": [{"variable_name": "missing", "operator": "equals", "compare_value": ""}],
+        "inputs": [{"name": "query", "type": "string", "value": {"type": "literal", "content": "value"}}],
+    })
+    payload["edges"] = [
+        _edge(uuid4(), start_id, "start", branch_id, "if_else"),
+        {**_edge(uuid4(), branch_id, "if_else", end_id, "end"), "source_handle": "true"},
+        {**_edge(uuid4(), branch_id, "if_else", end_id, "end"), "source_handle": "false"},
+    ]
+
+    with pytest.raises(ValidateErrorException, match="条件分支节点.*输入变量"):
+        WorkflowConfig(**payload)
+    payload["nodes"][1]["conditions"][0]["variable_name"] = "query"
+    assert len(WorkflowConfig(**payload).nodes) == 3
+
+
 @pytest.mark.parametrize(
     "mutator, error_message",
     [
