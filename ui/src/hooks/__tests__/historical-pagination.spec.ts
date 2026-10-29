@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useGetAssistantAgentMessagesWithPage } from '@/hooks/use-assistant-agent'
-import { useGetConversationMessagesWithPage } from '@/hooks/use-conversation'
+import { useGetConversationMessagesWithPage, useGetConversationName } from '@/hooks/use-conversation'
 import { useGetDebugConversationMessagesWithPage } from '@/hooks/use-app'
 import * as assistantAgentService from '@/services/assistant-agent'
 import * as appService from '@/services/app'
@@ -22,6 +22,7 @@ vi.mock('@/services/conversation', async () => {
   return {
     ...actual,
     getConversationMessages: vi.fn(),
+    getConversationName: vi.fn(),
   }
 })
 
@@ -279,6 +280,24 @@ describe('historical chat pagination', () => {
     await olderRequest
 
     expect(messages.value.map((message) => message.id)).toEqual(['new'])
+  })
+
+  it('ignores an older conversation name response after switching conversations', async () => {
+    const olderResponse = createDeferred<{ data: { name: string } }>()
+    const newerResponse = createDeferred<{ data: { name: string } }>()
+    vi.mocked(conversationService.getConversationName)
+      .mockReturnValueOnce(olderResponse.promise as never)
+      .mockReturnValueOnce(newerResponse.promise as never)
+    const { name, loadConversationName } = useGetConversationName()
+
+    const olderRequest = loadConversationName('conversation-old')
+    const newerRequest = loadConversationName('conversation-new')
+    newerResponse.resolve({ data: { name: 'new conversation' } })
+    await newerRequest
+    olderResponse.resolve({ data: { name: 'old conversation' } })
+    await olderRequest
+
+    expect(name.value).toBe('new conversation')
   })
 
   it('keeps the assistant agent cursor fixed after the first page', async () => {
