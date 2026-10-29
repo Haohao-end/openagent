@@ -28,6 +28,10 @@ class RollbackSkillPackageReq(FlaskForm):
         ],
     )
 
+    def validate_version(self, field: IntegerField) -> None:
+        if field.raw_data and isinstance(field.raw_data[0], bool):
+            raise ValidationError("技能版本必须是整数")
+
 
 class SkillToolInputResp(Schema):
     name = fields.String()
