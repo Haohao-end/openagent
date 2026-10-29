@@ -297,6 +297,11 @@ class WorkflowConfig(BaseModel):
                     node_data.inputs if node_data.node_type != NodeType.END.value
                     else node_data.outputs
                 )
+                if node_data.node_type == NodeType.IF_ELSE.value and any(
+                    condition.variable_name not in {item.name for item in node_data.inputs}
+                    for condition in node_data.conditions
+                ):
+                    raise ValidateErrorException(f"条件分支节点[{node_data.title}]引用了不存在的输入变量")
 
                 # 5.循环遍历所有需要校验的变量信息
                 for variable in variables:
