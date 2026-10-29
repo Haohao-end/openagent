@@ -105,6 +105,7 @@ class CreateDocumentsReq(FlaskForm):
             if (
                     "chunk_overlap" not in field.data["segment"]
                     or not isinstance(field.data["segment"]["chunk_overlap"], int)
+                    or isinstance(field.data["segment"]["chunk_overlap"], bool)
             ):
                 raise ValidationError("块重叠大小不能为空且为整数")
             if not (0 <= field.data["segment"]["chunk_overlap"] <= field.data["segment"]["chunk_size"] * 0.5):
