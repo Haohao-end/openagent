@@ -79,6 +79,7 @@ const revokingSessionId = ref('')
 const emailCodeCountdown = ref(0)
 const emailCodeTimer = ref<number>()
 const devicePanelError = ref('')
+let deviceSecurityRequestId = 0
 const historyFilters = ref({
   status: 'all',
   search: '',
@@ -222,6 +223,7 @@ const updateAccount = async () => {
 }
 
 const loadDeviceSecurityData = async () => {
+  const requestId = ++deviceSecurityRequestId
   try {
     await Promise.all([
       loadAccountSessions(),
@@ -232,9 +234,11 @@ const loadDeviceSecurityData = async () => {
         page_size: historyFilters.value.page_size,
       }),
     ])
-    devicePanelError.value = ''
+    if (requestId === deviceSecurityRequestId) devicePanelError.value = ''
   } catch (error: unknown) {
-    devicePanelError.value = getErrorMessage(error, t('settings.messages.deviceLoadError'))
+    if (requestId === deviceSecurityRequestId) {
+      devicePanelError.value = getErrorMessage(error, t('settings.messages.deviceLoadError'))
+    }
   }
 }
 
