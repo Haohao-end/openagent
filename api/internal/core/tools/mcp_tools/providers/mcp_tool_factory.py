@@ -16,6 +16,7 @@ from internal.exception import FailException
 from internal.lib.safe_http_client import safe_request
 
 DEFAULT_MCP_TOOL_TIMEOUT_SECONDS = 30
+MAX_MCP_TOOL_LIST_PAGES = 1000
 SUPPORTED_HTTP_TRANSPORTS = {"http", "sse", "streamable_http", "streamable-http"}
 SUPPORTED_STDIO_TRANSPORTS = {"stdio"}
 
@@ -680,14 +681,25 @@ class McpToolFactory:
         )
 
     def _list_remote_tools(self, binding: dict[str, Any]) -> list[dict[str, Any]]:
-        payload = self._jsonrpc_request(binding, "tools/list", params={})
-        if isinstance(payload, dict):
-            tools = payload.get("tools")
-            if isinstance(tools, list):
-                return [tool for tool in tools if isinstance(tool, dict)]
-        if isinstance(payload, list):
-            return [tool for tool in payload if isinstance(tool, dict)]
-        return []
+        tools: list[dict[str, Any]] = []
+        cursor: str | None = None
+        seen_cursors: set[str] = set()
+        for _ in range(MAX_MCP_TOOL_LIST_PAGES):
+            params = {} if cursor is None else {"cursor": cursor}
+            payload = self._jsonrpc_request(binding, "tools/list", params=params)
+            if isinstance(payload, list):
+                tools.extend(tool for tool in payload if isinstance(tool, dict))
+                return tools
+            if not isinstance(payload, dict) or not isinstance(payload.get("tools"), list):
+                raise FailException("MCP工具列表响应格式错误")
+            tools.extend(tool for tool in payload["tools"] if isinstance(tool, dict))
+            cursor = payload.get("nextCursor")
+            if cursor is None:
+                return tools
+            if not isinstance(cursor, str) or cursor in seen_cursors:
+                raise FailException("MCP工具列表分页游标无效")
+            seen_cursors.add(cursor)
+        raise FailException("MCP工具列表分页超过最大页数")
 
     def _call_remote_tool(self, binding: dict[str, Any], tool_name: str, arguments: dict[str, Any]) -> str:
         payload = self._jsonrpc_request(

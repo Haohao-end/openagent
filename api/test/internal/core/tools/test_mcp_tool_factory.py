@@ -140,6 +140,48 @@ def test_mcp_tool_factory_should_parse_final_sse_event_after_progress(monkeypatc
     assert tools == [{"name": "weather"}]
 
 
+def test_mcp_tool_factory_should_follow_tool_list_cursors(monkeypatch):
+    calls = []
+    factory = McpToolFactory()
+
+    def _fake_jsonrpc_request(_binding, _method, params):
+        calls.append(params)
+        if params.get("cursor") == "page-2":
+            return {"tools": [{"name": "second"}]}
+        return {"tools": [{"name": "first"}], "nextCursor": "page-2"}
+
+    monkeypatch.setattr(factory, "_jsonrpc_request", _fake_jsonrpc_request)
+
+    tools = factory._list_remote_tools({"url": "https://mcp.example.com"})
+
+    assert [tool["name"] for tool in tools] == ["first", "second"]
+    assert calls == [{}, {"cursor": "page-2"}]
+
+
+def test_mcp_tool_factory_should_reject_repeated_tool_list_cursor(monkeypatch):
+    factory = McpToolFactory()
+    monkeypatch.setattr(factory, "_jsonrpc_request", lambda *_args, **_kwargs: {"tools": [], "nextCursor": "same"})
+
+    with pytest.raises(FailException, match="分页游标无效"):
+        factory._list_remote_tools({})
+
+
+def test_mcp_tool_factory_should_limit_tool_list_pages(monkeypatch):
+    calls = []
+    factory = McpToolFactory()
+    monkeypatch.setattr("internal.core.tools.mcp_tools.providers.mcp_tool_factory.MAX_MCP_TOOL_LIST_PAGES", 2)
+
+    def _fake_jsonrpc_request(*_args, **_kwargs):
+        calls.append(None)
+        return {"tools": [], "nextCursor": str(len(calls))}
+
+    monkeypatch.setattr(factory, "_jsonrpc_request", _fake_jsonrpc_request)
+
+    with pytest.raises(FailException, match="超过最大页数"):
+        factory._list_remote_tools({})
+    assert len(calls) == 2
+
+
 @pytest.mark.parametrize("response", [
     json.dumps({"jsonrpc": "2.0", "id": "other-request", "result": {"content": ["wrong"]}}),
     'data: {"jsonrpc":"2.0","method":"notifications/progress"}\n\n'
