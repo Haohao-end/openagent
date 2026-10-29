@@ -168,7 +168,16 @@ class ReACTAgent(FunctionCallAgent):
                             answer=gathered.content,
                             latency=(time.perf_counter() - start_at),
                         ))
-        if not generation_type and gathered is not None:
+        if gathered is None:
+            self.agent_queue_manager.publish(state["task_id"], AgentThought(
+                id=uuid.uuid4(), task_id=state["task_id"], event=QueueEvent.AGENT_END.value,
+            ))
+            return {
+                "messages": [AIMessage(content="")],
+                "iteration_count": state["iteration_count"] + 1,
+                "pending_skill_prompts": [],
+            }
+        if not generation_type:
             generation_type = "message"
             self.agent_queue_manager.publish(state["task_id"], AgentThought(
                 id=id, task_id=state["task_id"], event=QueueEvent.AGENT_MESSAGE.value,
