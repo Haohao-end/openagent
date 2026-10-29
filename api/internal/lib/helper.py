@@ -7,7 +7,7 @@ from datetime import UTC, datetime, time as dt_time
 from enum import Enum
 from hashlib import sha3_256
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 from uuid import UUID
 from langchain_core.documents import Document
 from pydantic import BaseModel
@@ -47,6 +47,31 @@ _RAW_IMAGE_URL_PATTERN = re.compile(
 )
 _TRAILING_URL_PUNCTUATION = ".,;)]}"
 _DEFAULT_IMAGE_GROUP_NAME = "生成图片"
+_PUBLIC_URL_SECRET_QUERY_KEYS = {
+    "access_token", "api_key", "apikey", "auth", "authorization", "client_secret", "key", "password",
+    "refresh_token", "secret", "token",
+}
+
+
+def sanitize_public_url(value: Any) -> str:
+    """Remove embedded credentials and common secret query parameters from a public URL."""
+    url = str(value or "")
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return ""
+
+    netloc = parts.netloc.rsplit("@", 1)[-1]
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    public_query = [
+        (key, item)
+        for key, item in query
+        if key.lower().replace("-", "_") not in _PUBLIC_URL_SECRET_QUERY_KEYS
+    ]
+    if netloc == parts.netloc and public_query == query:
+        return url
+    return urlunsplit(parts._replace(netloc=netloc, query=urlencode(public_query, doseq=True)))
+
 
 def dynamic_import(module_name: str, symbol_name: str) -> Any:
     """动态导入特定模块下的特定功能"""
