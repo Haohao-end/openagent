@@ -3,6 +3,7 @@ import { createRequestError } from '@/utils/error'
 import {
   useCreateApiToolProvider,
   useUpdateApiToolProvider,
+  useGetApiToolProvidersWithPage,
   useValidateOpenAPISchema,
 } from '@/hooks/use-tool'
 
@@ -120,5 +121,26 @@ describe('use-tool request feedback', () => {
     expect(result).toBe(false)
     expect(messageErrorMock).toHaveBeenCalledWith('URL解析到不允许的地址: 127.0.0.1')
     expect(messageSuccessMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the latest tool provider search when requests resolve out of order', async () => {
+    const defer = () => {
+      let resolve!: (value: any) => void
+      const promise = new Promise<any>((done) => { resolve = done })
+      return { promise, resolve }
+    }
+    const oldRequest = defer()
+    const newRequest = defer()
+    mocks.getApiToolProvidersWithPage.mockReturnValueOnce(oldRequest.promise).mockReturnValueOnce(newRequest.promise)
+    const { api_tool_providers, loadApiToolProviders } = useGetApiToolProvidersWithPage()
+
+    const oldLoad = loadApiToolProviders(true, 'old')
+    const newLoad = loadApiToolProviders(true, 'new')
+    newRequest.resolve({ data: { list: [{ id: 'new' }], paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 } } })
+    await newLoad
+    oldRequest.resolve({ data: { list: [{ id: 'old' }], paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 } } })
+    await oldLoad
+
+    expect(api_tool_providers.value).toEqual([{ id: 'new' }])
   })
 })
