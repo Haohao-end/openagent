@@ -473,6 +473,14 @@ def test_workflow_config_should_raise_when_ref_var_name_not_exists():
         WorkflowConfig(**payload)
 
 
+def test_workflow_config_should_reject_generated_end_output():
+    payload = _build_valid_payload()
+    payload["nodes"][1]["outputs"][0]["value"] = {"type": "generated", "content": ""}
+
+    with pytest.raises(ValidateErrorException, match="生成类型"):
+        WorkflowConfig(**payload)
+
+
 def test_workflow_config_should_accept_literal_variable_refs_and_node_type_enum_value():
     start_id = uuid4()
     end_id = uuid4()

@@ -300,6 +300,10 @@ class WorkflowConfig(BaseModel):
 
                 # 5.循环遍历所有需要校验的变量信息
                 for variable in variables:
+                    if variable.value.type == VariableValueType.GENERATED.value:
+                        raise ValidateErrorException(
+                            f"工作流节点[{node_data.title}]不能直接使用生成类型作为取值"
+                        )
                     # 6.如果变量类型为引用，则需要校验
                     if variable.value.type == VariableValueType.REF.value:
                         # 7.判断前置节点是否为空，或者引用id不在前置节点内，则直接抛出错误
