@@ -4,6 +4,27 @@ import { mount } from '@vue/test-utils'
 import ChatComposer from '../ChatComposer.vue'
 
 describe('ChatComposer.vue', () => {
+  it('shows a disabled transcribing action instead of stop while speech is being transcribed', async () => {
+    const wrapper = mount(ChatComposer, {
+      props: { modelValue: '', showVoiceButton: true, isRecording: true, audioToTextLoading: true },
+    })
+
+    expect(wrapper.find('[title="停止录音"]').exists()).toBe(false)
+    const transcribingButton = wrapper.get('[title="正在转写"]')
+    expect(transcribingButton.attributes('disabled')).toBeDefined()
+    await transcribingButton.trigger('click')
+    expect(wrapper.emitted('stop-record')).toBeUndefined()
+  })
+
+  it('allows stopping an active recording', async () => {
+    const wrapper = mount(ChatComposer, {
+      props: { modelValue: '', showVoiceButton: true, isRecording: true },
+    })
+
+    await wrapper.get('[title="停止录音"]').trigger('click')
+    expect(wrapper.emitted('stop-record')).toEqual([[]])
+  })
+
   it('renders upload button and emits upload when enabled', async () => {
     const wrapper = mount(ChatComposer, {
       props: {
