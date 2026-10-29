@@ -175,7 +175,7 @@ const handleShowToolInfoModal = async (idx: number) => {
       },
     }
   } else {
-    await loadApiTool(tool.provider.id, tool.tool.name)
+    if (!(await loadApiTool(tool.provider.id, tool.tool.name))) return
     toolInfo.value = {
       type: 'api_tool',
       provider: {

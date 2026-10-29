@@ -249,4 +249,22 @@ describe('ToolsAbilityItem', () => {
     expect(mocks.loadBuiltinTool).toHaveBeenCalledWith('provider', 'tool')
     expect(wrapper.find('[data-testid="tools-modal"]').exists()).toBe(false)
   })
+
+  it('does not open API tool settings for a stale detail response', async () => {
+    const wrapper = mountToolsAbilityItem()
+    await wrapper.setProps({
+      tools: [{
+        type: 'api_tool',
+        provider: { id: 'provider', name: 'provider', label: 'Provider', icon: '', description: '' },
+        tool: { id: 'tool', name: 'tool', label: 'Tool', description: '', params: {} },
+      }],
+    })
+    mocks.loadApiTool.mockResolvedValueOnce(false)
+
+    await wrapper.get('button.rounded').trigger('click')
+    await flushPromises()
+
+    expect(mocks.loadApiTool).toHaveBeenCalledWith('provider', 'tool')
+    expect(wrapper.find('[data-testid="tools-modal"]').exists()).toBe(false)
+  })
 })

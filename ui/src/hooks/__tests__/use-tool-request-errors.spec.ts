@@ -3,6 +3,7 @@ import { createRequestError } from '@/utils/error'
 import {
   useCreateApiToolProvider,
   useUpdateApiToolProvider,
+  useGetApiTool,
   useGetApiToolProvidersWithPage,
   useValidateOpenAPISchema,
 } from '@/hooks/use-tool'
@@ -142,5 +143,27 @@ describe('use-tool request feedback', () => {
     await oldLoad
 
     expect(api_tool_providers.value).toEqual([{ id: 'new' }])
+  })
+
+  it('keeps the latest API tool details when requests resolve out of order', async () => {
+    const defer = () => {
+      let resolve!: (value: any) => void
+      const promise = new Promise<any>((done) => { resolve = done })
+      return { promise, resolve }
+    }
+    const olderResponse = defer()
+    const newerResponse = defer()
+    mocks.getApiTool.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+    const { api_tool, loadApiTool } = useGetApiTool()
+
+    const olderRequest = loadApiTool('provider', 'old')
+    const newerRequest = loadApiTool('provider', 'new')
+    newerResponse.resolve({ data: { name: 'new' } })
+    await newerRequest
+    olderResponse.resolve({ data: { name: 'old' } })
+    const olderResult = await olderRequest
+
+    expect(api_tool.value).toEqual({ name: 'new' })
+    expect(olderResult).toBe(false)
   })
 })
