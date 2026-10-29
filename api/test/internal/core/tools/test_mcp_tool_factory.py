@@ -1,7 +1,9 @@
 import json
+import pytest
 import requests
 
-from internal.core.tools.mcp_tools.providers.mcp_tool_factory import McpToolFactory
+from internal.core.tools.mcp_tools.providers.mcp_tool_factory import McpToolFactory, _parse_json_payload
+from internal.exception import FailException
 
 
 class _FakeResponse:
@@ -136,6 +138,16 @@ def test_mcp_tool_factory_should_parse_final_sse_event_after_progress(monkeypatc
     tools = McpToolFactory()._list_remote_tools({"url": "https://mcp.example.com", "headers": []})
 
     assert tools == [{"name": "weather"}]
+
+
+@pytest.mark.parametrize("response", [
+    json.dumps({"jsonrpc": "2.0", "id": "other-request", "result": {"content": ["wrong"]}}),
+    'data: {"jsonrpc":"2.0","method":"notifications/progress"}\n\n'
+    'data: {"jsonrpc":"2.0","id":"other-request","result":{"content":["wrong"]}}',
+])
+def test_mcp_tool_factory_should_reject_response_with_unmatched_request_id(response):
+    with pytest.raises(FailException, match="匹配的MCP响应"):
+        _parse_json_payload(response, expected_id="current-request")
 
 
 def test_mcp_connection_error_should_not_expose_query_credentials(monkeypatch, caplog):
