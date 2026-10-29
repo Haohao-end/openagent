@@ -182,6 +182,30 @@ def test_mcp_connection_error_should_not_expose_query_credentials(monkeypatch, c
     assert sentinel not in caplog.text
 
 
+def test_mcp_http_error_should_not_expose_query_credentials(monkeypatch, caplog):
+    sentinel = "SYNTHETIC_SENTINEL"
+
+    def _fake_safe_request(_method, url, **kwargs):
+        if kwargs["json"]["method"] == "tools/list":
+            return _FakeResponse({"jsonrpc": "2.0", "id": kwargs["json"]["id"], "result": {"tools": [{"name": "private_tool"}]}})
+        response = requests.Response()
+        response.status_code, response.reason, response.url = 403, "Forbidden", url
+        return response
+
+    monkeypatch.setattr("internal.core.tools.mcp_tools.providers.mcp_tool_factory.safe_request", _fake_safe_request)
+    tools = McpToolFactory().get_tools([{
+        "name": "private_provider", "url": f"https://mcp.example.invalid/mcp?token={sentinel}",
+        "enabled": True, "transport": "streamable_http",
+    }])
+
+    result = tools[0].invoke({})
+    result_text = result.content if hasattr(result, "content") else result
+
+    assert "403" in result_text
+    assert sentinel not in result_text
+    assert sentinel not in caplog.text
+
+
 def test_mcp_tool_factory_should_compile_complex_json_schema_and_keep_metadata(monkeypatch):
     complex_input_schema = {
         "type": "object",
