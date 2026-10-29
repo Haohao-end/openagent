@@ -727,6 +727,8 @@ def test_react_agent_should_delegate_and_cover_message_and_tool_json_branches(mo
         {"task_id": task_id, "messages": [HumanMessage(content="q")], "iteration_count": 0}
     )
     assert plain_no_review_result["messages"][0].content == "plain message next"
+    plain_events = [thought.event for _, thought in plain_no_review.agent_queue_manager.published]
+    assert plain_events[-1] == QueueEvent.AGENT_END
 
     # 覆盖 react 中短内容(<7)导致 generation_type 一直为空的路径（151->121, 228->250）。
     short_content_agent = _new_react_agent(
