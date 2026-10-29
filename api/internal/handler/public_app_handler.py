@@ -103,6 +103,9 @@ class PublicAppHandler:
         payload = request.get_json(force=True, silent=True)
         if not isinstance(payload, dict):
             return jsonify({"error": "Request body must be an object"}), 400
+        if any(payload.get(key) is not None and not isinstance(payload.get(key), dict)
+               for key in ("runtimeContext", "runtime_context")):
+            return jsonify({"error": "runtimeContext must be an object"}), 400
         return compact_generate_response(self.public_agent_a2a_service.stream_message(app_id, payload))
 
     def get_public_app_a2a_conversation_messages(self, app_id: str, conversation_id: str):
