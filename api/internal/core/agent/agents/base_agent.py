@@ -2,7 +2,7 @@ import uuid
 from abc import abstractmethod
 from contextlib import nullcontext
 import logging
-from threading import Thread
+from threading import Event, Thread
 from typing import Optional, Any, Iterator
 from flask import has_app_context
 from internal.core.language_model.entities.model_entity import BaseLanguageModel
@@ -15,6 +15,10 @@ from internal.core.agent.entities.queue_entity import AgentResult, AgentThought,
 from internal.core.agent.usage_utils import summarize_agent_thoughts
 from internal.exception import FailException
 from .agent_queue_manager import AgentQueueManager
+
+
+class AgentStreamCancelled(Exception):
+    """用于停止尚未开始的工具调用，而不把客户端断流记录为执行失败。"""
 
 
 class BaseAgent(Serializable, Runnable):
@@ -124,6 +128,8 @@ class BaseAgent(Serializable, Runnable):
         input["history"] = input.get("history", [])
         input["iteration_count"] = input.get("iteration_count", 0)
         input["pending_skill_prompts"] = input.get("pending_skill_prompts", [])
+        cancel_event = Event()
+        input["cancel_event"] = cancel_event
 
         # 3.创建子线程并执行；子线程不会继承 Flask app context，因此需要在运行时显式补上下文
         runtime_flask_app = getattr(self.agent_config, "runtime_flask_app", None)
@@ -135,7 +141,11 @@ class BaseAgent(Serializable, Runnable):
             with app_context:
                 try:
                     self._agent.invoke(input)
+                except AgentStreamCancelled:
+                    return
                 except Exception as error:
+                    if cancel_event.is_set():
+                        return
                     logging.exception("智能体执行线程发生异常: %s", error)
                     self._agent_queue_manager.publish_failure(
                         input["task_id"],
@@ -150,6 +160,7 @@ class BaseAgent(Serializable, Runnable):
         try:
             yield from self._agent_queue_manager.listen(input["task_id"])
         finally:
+            cancel_event.set()
             is_alive = getattr(thread, "is_alive", None)
             if callable(is_alive) and is_alive():
                 join = getattr(thread, "join", None)
