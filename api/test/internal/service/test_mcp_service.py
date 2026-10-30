@@ -276,3 +276,16 @@ def test_public_provider_payload_redacts_signed_url_secrets():
     assert "SYNTHETIC_SECRET" not in repr(payload)
     assert "version=1" in payload["url"]
     assert "version=1" in payload["source_url"]
+
+
+@pytest.mark.parametrize(("current_page", "page_size"), [(None, 20), (1, None), (None, None)])
+def test_get_public_mcp_providers_with_page_uses_defaults_for_empty_page_values(current_page, page_size):
+    service = _build_service(table_exists=False)
+
+    providers, paginator = service.get_public_mcp_providers_with_page(
+        _req(current_page=current_page, page_size=page_size)
+    )
+
+    assert len(providers) == 1
+    assert paginator.current_page == (current_page or 1)
+    assert paginator.page_size == (page_size or 20)
