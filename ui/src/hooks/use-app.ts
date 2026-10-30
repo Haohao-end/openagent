@@ -272,9 +272,16 @@ export const useGetPublishHistoriesWithPage = () => {
   }
   const publishHistories = ref<Record<string, any>[]>([])
   const paginator = ref(defaultPaginator)
+  let latestRequest = 0
+
+  const invalidatePublishHistoryRequests = () => {
+    latestRequest += 1
+    loading.value = false
+  }
 
   // 2.定义加载数据函数
   const loadPublishHistories = async (app_id: string, init: boolean = false) => {
+    let requestId = 0
     try {
       // 2.1 判断是否为初始化，如果是则先初始化分页器
       if (init) {
@@ -283,12 +290,14 @@ export const useGetPublishHistoriesWithPage = () => {
         return
       }
 
+      requestId = ++latestRequest
       // 2.2 调用API接口获取数据
       loading.value = true
       const resp = await getPublishHistoriesWithPage(app_id, {
         current_page: paginator.value.current_page,
         page_size: paginator.value.page_size,
       })
+      if (requestId !== latestRequest) return
       const data = resp.data
 
       // 2.3 更新分页器数据
@@ -306,11 +315,11 @@ export const useGetPublishHistoriesWithPage = () => {
         publishHistories.value.push(...data.list)
       }
     } finally {
-      loading.value = false
+      if (requestId && requestId === latestRequest) loading.value = false
     }
   }
 
-  return { loading, publishHistories, paginator, loadPublishHistories }
+  return { loading, publishHistories, paginator, loadPublishHistories, invalidatePublishHistoryRequests }
 }
 
 export const useFallbackHistoryToDraft = () => {
