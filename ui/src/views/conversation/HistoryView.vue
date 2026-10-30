@@ -62,13 +62,21 @@ const formatDate = (timestamp: number | string) => {
 }
 
 // 高亮搜索词
-const highlightText = (text: string) => {
-  if (!searchQuery.value.trim()) return text
-  const query = searchQuery.value
-  const regex = new RegExp(`(${query})`, 'gi')
-  return text.replace(regex, '<mark>$1</mark>')
-}
+const escapeHtml = (text: string) => text.replace(/[&<>]/g, (char) => {
+  if (char === '&') return '&amp;'
+  return char === '<' ? '&lt;' : '&gt;'
+})
 
+const highlightText = (text: string) => {
+  if (!searchQuery.value.trim()) return escapeHtml(text)
+  const query = searchQuery.value
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+  return text.split(regex).map((part) =>
+    part.toLowerCase() === query.toLowerCase()
+      ? `<mark>${escapeHtml(part)}</mark>`
+      : escapeHtml(part),
+  ).join('')
+}
 const truncateText = (text: string, maxLength: number = 20) => {
   if (!text) return text
   return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text
