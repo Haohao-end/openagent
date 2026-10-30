@@ -23,7 +23,8 @@ const defaultRetrievalSetting: RetrievalSetting = { retrieval_strategy: 'semanti
 const retrievalSettingForm = ref<RetrievalSetting>({ ...defaultRetrievalSetting })
 const hitTestingSegments = ref<HitTestingSegment[]>([])
 const hitTestingForm = ref<HitTestingForm>({ query: '', ...defaultRetrievalSetting })
-const { loading: getDatasetQueriesLoading, queries, loadDatasetQueries } = useGetDatasetQueries()
+const { loading: getDatasetQueriesLoading, queries, loadDatasetQueries, clearDatasetQueries } =
+  useGetDatasetQueries()
 const { loading: hitLoading, hits, handleHit } = useHit()
 
 // 2.定义知识库检索设置相关
@@ -68,14 +69,14 @@ const handleHitTesting = async () => {
 
 // 6.监听数据变化
 watch(
-  () => props.visible,
-  async (newValue) => {
+  () => [props.visible, props.dataset_id] as const,
+  async ([newValue]) => {
     if (newValue) {
       // 6.1 模态窗开启，加载最近查询
       await loadDatasetQueries(props.dataset_id)
     } else {
       // 6.2 模态窗关闭，清空最近查询、召回记录、初始化检索配置
-      queries.value = []
+      clearDatasetQueries()
       hitTestingSegments.value = []
       hitTestingForm.value = { query: '', ...defaultRetrievalSetting }
       retrievalSettingForm.value = defaultRetrievalSetting
