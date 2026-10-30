@@ -22,7 +22,7 @@ from internal.core.agent.entities.tool_policy_entity import ToolPolicy
 from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
 from internal.core.agent.usage_utils import normalize_usage_text
 from internal.exception import FailException
-from .base_agent import BaseAgent
+from .base_agent import AgentStreamCancelled, BaseAgent
 from internal.core.language_model.entities.model_entity import ModelFeature
 
 
@@ -343,7 +343,11 @@ class FunctionCallAgent(BaseAgent):
             for item in pending_skill_prompts
             if isinstance(item, dict)
         }
+        cancel_event = state.get("cancel_event")
         for tool_call in tool_calls:
+            if cancel_event is not None and cancel_event.is_set():
+                raise AgentStreamCancelled()
+
             # 4.创建智能体动作事件id并记录开始时间
             id = uuid.uuid4()
             start_at = time.perf_counter()

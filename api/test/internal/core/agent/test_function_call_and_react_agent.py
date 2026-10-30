@@ -841,3 +841,54 @@ def test_react_agent_should_end_when_stream_is_empty(monkeypatch):
 
     assert result["messages"][0].content == ""
     assert [thought.event for _, thought in agent.agent_queue_manager.published] == [QueueEvent.AGENT_END]
+
+
+def test_base_agent_stream_close_blocks_tool_calls_not_started_yet():
+    from threading import Event, Thread
+
+    from langchain_core.tools import StructuredTool
+
+    tool_effects = []
+
+    def _side_effect():
+        tool_effects.append("executed")
+        return "done"
+
+    tool = StructuredTool.from_function(_side_effect, name="side_effect", description="test side effect")
+    agent = _new_function_call_agent(_NodeLLM(features=[]), _build_agent_config(tools=[tool]))
+    worker_started, release_worker, worker_finished = Event(), Event(), Event()
+
+    class _BlockedGraph:
+        def invoke(self, state):
+            worker_started.set()
+            release_worker.wait(timeout=3)
+            try:
+                agent._tools_node({
+                    **state,
+                    "messages": [AIMessage(content="", tool_calls=[{
+                        "name": "side_effect", "args": {}, "id": "call-1",
+                    }])],
+                })
+            finally:
+                worker_finished.set()
+
+    agent._agent = _BlockedGraph()
+    task_id = uuid4()
+    agent.agent_queue_manager.listen = lambda _task_id: iter([
+        AgentThought(id=uuid4(), task_id=task_id, event=QueueEvent.AGENT_MESSAGE, answer="partial"),
+    ])
+    stream = agent.stream({"messages": [HumanMessage(content="run tool")]})
+
+    assert next(stream).answer == "partial"
+    assert worker_started.wait(timeout=1)
+    close_finished = Event()
+    closer = Thread(target=lambda: (stream.close(), close_finished.set()))
+    closer.start()
+    try:
+        assert close_finished.wait(timeout=2)
+    finally:
+        release_worker.set()
+    assert worker_finished.wait(timeout=2)
+    closer.join(timeout=1)
+
+    assert tool_effects == []
