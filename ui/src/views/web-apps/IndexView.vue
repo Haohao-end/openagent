@@ -84,6 +84,7 @@ const audioBlob = ref<Blob | null>(null) // 录音后音频的blob
 let recorder: RecorderLike | null = null // RecordRTC实例
 const message_id = ref('')
 const task_id = ref('')
+let webAppChatGeneration = 0
 const scroller = ref<ScrollerLike | null>(null)
 const scrollHeight = ref(0)
 const showScrollToBottomButton = ref(false)
@@ -383,6 +384,7 @@ const handleSubmit = async () => {
     Message.warning('当前 WebApp 不支持图片输入，请移除图片后重试')
     return
   }
+  const requestGeneration = ++webAppChatGeneration
 
   // 11.3 满足条件，处理正式提问的前置工作，涵盖：清空建议问题、删除消息id、任务id
   suggested_questions.value = []
@@ -433,6 +435,7 @@ const handleSubmit = async () => {
   let chatSucceeded = false
   try {
     await handleWebAppChat(String(route.params?.token), req, (event_response) => {
+      if (requestGeneration !== webAppChatGeneration) return
       const currentMessage = messages.value[0] as StreamMessage | undefined
       if (!currentMessage) return
 
@@ -450,6 +453,7 @@ const handleSubmit = async () => {
     })
     chatSucceeded = true
   } catch {
+    if (requestGeneration !== webAppChatGeneration) return
     const firstMessage = messages.value[0]
     let shouldRestoreInput = false
     if (
@@ -468,7 +472,7 @@ const handleSubmit = async () => {
     }
   }
 
-  if (!chatSucceeded) return
+  if (!chatSucceeded || requestGeneration !== webAppChatGeneration) return
 
   normalizeMessageMetrics(
     messages.value[0] as MessageMetrics,
@@ -510,6 +514,7 @@ const handleSubmit = async () => {
 
 // 12.定义切换会话处理器
 const changeConversation = async (conversation_id: string) => {
+  if (conversation_id !== selectedConversation.value) webAppChatGeneration += 1
   stopAudioStream()
 
   // 12.1 先暂停并清空会话
@@ -617,6 +622,7 @@ onMounted(async () => {
 
 // 18.页面卸载后停止播放
 onUnmounted(() => {
+  webAppChatGeneration += 1
   stopAudioStream()
 })
 </script>
