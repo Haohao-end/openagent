@@ -2,18 +2,20 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockMessage, mockGetPublicApps, mockGetAppTags } = vi.hoisted(() => ({
+const { mockMessage, mockGetPublicApps, mockGetAppTags, mockForkPublicApp, mockRouterPush } = vi.hoisted(() => ({
   mockMessage: { error: vi.fn(), success: vi.fn() },
   mockGetPublicApps: vi.fn(),
   mockGetAppTags: vi.fn(),
+  mockForkPublicApp: vi.fn(),
+  mockRouterPush: vi.fn(),
 }))
 
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: mockRouterPush }) }))
 vi.mock('@arco-design/web-vue', () => ({ Message: mockMessage }))
 vi.mock('@/services/public-app', () => ({
   getPublicApps: mockGetPublicApps,
   getAppTags: mockGetAppTags,
-  forkPublicApp: vi.fn(),
+  forkPublicApp: mockForkPublicApp,
 }))
 
 const SearchStub = defineComponent({
@@ -34,10 +36,12 @@ const SearchStub = defineComponent({
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason: Error) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
+    reject = rejectPromise
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 const appsResponse = (id: string, name: string, totalPage = 1) => ({
@@ -116,5 +120,35 @@ describe('PublicAppsListView request ordering', () => {
     await flushPromises()
 
     expect(mockMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('ignores a tag failure after the page unmounts', async () => {
+    const request = deferred<{ data: { tags: { id: string; name: string }[] } }>()
+    mockGetPublicApps.mockResolvedValue(appsResponse('app', 'App'))
+    mockGetAppTags.mockReturnValueOnce(request.promise)
+    const { default: ListView } = await import('../ListView.vue')
+    const wrapper = mount(ListView)
+    await flushPromises()
+    wrapper.unmount()
+
+    request.reject(new Error('late tags failure'))
+    await flushPromises()
+    expect(mockMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('does not navigate after a fork completes after unmount', async () => {
+    const request = deferred<{ data: { id: string; name: string } }>()
+    mockGetPublicApps.mockResolvedValue(appsResponse('app', 'App'))
+    mockForkPublicApp.mockReturnValueOnce(request.promise)
+    const { default: ListView } = await import('../ListView.vue')
+    const wrapper = mount(ListView)
+    await flushPromises()
+    await wrapper.find('.mt-3 button').trigger('click')
+    wrapper.unmount()
+
+    request.resolve({ data: { id: 'forked', name: 'Forked' } })
+    await flushPromises()
+    expect(mockMessage.success).not.toHaveBeenCalled()
+    expect(mockRouterPush).not.toHaveBeenCalled()
   })
 })
