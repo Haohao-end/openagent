@@ -100,4 +100,21 @@ describe('PublicAppsListView request ordering', () => {
     expect(wrapper.text()).toContain('Page 2')
     wrapper.unmount()
   })
+
+  it('ignores a list failure after the page unmounts', async () => {
+    let rejectRequest!: (reason: Error) => void
+    const request = new Promise<ReturnType<typeof appsResponse>>((_resolve, reject) => {
+      rejectRequest = reject
+    })
+    mockGetPublicApps.mockReturnValue(request)
+    const { default: ListView } = await import('../ListView.vue')
+    const wrapper = mount(ListView)
+    await flushPromises()
+    wrapper.unmount()
+
+    rejectRequest(new Error('late failure'))
+    await flushPromises()
+
+    expect(mockMessage.error).not.toHaveBeenCalled()
+  })
 })
