@@ -72,12 +72,12 @@ const getCategoryLabel = (value: string) =>
 
 const hideModal = () => emits('update:visible', false)
 
-const loadCategories = async () => {
+const loadCategories = async (requestId: number) => {
   try {
     const res = await getMcpCategories()
-    categories.value = res.data.categories || []
+    if (requestId === latestProviderRequest) categories.value = res.data.categories || []
   } catch (_error: unknown) {
-    categories.value = []
+    if (requestId === latestProviderRequest) categories.value = []
   }
 }
 
@@ -302,7 +302,7 @@ watch(
       return
     }
 
-    await loadCategories()
+    await loadCategories(requestId)
     if (requestId !== latestProviderRequest) return
     if (providerId) await loadProvider(providerId)
   },
