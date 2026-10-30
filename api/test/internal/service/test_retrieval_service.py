@@ -45,6 +45,9 @@ class _QueryStub:
     def with_entities(self, *_args, **_kwargs):
         return self
 
+    def join(self, *_args, **_kwargs):
+        return self
+
     def limit(self, *_args, **_kwargs):
         return self
 
@@ -134,14 +137,15 @@ class TestRetrievalService:
                 account_id=uuid4(),
             )
 
-    def test_search_in_datasets_should_create_query_records_and_execute_hit_update(self, monkeypatch):
+    def test_search_in_datasets_should_filter_failed_segments_and_track_hits(self, monkeypatch):
         account_id = uuid4()
         dataset_id = uuid4()
         segment_id = uuid4()
+        failed_segment_id = uuid4()
         datasets = [SimpleNamespace(id=dataset_id, account_id=account_id)]
         lc_docs = [
             SimpleNamespace(metadata={"dataset_id": dataset_id, "segment_id": segment_id, "score": 0.66}),
-            SimpleNamespace(metadata={"dataset_id": dataset_id, "segment_id": segment_id, "score": 0.55}),
+            SimpleNamespace(metadata={"dataset_id": dataset_id, "segment_id": failed_segment_id, "score": 0.55}),
         ]
 
         class _Session:
@@ -151,7 +155,7 @@ class TestRetrievalService:
             def query(self, model):
                 if model is Dataset:
                     return _QueryStub(all_result=datasets)
-                return _QueryStub()
+                return _QueryStub(all_result=[(segment_id,)])
 
             def execute(self, _stmt):
                 self.executed = True
@@ -202,7 +206,7 @@ class TestRetrievalService:
             k=2,
         )
 
-        assert result == lc_docs[:2]
+        assert result == [lc_docs[0]]
         assert len(create_calls) == 1
         assert create_calls[0][1]["dataset_id"] == str(dataset_id)
         assert session.executed is True
@@ -295,7 +299,7 @@ class TestRetrievalService:
             def query(self, model):
                 if model is Dataset:
                     return _QueryStub(all_result=datasets)
-                return _QueryStub()
+                return _QueryStub(all_result=[(segment_id,)])
 
             def execute(self, _stmt):
                 return None
