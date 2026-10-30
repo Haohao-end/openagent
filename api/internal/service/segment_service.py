@@ -194,6 +194,7 @@ class SegmentService(BaseService):
         # 4.计算新内容hash值，用于判断是否需要更新向量数据库以及文档详情
         new_hash = generate_text_hash(req.content.data)
         required_update = segment.hash != new_hash
+        content_changed = segment.content != req.content.data
 
         try:
             # 5.更新segment表记录
@@ -210,7 +211,7 @@ class SegmentService(BaseService):
             self.keyword_table_service.add_keyword_table_from_ids(dataset_id, [segment_id])
 
             # 7.检测是否需要更新文档信息以及向量数据库
-            if required_update:
+            if content_changed or required_update:
                 # 8.更新文档信息，涵盖字符总数、token总次数
                 document = segment.document
                 document_character_count, document_token_count = self.db.session.query(
@@ -223,6 +224,7 @@ class SegmentService(BaseService):
                     token_count=document_token_count,
                 )
 
+            if required_update:
                 # 9.更新向量数据库对应记录
                 self.vector_database_service.collection.data.update(
                     uuid=str(segment.node_id),
