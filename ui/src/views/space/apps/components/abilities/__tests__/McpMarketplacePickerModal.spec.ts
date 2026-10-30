@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { Message } from '@arco-design/web-vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick } from 'vue'
 
@@ -8,6 +9,7 @@ import type { McpBinding } from '@/models/mcp'
 const mocks = vi.hoisted(() => ({
   getPublicMcpCategories: vi.fn(),
   getPublicMcpProvidersWithPage: vi.fn(),
+  messageError: vi.fn(),
 }))
 
 vi.mock('@/services/mcp', () => ({
@@ -19,7 +21,7 @@ vi.mock('@arco-design/web-vue', () => ({
   Message: {
     warning: vi.fn(),
     success: vi.fn(),
-    error: vi.fn(),
+    error: mocks.messageError,
   },
 }))
 
@@ -231,6 +233,25 @@ describe('McpMarketplacePickerModal', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Latest provider')
     expect(wrapper.text()).not.toContain('Stale provider')
+    wrapper.unmount()
+  })
+
+  it('ignores provider errors that arrive after the picker closes', async () => {
+    let rejectProviders!: (error: Error) => void
+    mocks.getPublicMcpCategories.mockResolvedValue({ data: { categories: [] } })
+    mocks.getPublicMcpProvidersWithPage.mockReturnValue(new Promise((_resolve, reject) => { rejectProviders = reject }))
+
+    const wrapper = mount(McpMarketplacePickerModal, {
+      props: { visible: true, selected_bindings: [] },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    await wrapper.setProps({ visible: false })
+
+    rejectProviders(new Error('stale provider failure'))
+    await flushPromises()
+
+    expect(Message.error).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })
