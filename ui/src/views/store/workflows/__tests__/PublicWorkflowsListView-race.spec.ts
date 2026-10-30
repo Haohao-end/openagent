@@ -2,16 +2,18 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetPublicWorkflows, mockGetAppTags } = vi.hoisted(() => ({
+const { mockGetPublicWorkflows, mockGetAppTags, mockForkPublicWorkflow, mockRouterPush } = vi.hoisted(() => ({
   mockGetPublicWorkflows: vi.fn(),
   mockGetAppTags: vi.fn(),
+  mockForkPublicWorkflow: vi.fn(),
+  mockRouterPush: vi.fn(),
 }))
 
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: mockRouterPush }) }))
 vi.mock('@arco-design/web-vue', () => ({ Message: { error: vi.fn(), success: vi.fn() } }))
 vi.mock('@/services/public-workflow', () => ({
   getPublicWorkflows: mockGetPublicWorkflows,
-  forkPublicWorkflow: vi.fn(),
+  forkPublicWorkflow: mockForkPublicWorkflow,
 }))
 vi.mock('@/services/public-app', () => ({ getAppTags: mockGetAppTags }))
 
@@ -32,8 +34,12 @@ const SearchStub = defineComponent({
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise })
-  return { promise, resolve }
+  let reject!: (error: Error) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
 }
 
 const response = (id: string, name: string, totalPage = 1) => ({
@@ -93,5 +99,44 @@ describe('PublicWorkflowsListView request ordering', () => {
     expect(mockGetPublicWorkflows.mock.calls.map(([params]) => params.current_page)).toEqual([1, 2, 2])
     expect(wrapper.text()).toContain('Page 2')
     wrapper.unmount()
+  })
+
+  it('ignores a failed list request after unmount', async () => {
+    const pending = deferred<ReturnType<typeof response>>()
+    mockGetPublicWorkflows.mockReturnValueOnce(pending.promise)
+    const { Message } = await import('@arco-design/web-vue')
+    const { default: ListView } = await import('../ListView.vue')
+    const wrapper = mount(ListView)
+    await flushPromises()
+
+    wrapper.unmount()
+    pending.reject(new Error('late workflow list failure'))
+    await flushPromises()
+
+    expect(Message.error).not.toHaveBeenCalled()
+  })
+
+  it('ignores tag and fork completions after unmount', async () => {
+    const tags = deferred<{ data: { tags: [] } }>()
+    const fork = deferred<{ data: { id: string; name: string } }>()
+    mockGetAppTags.mockReturnValueOnce(tags.promise)
+    mockGetPublicWorkflows.mockResolvedValue(response('workflow-1', 'Workflow'))
+    mockForkPublicWorkflow.mockReturnValueOnce(fork.promise)
+    const { Message } = await import('@arco-design/web-vue')
+    const { default: ListView } = await import('../ListView.vue')
+    const wrapper = mount(ListView)
+    await flushPromises()
+
+    await wrapper.find('button.h-8.w-8').trigger('click')
+    await flushPromises()
+    wrapper.unmount()
+    tags.reject(new Error('late tag failure'))
+    fork.resolve({ data: { id: 'forked-workflow', name: 'Forked' } })
+    await flushPromises()
+
+    expect(Message.error).not.toHaveBeenCalled()
+    expect(Message.success).not.toHaveBeenCalled()
+    expect(mockGetPublicWorkflows).toHaveBeenCalledTimes(1)
+    expect(mockRouterPush).not.toHaveBeenCalled()
   })
 })

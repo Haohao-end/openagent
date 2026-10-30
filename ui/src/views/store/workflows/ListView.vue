@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
@@ -25,6 +25,12 @@ const page = ref(1)
 const pageSize = ref(20)
 const hasMore = ref(true)
 let latestWorkflowsRequest = 0
+let isUnmounted = false
+
+onUnmounted(() => {
+  isUnmounted = true
+  latestWorkflowsRequest += 1
+})
 
 const loadWorkflows = async (force = false) => {
   if (loading.value && !force) return
@@ -61,20 +67,23 @@ const loadWorkflows = async (force = false) => {
 const loadTags = async () => {
   try {
     const res = await getAppTags()
+    if (isUnmounted) return
     tags.value = res.data.tags
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('store.workflows.loadTagsFailed')))
+    if (!isUnmounted) Message.error(getErrorMessage(error, t('store.workflows.loadTagsFailed')))
   }
 }
 
 const handleFork = async (workflow: PublicWorkflow) => {
   try {
     const res = await forkPublicWorkflow(workflow.id)
+    if (isUnmounted) return
     Message.success(t('store.workflows.forkSuccess', { name: res.data.name }))
     await loadWorkflows()
+    if (isUnmounted) return
     router.push({ name: 'space-workflows-detail', params: { workflow_id: res.data.id } })
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('store.workflows.actionFailed')))
+    if (!isUnmounted) Message.error(getErrorMessage(error, t('store.workflows.actionFailed')))
   }
 }
 
