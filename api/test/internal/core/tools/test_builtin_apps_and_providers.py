@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import json
+from unittest.mock import MagicMock
 
 import pytest
 from langchain_core.tools import StructuredTool
@@ -100,6 +101,48 @@ def test_gaode_weather_tool_should_cover_timeout_and_missing_city(monkeypatch):
     monkeypatch.setenv("GAODE_API_KEY", "token")
     monkeypatch.setattr(gaode_module.requests, "session", lambda: _TimeoutSession())
     assert tool._run(city="上海") == "获取上海天气预报信息失败：请求超时"
+
+
+@pytest.mark.parametrize(
+    "module_name,invoke,secret_name,transport",
+    [
+        ("newsapi.newsapi_search", lambda m: m.newsapi_search().invoke({"query": "test"}), "NEWSAPI_API_KEY", "get"),
+        ("newsapi.newsapi_top_headlines", lambda m: m.newsapi_top_headlines().invoke({"country": "us"}), "NEWSAPI_API_KEY", "get"),
+        ("newsapi.newsapi_sources", lambda m: m.newsapi_sources().invoke({}), "NEWSAPI_API_KEY", "get"),
+        ("gaode.gaode_geocode", lambda m: m.GaodeGeocodeTool()._run(address="sample", city="Hangzhou"), "GAODE_API_KEY", "session"),
+        ("gaode.gaode_poi_search", lambda m: m.GaodePOISearchTool()._run(keywords="sample"), "GAODE_API_KEY", "session"),
+        ("gaode.gaode_regeo", lambda m: m.GaodeRegeoTool()._run(location="1,2"), "GAODE_API_KEY", "session"),
+        ("gaode.gaode_route_planning", lambda m: m.GaodeRoutePlanningTool()._run(origin="1,2", destination="3,4"), "GAODE_API_KEY", "session"),
+        ("gaode.gaode_weather", lambda m: m.GaodeWeatherTool()._run(city="Hangzhou"), "GAODE_API_KEY", "request"),
+    ],
+)
+def test_builtin_provider_http_errors_do_not_expose_query_keys(monkeypatch, caplog, module_name, invoke, secret_name, transport):
+    module = importlib.import_module(f"internal.core.tools.builtin_tools.providers.{module_name}")
+    secret = "SYNTHETIC_PROVIDER_QUERY_SECRET"
+    monkeypatch.setenv(secret_name, secret)
+
+    def unauthorized(url, params):
+        response = module.requests.Response()
+        response.status_code = 401
+        response.url = module.requests.Request("GET", url, params=params).prepare().url
+        return response
+
+    session = MagicMock()
+    session.__enter__.return_value = session
+    session.get.side_effect = lambda url, params, **_kwargs: unauthorized(url, params)
+    session.request.side_effect = lambda method, url, params, **_kwargs: unauthorized(url, params)
+
+    if transport == "get":
+        monkeypatch.setattr(module.requests, "get", lambda url, params, **_kwargs: unauthorized(url, params))
+    elif transport == "session":
+        monkeypatch.setattr(module.requests, "Session", lambda: session)
+    else:
+        monkeypatch.setattr(module.requests, "session", lambda: session)
+
+    result = invoke(module)
+
+    assert secret not in result
+    assert secret not in caplog.text
 
 
 def test_current_time_tool_and_factory_should_work():

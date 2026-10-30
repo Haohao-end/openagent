@@ -112,8 +112,8 @@ class GaodeWeatherTool(BaseTool):
         except requests.Timeout:
             logger.warning("高德天气查询超时: city=%s timeout=%s", city, self._get_timeout())
             return f"获取{city}天气预报信息失败：请求超时"
-        except requests.RequestException as e:
-            logger.warning("高德天气查询请求异常: city=%s error=%s", city, e)
+        except requests.RequestException:
+            logger.warning("高德天气查询请求异常: city=%s", city)
             return f"获取{city}天气预报信息失败：网络请求异常"
         except (ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning("高德天气查询响应解析异常: city=%s error=%s", city, e)

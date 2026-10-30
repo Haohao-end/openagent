@@ -46,8 +46,8 @@ def _get_top_headlines(country: str = "us", **kwargs) -> str:
             )
 
         return "\n---\n".join(results)
-    except Exception as e:
-        return f"获取头条新闻时出错：{str(e)}"
+    except Exception:
+        return "获取头条新闻失败，请稍后重试"
 
 
 @add_attribute("args_schema", NewsAPITopHeadlinesArgsSchema)
