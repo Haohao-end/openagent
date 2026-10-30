@@ -859,7 +859,7 @@ def test_base_agent_stream_close_blocks_tool_calls_not_started_yet():
     worker_started, release_worker, worker_finished = Event(), Event(), Event()
 
     class _BlockedGraph:
-        def invoke(self, state):
+        def invoke(self, state, config=None):
             worker_started.set()
             release_worker.wait(timeout=3)
             try:
