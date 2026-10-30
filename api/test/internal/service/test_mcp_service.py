@@ -240,3 +240,39 @@ def test_get_mcp_providers_with_page_should_return_empty_when_paginate_raises_mi
     assert providers == []
     assert paginator.total_record == 0
     assert paginator.total_page == 0
+
+
+def test_public_provider_payload_redacts_signed_url_secrets():
+    service = _build_service(table_exists=False, stub_catalog_payload=False)
+    secret_keys = (
+        "signature", "sig", "X-Amz-Credential", "X-Amz-Security-Token",
+        "X-Amz-Signature", "X-Goog-Signature",
+    )
+    query = "&".join(f"{key}=SYNTHETIC_SECRET" for key in secret_keys)
+    url = f"https://mcp.example.com/mcp?{query}&version=1"
+
+    payload = service._build_provider_payload(
+        provider_key="provider-key",
+        provider_id="provider-id",
+        name="test-provider",
+        label="Test Provider",
+        icon="",
+        description="",
+        category="",
+        transport="streamable_http",
+        url=url,
+        command="",
+        headers=[],
+        tool_names=[],
+        args=[],
+        env={},
+        timeout_seconds=30,
+        source_type="custom",
+        source_key="provider-key",
+        source_url=url,
+        is_public=True,
+    )
+
+    assert "SYNTHETIC_SECRET" not in repr(payload)
+    assert "version=1" in payload["url"]
+    assert "version=1" in payload["source_url"]
