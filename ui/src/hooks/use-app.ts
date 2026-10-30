@@ -314,6 +314,8 @@ export const useGetPublishHistoriesWithPage = () => {
       } else {
         publishHistories.value.push(...data.list)
       }
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
       if (requestId && requestId === latestRequest) loading.value = false
     }
