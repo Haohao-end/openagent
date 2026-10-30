@@ -388,6 +388,7 @@ const scrollChatToBottom = () => {
 
 let scrollToBottomScheduled = false
 let autoScrollTicker: number | null = null
+let streamGeneration = 0
 
 const stopAutoScrollTicker = () => {
   if (typeof window === 'undefined') return
@@ -463,6 +464,7 @@ const handleScroll = async (event: UIEvent) => {
 
 // 5.定义输入框提交函数
 const handleSubmit = async () => {
+  const requestGeneration = streamGeneration
   // 5.1 检测是否录入了query，如果没有则结束
   if (query.value.trim() === '') {
     Message.warning(t('appStudio.debug.emptyQuery'))
@@ -507,9 +509,11 @@ const handleSubmit = async () => {
     suggested_questions: [],
   }, 'space-app-debug'))
   await nextTick(() => {
+    if (requestGeneration !== streamGeneration) return
     startAutoScrollTicker()
     scrollChatToBottom()
   })
+  if (requestGeneration !== streamGeneration) return
 
   // 5.5 初始化推理过程数据，并清空输入数据
   let streamState: StreamState = {
@@ -533,6 +537,7 @@ const handleSubmit = async () => {
       humanImageUrls,
       selectedConversationId.value,
       (event_response) => {
+        if (requestGeneration !== streamGeneration) return
         const currentMessage = messages.value[0] as StreamMessage | undefined
         if (!currentMessage) return
 
@@ -558,11 +563,14 @@ const handleSubmit = async () => {
       enableDeepThinking.value,
     )
   } finally {
-    isStreamingResponse.value = false
-    stopAutoScrollTicker()
-    const requestDurationMs = Math.max(Date.now() - requestStartAt, 0)
-    normalizeMessageMetrics(messages.value[0] as MessageMetrics, requestDurationMs)
+    if (requestGeneration === streamGeneration) {
+      isStreamingResponse.value = false
+      stopAutoScrollTicker()
+      const requestDurationMs = Math.max(Date.now() - requestStartAt, 0)
+      normalizeMessageMetrics(messages.value[0] as MessageMetrics, requestDurationMs)
+    }
   }
+  if (requestGeneration !== streamGeneration) return
 
   // 5.7 判断是否开启建议问题生成，如果开启了则发起api请求获取数据
   if (props.suggested_after_answer.enable && message_id.value) {
@@ -690,6 +698,7 @@ watch(
 
 // 11.页面卸载后停止播放
 onUnmounted(() => {
+  streamGeneration += 1
   isStreamingResponse.value = false
   stopAutoScrollTicker()
   stopAudioStream()
