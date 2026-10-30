@@ -606,4 +606,60 @@ describe('PreviewDebugChat', () => {
     expect(scrollIntoViewSpy).not.toHaveBeenCalled()
     expect(wrapper.get('.dynamic-scroller-stub').attributes('data-key-field')).toBe('render_id')
   })
+
+  it('ignores a debug stream event after unmount', async () => {
+    let onData: ((event: Record<string, any>) => void) | undefined
+    let finishStream: (() => void) | undefined
+    mocks.query.value = 'hello'
+    mocks.handleDebugChat.mockImplementation(
+      (_appId, _query, _images, _conversationId, callback) => {
+        onData = callback
+        return new Promise<void>((resolve) => {
+          finishStream = resolve
+        })
+      },
+    )
+    const wrapper = shallowMount(PreviewDebugChat, {
+      global: {
+        stubs: {
+          'scroll-navigator': { template: '<div><slot /></div>' },
+          'chat-composer': {
+            emits: ['submit'],
+            template: `<button class="chat-composer-submit" @click="$emit('submit')" />`,
+          },
+        },
+      },
+      props: {
+        app: { id: 'app-1' },
+        suggested_after_answer: { enable: false },
+        opening_statement: '',
+        opening_questions: [],
+      },
+    })
+    await flushPromises()
+    mocks.replace.mockClear()
+    wrapper.find('.chat-composer-submit').trigger('click')
+    await flushPromises()
+    expect(onData).toBeTypeOf('function')
+    const pendingMessage = mocks.messages.value[0]
+
+    wrapper.unmount()
+    mocks.route.params = { app_id: 'other-app' }
+    onData?.({
+      event: 'agent_message',
+      data: {
+        message_id: 'late-message',
+        task_id: 'late-task',
+        conversation_id: 'late-conversation',
+        thought: 'late',
+      },
+    })
+    await flushPromises()
+
+    expect(mocks.replace).not.toHaveBeenCalled()
+    expect(pendingMessage.id).toBe('')
+    expect(pendingMessage.answer).toBe('')
+    finishStream?.()
+    await flushPromises()
+  })
 })
