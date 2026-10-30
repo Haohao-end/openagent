@@ -72,6 +72,39 @@ describe('HistoryView - 对话历史页面', () => {
     expect(wrapper.text()).toContain('测试对话2')
   })
 
+  it('renders stored message markup as text while highlighting search matches', async () => {
+    mockConversations[0].human_message = '<img src=x onerror=alert(1)> safe ['
+    mockConversations[0].ai_message = '<svg onload=alert(2)> safe'
+    const wrapper = mount(HistoryView, {
+      global: { stubs: {
+        UpdateConversationNameModal: true,
+        'a-input-search': true,
+        'a-skeleton': true,
+        'a-dropdown': true,
+        'a-button': true,
+        'a-doption': true,
+      } },
+    })
+    expect(wrapper.find('img[onerror]').exists()).toBe(false)
+    expect(wrapper.find('svg[onload]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('<img src=x onerror=alert(1)> safe')
+    expect(wrapper.text()).toContain('<svg onload=alert(2)> safe')
+
+    ;(wrapper.vm as any).searchQuery = 'safe'
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('img[onerror]').exists()).toBe(false)
+    expect(wrapper.find('svg[onload]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('<img src=x onerror=alert(1)> safe')
+    expect(wrapper.text()).toContain('<svg onload=alert(2)> safe')
+    expect(wrapper.findAll('mark')).toHaveLength(2)
+
+    ;(wrapper.vm as any).searchQuery = '['
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('mark').text()).toBe('[')
+    wrapper.unmount()
+  })
+
   it('应该支持搜索对话', async () => {
     const wrapper = mount(HistoryView, {
       global: {
