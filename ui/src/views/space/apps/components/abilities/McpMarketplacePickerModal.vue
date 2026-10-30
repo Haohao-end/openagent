@@ -220,7 +220,11 @@ const handleScroll = async (event: Event) => {
 watch(
   () => props.visible,
   async (visible) => {
-    if (!visible) return
+    if (!visible) {
+      latestProvidersRequest += 1
+      loading.value = false
+      return
+    }
     await loadCategories()
     await loadProviders(true)
   },
