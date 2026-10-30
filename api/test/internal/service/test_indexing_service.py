@@ -753,3 +753,40 @@ class TestIndexingService:
         assert segment_delete_query.deleted is True
         assert keyword_delete_calls[0][0] == dataset_id
         assert keyword_delete_calls[0][1] == [str(segment_id_1), str(segment_id_2)]
+
+    def test_delete_document_should_preserve_segments_when_keyword_cleanup_fails(self):
+        dataset_id, document_id, segment_id = uuid4(), uuid4(), uuid4()
+        events = []
+        segment_list_query = _QueryStub(all_result=[(segment_id,)])
+
+        class _SegmentDeleteQuery(_QueryStub):
+            def delete(self):
+                events.append("segments-delete")
+                return super().delete()
+
+        segment_delete_query = _SegmentDeleteQuery()
+
+        class _Session:
+            def __init__(self):
+                self.segment_queries = 0
+
+            def query(self, model):
+                if model is Segment:
+                    self.segment_queries += 1
+                    return segment_list_query if self.segment_queries == 1 else segment_delete_query
+                return _QueryStub()
+
+        service = self._build_service(db=_DBStub(_Session()))
+        service.vector_database_service.collection.data.delete_many = lambda **_kwargs: events.append("vectors-delete")
+
+        def fail_keyword_cleanup(*_args):
+            events.append("keywords-delete")
+            raise RuntimeError("keyword cleanup unavailable")
+
+        service.keyword_table_service.delete_keyword_table_from_ids = fail_keyword_cleanup
+
+        with pytest.raises(RuntimeError, match="keyword cleanup unavailable"):
+            service.delete_document(dataset_id, document_id)
+
+        assert events == ["vectors-delete", "keywords-delete"]
+        assert segment_delete_query.deleted is False

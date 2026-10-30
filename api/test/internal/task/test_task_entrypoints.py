@@ -79,6 +79,25 @@ def test_document_task_delete_document_should_delegate(monkeypatch):
     assert injector.requested_classes[-1].__name__ == "IndexingService"
 
 
+def test_document_task_delete_document_should_retry_cleanup_failures(monkeypatch):
+    service = SimpleNamespace(
+        delete_document=lambda *_args: (_ for _ in ()).throw(RuntimeError("cleanup unavailable"))
+    )
+    monkeypatch.setattr("app.http.module.injector", _RecordingInjector(service))
+    retry_calls = []
+    monkeypatch.setattr(
+        document_task.delete_document,
+        "retry",
+        lambda **kwargs: retry_calls.append(kwargs) or Retry(exc=kwargs["exc"]),
+    )
+
+    with pytest.raises(Retry):
+        document_task.delete_document.run(uuid4(), uuid4())
+
+    assert retry_calls[0]["exc"].args == ("cleanup unavailable",)
+    assert retry_calls[0]["max_retries"] == 3
+
+
 def test_dataset_task_delete_dataset_should_delegate(monkeypatch):
     calls = []
     service = SimpleNamespace(delete_dataset=lambda dataset_id: calls.append(dataset_id))

@@ -163,14 +163,14 @@ class IndexingService(BaseService):
             where=Filter.by_property("document_id").equal(document_id),
         )
 
-        # 3.删除postgres关联的segment记录
+        # 3.先清除关键词，失败时保留segment ids以便异步任务重试
+        self.keyword_table_service.delete_keyword_table_from_ids(dataset_id, segment_ids)
+
+        # 4.删除postgres关联的segment记录
         with self.db.auto_commit():
             self.db.session.query(Segment).filter(
                 Segment.document_id == document_id,
             ).delete()
-
-        # 4.删除segment片段id对应的关键词keyword_table记录
-        self.keyword_table_service.delete_keyword_table_from_ids(dataset_id, segment_ids)
 
     def delete_dataset(self, dataset_id: UUID) -> None:
         """根据传递的知识库id执行响应的删除操作"""
