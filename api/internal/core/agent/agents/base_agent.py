@@ -140,7 +140,7 @@ class BaseAgent(Serializable, Runnable):
                 app_context = runtime_flask_app.app_context()
             with app_context:
                 try:
-                    self._agent.invoke(input)
+                    self._agent.invoke(input, config=config)
                 except AgentStreamCancelled:
                     return
                 except Exception as error:
