@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
@@ -26,6 +26,10 @@ const page = ref(1)
 const pageSize = ref(20)
 const hasMore = ref(true)
 let latestAppsRequest = 0
+
+onUnmounted(() => {
+  latestAppsRequest += 1
+})
 
 const loadApps = async (force = false) => {
   if (loading.value && !force) return
