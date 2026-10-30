@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFallbackHistoryToDraft, useGetPublishHistoriesWithPage } from '@/hooks/use-app'
 import { formatTimestampLong, formatTimestampShort } from '@/utils/time-formatter'
@@ -11,8 +11,13 @@ const props = defineProps({
 })
 const emits = defineEmits(['update:visible', 'loadDraftAppConfig'])
 const { t } = useI18n()
-const { loading, paginator, publishHistories, loadPublishHistories } =
-  useGetPublishHistoriesWithPage()
+const {
+  loading,
+  paginator,
+  publishHistories,
+  loadPublishHistories,
+  invalidatePublishHistoryRequests,
+} = useGetPublishHistoriesWithPage()
 const { handleFallbackHistoryToDraft } = useFallbackHistoryToDraft()
 
 // 2.定义滚动分页函数
@@ -31,15 +36,15 @@ const handleScroll = async (event: UIEvent) => {
 
 // 2.监听visible属性
 watch(
-  () => props.visible,
-  async (newValue) => {
-    if (newValue) {
-      await loadPublishHistories(String(props.app?.id), true)
-    } else {
-      publishHistories.value.splice(0, publishHistories.value.length)
-    }
+  () => [props.visible, props.app?.id] as const,
+  async ([visible]) => {
+    invalidatePublishHistoryRequests()
+    publishHistories.value = []
+    if (visible) await loadPublishHistories(String(props.app?.id), true)
   },
+  { immediate: true },
 )
+onUnmounted(invalidatePublishHistoryRequests)
 </script>
 
 <template>
