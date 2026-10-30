@@ -250,7 +250,7 @@ class _DummyAgent(BaseAgent):
     _invoke_payloads: list = PrivateAttr(default_factory=list)
 
     def _build_agent(self):
-        def _invoke(payload):
+        def _invoke(payload, config=None):
             self._invoke_payloads.append(payload)
 
         return SimpleNamespace(invoke=_invoke)
@@ -295,6 +295,34 @@ def test_base_agent_stream_should_prepare_state_and_delegate_to_queue(monkeypatc
     assert input_state["iteration_count"] == 0
     assert agent._invoke_payloads[0]["task_id"] == input_state["task_id"]
     assert agent.agent_queue_manager.listen_calls == [input_state["task_id"]]
+
+
+def test_base_agent_stream_should_forward_runnable_config(monkeypatch):
+    class _FakeQueueManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def listen(self, task_id):
+            yield AgentThought(id=uuid4(), task_id=task_id, event=QueueEvent.AGENT_MESSAGE)
+
+    class _FakeThread:
+        def __init__(self, target, args=()):
+            self.target, self.args = target, args
+
+        def start(self):
+            self.target(*self.args)
+
+    calls = []
+    monkeypatch.setattr("internal.core.agent.agents.base_agent.AgentQueueManager", _FakeQueueManager)
+    monkeypatch.setattr("internal.core.agent.agents.base_agent.Thread", _FakeThread)
+    agent = _DummyAgent(llm=_DummyLLM(features=[]), agent_config=AgentConfig(user_id=uuid4()))
+    agent._agent = SimpleNamespace(invoke=lambda payload, config=None: calls.append((payload, config)))
+    state = {"messages": [HumanMessage(content="hi")]}
+    run_config = {"tags": ["caller"], "recursion_limit": 50}
+
+    list(agent.stream(state, config=run_config))
+
+    assert calls[0] == (state, run_config)
 
 
 def test_base_agent_stream_should_enter_runtime_flask_app_context_in_worker_thread(monkeypatch):
@@ -367,7 +395,7 @@ def test_base_agent_stream_should_publish_worker_timeout_as_terminal_event(monke
                 yield item
 
     class _FailingAgent:
-        def invoke(self, _payload):
+        def invoke(self, _payload, config=None):
             raise TimeoutError("LLM request timed out")
 
     class _FakeThread:
