@@ -1,5 +1,7 @@
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from threading import Event, Lock
 from types import SimpleNamespace
 from uuid import uuid4
 import sys
@@ -204,3 +206,81 @@ class TestKeywordTableService:
         table = updates[0][1]["keyword_table"]
         assert str(seg_id) in table["python"]
         assert table["llm"] == [str(seg_id)]
+
+    def test_add_keyword_table_from_ids_serializes_concurrent_updates_with_redis_lock(self, monkeypatch):
+        dataset_id, first_id, second_id = uuid4(), uuid4(), uuid4()
+        record = SimpleNamespace(keyword_table={"existing": ["old-segment"]})
+        first_query_entered, release_first = Event(), Event()
+        second_waiting, second_acquired = Event(), Event()
+        table_lock, order_lock = Lock(), Lock()
+        lock_calls, updates = [], []
+
+        class _SegmentQuery:
+            def with_entities(self, *_args):
+                return self
+
+            def filter(self, criterion):
+                self.ids = criterion.right.value
+                return self
+
+            def all(self):
+                if first_id in self.ids:
+                    first_query_entered.set()
+                    assert release_first.wait(5)
+                return [(segment_id, {first_id: ["alpha"], second_id: ["bravo"]}[segment_id]) for segment_id in self.ids]
+
+        class _Session:
+            def query(self, model):
+                if model is KeywordTable:
+                    return _QueryStub(one_or_none_result=record)
+                assert model is Segment
+                return _SegmentQuery()
+
+        redis = _RedisStub()
+        service = KeywordTableService(db=SimpleNamespace(session=_Session()), redis_client=redis)
+
+        @contextmanager
+        def _redis_lock(key, timeout=None):
+            with order_lock:
+                lock_calls.append((key, timeout))
+                position = len(lock_calls)
+                if position == 1:
+                    table_lock.acquire()
+                else:
+                    second_waiting.set()
+            if position > 1:
+                table_lock.acquire()
+                second_acquired.set()
+            try:
+                yield
+            finally:
+                table_lock.release()
+
+        monkeypatch.setattr(redis, "lock", _redis_lock)
+
+        def _update(target, *, keyword_table):
+            target.keyword_table = keyword_table
+            updates.append(keyword_table)
+
+        monkeypatch.setattr(service, "update", _update)
+        try:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                first = executor.submit(service.add_keyword_table_from_ids, dataset_id, [first_id])
+                assert first_query_entered.wait(2)
+                second = executor.submit(service.add_keyword_table_from_ids, dataset_id, [second_id])
+                assert second_waiting.wait(2)
+                assert not second_acquired.wait(0.05)
+                assert updates == []
+                release_first.set()
+                first.result(timeout=2)
+                second.result(timeout=2)
+        finally:
+            release_first.set()
+
+        assert lock_calls == [(f"lock:keyword_table:update:keyword_table_{dataset_id}", 600)] * 2
+        assert len(updates) == 2
+        assert record.keyword_table == {
+            "existing": ["old-segment"],
+            "alpha": [str(first_id)],
+            "bravo": [str(second_id)],
+        }
