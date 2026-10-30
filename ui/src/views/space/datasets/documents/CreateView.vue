@@ -44,6 +44,7 @@ let timer: ReturnType<typeof setInterval> | null = null
 let batch = ''
 let documentsCreated = false
 let fetchCount = 0
+let isUnmounted = false
 const route = useRoute()
 const { t } = useI18n()
 const {
@@ -99,7 +100,7 @@ const nextStep = async () => {
     if (createDocumentsForm.value.process_type === 'custom') {
       // 2.6 校验表单数据监测是否出错
       const errors = await customRuleFormRef.value?.validate()
-      if (errors) return
+      if (errors || isUnmounted) return
     }
 
     // 2.7 如果校验成功或者是自动规则，则执行下一步
@@ -140,12 +141,14 @@ const nextStep = async () => {
       // 2.10 发起请求并获取数据
       if (!documentsCreated) {
         await handleCreateDocuments(String(route.params?.dataset_id), req as CreateDocumentsRequest)
+        if (isUnmounted) return
         batch = create_documents_result.value.batch
         documentsCreated = true
       }
 
       // 2.11 先调用一次获取文档状态，然后创建定时器
       await fetchDocumentsStatus()
+      if (isUnmounted) return
       startTimer()
 
       // 2.12 创建文档预处理成功，当前步骤数+1
@@ -158,10 +161,11 @@ const nextStep = async () => {
 
 // 3.定义获取文档状态数据函数
 const fetchDocumentsStatus = async () => {
+  if (isUnmounted) return
   // 3.1 调用接口获取文档状态数据
   fetchCount++
   const statusResult = await loadDocumentsStatus(String(route.params?.dataset_id), batch)
-  if (!statusResult) return
+  if (isUnmounted || !statusResult) return
 
   // 3.2 同步文档状态信息
   documents.value = statusResult as GetDocumentsStatusResponse['data']
@@ -191,7 +195,10 @@ const stopTimer = () => {
 }
 
 // 6.页面卸载时同步卸载定时器
-onUnmounted(() => stopTimer())
+onUnmounted(() => {
+  isUnmounted = true
+  stopTimer()
+})
 </script>
 
 <template>
