@@ -119,4 +119,29 @@ describe('document creation status', () => {
       intervalSpy.mockRestore()
     }
   })
+
+  it('does not surface a status failure after unmount', async () => {
+    let rejectStatus!: (error: Error) => void
+    loadDocumentsStatus.mockReturnValueOnce(new Promise((_, reject) => { rejectStatus = reject }))
+    const errors: unknown[] = []
+    const { default: CreateView } = await import('../CreateView.vue')
+    const wrapper = mount(CreateView, {
+      global: {
+        config: { errorHandler: (error) => errors.push(error) },
+        stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub },
+      },
+    })
+    const nextButton = () => wrapper.findAll('button').find((button) => button.text().includes('.next'))!
+
+    await wrapper.get('[data-testid="upload"]').trigger('click')
+    await nextButton().trigger('click')
+    await flushPromises()
+    await nextButton().trigger('click')
+    await flushPromises()
+    wrapper.unmount()
+    rejectStatus(new Error('late status failure'))
+    await flushPromises()
+
+    expect(errors).toEqual([])
+  })
 })

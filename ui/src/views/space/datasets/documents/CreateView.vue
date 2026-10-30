@@ -164,7 +164,13 @@ const fetchDocumentsStatus = async () => {
   if (isUnmounted) return
   // 3.1 调用接口获取文档状态数据
   fetchCount++
-  const statusResult = await loadDocumentsStatus(String(route.params?.dataset_id), batch)
+  const statusResult = await loadDocumentsStatus(
+    String(route.params?.dataset_id),
+    batch,
+  ).catch((error) => {
+    if (!isUnmounted) throw error
+    return undefined
+  })
   if (isUnmounted || !statusResult) return
 
   // 3.2 同步文档状态信息
