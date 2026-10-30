@@ -7,6 +7,7 @@ import {
   useGetDocument,
   useGetDocumentsStatus,
   useGetSegment,
+  useGetDatasetQueries,
   useGetDocumentsWithPage,
   useGetSegmentsWithPage,
   useUpdateDocumentEnabled,
@@ -334,6 +335,39 @@ describe('useGetDocumentsWithPage', () => {
       },
     })
     await newerRequest
+    expect(loading.value).toBe(false)
+  })
+})
+
+describe('useGetDatasetQueries', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('keeps the current dataset queries when an older request resolves last', async () => {
+    const olderResponse = createDeferred<{ data: { query: string }[] }>()
+    const newerResponse = createDeferred<{ data: { query: string }[] }>()
+    const clearedResponse = createDeferred<{ data: { query: string }[] }>()
+    mocks.getDatasetQueries.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+    mocks.getDatasetQueries.mockReturnValueOnce(clearedResponse.promise)
+
+    const { queries, loading, loadDatasetQueries, clearDatasetQueries } = useGetDatasetQueries()
+    const olderRequest = loadDatasetQueries('dataset-a')
+    const newerRequest = loadDatasetQueries('dataset-b')
+
+    newerResponse.resolve({ data: [{ query: 'dataset-b-query' }] })
+    await newerRequest
+    olderResponse.resolve({ data: [{ query: 'dataset-a-query' }] })
+    await olderRequest
+
+    expect(queries.value).toEqual([{ query: 'dataset-b-query' }])
+
+    const request = loadDatasetQueries('dataset-c')
+    clearDatasetQueries()
+    clearedResponse.resolve({ data: [{ query: 'stale-query' }] })
+    await request
+
+    expect(queries.value).toEqual([])
     expect(loading.value).toBe(false)
   })
 })

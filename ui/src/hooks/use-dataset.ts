@@ -403,20 +403,28 @@ export const useUpdateSegmentEnabled = () => {
 export const useGetDatasetQueries = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const queries = ref<Record<string, any>[]>([])
+
+  const clearDatasetQueries = () => {
+    latestRequest += 1
+    loading.value = false
+    queries.value = []
+  }
 
   // 2.定义加载数据函数
   const loadDatasetQueries = async (dataset_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getDatasetQueries(dataset_id)
-      queries.value = resp.data
+      if (requestId === latestRequest) queries.value = resp.data
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
-  return { loading, queries, loadDatasetQueries }
+  return { loading, queries, loadDatasetQueries, clearDatasetQueries }
 }
 
 export const useHit = () => {
