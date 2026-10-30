@@ -15,6 +15,7 @@ export const useDocumentIndexNotificationPolling = () => {
   const notifications = ref<DocumentIndexNotification[]>([])
   const isLoading = ref(false)
   let pollTimer: ReturnType<typeof setInterval> | null = null
+  let pollingGeneration = 0
 
   /**
    * 拉取通知
@@ -50,10 +51,11 @@ export const useDocumentIndexNotificationPolling = () => {
     if (pollTimer) {
       return
     }
+    const requestGeneration = ++pollingGeneration
 
     // 立即拉取一次
     fetchNotifications().then((newNotifications) => {
-      if (newNotifications.length > 0) {
+      if (requestGeneration === pollingGeneration && newNotifications.length > 0) {
         callback(newNotifications)
       }
     })
@@ -61,7 +63,7 @@ export const useDocumentIndexNotificationPolling = () => {
     // 设置 5 秒轮询一次
     pollTimer = setInterval(async () => {
       const newNotifications = await fetchNotifications()
-      if (newNotifications.length > 0) {
+      if (requestGeneration === pollingGeneration && newNotifications.length > 0) {
         callback(newNotifications)
       }
     }, 5000)
@@ -71,6 +73,7 @@ export const useDocumentIndexNotificationPolling = () => {
    * 停止轮询
    */
   const stopPolling = () => {
+    pollingGeneration += 1
     if (pollTimer) {
       clearInterval(pollTimer)
       pollTimer = null
