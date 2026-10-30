@@ -26,8 +26,10 @@ const page = ref(1)
 const pageSize = ref(20)
 const hasMore = ref(true)
 let latestAppsRequest = 0
+let isUnmounted = false
 
 onUnmounted(() => {
+  isUnmounted = true
   latestAppsRequest += 1
 })
 
@@ -66,20 +68,21 @@ const loadApps = async (force = false) => {
 const loadTags = async () => {
   try {
     const res = await getAppTags()
-    tags.value = res.data.tags
+    if (!isUnmounted) tags.value = res.data.tags
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('publicApps.list.loadTagsFailed')))
+    if (!isUnmounted) Message.error(getErrorMessage(error, t('publicApps.list.loadTagsFailed')))
   }
 }
 
 const handleFork = async (app: PublicApp) => {
   try {
     const res = await forkPublicApp(app.id)
+    if (isUnmounted) return
     Message.success(t('publicApps.list.forkSuccess', { name: res.data.name }))
     await loadApps()
-    router.push({ name: 'space-apps-detail', params: { app_id: res.data.id } })
+    if (!isUnmounted) router.push({ name: 'space-apps-detail', params: { app_id: res.data.id } })
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('publicApps.list.actionFailed')))
+    if (!isUnmounted) Message.error(getErrorMessage(error, t('publicApps.list.actionFailed')))
   }
 }
 
