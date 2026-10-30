@@ -7,6 +7,7 @@ import { HOME_NEW_CONVERSATION_QUERY_KEY } from '@/views/pages/home-new-conversa
 
 const mocks = vi.hoisted(() => ({
   route: undefined as any,
+  locale: undefined as any,
   routerReplace: vi.fn(),
   routerPush: vi.fn(),
   loadHomeIntent: vi.fn(),
@@ -33,6 +34,13 @@ vi.mock('vue-router', () => ({
     replace: mocks.routerReplace,
   }),
 }))
+
+vi.mock('vue-i18n', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-i18n')>()
+  const { ref } = await import('vue')
+  mocks.locale = ref('zh-CN')
+  return { ...actual, useI18n: () => ({ locale: mocks.locale, t: (key: string) => key }) }
+})
 
 vi.mock('@/stores/account', () => ({
   useAccountStore: () => ({
@@ -209,6 +217,7 @@ describe('HomeView sidebar new conversation request', () => {
       suggested_actions: [{ label: '继续聊', action: 'view_capabilities', icon: 'help' }],
       is_default: false,
     })
+    if (mocks.locale) mocks.locale.value = 'zh-CN'
     mocks.loadCurrentUser.mockResolvedValue(undefined)
     mocks.loadAssistantAgentCapabilities.mockResolvedValue(undefined)
     mocks.loadAssistantAgentMessages.mockResolvedValue(undefined)
@@ -249,5 +258,41 @@ describe('HomeView sidebar new conversation request', () => {
       path: '/home',
       query: {},
     })
+  })
+
+  it('keeps the latest home intent when an older locale request resolves later', async () => {
+    const resolveRequests: Array<(value: unknown) => void> = []
+    mocks.loadHomeIntent.mockImplementation(() => new Promise((resolve) => { resolveRequests.push(resolve) }))
+
+    const wrapper = shallowMount(HomeView, {
+      global: {
+        stubs: {
+          AiDynamicBackground: componentStub,
+          AiMessage: { props: ['answer'], template: '<div data-testid="assistant-introduction">{{ answer }}</div>' },
+          ChatComposer: componentStub,
+          HumanMessage: componentStub,
+          ChatConversationSkeleton: componentStub,
+          LoginModal: componentStub,
+          'a-button': componentStub,
+          'icon-down': componentStub,
+          'icon-poweroff': componentStub,
+        },
+      },
+    })
+    await flushPromises()
+    expect(resolveRequests).toHaveLength(1)
+
+    mocks.locale.value = 'en-US'
+    await flushPromises()
+    expect(resolveRequests.length).toBeGreaterThan(1)
+
+    resolveRequests[resolveRequests.length - 1]({ intent: 'latest locale intent', confidence: 0.9, suggested_actions: [] })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="assistant-introduction"]').text()).toContain('latest locale intent')
+
+    resolveRequests.slice(0, -1).forEach((resolve) => resolve({ intent: 'stale locale intent', confidence: 0.1, suggested_actions: [] }))
+    await flushPromises()
+    expect(wrapper.get('[data-testid="assistant-introduction"]').text()).toContain('latest locale intent')
+    wrapper.unmount()
   })
 })
