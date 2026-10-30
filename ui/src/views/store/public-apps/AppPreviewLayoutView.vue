@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
@@ -65,6 +65,11 @@ const onCreatorAvatarError = () => {
 }
 type PreviewApp = PublicApp & { draft_updated_at: number }
 let latestAppRequest = 0
+let isUnmounted = false
+onUnmounted(() => {
+  isUnmounted = true
+  latestAppRequest += 1
+})
 const app = ref<PreviewApp>({
   id: '',
   name: '',
@@ -112,12 +117,14 @@ const handleForkToMySpace = async () => {
   try {
     forkLoading.value = true
     const res = await forkPublicApp(String(route.params?.app_id))
+    if (isUnmounted) return
     Message.success(t('publicApps.preview.addToSpaceSuccess', { name: res.data.name }))
     router.push({ name: 'space-apps-detail', params: { app_id: res.data.id } })
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('publicApps.preview.actionFailed')))
+    if (!isUnmounted) Message.error(getErrorMessage(error, t('publicApps.preview.actionFailed')))
   } finally {
-    forkLoading.value = false
+    if (!isUnmounted) forkLoading.value = false
+
   }
 }
 
