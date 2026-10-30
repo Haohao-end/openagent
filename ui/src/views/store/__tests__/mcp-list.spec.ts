@@ -310,4 +310,46 @@ describe('store mcp list', () => {
 
     expect(mocks.messageError).not.toHaveBeenCalled()
   })
+
+  it('ignores stale provider list responses and failures after category changes', async () => {
+    const requests = Array.from({ length: 5 }, () => deferred<{ data: { list: ReturnType<typeof provider>[] } }>())
+    let requestIndex = 0
+    mocks.getPublicMcpProvidersWithPage.mockImplementation(({ category }) => {
+      if (!category) return Promise.resolve({ data: { list: [provider('initial')] } }) as never
+      return requests[requestIndex++].promise as never
+    })
+    const wrapper = shallowMount(McpListView, { global: { stubs: globalStubs } })
+    await flushPromises()
+    const setupState = (wrapper.vm.$ as unknown as {
+      setupState: { loading: boolean; providers: ReturnType<typeof provider>[] }
+    }).setupState
+    const clickCategory = async (name: string) =>
+      wrapper.findAllComponents(buttonStub).find((item) => item.text() === name)!.trigger('click')
+
+    await clickCategory('编程工具')
+    await clickCategory('媒体音视频')
+    requests[1].resolve({ data: { list: [provider('media-result')] } })
+    await flushPromises()
+    requests[0].resolve({ data: { list: [provider('stale-result')] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('media-result')
+    expect(wrapper.text()).not.toContain('stale-result')
+
+    await clickCategory('编程工具')
+    await clickCategory('媒体音视频')
+    requests[2].reject(new Error('stale failure'))
+    await flushPromises()
+    expect(setupState.loading).toBe(true)
+    expect(mocks.messageError).not.toHaveBeenCalled()
+    requests[3].resolve({ data: { list: [provider('media-latest')] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('media-latest')
+
+    await clickCategory('编程工具')
+    const providersBeforeUnmount = setupState.providers
+    wrapper.unmount()
+    requests[4].resolve({ data: { list: [provider('late-after-unmount')] } })
+    await flushPromises()
+    expect(setupState.providers).toBe(providersBeforeUnmount)
+  })
 })
