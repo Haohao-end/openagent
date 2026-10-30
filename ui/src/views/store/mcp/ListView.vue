@@ -25,10 +25,15 @@ const showDetailVisible = ref(false)
 const detailLoading = ref(false)
 const activeProvider = ref<McpProvider | null>(null)
 let latestDetailRequest = 0
+let latestProviderListRequest = 0
 const showCreateMcpModalVisible = ref(false)
 
 const invalidateDetailRequest = () => {
   latestDetailRequest += 1
+}
+
+const invalidateProviderListRequest = () => {
+  latestProviderListRequest += 1
 }
 
 const closeDetail = () => {
@@ -37,7 +42,10 @@ const closeDetail = () => {
   detailLoading.value = false
 }
 
-onUnmounted(invalidateDetailRequest)
+onUnmounted(() => {
+  invalidateDetailRequest()
+  invalidateProviderListRequest()
+})
 
 const avatarPalettes = [
   ['#334155', '#0f172a'],
@@ -113,6 +121,7 @@ const loadCategories = async () => {
 }
 
 const loadProviders = async () => {
+  const requestId = ++latestProviderListRequest
   loading.value = true
   try {
     const res = await getPublicMcpProvidersWithPage({
@@ -121,11 +130,13 @@ const loadProviders = async () => {
       search_word: searchWord.value.trim(),
       category: selectedCategory.value === 'all' ? '' : selectedCategory.value,
     })
+    if (requestId !== latestProviderListRequest) return
     providers.value = res.data.list || []
   } catch (error: unknown) {
+    if (requestId !== latestProviderListRequest) return
     Message.error(getErrorMessage(error, t('store.mcp.loadFailed')))
   } finally {
-    loading.value = false
+    if (requestId === latestProviderListRequest) loading.value = false
   }
 }
 
