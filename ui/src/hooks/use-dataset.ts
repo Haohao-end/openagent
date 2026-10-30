@@ -431,19 +431,32 @@ export const useHit = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const hits = ref<Record<string, any>[]>([])
+  let latestRequest = 0
+
+  const invalidateHitRequests = () => {
+    latestRequest += 1
+    loading.value = false
+    hits.value = []
+  }
 
   // 2.定义召回测试处理器
   const handleHit = async (dataset_id: string, req: HitRequest) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await hit(dataset_id, req)
+      if (requestId !== latestRequest) return false
       hits.value = resp.data
+      return requestId === latestRequest
+    } catch (error) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
-  return { loading, hits, handleHit }
+  return { loading, hits, handleHit, invalidateHitRequests }
 }
 
 export const useCreateSegment = () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Message } from '@arco-design/web-vue'
 import { useGetDatasetQueries, useHit } from '@/hooks/use-dataset'
@@ -25,7 +25,8 @@ const hitTestingSegments = ref<HitTestingSegment[]>([])
 const hitTestingForm = ref<HitTestingForm>({ query: '', ...defaultRetrievalSetting })
 const { loading: getDatasetQueriesLoading, queries, loadDatasetQueries, clearDatasetQueries } =
   useGetDatasetQueries()
-const { loading: hitLoading, hits, handleHit } = useHit()
+const { loading: hitLoading, hits, handleHit, invalidateHitRequests } = useHit()
+onUnmounted(invalidateHitRequests)
 
 // 2.定义知识库检索设置相关
 const hideRetrievalSettingModal = () => {
@@ -49,7 +50,10 @@ const saveRetrievalSetting = () => {
 }
 
 // 4.定义隐藏召回测试模态窗
-const hideHitTestingModal = () => emits('update:visible', false)
+const hideHitTestingModal = () => {
+  invalidateHitRequests()
+  emits('update:visible', false)
+}
 
 // 5.定义召回测试处理器
 const handleHitTesting = async () => {
@@ -60,24 +64,27 @@ const handleHitTesting = async () => {
   }
 
   // 5.2 调用处理器执行召回测试
-  await handleHit(props.dataset_id, hitTestingForm.value as HitRequest)
+  const datasetId = props.dataset_id
+  const isCurrent = await handleHit(datasetId, hitTestingForm.value as HitRequest)
+  if (!isCurrent || datasetId !== props.dataset_id || !props.visible) return
   hitTestingSegments.value = hits.value as unknown as HitTestingSegment[]
 
   // 5.3 重新更新知识库最近查询
-  await loadDatasetQueries(props.dataset_id)
+  await loadDatasetQueries(datasetId)
 }
 
 // 6.监听数据变化
 watch(
   () => [props.visible, props.dataset_id] as const,
   async ([newValue]) => {
+    invalidateHitRequests()
+    hitTestingSegments.value = []
+    clearDatasetQueries()
     if (newValue) {
       // 6.1 模态窗开启，加载最近查询
       await loadDatasetQueries(props.dataset_id)
     } else {
       // 6.2 模态窗关闭，清空最近查询、召回记录、初始化检索配置
-      clearDatasetQueries()
-      hitTestingSegments.value = []
       hitTestingForm.value = { query: '', ...defaultRetrievalSetting }
       retrievalSettingForm.value = defaultRetrievalSetting
     }
