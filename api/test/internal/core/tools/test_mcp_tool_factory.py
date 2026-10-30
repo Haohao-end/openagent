@@ -278,6 +278,32 @@ def test_mcp_jsonrpc_error_should_not_expose_header_credentials(monkeypatch, cap
     assert "invalid credential" not in caplog.text
 
 
+def test_mcp_tool_error_result_should_not_expose_header_credentials(monkeypatch):
+    sentinel = "SYNTHETIC_TOOL_AUTH_TOKEN"
+
+    def _fake_safe_request(_method, _url, **kwargs):
+        request = kwargs["json"]
+        if request["method"] == "tools/list":
+            result = {"tools": [{"name": "private_tool"}]}
+        else:
+            assert kwargs["headers"]["Authorization"] == f"Bearer {sentinel}"
+            result = {"isError": True, "content": [{"type": "text", "text": f"authorization rejected: Bearer {sentinel}"}]}
+        return _FakeResponse({"jsonrpc": "2.0", "id": request["id"], "result": result})
+
+    monkeypatch.setattr("internal.core.tools.mcp_tools.providers.mcp_tool_factory.safe_request", _fake_safe_request)
+    tools = McpToolFactory().get_tools([{
+        "name": "private_provider", "url": "https://mcp.example.invalid/mcp",
+        "headers": [{"key": "Authorization", "value": f"Bearer {sentinel}"}],
+        "enabled": True, "transport": "streamable_http",
+    }])
+
+    result = tools[0].invoke({})
+    result_text = result.content if hasattr(result, "content") else result
+
+    assert result_text == "MCP 工具调用失败"
+    assert sentinel not in result_text
+
+
 def test_mcp_tool_factory_should_compile_complex_json_schema_and_keep_metadata(monkeypatch):
     complex_input_schema = {
         "type": "object",
