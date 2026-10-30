@@ -295,6 +295,7 @@ class TestSegmentService:
             document_id=document.id,
             status=SegmentStatus.COMPLETED.value,
             hash="old-hash",
+            content="旧内容",
             node_id=uuid4(),
             document=document,
         )
@@ -349,7 +350,7 @@ class TestSegmentService:
         dataset_id, document_id = uuid4(), uuid4()
         segment = SimpleNamespace(
             id=uuid4(), account_id=account.id, dataset_id=dataset_id, document_id=document_id,
-            status=SegmentStatus.COMPLETED.value, hash="old-hash", node_id=uuid4(),
+            status=SegmentStatus.COMPLETED.value, hash="old-hash", content="old content", node_id=uuid4(),
             document=SimpleNamespace(id=document_id),
         )
         vector_attempts = []
@@ -385,6 +386,61 @@ class TestSegmentService:
         service.update_segment(dataset_id, document_id, segment.id, req, account)
 
         assert len(vector_attempts) == 2
+
+    def test_update_segment_should_reconcile_document_counts_when_reverting_after_vector_failure(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id, document_id = uuid4(), uuid4()
+        document = SimpleNamespace(id=document_id, character_count=3, token_count=3)
+        segment = SimpleNamespace(
+            id=uuid4(), account_id=account.id, dataset_id=dataset_id, document_id=document_id,
+            status=SegmentStatus.COMPLETED.value, hash="old-hash", content="old", keywords=["old"],
+            character_count=3, token_count=3, node_id=uuid4(), document=document,
+        )
+        vector_attempts = []
+
+        def update_vector(**kwargs):
+            vector_attempts.append(kwargs)
+            raise RuntimeError("temporary vector failure")
+
+        class _CountQuery:
+            def filter(self, *_args):
+                return self
+
+            def first(self):
+                return segment.character_count, segment.token_count
+
+        service = SegmentService(
+            db=_DBStub(SimpleNamespace(query=lambda *_args: _CountQuery())),
+            redis_client=_RedisStub(),
+            jieba_service=SimpleNamespace(extract_keywords=lambda *_args: ["kw"]),
+            embeddings_service=SimpleNamespace(
+                calculate_token_count=lambda content: len(content),
+                embeddings=SimpleNamespace(embed_query=lambda _text: [0.1]),
+            ),
+            keyword_table_service=SimpleNamespace(
+                delete_keyword_table_from_ids=lambda *_args: None,
+                add_keyword_table_from_ids=lambda *_args: None,
+            ),
+            vector_database_service=SimpleNamespace(
+                collection=SimpleNamespace(data=SimpleNamespace(update=update_vector))
+            ),
+        )
+        monkeypatch.setattr(service, "get", lambda *_args: segment)
+        monkeypatch.setattr(
+            "internal.service.segment_service.generate_text_hash",
+            lambda content: "old-hash" if content == "old" else "new-hash",
+        )
+        request = lambda content: SimpleNamespace(
+            content=SimpleNamespace(data=content), keywords=SimpleNamespace(data=["kw"])
+        )
+
+        with pytest.raises(FailException):
+            service.update_segment(dataset_id, document_id, segment.id, request("longer"), account)
+        service.update_segment(dataset_id, document_id, segment.id, request("old"), account)
+
+        assert segment.character_count == document.character_count == 3
+        assert segment.token_count == document.token_count == 3
+        assert len(vector_attempts) == 1
 
     def test_create_segment_should_raise_when_document_not_found(self, monkeypatch):
         service = self._build_service()
@@ -677,6 +733,7 @@ class TestSegmentService:
             document_id=document_id,
             status=SegmentStatus.COMPLETED.value,
             hash="same-hash",
+            content="unchanged",
             node_id=uuid4(),
             document=SimpleNamespace(id=document_id),
         )
@@ -726,6 +783,7 @@ class TestSegmentService:
             document_id=document_id,
             status=SegmentStatus.COMPLETED.value,
             hash="same-hash",
+            content="unchanged",
             node_id=uuid4(),
             document=SimpleNamespace(id=document_id),
         )
@@ -765,6 +823,7 @@ class TestSegmentService:
             document_id=document_id,
             status=SegmentStatus.COMPLETED.value,
             hash="old-hash",
+            content="old",
             node_id=uuid4(),
             document=SimpleNamespace(id=document_id),
         )
