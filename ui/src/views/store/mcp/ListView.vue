@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Message } from '@arco-design/web-vue'
 import ResourceCardDescription from '@/components/ResourceCardDescription.vue'
@@ -26,6 +26,18 @@ const detailLoading = ref(false)
 const activeProvider = ref<McpProvider | null>(null)
 let latestDetailRequest = 0
 const showCreateMcpModalVisible = ref(false)
+
+const invalidateDetailRequest = () => {
+  latestDetailRequest += 1
+}
+
+const closeDetail = () => {
+  invalidateDetailRequest()
+  showDetailVisible.value = false
+  detailLoading.value = false
+}
+
+onUnmounted(invalidateDetailRequest)
 
 const avatarPalettes = [
   ['#334155', '#0f172a'],
@@ -277,7 +289,7 @@ onMounted(async () => {
       :footer="false"
       :title="t('store.mcp.detailTitle')"
       :drawer-style="{ background: '#F9FAFB' }"
-      @cancel="showDetailVisible = false"
+      @cancel="closeDetail"
     >
       <a-spin :loading="detailLoading" class="block h-full w-full">
         <div v-if="activeProvider" class="flex flex-col gap-4">

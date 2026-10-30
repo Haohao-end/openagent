@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getPublicMcpCategories: vi.fn(),
   getPublicMcpProvidersWithPage: vi.fn(),
   getPublicMcpProvider: vi.fn(),
+  messageError: vi.fn(),
 }))
 
 vi.mock('@/services/mcp', () => ({
@@ -14,6 +15,11 @@ vi.mock('@/services/mcp', () => ({
   getPublicMcpProvidersWithPage: mocks.getPublicMcpProvidersWithPage,
   getPublicMcpProvider: mocks.getPublicMcpProvider,
 }))
+
+vi.mock('@arco-design/web-vue', async () => {
+  const actual = await vi.importActual<typeof import('@arco-design/web-vue')>('@arco-design/web-vue')
+  return { ...actual, Message: { ...actual.Message, error: mocks.messageError } }
+})
 
 vi.mock('@/views/space/mcp/components/CreateOrUpdateMcpModal.vue', () => ({
   default: defineComponent({
@@ -268,5 +274,40 @@ describe('store mcp list', () => {
     }
     expect(issues).toEqual([])
     wrapper.unmount()
+  })
+
+  it('ignores detail success after the drawer closes', async () => {
+    const pending = deferred<{ data: ReturnType<typeof provider> }>()
+    mocks.getPublicMcpProvider.mockReturnValue(pending.promise as never)
+    mocks.getPublicMcpProvidersWithPage.mockResolvedValueOnce({ data: { list: [provider('provider-a')] } } as never)
+    const wrapper = shallowMount(McpListView, { global: { stubs: globalStubs } })
+    await flushPromises()
+    const setupState = (
+      wrapper.vm.$ as unknown as { setupState: { activeProvider: ReturnType<typeof provider> | null } }
+    ).setupState
+
+    await wrapper.findComponent(cardStub).trigger('click')
+    await wrapper.get('[data-testid="close-detail"]').trigger('click')
+    pending.resolve({ data: provider('provider-a') })
+    await flushPromises()
+
+    expect(setupState.activeProvider).toBeNull()
+    expect(wrapper.find('[data-testid="detail-drawer"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('does not show detail errors after the page unmounts', async () => {
+    const pending = deferred<{ data: ReturnType<typeof provider> }>()
+    mocks.getPublicMcpProvider.mockReturnValue(pending.promise as never)
+    mocks.getPublicMcpProvidersWithPage.mockResolvedValueOnce({ data: { list: [provider('provider-a')] } } as never)
+    const wrapper = shallowMount(McpListView, { global: { stubs: globalStubs } })
+    await flushPromises()
+
+    await wrapper.findComponent(cardStub).trigger('click')
+    wrapper.unmount()
+    pending.reject(new Error('late failure'))
+    await flushPromises()
+
+    expect(mocks.messageError).not.toHaveBeenCalled()
   })
 })
