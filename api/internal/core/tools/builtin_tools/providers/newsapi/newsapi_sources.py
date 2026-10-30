@@ -50,8 +50,8 @@ def _get_news_sources(category: str = "", language: str = "en", country: str = "
             return "\n---\n".join(results)
         else:
             return f"获取新闻源失败：{data.get('message', '未知错误')}"
-    except Exception as e:
-        return f"获取新闻源失败：{str(e)}"
+    except Exception:
+        return "获取新闻源失败，请稍后重试"
 
 
 @add_attribute("args_schema", NewsAPISourcesArgsSchema)

@@ -65,8 +65,8 @@ class GaodeRoutePlanningTool(BaseTool):
                     return json.dumps(result, ensure_ascii=False)
 
             return "路径规划失败，请检查起点和终点坐标是否正确"
-        except Exception as e:
-            return f"路径规划失败：{str(e)}"
+        except Exception:
+            return "路径规划失败，请稍后重试"
 
 
 @add_attribute("args_schema", GaodeRoutePlanningArgsSchema)

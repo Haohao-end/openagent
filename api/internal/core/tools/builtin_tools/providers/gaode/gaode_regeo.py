@@ -59,8 +59,8 @@ class GaodeRegeoTool(BaseTool):
                 return json.dumps(result, ensure_ascii=False)
 
             return f"坐标'{location}'逆地理编码失败"
-        except Exception as e:
-            return f"逆地理编码失败：{str(e)}"
+        except Exception:
+            return "逆地理编码失败，请稍后重试"
 
 
 @add_attribute("args_schema", GaodeRegeoArgsSchema)

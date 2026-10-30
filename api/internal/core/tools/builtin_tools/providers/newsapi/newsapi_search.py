@@ -48,8 +48,8 @@ def _search_news(query: str, **kwargs) -> str:
             )
 
         return "\n---\n".join(results)
-    except Exception as e:
-        return f"搜索新闻时出错：{str(e)}"
+    except Exception:
+        return "搜索新闻失败，请稍后重试"
 
 
 @add_attribute("args_schema", NewsAPISearchArgsSchema)

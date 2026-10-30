@@ -67,8 +67,8 @@ class GaodePOISearchTool(BaseTool):
                 return json.dumps(results, ensure_ascii=False)
 
             return f"未找到关于'{keywords}'的地点信息"
-        except Exception as e:
-            return f"POI搜索失败：{str(e)}"
+        except Exception:
+            return "POI搜索失败，请稍后重试"
 
 
 @add_attribute("args_schema", GaodePOISearchArgsSchema)

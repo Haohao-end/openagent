@@ -59,8 +59,8 @@ class GaodeGeocodeTool(BaseTool):
                 return json.dumps(result, ensure_ascii=False)
 
             return f"地址'{address}'地理编码失败"
-        except Exception as e:
-            return f"地理编码失败：{str(e)}"
+        except Exception:
+            return "地理编码失败，请稍后重试"
 
 
 @add_attribute("args_schema", GaodeGeocodeArgsSchema)
