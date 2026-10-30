@@ -86,4 +86,37 @@ describe('document creation status', () => {
     expect(loadDocumentsStatus).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
+
+  it('does not start polling when unmounted during the first status lookup', async () => {
+    let resolveStatus!: (value: Array<{ id: string; status: string }>) => void
+    loadDocumentsStatus.mockReturnValueOnce(new Promise((resolve) => { resolveStatus = resolve }))
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval')
+      .mockReturnValue(1 as unknown as ReturnType<typeof setInterval>)
+    const { default: CreateView } = await import('../CreateView.vue')
+    const wrapper = mount(CreateView, {
+      global: {
+        stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub },
+      },
+    })
+    const nextButton = () => wrapper.findAll('button').find((button) => button.text().includes('.next'))!
+
+    try {
+      await wrapper.get('[data-testid="upload"]').trigger('click')
+      await nextButton().trigger('click')
+      await flushPromises()
+      await nextButton().trigger('click')
+      await flushPromises()
+      expect(loadDocumentsStatus).toHaveBeenCalledTimes(1)
+
+      wrapper.unmount()
+      resolveStatus([{ id: 'doc-1', status: 'processing' }])
+      await flushPromises()
+
+      expect((wrapper.vm as any).documents).toHaveLength(0)
+      expect(intervalSpy).not.toHaveBeenCalled()
+    } finally {
+      wrapper.unmount()
+      intervalSpy.mockRestore()
+    }
+  })
 })
