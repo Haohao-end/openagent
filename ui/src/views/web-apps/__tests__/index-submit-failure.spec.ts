@@ -327,4 +327,54 @@ describe('web-app chat submit failure', () => {
       expect.any(Function),
     )
   })
+
+  it('ignores an old stream event after switching conversations before the first event', async () => {
+    let emitStreamEvent!: (event: unknown) => void
+    let resolveStream!: (value: unknown) => void
+    mocks.loadConversationMessagesWithPage.mockImplementation(async (conversationId: string) => {
+      mocks.state.messages!.value = [{
+        id: `message-${conversationId}`,
+        render_id: `message-${conversationId}`,
+        conversation_id: conversationId,
+        query: `history ${conversationId}`,
+        image_urls: [],
+        input_parts: [],
+        answer: `history ${conversationId}`,
+        answer_parts: [],
+        artifacts: [],
+        total_token_count: 0,
+        latency: 0,
+        agent_thoughts: [],
+        suggested_questions: [],
+        created_at: 0,
+      }]
+    })
+    mocks.handleWebAppChat.mockImplementation((_token, _request, onEvent) => {
+      emitStreamEvent = onEvent
+      return new Promise((resolve) => { resolveStream = resolve })
+    })
+
+    const wrapper = shallowMount(WebAppsIndexView)
+    await flushPromises()
+
+    const setupState = (wrapper.vm.$ as any).setupState
+    await setupState.changeConversation('conversation-a')
+    await flushPromises()
+    mocks.state.query!.value = 'question from A'
+    const submitPromise = setupState.handleSubmit()
+    await flushPromises()
+    await setupState.changeConversation('conversation-b')
+    await flushPromises()
+
+    emitStreamEvent({
+      event: 'agent_message',
+      data: { message_id: 'late-message-a', task_id: 'task-a', conversation_id: 'conversation-a', thought: 'stale answer from A' },
+    })
+    expect(mocks.state.messages!.value[0].id).toBe('message-conversation-b')
+    expect(mocks.state.messages!.value[0].answer).toBe('history conversation-b')
+
+    resolveStream(undefined)
+    await submitPromise
+    wrapper.unmount()
+  })
 })
