@@ -49,7 +49,10 @@ _TRAILING_URL_PUNCTUATION = ".,;)]}"
 _DEFAULT_IMAGE_GROUP_NAME = "生成图片"
 _PUBLIC_URL_SECRET_QUERY_KEYS = {
     "access_token", "api_key", "apikey", "auth", "authorization", "client_secret", "key", "password",
-    "refresh_token", "secret", "token", "x_api_key",
+    "awsaccesskeyid", "credential", "googleaccessid", "refresh_token", "secret",
+    "security_token", "sig", "signature", "token", "x_api_key",
+    "x_amz_credential", "x_amz_security_token", "x_amz_signature",
+    "x_goog_credential", "x_goog_signature",
 }
 
 
