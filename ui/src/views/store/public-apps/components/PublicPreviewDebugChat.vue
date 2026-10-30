@@ -12,7 +12,7 @@ import {
 import { uploadImage } from '@/services/upload-file'
 import { useAccountStore } from '@/stores/account'
 import { Message } from '@arco-design/web-vue'
-import { computed, nextTick, onMounted, ref, watch, type PropType } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import {
@@ -131,6 +131,7 @@ const createStreamMessage = (queryText: string): PublicStreamMessage =>
 
 const clearConversation = () => {
   contextGeneration += 1
+  loading.value = false
   messages.value = []
   chatContextId.value = ''
   saveContextId('')
@@ -187,6 +188,7 @@ const handleSubmitQuestion = async (question: string) => {
 }
 
 const handleSubmit = async () => {
+  const streamGeneration = contextGeneration
   const currentQuery = query.value.trim()
   if (!currentQuery) {
     Message.warning(t('publicApps.debug.emptyQuery'))
@@ -204,6 +206,7 @@ const handleSubmit = async () => {
   const currentMessage = createStreamMessage(currentQuery)
   messages.value.unshift(currentMessage)
   await nextTick()
+  if (streamGeneration !== contextGeneration) return
   const streamState: StreamState = {
     position: 0,
     message_id: '',
@@ -211,7 +214,6 @@ const handleSubmit = async () => {
     conversation_id: chatContextId.value,
   }
   const humanImageUrls = [...image_urls.value]
-  const streamGeneration = contextGeneration
   query.value = ''
   image_urls.value = []
   loading.value = true
@@ -222,6 +224,7 @@ const handleSubmit = async () => {
       chatContextId.value,
       humanImageUrls,
       (eventResponse) => {
+        if (streamGeneration !== contextGeneration) return
         const streamResult = applyChatStreamEvent(
           currentMessage,
           eventResponse as StreamEventResponse,
@@ -239,9 +242,10 @@ const handleSubmit = async () => {
       },
     )
   } catch (error: unknown) {
+    if (streamGeneration !== contextGeneration) return
     Message.error(error instanceof Error ? error.message : t('publicApps.debug.sendFailed'))
   } finally {
-    loading.value = false
+    if (streamGeneration === contextGeneration) loading.value = false
   }
 }
 
@@ -264,11 +268,16 @@ onMounted(async () => {
   await loadConversationFromRoute()
 })
 
+onUnmounted(() => {
+  contextGeneration += 1
+})
+
 watch(
   () => [String(route.params?.app_id ?? ''), String(route.query.conversation_id ?? '')],
   async ([appId, conversationId], [prevAppId, prevConversationId]) => {
     if (appId === prevAppId && conversationId === prevConversationId) return
     contextGeneration += 1
+    loading.value = false
     messages.value = []
     chatContextId.value = ''
     await loadConversationFromRoute()
