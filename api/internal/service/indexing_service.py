@@ -300,26 +300,8 @@ class IndexingService(BaseService):
                 "indexing_completed_at": datetime.now(UTC)
             })
 
-            # 3.获取当前知识库的关键词表
-            keyword_table_record = self.keyword_table_service.get_keyword_table_from_dataset_id(document.dataset_id)
-            keyword_table = {
-                field: set(value) for field, value in keyword_table_record.keyword_table.items()
-            }
-
-            # 4.循环将新片段关键词添加到关键词表中
-            for keyword in keywords:
-                # 如果这个keyword不在keyword_table中
-                if keyword not in keyword_table:
-                    # 先初始化这个keyword为空集合 方便后面添加segment_id
-                    keyword_table[keyword] = set()
-                # 无论是个keyword不在keyword_table还是keyword在keyword_table,
-                # 都向其添加segment_id => "keyword": {"segment_id"}
-                keyword_table[keyword].add(lc_segment.metadata['segment_id'])
-
-            # 5.添加关键词表
-            self.update(
-                keyword_table_record,
-                keyword_table={field: list(value) for field, value in keyword_table.items()},
+            self.keyword_table_service.add_keyword_table_from_ids(
+                document.dataset_id, [UUID(lc_segment.metadata['segment_id'])]
             )
 
         # 6.更新文档的状态

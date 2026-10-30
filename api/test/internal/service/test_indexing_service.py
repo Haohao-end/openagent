@@ -1,7 +1,9 @@
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
+from threading import Barrier, Lock
 import sys
 
 import pytest
@@ -518,12 +520,16 @@ class TestIndexingService:
         session = _Session()
         service = self._build_service(db=_DBStub(session))
         keyword_table_record = SimpleNamespace(keyword_table={"existing": ["old-seg-id"]})
+
+        def _add_keywords(_dataset_id, ids):
+            keyword_map = {key: list(values) for key, values in keyword_table_record.keyword_table.items()}
+            keyword_map.setdefault("kw2", []).extend(map(str, ids))
+            service.update(keyword_table_record, keyword_table=keyword_map)
+
         service.keyword_table_service = SimpleNamespace(
-            get_keyword_table_from_dataset_id=lambda _dataset_id: keyword_table_record
+            add_keyword_table_from_ids=_add_keywords
         )
-        service.jieba_service = SimpleNamespace(
-            extract_keywords=lambda text, _k: ["kw1", "kw2"] if text == "seg-one" else ["kw2", "kw3"]
-        )
+        service.jieba_service = SimpleNamespace(extract_keywords=lambda _text, _k: ["kw2"])
         update_calls = []
 
         def _fake_update(target, **kwargs):
@@ -532,15 +538,12 @@ class TestIndexingService:
                 # 模拟 ORM update 之后对象上的 keyword_table 同步更新，便于下一轮循环读取最新词表。
                 target.keyword_table = kwargs["keyword_table"]
 
-        monkeypatch.setattr(
-            service,
-            "update",
-            _fake_update,
-        )
+        monkeypatch.setattr(service, "update", _fake_update)
         document = SimpleNamespace(id=uuid4(), dataset_id=uuid4())
+        segment_ids = [uuid4(), uuid4()]
         lc_segments = [
-            LCDocument(page_content="seg-one", metadata={"segment_id": "seg-id-1"}),
-            LCDocument(page_content="seg-two", metadata={"segment_id": "seg-id-2"}),
+            LCDocument(page_content="seg-one", metadata={"segment_id": str(segment_ids[0])}),
+            LCDocument(page_content="seg-two", metadata={"segment_id": str(segment_ids[1])}),
         ]
 
         service._indexing(document, lc_segments)
@@ -548,9 +551,38 @@ class TestIndexingService:
         assert len(session.segment_query.updates) == 2
         assert session.segment_query.updates[0]["status"] == SegmentStatus.INDEXING.value
         keyword_updates = [payload for target, payload in update_calls if target is keyword_table_record]
-        assert len(keyword_updates) == 2
-        assert set(keyword_updates[-1]["keyword_table"]["kw2"]) == {"seg-id-1", "seg-id-2"}
+        assert set(keyword_updates[-1]["keyword_table"]["kw2"]) == {str(segment_ids[0]), str(segment_ids[1])}
         assert any(target is document and "indexing_completed_at" in payload for target, payload in update_calls)
+
+    def test_indexing_should_preserve_keyword_map_updates_from_concurrent_documents(self):
+        dataset_id, segment_ids = uuid4(), [uuid4(), uuid4()]
+        table, barrier, lock = [{"existing": {"old-segment"}}], Barrier(2), Lock()
+
+        def _read(_dataset_id):
+            snapshot = {key: set(ids) for key, ids in table[0].items()}
+            barrier.wait(timeout=5)
+            return SimpleNamespace(keyword_table={key: list(ids) for key, ids in snapshot.items()})
+
+        def _add(_dataset_id, ids):
+            with lock:
+                for segment_id in ids:
+                    table[0].setdefault(("alpha", "bravo")[segment_ids.index(segment_id)], set()).add(str(segment_id))
+
+        helper = SimpleNamespace(get_keyword_table_from_dataset_id=_read, add_keyword_table_from_ids=_add)
+        service = self._build_service(db=_DBStub(SimpleNamespace(query=lambda _model: _QueryStub())))
+        service.keyword_table_service = helper
+        service.jieba_service = SimpleNamespace(extract_keywords=lambda text, _k: [text])
+        service.update = lambda _target, **kw: kw.get("keyword_table") and table.__setitem__(
+            0, {key: set(ids) for key, ids in kw["keyword_table"].items()}
+        )
+
+        def _index(index):
+            segment_id = segment_ids[index]
+            segment = LCDocument(page_content=("alpha", "bravo")[index], metadata={"segment_id": str(segment_id)})
+            service._indexing(SimpleNamespace(id=uuid4(), dataset_id=dataset_id), [segment])
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            list(executor.map(_index, range(2)))
+        assert table[0] == dict(existing={"old-segment"}, alpha={str(segment_ids[0])}, bravo={str(segment_ids[1])})
 
     def test_completed_should_batch_write_vectors_update_segments_and_mark_document_completed(self, monkeypatch):
         class _SegmentUpdateQuery:
