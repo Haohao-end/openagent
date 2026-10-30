@@ -506,11 +506,9 @@ class McpService(BaseService):
         total = len(filtered)
         paginator.total_record = total
         paginator.total_page = math.ceil(total / paginator.page_size) if paginator.page_size else 0
-        paginator.current_page = req.current_page.data
-        paginator.page_size = req.page_size.data
 
-        start = max((req.current_page.data - 1) * req.page_size.data, 0)
-        end = start + req.page_size.data
+        start = max((paginator.current_page - 1) * paginator.page_size, 0)
+        end = start + paginator.page_size
         return filtered[start:end], paginator
 
     def get_mcp_provider(self, provider_id: UUID, account: Account) -> dict[str, Any]:
