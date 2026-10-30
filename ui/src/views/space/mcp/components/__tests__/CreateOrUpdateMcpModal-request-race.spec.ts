@@ -20,10 +20,11 @@ const SlotStub = { template: '<div><slot /></div>' }
 const ModalStub = { props: ['visible'], template: '<div v-if="visible"><slot /></div>' }
 const SpinStub = { props: ['loading'], template: '<div><slot /></div>' }
 const FormStub = { template: '<form><slot /></form>', methods: { resetFields() {} } }
+const OptionStub = { props: ['value'], template: '<div :data-value="value"><slot /></div>' }
 const stubs = {
   'a-modal': ModalStub, 'a-spin': SpinStub, 'a-form': FormStub, 'a-form-item': SlotStub,
-  'a-button': SlotStub, 'a-textarea': SlotStub, 'a-select': SlotStub, 'a-option': SlotStub,
-  'a-input-number': SlotStub, 'a-input': SlotStub, IconUploadGenerator: IconStub,
+  'a-button': SlotStub, 'a-textarea': SlotStub, 'a-select': SlotStub,
+  'a-input-number': SlotStub, 'a-input': SlotStub, 'a-option': OptionStub, IconUploadGenerator: IconStub,
 }
 const mountModal = () => mount(CreateOrUpdateMcpModal, {
   props: { visible: false, mcp_provider_id: '' }, global: { stubs },
@@ -49,6 +50,21 @@ describe('MCP provider request ordering', () => {
     c.resolve(provider('C')); await flushPromises()
     expect(wrapper.findComponent(IconStub).props('name')).toBe('C')
     expect(wrapper.findComponent(SpinStub).props('loading')).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps the latest categories when an older request fails last', async () => {
+    const older = deferred<{ data: { categories: { id: string; name: string }[] } }>()
+    const newer = deferred<{ data: { categories: { id: string; name: string }[] } }>()
+    mocks.getMcpCategories.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise)
+    mocks.getMcpProvider.mockResolvedValue(provider('B'))
+    const wrapper = mountModal()
+    await wrapper.setProps({ visible: true, mcp_provider_id: 'A' }); await flushPromises()
+    await wrapper.setProps({ mcp_provider_id: 'B' }); await flushPromises()
+    newer.resolve({ data: { categories: [{ id: 'current', name: 'Current' }] } }); await flushPromises()
+    older.reject(new Error('stale categories failure')); await flushPromises()
+
+    expect(wrapper.find('[data-value="current"]').exists()).toBe(true)
     wrapper.unmount()
   })
 })
