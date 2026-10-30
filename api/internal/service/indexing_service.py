@@ -201,6 +201,7 @@ class IndexingService(BaseService):
             )
         except Exception as e:
             logging.exception(f"异步删除知识库关联内容出错 dataset_id: {dataset_id}, 错误信息: {str(e)}")
+            raise
 
     def _parsing(self, document: Document) -> list[LCDocument]:
         """解析传递的文档为LangChain文档列表"""
