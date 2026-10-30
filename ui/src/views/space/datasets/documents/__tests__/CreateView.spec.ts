@@ -144,4 +144,31 @@ describe('document creation status', () => {
 
     expect(errors).toEqual([])
   })
+
+  it('does not surface a create failure after unmount', async () => {
+    let rejectCreate!: (error: Error) => void
+    handleCreateDocuments.mockReturnValueOnce(new Promise((_, reject) => { rejectCreate = reject }))
+    const errors: unknown[] = []
+    const { default: CreateView } = await import('../CreateView.vue')
+    const wrapper = mount(CreateView, {
+      global: {
+        config: { errorHandler: (error) => errors.push(error) },
+        stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub },
+      },
+    })
+    const nextButton = () => wrapper.findAll('button').find((button) => button.text().includes('.next'))!
+
+    await wrapper.get('[data-testid="upload"]').trigger('click')
+    await nextButton().trigger('click')
+    await flushPromises()
+    await nextButton().trigger('click')
+    await flushPromises()
+    expect(handleCreateDocuments).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+    rejectCreate(new Error('late create failure'))
+    await flushPromises()
+
+    expect(errors).toEqual([])
+  })
 })

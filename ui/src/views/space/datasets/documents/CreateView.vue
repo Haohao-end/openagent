@@ -140,7 +140,12 @@ const nextStep = async () => {
 
       // 2.10 发起请求并获取数据
       if (!documentsCreated) {
-        await handleCreateDocuments(String(route.params?.dataset_id), req as CreateDocumentsRequest)
+        await handleCreateDocuments(
+          String(route.params?.dataset_id),
+          req as CreateDocumentsRequest,
+        ).catch((error) => {
+          if (!isUnmounted) throw error
+        })
         if (isUnmounted) return
         batch = create_documents_result.value.batch
         documentsCreated = true
