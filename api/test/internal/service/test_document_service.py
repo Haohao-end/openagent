@@ -391,6 +391,41 @@ class TestDocumentService:
         assert len(redis_client.set_calls) == 1
         assert redis_client.delete_calls == [redis_client.set_calls[0][0]]
 
+    def test_update_document_enabled_should_restore_state_when_task_dispatch_fails(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        disabled_at = datetime(2026, 1, 1, tzinfo=UTC)
+        document = SimpleNamespace(
+            id=uuid4(), dataset_id=dataset_id, account_id=account.id,
+            status=DocumentStatus.COMPLETED.value, enabled=False, disabled_at=disabled_at,
+        )
+        redis_client = _RedisStub()
+        service = DocumentService(db=SimpleNamespace(session=SimpleNamespace()), redis_client=redis_client)
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: document)
+        update_calls = []
+
+        def update(target, **kwargs):
+            update_calls.append(kwargs)
+            for field, value in kwargs.items():
+                setattr(target, field, value)
+            return target
+
+        monkeypatch.setattr(service, "update", update)
+        monkeypatch.setattr(
+            "internal.service.document_service.update_document_enabled.delay",
+            lambda _document_id: (_ for _ in ()).throw(RuntimeError("broker unavailable")),
+        )
+
+        with pytest.raises(RuntimeError, match="broker unavailable"):
+            service.update_document_enabled(dataset_id, document.id, True, account)
+
+        assert (document.enabled, document.disabled_at) == (False, disabled_at)
+        assert update_calls == [
+            {"enabled": True, "disabled_at": None},
+            {"enabled": False, "disabled_at": disabled_at},
+        ]
+        assert redis_client.delete_calls == [redis_client.set_calls[0][0]]
+
     def test_update_document_enabled_should_update_state_lock_and_dispatch_task(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         dataset_id = uuid4()

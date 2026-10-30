@@ -190,6 +190,7 @@ class DocumentService(BaseService):
         cache_key = LOCK_DOCUMENT_UPDATE_ENABLED.format(document_id=document.id)
         if not self.redis_client.set(cache_key, 1, ex=LOCK_EXPIRE_TIME, nx=True):
             raise FailException("当前文档正在修改启用状态，请稍后再次尝试")
+        original_state = (document.enabled, getattr(document, "disabled_at", None))
 
         # 5.修改文档的启用状态
         try:
@@ -203,7 +204,14 @@ class DocumentService(BaseService):
             raise
 
         # 6.启用异步任务完成后续操作
-        update_document_enabled.delay(document.id)
+        try:
+            update_document_enabled.delay(document.id)
+        except Exception:
+            try:
+                self.update(document, enabled=original_state[0], disabled_at=original_state[1])
+            finally:
+                self.redis_client.delete(cache_key)
+            raise
 
         return document
 
