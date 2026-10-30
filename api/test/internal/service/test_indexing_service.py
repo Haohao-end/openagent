@@ -688,7 +688,7 @@ class TestIndexingService:
         assert queries[DatasetQuery].filters[0].left.table is DatasetQuery.__table__
         assert len(vector_delete_calls) == 1
 
-    def test_delete_dataset_should_swallow_exception_when_vector_delete_fails(self):
+    def test_delete_dataset_should_propagate_vector_delete_failure(self):
         dataset_id = uuid4()
         queries = {
             Document: _QueryStub(),
@@ -710,8 +710,8 @@ class TestIndexingService:
             )
         )
 
-        # delete_dataset 内部已捕获异常，此处仅验证不会把异常抛给调用方。
-        service.delete_dataset(dataset_id)
+        with pytest.raises(RuntimeError, match="delete-vector-failed"):
+            service.delete_dataset(dataset_id)
 
     def test_delete_document_should_delete_vectors_segments_and_keywords(self):
         dataset_id = uuid4()

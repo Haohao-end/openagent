@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from celery.exceptions import Retry
 from openai import APIConnectionError
 
 from internal.task import app_task, dataset_task, document_task
@@ -89,6 +90,26 @@ def test_dataset_task_delete_dataset_should_delegate(monkeypatch):
 
     assert calls == [dataset_id]
     assert injector.requested_classes[-1].__name__ == "IndexingService"
+
+
+def test_dataset_task_delete_dataset_should_retry_service_failures(monkeypatch):
+    service = SimpleNamespace(
+        delete_dataset=lambda _dataset_id: (_ for _ in ()).throw(RuntimeError("vector unavailable"))
+    )
+    monkeypatch.setattr("app.http.app.injector", _RecordingInjector(service))
+    retry_calls = []
+
+    def retry(**kwargs):
+        retry_calls.append(kwargs)
+        return Retry(exc=kwargs["exc"])
+
+    monkeypatch.setattr(dataset_task.delete_dataset, "retry", retry)
+
+    with pytest.raises(Retry):
+        dataset_task.delete_dataset.run(uuid4())
+
+    assert retry_calls[0]["exc"].args == ("vector unavailable",)
+    assert retry_calls[0]["max_retries"] == 3
 
 
 def test_app_task_auto_create_app_should_delegate(monkeypatch):
