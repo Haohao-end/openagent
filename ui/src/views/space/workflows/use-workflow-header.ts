@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, getCurrentInstance, onUnmounted, ref, type Ref } from 'vue'
 import type { RouteLocationRaw, Router } from 'vue-router'
 import moment from 'moment/moment'
 import { Message } from '@arco-design/web-vue'
@@ -36,6 +36,8 @@ const buildWorkflowId = (workflowId: string): string => {
 
 export const useWorkflowHeader = (options: UseWorkflowHeaderOptions) => {
   const forkLoading = ref(false)
+  let isUnmounted = false
+  if (getCurrentInstance()) onUnmounted(() => { isUnmounted = true })
   const t = i18n.global.t
   const locale = i18n.global.locale as unknown as Ref<string>
 
@@ -76,15 +78,16 @@ export const useWorkflowHeader = (options: UseWorkflowHeaderOptions) => {
     try {
       forkLoading.value = true
       const res = await forkPublicWorkflow(currentWorkflowId)
+      if (isUnmounted) return
       Message.success(t('appStudio.shell.addToMySpaceSuccess', { name: res.data.name }))
       await options.router.push({
         name: 'space-workflows-detail',
         params: { workflow_id: res.data.id },
       })
     } catch (error: unknown) {
-      Message.error(getErrorMessage(error, t('appStudio.shell.addToMySpaceFailed')))
+      if (!isUnmounted) Message.error(getErrorMessage(error, t('appStudio.shell.addToMySpaceFailed')))
     } finally {
-      forkLoading.value = false
+      if (!isUnmounted) forkLoading.value = false
     }
   }
 

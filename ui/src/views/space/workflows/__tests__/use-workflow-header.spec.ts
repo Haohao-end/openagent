@@ -1,6 +1,7 @@
-import { ref } from 'vue'
+import { defineComponent, h, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Router } from 'vue-router'
+import { flushPromises, mount } from '@vue/test-utils'
 import { useWorkflowHeader } from '@/views/space/workflows/use-workflow-header'
 
 const forkPublicWorkflowMock = vi.fn()
@@ -104,6 +105,31 @@ describe('use-workflow-header', () => {
 
     expect(forkPublicWorkflowMock).not.toHaveBeenCalled()
     expect(messageErrorMock).toHaveBeenCalledWith('工作流ID不存在，无法添加')
+    expect(router.push).not.toHaveBeenCalled()
+  })
+
+  it('does not notify or navigate when a workflow fork completes after unmount', async () => {
+    let resolveFork!: (value: { data: { id: string; name: string } }) => void
+    forkPublicWorkflowMock.mockReturnValueOnce(new Promise((resolve) => { resolveFork = resolve }))
+    const router = createRouter()
+    const Wrapper = defineComponent({
+      setup() {
+        const header = useWorkflowHeader({
+          isPreviewMode: ref(true), workflowId: ref('workflow-1'), workflow: ref({}), router,
+        })
+        return () => h('button', { onClick: header.handleAddToMySpace }, 'fork')
+      },
+    })
+    const wrapper = mount(Wrapper)
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    wrapper.unmount()
+    resolveFork({ data: { id: 'forked-workflow', name: 'Forked workflow' } })
+    await flushPromises()
+
+    expect(messageSuccessMock).not.toHaveBeenCalled()
+    expect(messageErrorMock).not.toHaveBeenCalled()
     expect(router.push).not.toHaveBeenCalled()
   })
 })
