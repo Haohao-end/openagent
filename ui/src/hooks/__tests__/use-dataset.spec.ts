@@ -1,3 +1,4 @@
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   useDeleteDocument,
@@ -66,10 +67,12 @@ type SegmentsPageResponse = {
 
 const createDeferred = <T,>() => {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (error: Error) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
+    reject = rejectPromise
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 vi.mock('@/services/dataset', () => ({
@@ -107,6 +110,8 @@ vi.mock('@arco-design/web-vue', () => ({
     warning: mocks.modalWarning,
   },
 }))
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+import HitTestingModal from '@/views/space/datasets/documents/components/HitTestingModal.vue'
 
 describe('use-dataset action callbacks', () => {
   beforeEach(() => {
@@ -369,6 +374,39 @@ describe('useGetDatasetQueries', () => {
 
     expect(queries.value).toEqual([])
     expect(loading.value).toBe(false)
+  })
+})
+
+describe('HitTestingModal request lifecycle', () => {
+  it('invalidates stale results on dataset changes, close, and unmount', async () => {
+    vi.clearAllMocks(); mocks.getDatasetQueries.mockResolvedValue({ data: [] })
+    const requests = Array.from({ length: 5 }, () => createDeferred<{ data: any[] }>())
+    let requestId = 0
+    mocks.hit.mockImplementation(() => requests[requestId++].promise)
+    const stubs = { 'a-modal': { props: ['visible'], template: '<div v-if="visible"><slot /></div>' },
+      'a-button': { props: ['loading'], emits: ['click'], template: '<button :data-loading="loading" @click="$emit(\'click\')"><slot /></button>' },
+      'a-textarea': { props: ['modelValue'], emits: ['update:modelValue'], template: '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' } }
+    const wrapper = mount(HitTestingModal, { props: { visible: true, dataset_id: 'a' }, global: { renderStubDefaultSlot: true, stubs } })
+    const search = async () => { await wrapper.find('textarea').setValue('search'); await wrapper.findAll('button').at(-1)!.trigger('click') }
+    await search(); await search()
+    await wrapper.setProps({ dataset_id: 'b' }); await flushPromises()
+    await search()
+    requests[1].reject(new Error('stale failure')); await flushPromises()
+    expect(wrapper.findAll('button').at(-1)!.attributes('data-loading')).toBe('true')
+    expect(mocks.messageError).not.toHaveBeenCalled()
+    requests[2].resolve({ data: [{ id: 'b-hit', content: 'b-hit', score: 1, document: { name: 'doc' } }] }); requests[0].resolve({ data: [{ id: 'a-hit', content: 'a-hit', score: 1, document: { name: 'doc' } }] }); await flushPromises()
+    expect(wrapper.text()).toContain('b-hit'); expect(wrapper.text()).not.toContain('a-hit')
+    expect(mocks.getDatasetQueries.mock.calls.map(([id]) => id)).toEqual(['b', 'b'])
+    expect(mocks.hit.mock.calls[2]).toEqual(['b', { query: 'search', retrieval_strategy: 'semantic', k: 5, score: 0.5 }])
+    await search()
+    await wrapper.setProps({ visible: false }); await flushPromises()
+    requests[3].resolve({ data: [{ id: 'closed', content: 'closed', score: 1, document: { name: 'doc' } }] }); await flushPromises()
+    await wrapper.setProps({ visible: true }); await flushPromises()
+    expect(wrapper.text()).not.toContain('closed')
+    await search()
+    wrapper.unmount()
+    requests[4].resolve({ data: [{ id: 'unmounted', content: 'unmounted', score: 1, document: { name: 'doc' } }] }); await flushPromises()
+    expect(mocks.getDatasetQueries.mock.calls.map(([id]) => id)).toEqual(['b', 'b', 'b'])
   })
 })
 
