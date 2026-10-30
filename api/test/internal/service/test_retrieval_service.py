@@ -32,8 +32,10 @@ class _QueryStub:
         self._scalar_result = scalar_result
         self._first_result = first_result
         self.deleted = False
+        self.filters = []
 
-    def filter(self, *_args, **_kwargs):
+    def filter(self, *args, **_kwargs):
+        self.filters.extend(args)
         return self
 
     def filter_by(self, **_kwargs):
@@ -43,6 +45,9 @@ class _QueryStub:
         return self
 
     def with_entities(self, *_args, **_kwargs):
+        return self
+
+    def join(self, *_args, **_kwargs):
         return self
 
     def limit(self, *_args, **_kwargs):
@@ -134,14 +139,15 @@ class TestRetrievalService:
                 account_id=uuid4(),
             )
 
-    def test_search_in_datasets_should_create_query_records_and_execute_hit_update(self, monkeypatch):
+    def test_search_in_datasets_should_filter_failed_segments_and_track_hits(self, monkeypatch):
         account_id = uuid4()
         dataset_id = uuid4()
         segment_id = uuid4()
+        failed_segment_id = uuid4()
         datasets = [SimpleNamespace(id=dataset_id, account_id=account_id)]
         lc_docs = [
             SimpleNamespace(metadata={"dataset_id": dataset_id, "segment_id": segment_id, "score": 0.66}),
-            SimpleNamespace(metadata={"dataset_id": dataset_id, "segment_id": segment_id, "score": 0.55}),
+            SimpleNamespace(metadata={"dataset_id": dataset_id, "segment_id": failed_segment_id, "score": 0.55}),
         ]
 
         class _Session:
@@ -151,7 +157,8 @@ class TestRetrievalService:
             def query(self, model):
                 if model is Dataset:
                     return _QueryStub(all_result=datasets)
-                return _QueryStub()
+                self.segment_query = _QueryStub(all_result=[(segment_id,)])
+                return self.segment_query
 
             def execute(self, _stmt):
                 self.executed = True
@@ -202,7 +209,13 @@ class TestRetrievalService:
             k=2,
         )
 
-        assert result == lc_docs[:2]
+        assert result == [lc_docs[0]]
+        assert any(
+            getattr(getattr(condition, "left", None), "key", None) == "status"
+            and getattr(getattr(getattr(condition, "left", None), "table", None), "name", None) == "document"
+            and getattr(getattr(condition, "right", None), "value", None) == DocumentStatus.COMPLETED.value
+            for condition in session.segment_query.filters
+        )
         assert len(create_calls) == 1
         assert create_calls[0][1]["dataset_id"] == str(dataset_id)
         assert session.executed is True
@@ -295,7 +308,7 @@ class TestRetrievalService:
             def query(self, model):
                 if model is Dataset:
                     return _QueryStub(all_result=datasets)
-                return _QueryStub()
+                return _QueryStub(all_result=[(segment_id,)])
 
             def execute(self, _stmt):
                 return None

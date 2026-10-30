@@ -7,9 +7,9 @@ from langchain_classic.retrievers.ensemble import EnsembleRetriever
 from langchain_core.documents import Document as LCDocument
 from sqlalchemy import update
 from langchain_core.tools import BaseTool, tool
-from internal.entity.dataset_entity import RetrievalStrategy, RetrievalSource
+from internal.entity.dataset_entity import DocumentStatus, RetrievalStrategy, RetrievalSource, SegmentStatus
 from internal.exception import NotFoundException
-from internal.model import Dataset, DatasetQuery, Segment
+from internal.model import Dataset, DatasetQuery, Document, Segment
 from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
 from .jieba_service import JiebaService
@@ -72,11 +72,36 @@ class RetrievalService(BaseService):
 
         # 3.根据不同的检索策略执行检索
         if retrieval_strategy == RetrievalStrategy.SEMANTIC.value:
-            lc_documents = semantic_retriever.invoke(query)[:k]
+            lc_documents = semantic_retriever.invoke(query)
         elif retrieval_strategy == RetrievalStrategy.FULL_TEXT.value:
-            lc_documents = full_text_retriever.invoke(query)[:k]
+            lc_documents = full_text_retriever.invoke(query)
         else:
-            lc_documents = hybrid_retriever.invoke(query)[:k]
+            lc_documents = hybrid_retriever.invoke(query)
+
+        if retrieval_strategy != RetrievalStrategy.FULL_TEXT.value and lc_documents:
+            segment_ids = {
+                UUID(str(lc_document.metadata["segment_id"]))
+                for lc_document in lc_documents
+                if lc_document.metadata.get("segment_id")
+            }
+            active_segment_ids = {
+                str(row[0])
+                for row in self.db.session.query(Segment.id).join(
+                    Document, Document.id == Segment.document_id
+                ).filter(
+                    Segment.id.in_(segment_ids),
+                    Segment.dataset_id.in_(dataset_ids),
+                    Segment.status == SegmentStatus.COMPLETED.value,
+                    Segment.enabled.is_(True),
+                    Document.status == DocumentStatus.COMPLETED.value,
+                    Document.enabled.is_(True),
+                ).all()
+            }
+            lc_documents = [
+                lc_document for lc_document in lc_documents
+                if str(lc_document.metadata.get("segment_id")) in active_segment_ids
+            ]
+        lc_documents = lc_documents[:k]
 
         # 4.添加知识库查询记录（只存储唯一记录，也就是一个知识库如果检索了多篇文档，也只存储一条）
         unique_dataset_ids = list(set(str(lc_document.metadata["dataset_id"]) for lc_document in lc_documents))
