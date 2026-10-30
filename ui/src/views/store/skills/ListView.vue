@@ -143,6 +143,12 @@ const loadSkillDetail = async (skillId: string) => {
   }
 }
 
+const closeSkillDetail = () => {
+  latestSkillDetailRequest += 1
+  showDetailVisible.value = false
+  detailLoading.value = false
+}
+
 const handleCardClick = async (skill: SkillPackage) => {
   await loadSkillDetail(skill.id)
 }
@@ -321,7 +327,7 @@ onMounted(async () => {
       :footer="false"
       :title="t('store.skills.detailTitle')"
       :drawer-style="{ background: '#F9FAFB' }"
-      @cancel="showDetailVisible = false"
+      @cancel="closeSkillDetail"
     >
       <a-spin :loading="detailLoading" class="block h-full w-full">
         <div v-if="activeSkill" class="flex flex-col gap-4">

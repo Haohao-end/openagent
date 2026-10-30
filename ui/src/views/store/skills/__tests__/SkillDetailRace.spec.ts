@@ -99,4 +99,29 @@ describe('Skills list detail requests', () => {
     expect(wrapper.text()).not.toContain('Old Search Result')
     wrapper.unmount()
   })
+
+  it('ignores a detail failure after the drawer is closed', async () => {
+    const request = deferred<{ data: ReturnType<typeof skill> }>()
+    getSkill.mockReturnValueOnce(request.promise)
+    const { Message } = await import('@arco-design/web-vue')
+    const { default: ListView } = await import('../ListView.vue')
+    const wrapper = mount(ListView, { global: { stubs: {
+      'a-card': defineComponent({ emits: ['click'], setup(_props, { emit, slots }) { return () => h('div', { onClick: () => emit('click') }, slots.default?.()) } }),
+      'a-drawer': defineComponent({
+        props: ['visible'], emits: ['cancel'],
+        setup(props, { emit, slots }) { return () => props.visible ? h('div', [h('button', { 'data-testid': 'close-detail', onClick: () => emit('cancel') }), slots.default?.()]) : null },
+      }),
+      'resource-card-description': true,
+    } } })
+    await flushPromises()
+
+    await wrapper.findAll('[class*="cursor-pointer rounded-lg"]')[0].trigger('click')
+    await wrapper.get('[data-testid="close-detail"]').trigger('click')
+    request.reject(new Error('late skill detail failure'))
+    await flushPromises()
+
+    expect(Message.error).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="close-detail"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
 })
