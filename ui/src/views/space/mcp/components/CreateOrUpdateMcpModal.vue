@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { type FileItem, Form, Message, type ValidatedError } from '@arco-design/web-vue'
 import { useI18n } from 'vue-i18n'
 import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
@@ -64,6 +64,7 @@ const defaultForm = (): McpForm => ({
 })
 
 const form = ref<McpForm>(defaultForm())
+let latestProviderRequest = 0
 
 const isEditMode = computed(() => Boolean(props.mcp_provider_id))
 const getCategoryLabel = (value: string) =>
@@ -141,13 +142,14 @@ const loadProvider = async (providerId: string) => {
   }
 
   loadingProvider.value = true
+  const requestId = ++latestProviderRequest
   try {
     const res = await getMcpProvider(providerId)
-    applyMcpPayload(res.data)
+    if (requestId === latestProviderRequest) applyMcpPayload(res.data)
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('space.mcp.detailLoadFailed')))
+    if (requestId === latestProviderRequest) Message.error(getErrorMessage(error, t('space.mcp.detailLoadFailed')))
   } finally {
-    loadingProvider.value = false
+    if (requestId === latestProviderRequest) loadingProvider.value = false
   }
 }
 
@@ -287,25 +289,25 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
 }
 
 watch(
-  () => props.visible,
-  async (visible) => {
+  () => [props.visible, props.mcp_provider_id] as const,
+  async ([visible, providerId]) => {
+    const requestId = ++latestProviderRequest
+    loadingProvider.value = false
     formRef.value?.resetFields()
+    form.value = defaultForm()
     aiQuestion.value = ''
     aiAnswer.value = ''
     if (!visible) {
-      form.value = defaultForm()
       emits('update:mcp_provider_id', '')
       return
     }
 
     await loadCategories()
-    if (props.mcp_provider_id) {
-      await loadProvider(props.mcp_provider_id)
-    } else {
-      form.value = defaultForm()
-    }
+    if (requestId !== latestProviderRequest) return
+    if (providerId) await loadProvider(providerId)
   },
 )
+onUnmounted(() => { latestProviderRequest += 1; loadingProvider.value = false })
 </script>
 
 <template>
