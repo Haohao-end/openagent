@@ -712,7 +712,7 @@ class McpToolFactory:
         )
         if isinstance(payload, dict):
             if payload.get("isError") is True:
-                return _extract_text_from_mcp_content(payload.get("content")) or json.dumps(payload, ensure_ascii=False)
+                return "MCP 工具调用失败"
 
             structured_content = payload.get("structuredContent")
             if structured_content is not None:
