@@ -662,4 +662,34 @@ describe('PreviewDebugChat', () => {
     finishStream?.()
     await flushPromises()
   })
+
+  it('does not surface a debug stream rejection after unmount', async () => {
+    let rejectStream!: (error: Error) => void
+    const errors: unknown[] = []
+    mocks.query.value = 'hello'
+    mocks.handleDebugChat.mockReturnValueOnce(new Promise((_, reject) => { rejectStream = reject }))
+    const wrapper = shallowMount(PreviewDebugChat, {
+      global: {
+        config: { errorHandler: (error) => errors.push(error) },
+        stubs: {
+          'scroll-navigator': { template: '<div><slot /></div>' },
+          'chat-composer': { emits: ['submit'], template: '<button class="chat-composer-submit" @click="$emit(\'submit\')" />' },
+        },
+      },
+      props: {
+        app: { id: 'app-1' },
+        suggested_after_answer: { enable: false },
+        opening_statement: '',
+        opening_questions: [],
+      },
+    })
+    await flushPromises()
+    wrapper.find('.chat-composer-submit').trigger('click')
+    await flushPromises()
+    wrapper.unmount()
+    rejectStream(new Error('late debug stream failure'))
+    await flushPromises()
+
+    expect(errors).toEqual([])
+  })
 })

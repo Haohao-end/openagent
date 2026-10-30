@@ -562,6 +562,8 @@ const handleSubmit = async () => {
       },
       enableDeepThinking.value,
     )
+  } catch (error: unknown) {
+    if (requestGeneration === streamGeneration) throw error
   } finally {
     if (requestGeneration === streamGeneration) {
       isStreamingResponse.value = false
