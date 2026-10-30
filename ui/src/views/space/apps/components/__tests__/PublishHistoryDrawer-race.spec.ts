@@ -7,7 +7,8 @@ vi.mock('@/services/app', async (original) => ({
 import PublishHistoryDrawer from '../PublishHistoryDrawer.vue'
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
-  return { promise: new Promise<T>((done) => { resolve = done }), resolve }
+  let reject!: (reason: Error) => void
+  return { promise: new Promise<T>((done, fail) => { resolve = done; reject = fail }), resolve, reject }
 }
 const response = (version: number) => ({ data: {
   list: [{ id: `history-${version}`, version, created_at: 0 }],
@@ -15,9 +16,12 @@ const response = (version: number) => ({ data: {
 } })
 const app = (id: string) => ({ id, name: id, icon: '', description: '', draft_updated_at: 0 })
 const stub = { template: '<div><slot /></div>' }
-const mountDrawer = () => mount(PublishHistoryDrawer, {
+const mountDrawer = (errorHandler?: (error: unknown) => void) => mount(PublishHistoryDrawer, {
   props: { visible: false, app: app('app-a') },
-  global: { stubs: Object.fromEntries(['a-drawer', 'a-spin', 'a-card', 'a-tag', 'a-space'].map((name) => [name, stub])) },
+  global: {
+    config: { errorHandler },
+    stubs: Object.fromEntries(['a-drawer', 'a-spin', 'a-card', 'a-tag', 'a-space'].map((name) => [name, stub])),
+  },
 })
 it('reloads for a new app and ignores stale requests after app changes and reopen', async () => {
   const pending = Array.from({ length: 4 }, () => deferred<ReturnType<typeof response>>())
@@ -36,5 +40,22 @@ it('reloads for a new app and ignores stale requests after app changes and reope
   pending[2].resolve(response(3)); await flushPromises()
   expect(wrapper.text()).toContain('# 004')
   expect(wrapper.text()).not.toContain('# 003')
+  wrapper.unmount()
+})
+
+it('does not surface a stale history request failure after switching apps', async () => {
+  getHistories.mockReset()
+  const older = deferred<ReturnType<typeof response>>()
+  const newer = deferred<ReturnType<typeof response>>()
+  getHistories.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise)
+  const errors: unknown[] = []
+  const wrapper = mountDrawer((error) => errors.push(error))
+  await wrapper.setProps({ visible: true }); await flushPromises()
+  await wrapper.setProps({ app: app('app-b') }); await flushPromises()
+  newer.resolve(response(2)); await flushPromises()
+  older.reject(new Error('stale history failure')); await flushPromises()
+
+  expect(errors).toEqual([])
+  expect(wrapper.text()).toContain('# 002')
   wrapper.unmount()
 })
