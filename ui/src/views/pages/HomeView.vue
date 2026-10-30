@@ -403,11 +403,11 @@ const tryLoadHomeIntent = async () => {
   const requestVersion = ++homeIntentRequestVersion.value
   try {
     const intentData = await loadHomeIntent()
-    if (requestVersion !== homeIntentRequestVersion.value) return false
+    if (requestVersion !== homeIntentRequestVersion.value) return true
     applyHomeIntentResult(intentData)
     return true
   } catch {
-    return false
+    return requestVersion !== homeIntentRequestVersion.value
   }
 }
 
