@@ -32,8 +32,10 @@ class _QueryStub:
         self._scalar_result = scalar_result
         self._first_result = first_result
         self.deleted = False
+        self.filters = []
 
-    def filter(self, *_args, **_kwargs):
+    def filter(self, *args, **_kwargs):
+        self.filters.extend(args)
         return self
 
     def filter_by(self, **_kwargs):
@@ -155,7 +157,8 @@ class TestRetrievalService:
             def query(self, model):
                 if model is Dataset:
                     return _QueryStub(all_result=datasets)
-                return _QueryStub(all_result=[(segment_id,)])
+                self.segment_query = _QueryStub(all_result=[(segment_id,)])
+                return self.segment_query
 
             def execute(self, _stmt):
                 self.executed = True
@@ -207,6 +210,12 @@ class TestRetrievalService:
         )
 
         assert result == [lc_docs[0]]
+        assert any(
+            getattr(getattr(condition, "left", None), "key", None) == "status"
+            and getattr(getattr(getattr(condition, "left", None), "table", None), "name", None) == "document"
+            and getattr(getattr(condition, "right", None), "value", None) == DocumentStatus.COMPLETED.value
+            for condition in session.segment_query.filters
+        )
         assert len(create_calls) == 1
         assert create_calls[0][1]["dataset_id"] == str(dataset_id)
         assert session.executed is True
