@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { codeAssistantChat } from '@/services/ai'
 import { useMarkdownRenderer } from '@/hooks/use-markdown-renderer'
@@ -33,6 +33,15 @@ const localVisible = computed({
 const userQuestion = ref('')
 const aiResponse = ref('')
 const isLoading = ref(false)
+let chatAbortController: AbortController | null = null
+
+const abortChatRequest = () => {
+  chatAbortController?.abort()
+  chatAbortController = null
+  isLoading.value = false
+}
+
+onUnmounted(abortChatRequest)
 
 watch(
   () => props.visible,
@@ -40,6 +49,8 @@ watch(
     if (newVisible) {
       userQuestion.value = ''
       aiResponse.value = ''
+    } else {
+      abortChatRequest()
     }
   },
 )
@@ -62,6 +73,7 @@ const generatedCode = computed(() => extractPythonCode(aiResponse.value))
 const canUseCode = computed(() => generatedCode.value.trim() !== '')
 
 const handleClose = () => {
+  abortChatRequest()
   localVisible.value = false
 }
 
@@ -72,15 +84,20 @@ const handleSubmit = async () => {
     return
   }
 
+  abortChatRequest()
   isLoading.value = true
   aiResponse.value = ''
+  const controller = new AbortController()
+  chatAbortController = controller
 
   try {
     const response = await codeAssistantChat(question, (eventResponse) => {
+      if (controller.signal.aborted) return
       const content = String(eventResponse?.data?.content ?? '')
       if (!content) return
       aiResponse.value += content
-    })
+    }, controller.signal)
+    if (controller.signal.aborted) return
 
     if (response && typeof response === 'object' && 'code' in response) {
       throw new Error(String((response as { message?: string }).message || (isEnglish.value ? 'AI request failed' : 'AI 请求失败')))
@@ -90,9 +107,14 @@ const handleSubmit = async () => {
       Message.warning(isEnglish.value ? 'AI returned no content. Please try again.' : 'AI 未返回内容，请重试')
     }
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, isEnglish.value ? 'AI request failed. Please try again later.' : 'AI 请求失败，请稍后重试'))
+    if (!controller.signal.aborted) {
+      Message.error(getErrorMessage(error, isEnglish.value ? 'AI request failed. Please try again later.' : 'AI 请求失败，请稍后重试'))
+    }
   } finally {
-    isLoading.value = false
+    if (chatAbortController === controller) {
+      chatAbortController = null
+      isLoading.value = false
+    }
   }
 }
 

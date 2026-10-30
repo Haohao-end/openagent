@@ -18,8 +18,9 @@ export const generateSuggestedQuestions = (message_id: string) => {
 export const codeAssistantChat = (
   question: string,
   onData: (event_response: Record<string, any>) => void,
+  signal?: AbortSignal,
 ) => {
-  return ssePost(`/ai/chat`, { body: { question } }, onData)
+  return ssePost(`/ai/chat`, { body: { question }, signal }, onData)
 }
 
 // OpenAPI Schema 助手流式对话接口
