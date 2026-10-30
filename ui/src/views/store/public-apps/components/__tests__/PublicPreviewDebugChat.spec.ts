@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     data: [],
   }),
   sendPublicAppA2aMessage: vi.fn().mockResolvedValue(undefined),
+  messageError: vi.fn(),
   triggerFileInput: vi.fn(),
   handleFileChange: vi.fn(),
   uploadImage: vi.fn(),
@@ -77,7 +78,7 @@ vi.mock('@/services/upload-file', () => ({
 
 vi.mock('@arco-design/web-vue', () => ({
   Message: {
-    error: vi.fn(),
+    error: mocks.messageError,
     success: vi.fn(),
     warning: vi.fn(),
   },
@@ -90,11 +91,26 @@ const chatComposerStub = defineComponent({
     showUploadButton: { type: Boolean, default: false },
     showImagePreviews: { type: Boolean, default: false },
     uploadDisabled: { type: Boolean, default: false },
+    submitLoading: { type: Boolean, default: false },
   },
-  emits: ['update:modelValue', 'submit'],
+  emits: ['update:modelValue', 'submit', 'clear'],
   template: '<button @click="$emit(\'submit\')">send</button>',
 })
 let mountedWrapper: ReturnType<typeof shallowMount> | undefined
+
+const mountPreview = () => (mountedWrapper = shallowMount(PublicPreviewDebugChat, {
+  props: { app: {}, suggested_after_answer: { enable: true }, opening_statement: '', opening_questions: [], text_to_speech: { enable: false } },
+  global: { stubs: { ChatComposer: chatComposerStub, ChatConversationSkeleton: true, ChatMessageTimeline: defineComponent({ name: 'ChatMessageTimeline', props: { messages: Array }, template: '<div />' }), HumanMessage: true, 'a-avatar': true } },
+}))
+
+const beginStream = (wrapper: ReturnType<typeof shallowMount>, query: string) => {
+  let finish!: () => void; let fail!: (error: Error) => void; let event!: (value: unknown) => void
+  const pending = new Promise<void>((resolve, reject) => { finish = resolve; fail = reject })
+  mocks.sendPublicAppA2aMessage.mockImplementationOnce((...args: unknown[]) => { event = args[4] as typeof event; return pending })
+  mocks.queryRef!.value = query
+  wrapper.getComponent(chatComposerStub).vm.$emit('submit')
+  return { finish, fail, emit: (id: string) => event({ event: 'agent_message', data: { message_id: id, conversation_id: id } }) }
+}
 
 describe('PublicPreviewDebugChat', () => {
   afterEach(() => {
@@ -177,6 +193,8 @@ describe('PublicPreviewDebugChat', () => {
     composer.vm.$emit('update:modelValue', 'first')
     composer.vm.$emit('submit')
     await flushPromises()
+    firstEvent({ event: 'agent_message', data: { message_id: 'normal', conversation_id: 'conversation-a' } })
+    expect(window.localStorage.getItem('public-apps:debug-context:app-1:account-1')).toBe('conversation-a')
     mocks.routeProxy!.query = { conversation_id: 'conversation-b' }
     await flushPromises()
     firstEvent({ event: 'agent_message', data: { message_id: 'message-a', conversation_id: 'conversation-a' } })
@@ -189,5 +207,48 @@ describe('PublicPreviewDebugChat', () => {
     composer.vm.$emit('submit')
     await flushPromises()
     expect(mocks.sendPublicAppA2aMessage.mock.calls[1][2]).toBe('conversation-b')
+  })
+
+  it('clears old context and ignores callbacks after clear and unmount', async () => {
+    const wrapper = mountPreview()
+    const cleared = beginStream(wrapper, 'clear me')
+    await flushPromises()
+    wrapper.getComponent(chatComposerStub).vm.$emit('clear')
+    cleared.emit('stale-after-clear')
+    cleared.finish()
+    expect(window.localStorage.getItem('public-apps:debug-context:app-1:account-1')).toBeNull()
+    const late = beginStream(wrapper, 'late')
+    await flushPromises()
+    const staleMessage = wrapper.findComponent({ name: 'ChatMessageTimeline' }).props('messages')[0] as { id: string }
+    wrapper.unmount()
+    mocks.routeProxy!.query = { conversation_id: 'new-context' }
+    const remounted = mountPreview()
+    await flushPromises()
+    late.emit('stale-after-unmount')
+    late.finish()
+    expect([window.localStorage.getItem('public-apps:debug-context:app-1:account-1'), staleMessage.id]).toEqual(['new-context', ''])
+    const sends = mocks.sendPublicAppA2aMessage.mock.calls.length
+    mocks.queryRef!.value = 'unmount before nextTick'
+    remounted.getComponent(chatComposerStub).vm.$emit('submit')
+    remounted.unmount()
+    await flushPromises()
+    expect(mocks.sendPublicAppA2aMessage).toHaveBeenCalledTimes(sends)
+  })
+
+  it('does not let a stale failure clear the replacement session loading state', async () => {
+    const wrapper = mountPreview()
+    const old = beginStream(wrapper, 'old session')
+    await flushPromises()
+    mocks.routeProxy!.query = { conversation_id: 'replacement' }
+    await flushPromises()
+    const current = beginStream(wrapper, 'new session')
+    await flushPromises()
+    old.fail(new Error('stale failure'))
+    await flushPromises()
+    expect(mocks.messageError).not.toHaveBeenCalled()
+    expect(wrapper.getComponent(chatComposerStub).props('submitLoading')).toBe(true)
+    current.finish()
+    await flushPromises()
+    expect(wrapper.getComponent(chatComposerStub).props('submitLoading')).toBe(false)
   })
 })
