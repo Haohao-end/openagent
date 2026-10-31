@@ -367,8 +367,8 @@ class SegmentService(BaseService):
             raise FailException("删除文档片段失败，请稍后重试") from e
 
         # 5.删除文档片段和关键词
-        self.delete(segment)
         self.keyword_table_service.delete_keyword_table_from_ids(dataset_id, [segment_id])
+        self.delete(segment)
 
         # 6.更新文档信息，涵盖字符总数、token总次数
         document_character_count, document_token_count = self.db.session.query(
