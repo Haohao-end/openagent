@@ -6,6 +6,7 @@ import re
 import time
 import uuid
 from collections.abc import Callable
+from threading import Event
 from typing import Any
 from uuid import UUID
 from urllib.parse import urlparse
@@ -13,6 +14,7 @@ from urllib.parse import urlparse
 from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.messages import ToolMessage
 from langchain.tools.tool_node import ToolCallRequest
+from langgraph.constants import END
 from langgraph.types import Command
 
 from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
@@ -39,11 +41,13 @@ class DeepTimelineMiddleware(AgentMiddleware):
         task_id: UUID,
         publisher: Callable[[UUID, AgentThought], None],
         tool_policy: ToolPolicy | None = None,
+        cancel_event: Event | None = None,
     ) -> None:
         super().__init__()
         self.task_id = task_id
         self.publisher = publisher
         self.tool_policy = tool_policy or ToolPolicy()
+        self.cancel_event = cancel_event
         self._tool_steps: dict[str, UUID] = {}
         self._latest_todo_step_id: UUID | None = None
         self._latest_todos: list[dict[str, Any]] = []
@@ -392,6 +396,9 @@ class DeepTimelineMiddleware(AgentMiddleware):
         request: ToolCallRequest,
         handler: Callable[[ToolCallRequest], ToolMessage | Command[Any]],
     ) -> ToolMessage | Command[Any]:
+        if self.cancel_event is not None and self.cancel_event.is_set():
+            return Command(goto=END)
+
         tool_name = str(request.tool_call.get("name", ""))
         tool_args = dict(request.tool_call.get("args", {}) or {})
         step_type, title = self._classify_tool(tool_name)
