@@ -1113,7 +1113,7 @@ class TestSegmentService:
         with pytest.raises(NotFoundException):
             service.delete_segment(uuid4(), uuid4(), uuid4(), SimpleNamespace(id=uuid4()))
 
-    def test_delete_segment_should_preserve_segment_when_vector_delete_failed(self, monkeypatch):
+    def test_delete_segment_should_preserve_segment_when_cleanup_failed(self, monkeypatch):
         document = SimpleNamespace(id=uuid4())
         segment = SimpleNamespace(
             id=uuid4(),
@@ -1127,7 +1127,15 @@ class TestSegmentService:
 
         query_stub = _QueryStub(first_result=(10, 5))
         keyword_deletes = []
+        keyword_attempts = []
         segment_deletes = []
+
+        def delete_keywords(*args, **_kwargs):
+            keyword_attempts.append(args)
+            if len(keyword_attempts) == 1:
+                raise RuntimeError("keyword-delete-error")
+            keyword_deletes.append(args)
+
         service = SegmentService(
             db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args, **_kwargs: query_stub)),
             redis_client=_RedisStub(),
@@ -1137,7 +1145,7 @@ class TestSegmentService:
                 calculate_token_count=lambda _q: 1,
             ),
             keyword_table_service=SimpleNamespace(
-                delete_keyword_table_from_ids=lambda *args, **_kwargs: keyword_deletes.append(args)
+                delete_keyword_table_from_ids=delete_keywords
             ),
             vector_database_service=SimpleNamespace(
                 collection=SimpleNamespace(
@@ -1165,11 +1173,19 @@ class TestSegmentService:
         assert update_calls == []
 
         monkeypatch.setattr(service.vector_database_service.collection.data, "delete_by_id", lambda *_args: None)
+        with pytest.raises(RuntimeError, match="keyword-delete-error"):
+            service.delete_segment(segment.dataset_id, segment.document_id, segment.id, account)
+
+        assert segment_deletes == []
+        assert len(keyword_attempts) == 1
+        assert update_calls == []
+
         result = service.delete_segment(segment.dataset_id, segment.document_id, segment.id, account)
 
         assert result is segment
         assert segment_deletes == [segment]
         assert len(keyword_deletes) == 1
+        assert len(keyword_attempts) == 2
         assert update_calls[-1][0] is document
         assert update_calls[-1][1]["character_count"] == 10
         assert update_calls[-1][1]["token_count"] == 5
