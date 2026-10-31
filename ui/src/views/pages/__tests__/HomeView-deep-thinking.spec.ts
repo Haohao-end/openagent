@@ -351,4 +351,53 @@ describe('HomeView deep thinking submit', () => {
     expect(wrapper.text()).not.toContain('当前会话')
     expect(wrapper.text()).not.toContain('会话 ID')
   })
+
+  it('ignores a stream event after switching to another conversation', async () => {
+    mocks.route.query = { conversation_id: 'conversation-a' }
+    mocks.route.fullPath = '/home?conversation_id=conversation-a'
+    mocks.messagesRef.value = [{ id: 'history-a', conversation_id: 'conversation-a', query: 'A', answer: 'history A', agent_thoughts: [] }] as any
+    let emitStreamEvent: ((event: any) => void) | undefined
+    let resolveStream: (() => void) | undefined
+    mocks.handleAssistantAgentChat.mockImplementation((_query, _images, _conversation, onEvent) => {
+      emitStreamEvent = onEvent
+      return new Promise<void>((resolve) => { resolveStream = resolve })
+    })
+
+    const wrapper = shallowMount(HomeView, {
+      global: {
+        stubs: {
+          AiDynamicBackground: componentStub,
+          AiMessage: componentStub,
+          ChatComposer: chatComposerStub,
+          HumanMessage: componentStub,
+          ChatConversationSkeleton: componentStub,
+          LoginModal: componentStub,
+          'a-button': componentStub,
+          'icon-down': componentStub,
+          'icon-poweroff': componentStub,
+        },
+      },
+    })
+    await flushPromises()
+
+    mocks.queryRef.value = 'question from A'
+    const submitPromise = (wrapper.vm.$ as any).setupState.handleSubmit()
+    await flushPromises()
+    expect(emitStreamEvent).toBeDefined()
+
+    mocks.messagesRef.value = [{ id: 'history-b', conversation_id: 'conversation-b', query: 'B', answer: 'history B', agent_thoughts: [] }] as any
+    mocks.route.query = { conversation_id: 'conversation-b' }
+    mocks.route.fullPath = '/home?conversation_id=conversation-b'
+    await flushPromises()
+
+    emitStreamEvent!({ event: 'agent_message', data: { message_id: 'late-a', task_id: 'task-a', conversation_id: 'conversation-a', thought: 'stale A' } })
+
+    expect(mocks.messagesRef.value[0].id).toBe('history-b')
+    expect(mocks.messagesRef.value[0].answer).toBe('history B')
+    expect(mocks.route.query.conversation_id).toBe('conversation-b')
+
+    resolveStream?.()
+    await submitPromise
+    wrapper.unmount()
+  })
 })
