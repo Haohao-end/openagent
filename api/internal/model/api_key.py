@@ -39,6 +39,7 @@ class ApiKey(db.Model):
         default=_utcnow_naive,
     )
     created_at = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP(0)'))
+    last_used_at = Column(DateTime, nullable=True)
 
     @property
     def account(self) -> "Account":

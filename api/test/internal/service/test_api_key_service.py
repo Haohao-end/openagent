@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from datetime import datetime
 import json
 from types import SimpleNamespace
 from uuid import uuid4
@@ -161,6 +162,18 @@ class TestApiKeyService:
         result = service.get_api_by_by_credential("llmops-v1/demo")
 
         assert result is api_key_record
+
+    def test_mark_api_key_used_should_store_utc_timestamp_and_commit(self, monkeypatch):
+        now = datetime(2026, 10, 26, 8, 30, 0)
+        monkeypatch.setattr("internal.service.api_key_service.utc_now_naive", lambda: now)
+        session = _SessionStub({})
+        service = ApiKeyService(db=SimpleNamespace(session=session))
+        api_key_record = SimpleNamespace(last_used_at=None)
+
+        service.mark_api_key_used(api_key_record)
+
+        assert api_key_record.last_used_at == now
+        assert session.commit_calls == 1
 
     def test_get_api_by_by_credential_should_upgrade_plaintext_record(self):
         legacy_api_key = SimpleNamespace(id=uuid4(), api_key="llmops-v1/demo")
