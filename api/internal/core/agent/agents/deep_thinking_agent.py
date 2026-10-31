@@ -1569,6 +1569,7 @@ class DeepThinkingAgent(FunctionCallAgent):
             task_id=task_id,
             publisher=self.agent_queue_manager.publish,
             tool_policy=getattr(self.agent_config, "tool_policy", None),
+            cancel_event=state.get("cancel_event"),
         )
         query = self._extract_query(state["messages"][-1])
 

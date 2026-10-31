@@ -293,6 +293,7 @@ def test_base_agent_stream_should_prepare_state_and_delegate_to_queue(monkeypatc
     assert "task_id" in input_state
     assert input_state["history"] == []
     assert input_state["iteration_count"] == 0
+    assert input_state["cancel_event"].is_set()
     assert agent._invoke_payloads[0]["task_id"] == input_state["task_id"]
     assert agent.agent_queue_manager.listen_calls == [input_state["task_id"]]
 

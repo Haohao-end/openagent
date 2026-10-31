@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import sys
+from threading import Event
 import uuid
 from contextlib import nullcontext
 from types import ModuleType, SimpleNamespace
@@ -551,6 +552,7 @@ class TestDeepThinkingAgentGraph:
             "iteration_count": 0,
             "history": [],
             "long_term_memory": "",
+            "cancel_event": Event(),
         }
 
     @staticmethod
@@ -1406,6 +1408,7 @@ IPO招股说明书草案
         )
 
         recover_mock.assert_called_once()
+        assert isinstance(mock_build_deep.call_args.kwargs["timeline"].cancel_event, Event)
         assert collect_mock.call_count == 2
         assert "<generated_artifacts>" in result["messages"][0].content
         assert "SpaceX_IPO_Prospectus_Draft.json" in result["messages"][0].content
