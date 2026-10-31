@@ -153,6 +153,7 @@ const HOME_INTRO_AUDIO_STREAM_ID = 'home-introduction-audio'
 const opening_questions = ref<string[]>([...defaultOpeningQuestions.value])
 const homeIntentRequestVersion = ref(0)
 const homeIntentApplied = ref(false)
+let assistantAgentStreamGeneration = 0
 const introductionLatency = ref(0)
 const introductionTotalTokenCount = ref(0)
 // 从 localStorage 恢复播放状态，防止刷新后重复播放
@@ -519,6 +520,10 @@ watch(
     const oldConversationId = normalizeConversationId(oldValue)
     if (normalizedConversationId === oldConversationId) return
 
+    assistantAgentStreamGeneration += 1
+    isStreamingResponse.value = false
+    stopAutoScrollObserver()
+    stopAutoScrollTicker()
     selectedConversationId.value = normalizedConversationId
     if (hasHomeNewConversationQuery(route.query)) return
     if (!isAuthenticated.value || !isHomeRoute.value) return
@@ -1085,6 +1090,8 @@ const handleSubmit = async () => {
   task_id.value = ''
   shouldAutoScrollToBottom.value = true
   stopAudioStream()
+  const streamGeneration = ++assistantAgentStreamGeneration
+  const requestConversationId = selectedConversationId.value
 
   // 5.4 往消息列表中添加基础人类消息
   messages.value.unshift(
@@ -1112,13 +1119,14 @@ const handleSubmit = async () => {
     startAutoScrollObserver()
     scrollChatToBottom()
   })
+  if (streamGeneration !== assistantAgentStreamGeneration) return
 
   // 5.5 初始化推理过程数据，并清空输入数据
   let streamState: StreamState = {
     position: 0,
     message_id: message_id.value,
     task_id: task_id.value,
-    conversation_id: selectedConversationId.value,
+    conversation_id: requestConversationId,
   }
   const requestStartAt = Date.now()
   isStreamingResponse.value = true
@@ -1132,8 +1140,9 @@ const handleSubmit = async () => {
     await handleAssistantAgentChat(
       humanQuery,
       humanImageUrls,
-      selectedConversationId.value,
+      requestConversationId,
       (event_response) => {
+        if (streamGeneration !== assistantAgentStreamGeneration) return
         const currentMessage = messages.value[0] as StreamMessage | undefined
         if (!currentMessage) return
 
@@ -1160,12 +1169,15 @@ const handleSubmit = async () => {
       enableDeepThinking.value,
     )
   } finally {
-    isStreamingResponse.value = false
-    stopAutoScrollObserver()
-    stopAutoScrollTicker()
-    const requestDurationMs = Math.max(Date.now() - requestStartAt, 0)
-    normalizeMessageMetrics(messages.value[0] as MessageMetrics, requestDurationMs)
+    if (streamGeneration === assistantAgentStreamGeneration) {
+      isStreamingResponse.value = false
+      stopAutoScrollObserver()
+      stopAutoScrollTicker()
+      const requestDurationMs = Math.max(Date.now() - requestStartAt, 0)
+      normalizeMessageMetrics(messages.value[0] as MessageMetrics, requestDurationMs)
+    }
   }
+  if (streamGeneration !== assistantAgentStreamGeneration) return
 
   // 聊天响应完成后，重新加载消息以确保数据同步
   // 注意：这个操作应该在 finally 块外执行，避免错误被吞掉
@@ -1322,6 +1334,8 @@ onActivated(async () => {
 
 // 14.组件被 keep-alive 停用时的处理（切换到其他页面时）
 onDeactivated(() => {
+  assistantAgentStreamGeneration += 1
+  isStreamingResponse.value = false
   // 停止音频播放，避免切换页面后音频继续播放
   stopAudioStream()
 
@@ -1331,6 +1345,7 @@ onDeactivated(() => {
 })
 
 onUnmounted(() => {
+  assistantAgentStreamGeneration += 1
   clearInputBreathTimer()
   typingBreathing.value = false
   introductionAbortController.value?.abort()
