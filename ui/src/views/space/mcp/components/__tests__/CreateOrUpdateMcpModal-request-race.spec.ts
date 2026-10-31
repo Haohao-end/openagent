@@ -1,10 +1,11 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ getMcpCategories: vi.fn(), getMcpProvider: vi.fn(), messageError: vi.fn() }))
+const mocks = vi.hoisted(() => ({ getMcpCategories: vi.fn(), getMcpProvider: vi.fn(), mcpSchemaAssistantChat: vi.fn(), messageError: vi.fn() }))
 vi.mock('@/services/mcp', () => ({
   ...Object.fromEntries(['createMcpProvider', 'updateMcpProvider', 'generateMcpIconPreview', 'regenerateMcpIcon'].map((key) => [key, vi.fn()])),
   getMcpCategories: mocks.getMcpCategories, getMcpProvider: mocks.getMcpProvider,
 }))
+vi.mock('@/services/ai', () => ({ mcpSchemaAssistantChat: mocks.mcpSchemaAssistantChat }))
 vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError, success: vi.fn(), warning: vi.fn() } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, locale: { value: 'en-US' } }) }))
 import CreateOrUpdateMcpModal from '../CreateOrUpdateMcpModal.vue'
@@ -65,6 +66,36 @@ describe('MCP provider request ordering', () => {
     older.reject(new Error('stale categories failure')); await flushPromises()
 
     expect(wrapper.find('[data-value="current"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('ignores schema generation from a closed modal session', async () => {
+    mocks.getMcpCategories.mockResolvedValue({ data: { categories: [] } })
+    mocks.getMcpProvider.mockResolvedValue(provider('B'))
+    const generation = deferred<void>()
+    let emitChunk: ((event: any) => void) | undefined
+    mocks.mcpSchemaAssistantChat.mockImplementation((_question, onEvent) => {
+      emitChunk = onEvent
+      return generation.promise
+    })
+    const wrapper = mountModal()
+    await wrapper.setProps({ visible: true, mcp_provider_id: 'A' })
+    await flushPromises()
+
+    const state = (wrapper.vm.$ as any).setupState
+    state.aiQuestion = 'describe provider A'
+    const pending = state.handleGenerateByAI()
+    await flushPromises()
+    await wrapper.setProps({ visible: false, mcp_provider_id: '' })
+    await flushPromises()
+    await wrapper.setProps({ visible: true, mcp_provider_id: 'B' })
+    await flushPromises()
+
+    emitChunk!({ data: { content: '{"name":"provider A schema"}' } })
+    generation.resolve()
+    await pending
+
+    expect(state.form.name).toBe('B')
     wrapper.unmount()
   })
 })
