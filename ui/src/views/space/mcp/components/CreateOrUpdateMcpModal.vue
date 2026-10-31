@@ -65,6 +65,7 @@ const defaultForm = (): McpForm => ({
 
 const form = ref<McpForm>(defaultForm())
 let latestProviderRequest = 0
+let latestAiRequest = 0
 
 const isEditMode = computed(() => Boolean(props.mcp_provider_id))
 const getCategoryLabel = (value: string) =>
@@ -200,21 +201,24 @@ const handleGenerateByAI = async () => {
 
   aiLoading.value = true
   aiAnswer.value = ''
+  const requestId = ++latestAiRequest
   try {
     await mcpSchemaAssistantChat(question, (eventResponse) => {
+      if (requestId !== latestAiRequest) return
       const content = String(eventResponse?.data?.content ?? '')
       if (!content) return
       aiAnswer.value += content
     })
 
+    if (requestId !== latestAiRequest) return
     const jsonText = extractJsonObject(aiAnswer.value)
     const payload = JSON.parse(jsonText)
     applyMcpPayload(payload)
     Message.success(t('space.mcp.aiConfigSuccess'))
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('space.mcp.aiConfigFailed')))
+    if (requestId === latestAiRequest) Message.error(getErrorMessage(error, t('space.mcp.aiConfigFailed')))
   } finally {
-    aiLoading.value = false
+    if (requestId === latestAiRequest) aiLoading.value = false
   }
 }
 
@@ -292,7 +296,9 @@ watch(
   () => [props.visible, props.mcp_provider_id] as const,
   async ([visible, providerId]) => {
     const requestId = ++latestProviderRequest
+    latestAiRequest += 1
     loadingProvider.value = false
+    aiLoading.value = false
     formRef.value?.resetFields()
     form.value = defaultForm()
     aiQuestion.value = ''
@@ -307,7 +313,12 @@ watch(
     if (providerId) await loadProvider(providerId)
   },
 )
-onUnmounted(() => { latestProviderRequest += 1; loadingProvider.value = false })
+onUnmounted(() => {
+  latestProviderRequest += 1
+  latestAiRequest += 1
+  loadingProvider.value = false
+  aiLoading.value = false
+})
 </script>
 
 <template>
