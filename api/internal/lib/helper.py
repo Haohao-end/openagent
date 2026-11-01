@@ -51,6 +51,7 @@ _PUBLIC_URL_SECRET_QUERY_KEYS = {
     "access_token", "api_key", "apikey", "auth", "authorization", "client_secret", "key", "password",
     "awsaccesskeyid", "credential", "googleaccessid", "refresh_token", "secret",
     "security_token", "sig", "signature", "token", "x_api_key",
+    "api_token", "oauth_token", "x_auth_token", "x_mcp_token",
     "x_amz_credential", "x_amz_security_token", "x_amz_signature",
     "x_goog_credential", "x_goog_signature",
 }

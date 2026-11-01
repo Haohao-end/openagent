@@ -246,7 +246,8 @@ def test_public_provider_payload_redacts_signed_url_secrets():
     service = _build_service(table_exists=False, stub_catalog_payload=False)
     secret_keys = (
         "signature", "sig", "X-Amz-Credential", "X-Amz-Security-Token",
-        "X-Amz-Signature", "X-Goog-Signature",
+        "X-Amz-Signature", "X-Goog-Signature", "api_token", "oauth_token",
+        "X-Auth-Token", "X-MCP-Token",
     )
     query = "&".join(f"{key}=SYNTHETIC_SECRET" for key in secret_keys)
     url = f"https://mcp.example.com/mcp?{query}&version=1"
