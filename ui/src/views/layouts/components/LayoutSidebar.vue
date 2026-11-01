@@ -42,6 +42,7 @@ const {
   loading: getRecentConversationsLoading,
   conversations: recentConversations,
   loadRecentConversations: loadRecentConversationsHook,
+  invalidateRecentConversations,
 } = useGetRecentConversations()
 const { handleDeleteConversation } = useDeleteConversation()
 const updateConversationNameVisible = ref(false)
@@ -335,6 +336,7 @@ watch(
   () => isLoggedIn.value,
   async (loggedIn) => {
     if (!loggedIn) {
+      invalidateRecentConversations()
       recentConversations.value = []
       recentConversationsLimit.value = DEFAULT_RECENT_CONVERSATIONS_LIMIT
       hasMoreRecentConversations.value = true
