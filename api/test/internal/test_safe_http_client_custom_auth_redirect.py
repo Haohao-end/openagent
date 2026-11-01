@@ -35,6 +35,7 @@ def test_raw_custom_auth_headers_stay_on_origin(monkeypatch, redirect, strip_sec
         "GET", "https://source.example/start", headers={
             "X-API-Key": "secret-key",
             "x-auth-token": "secret-token",
+            "X-MCP-Token": "synthetic-mcp-token",
             "X-Request-ID": "trace-id",
         },
     )
@@ -44,4 +45,5 @@ def test_raw_custom_auth_headers_stay_on_origin(monkeypatch, redirect, strip_sec
     assert forwarded["X-Request-ID"] == "trace-id"
     assert ("X-API-Key" not in forwarded) is strip_secrets
     assert ("x-auth-token" not in forwarded) is strip_secrets
+    assert ("X-MCP-Token" not in forwarded) is strip_secrets
     session.close.assert_called_once()
