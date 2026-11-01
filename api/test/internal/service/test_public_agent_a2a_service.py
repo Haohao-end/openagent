@@ -21,6 +21,21 @@ def _build_service(**kwargs) -> PublicAgentA2AService:
 
 
 class TestPublicAgentA2AService:
+    def test_agent_card_should_advertise_streaming_support(self, monkeypatch):
+        app = SimpleNamespace(id=uuid4(), account_id=uuid4(), name="Public", description="", tags=[])
+        service = _build_service(
+            app_config_service=SimpleNamespace(get_app_config=lambda *_args, **_kwargs: {}),
+            public_agent_registry_service=SimpleNamespace(
+                build_agent_message_url=lambda _app_id: "https://example.com/messages",
+                build_agent_card_url=lambda _app_id: "https://example.com/card",
+            ),
+        )
+        monkeypatch.setattr(service, "_get_public_app", lambda _app_id: app)
+
+        card = service.get_agent_card(app.id)
+
+        assert card["capabilities"]["streaming"] is True
+
     def test_invalid_context_should_be_rejected_before_runtime_setup(self, monkeypatch):
         setup_calls = []
         context_id = str(uuid4())

@@ -489,7 +489,7 @@ class PublicAgentA2AService(BaseService):
             "defaultInputModes": ["text/plain"],
             "defaultOutputModes": ["text/plain", "image/*", "application/octet-stream"],
             "capabilities": {
-                "streaming": False,
+                "streaming": True,
                 "pushNotifications": False,
                 "stateTransitionHistory": False,
             },
