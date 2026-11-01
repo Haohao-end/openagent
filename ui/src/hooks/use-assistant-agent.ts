@@ -114,6 +114,11 @@ export const useGetAssistantAgentMessagesWithPage = () => {
   }
   const paginator = ref({ ...defaultPaginator })
 
+  const invalidateAssistantAgentMessages = () => {
+    latestRequest++
+    loading.value = false
+  }
+
   // 2.定义加载数据函数
   const loadAssistantAgentMessages = async (
     init: boolean = false,
@@ -164,7 +169,13 @@ export const useGetAssistantAgentMessagesWithPage = () => {
     }
   }
 
-  return { loading, messages, paginator, loadAssistantAgentMessages }
+  return {
+    loading,
+    messages,
+    paginator,
+    loadAssistantAgentMessages,
+    invalidateAssistantAgentMessages,
+  }
 }
 
 export const useGetAssistantAgentConversations = () => {
