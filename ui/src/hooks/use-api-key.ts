@@ -31,10 +31,13 @@ export const useGetApiKeysWithPage = () => {
     total_record: 0,
   }
   const paginator = ref({ ...defaultPaginator })
+  let latestLoadRequest = 0
 
   // 2.定义加载数据函数
   const loadApiKeys = async (init: boolean = false) => {
+    const requestId = ++latestLoadRequest
     if (!init && paginator.value.current_page > paginator.value.total_page) {
+      loading.value = false
       return
     }
 
@@ -47,14 +50,18 @@ export const useGetApiKeysWithPage = () => {
           page_size: pageSize,
         })
       ).data
+      if (requestId !== latestLoadRequest) return
       if (data.paginator.total_record > 0 && data.paginator.current_page > data.paginator.total_page) {
         data = (await getApiKeysWithPage({ current_page: data.paginator.total_page, page_size: pageSize })).data
+        if (requestId !== latestLoadRequest) return
       }
 
       paginator.value = data.paginator
       api_keys.value = data.list
+    } catch (error) {
+      if (requestId === latestLoadRequest) throw error
     } finally {
-      loading.value = false
+      if (requestId === latestLoadRequest) loading.value = false
     }
   }
 
