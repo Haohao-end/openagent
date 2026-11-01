@@ -44,6 +44,42 @@ describe('useUpdateApiKeyIsActive', () => {
 describe('useGetApiKeysWithPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.routeQuery.current_page = '2'
+  })
+
+  it('ignores an older page response after a newer page has loaded', async () => {
+    type PageResult = {
+      data: {
+        list: Array<{ id: string }>
+        paginator: { current_page: number; page_size: number; total_page: number; total_record: number }
+      }
+    }
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((resolvePromise) => {
+        resolve = resolvePromise
+      })
+      return { promise, resolve }
+    }
+    const page2 = deferred<PageResult>()
+    const page3 = deferred<PageResult>()
+    mocks.getApiKeysWithPage.mockReturnValueOnce(page2.promise).mockReturnValueOnce(page3.promise)
+    const { api_keys, paginator, loadApiKeys } = useGetApiKeysWithPage()
+
+    const olderRequest = loadApiKeys(true)
+    mocks.routeQuery.current_page = '3'
+    const newerRequest = loadApiKeys(true)
+    page3.resolve({
+      data: { list: [{ id: 'page-3' }], paginator: { current_page: 3, page_size: 20, total_page: 3, total_record: 60 } },
+    })
+    await newerRequest
+    page2.resolve({
+      data: { list: [{ id: 'page-2' }], paginator: { current_page: 2, page_size: 20, total_page: 3, total_record: 60 } },
+    })
+    await olderRequest
+
+    expect(api_keys.value).toEqual([{ id: 'page-3' }])
+    expect(paginator.value.current_page).toBe(3)
   })
 
   it('loads the last remaining page when the current page becomes empty', async () => {
