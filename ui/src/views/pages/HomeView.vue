@@ -195,6 +195,7 @@ const {
   loading: getAssistantAgentMessagesWithPageLoading,
   messages,
   loadAssistantAgentMessages,
+  invalidateAssistantAgentMessages,
 } = useGetAssistantAgentMessagesWithPage()
 const {
   loading: getConversationNameLoading,
@@ -505,6 +506,7 @@ watch(
 
 watch(isAuthenticated, (loggedIn) => {
   if (loggedIn) return
+  invalidateAssistantAgentMessages()
   accountStore.clear()
   messages.value = []
   task_id.value = ''

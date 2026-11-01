@@ -1,5 +1,5 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import HomeView from '@/views/pages/HomeView.vue'
@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
   handleDeleteAssistantAgentConversation: vi.fn(),
   loadAssistantAgentCapabilities: vi.fn(),
   loadAssistantAgentMessages: vi.fn(),
+  invalidateAssistantAgentMessages: vi.fn(),
+  assistantMessages: undefined as any,
+  isLoggedIn: undefined as any,
   loadAssistantAgentConversations: vi.fn(),
   handleAudioToText: vi.fn(),
 }))
@@ -57,7 +60,7 @@ vi.mock('@/stores/credential', () => ({
 }))
 
 vi.mock('@/utils/auth', () => ({
-  isCredentialLoggedIn: () => true,
+  isCredentialLoggedIn: () => mocks.isLoggedIn.value,
 }))
 
 vi.mock('@/utils/storage', () => ({
@@ -142,8 +145,9 @@ vi.mock('@/hooks/use-assistant-agent', async () => {
     }),
     useGetAssistantAgentMessagesWithPage: () => ({
       loading: ref(false),
-      messages: ref([]),
+      messages: mocks.assistantMessages,
       loadAssistantAgentMessages: mocks.loadAssistantAgentMessages,
+      invalidateAssistantAgentMessages: mocks.invalidateAssistantAgentMessages,
     }),
     useStopAssistantAgentChat: () => ({
       loading: ref(false),
@@ -205,6 +209,8 @@ const componentStub = {
 describe('HomeView sidebar new conversation request', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isLoggedIn = ref(true)
+    mocks.assistantMessages = ref([])
     mocks.route = reactive({
       path: '/home',
       fullPath: '/home',
@@ -293,6 +299,32 @@ describe('HomeView sidebar new conversation request', () => {
     resolveRequests.slice(0, -1).forEach((resolve) => resolve({ intent: 'stale locale intent', confidence: 0.1, suggested_actions: [] }))
     await flushPromises()
     expect(wrapper.get('[data-testid="assistant-introduction"]').text()).toContain('latest locale intent')
+    wrapper.unmount()
+  })
+
+  it('invalidates pending assistant history when the user logs out', async () => {
+    const wrapper = shallowMount(HomeView, {
+      global: {
+        stubs: {
+          AiDynamicBackground: componentStub,
+          AiMessage: componentStub,
+          ChatComposer: componentStub,
+          HumanMessage: componentStub,
+          ChatConversationSkeleton: componentStub,
+          LoginModal: componentStub,
+          'a-button': componentStub,
+          'icon-down': componentStub,
+          'icon-poweroff': componentStub,
+        },
+      },
+    })
+    await flushPromises()
+
+    mocks.isLoggedIn.value = false
+    await flushPromises()
+
+    expect(mocks.invalidateAssistantAgentMessages).toHaveBeenCalledTimes(1)
+    expect(mocks.assistantMessages.value).toEqual([])
     wrapper.unmount()
   })
 })

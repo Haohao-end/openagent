@@ -394,4 +394,25 @@ describe('historical chat pagination', () => {
 
     expect(messages.value.map((message) => message.id)).toEqual(['agent-new'])
   })
+
+  it('does not restore assistant history after logout clears messages', async () => {
+    const pendingResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage)
+      .mockReturnValueOnce(pendingResponse.promise as never)
+    const {
+      messages,
+      loadAssistantAgentMessages,
+      invalidateAssistantAgentMessages,
+    } = useGetAssistantAgentMessagesWithPage()
+
+    const pendingRequest = loadAssistantAgentMessages(true, 'conversation-private')
+    invalidateAssistantAgentMessages()
+    messages.value = []
+    pendingResponse.resolve(buildPage([buildMessage('private-message', 100)], {
+      current_page: 1, page_size: 20, total_page: 1, total_record: 1,
+    }))
+    await pendingRequest
+
+    expect(messages.value).toEqual([])
+  })
 })
