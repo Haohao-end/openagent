@@ -19,7 +19,8 @@ class SemanticRetriever(BaseRetriever):
     ) -> List[LCDocument]:
         """根据传递的query执行相似性检索"""
         # 1.提取最大搜索条件k，默认值为4
-        k = self.search_kwargs.pop("k", 4)
+        search_kwargs = self.search_kwargs.copy()
+        k = search_kwargs.pop("k", 4)
 
         # 2.执行相似性检索并获取得分信息
         search_result = self.vector_store.similarity_search_with_relevance_scores(
@@ -31,7 +32,7 @@ class SemanticRetriever(BaseRetriever):
                     Filter.by_property("document_enabled").equal(True),
                     Filter.by_property("segment_enabled").equal(True),
                 ]),
-                **self.search_kwargs,
+                **search_kwargs,
             }
         )
         if search_result is None or len(search_result) == 0:
