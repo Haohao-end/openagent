@@ -220,14 +220,17 @@ def test_semantic_retriever_should_apply_filters_and_attach_scores(monkeypatch):
     )
 
     docs = retriever._get_relevant_documents("query", run_manager=None)
+    retriever._get_relevant_documents("next query", run_manager=None)
 
     assert vector_store.calls[0]["query"] == "query"
+    assert vector_store.calls[1]["query"] == "next query"
     assert vector_store.calls[0]["k"] == 3
+    assert vector_store.calls[1]["k"] == 3
     assert vector_store.calls[0]["alpha"] == 0.4
     assert vector_store.calls[0]["filters"][0] == "all_of"
     assert docs[0].metadata["score"] == 0.91
     assert docs[1].metadata["score"] == 0.72
-    assert "k" not in retriever.search_kwargs
+    assert retriever.search_kwargs["k"] == 3
     assert retriever.search_kwargs["alpha"] == 0.4
 
 
