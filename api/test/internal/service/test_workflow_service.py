@@ -35,9 +35,17 @@ class _DummyQuery:
 class _DummySession:
     def __init__(self):
         self.query_result = None
+        self.added = []
+        self.commit_calls = 0
 
     def query(self, _model):
         return _DummyQuery(self.query_result)
+
+    def add(self, obj):
+        self.added.append(obj)
+
+    def commit(self):
+        self.commit_calls += 1
 
 
 class _DummyDB:
@@ -401,6 +409,7 @@ class TestWorkflowService:
             tool_call_name="wf_tool",
             description="desc",
             draft_graph={"nodes": [], "edges": []},
+            is_debug_passed=False,
         )
         monkeypatch.setattr(service, "get_workflow", lambda *_args, **_kwargs: workflow)
         monkeypatch.setattr(
@@ -439,6 +448,9 @@ class TestWorkflowService:
             target is workflow_result and payload["status"] == WorkflowResultStatus.SUCCEEDED.value
             for target, payload in updates
         )
+        assert workflow.is_debug_passed is True
+        assert service.db.session.added == [workflow]
+        assert service.db.session.commit_calls == 1
         assert all(target is not workflow for target, _ in updates)
 
         updates.clear()
@@ -1515,7 +1527,10 @@ class TestWorkflowService:
         with pytest.raises(ValidateErrorException, match=r"边验证失败\(id=None"):
             service._validate_graph(graph, account)
 
-    def test_debug_workflow_should_mark_debug_passed_and_commit_when_end_node_seen(self, monkeypatch):
+    @pytest.mark.parametrize("terminal_node_type", ["end", "if_else"])
+    def test_debug_workflow_should_mark_debug_passed_when_stream_completes(
+        self, monkeypatch, terminal_node_type
+    ):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
         workflow = SimpleNamespace(
@@ -1538,7 +1553,9 @@ class TestWorkflowService:
 
             @staticmethod
             def stream(_inputs):
-                yield {"end_node": {"node_results": [SimpleNamespace(node_id="end-1", status="succeeded")]}}
+                yield {"terminal_node": {"node_results": [
+                    SimpleNamespace(node_id="terminal-1", status="succeeded")
+                ]}}
 
         monkeypatch.setattr("internal.service.workflow_service.WorkflowTool", _WorkflowTool)
         monkeypatch.setattr(
@@ -1546,7 +1563,7 @@ class TestWorkflowService:
             lambda node_result: {
                 "node_id": node_result.node_id,
                 "status": node_result.status,
-                "node_data": {"node_type": "end"},
+                "node_data": {"node_type": terminal_node_type},
             },
         )
 

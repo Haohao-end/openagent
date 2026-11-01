@@ -342,7 +342,6 @@ class WorkflowService(BaseService):
 
             # 4.调用stream服务获取工具信息
             start_at = time.perf_counter()
-            is_last_node = False
             try:
                 for chunk in workflow_tool.stream(inputs):
                     # 5.chunk的格式为:{"node_name": WorkflowState}，所以需要取出节点响应结构的第1个key
@@ -363,35 +362,17 @@ class WorkflowService(BaseService):
                     # 8.检查是否是最后一个节点（end节点）
                     node_type = node_result_dict.get("node_data", {}).get("node_type")
                     logging.info(f"节点类型: {node_type}, 节点数据: {node_result_dict.get('node_data', {})}")
-                    if node_type == "end":
-                        is_last_node = True
-                        logging.info("检测到 end 节点，设置 is_last_node = True")
 
                 # 9.流式输出完毕后，将结果存储到数据库中
-                logging.info(f"for 循环结束，is_last_node = {is_last_node}")
-                if is_last_node:
-                    logging.info("开始更新 workflow_result...")
-                    self.update(workflow_result, **{
-                        "status": WorkflowResultStatus.SUCCEEDED.value,
-                        "state": node_results,
-                        "latency": (time.perf_counter() - start_at),
-                    })
-                    logging.info("workflow_result 更新完成，开始更新 workflow.is_debug_passed...")
-                    logging.info(f"workflow 对象: {workflow}, workflow.id: {workflow.id}")
-
-                    # 手动更新 workflow 的 is_debug_passed 字段
-                    workflow.is_debug_passed = True
-                    self.db.session.add(workflow)
-                    self.db.session.commit()
-
-                    logging.info("workflow.is_debug_passed 更新完成！")
-                else:
-                    # 如果没有end节点，也标记为成功
-                    self.update(workflow_result, **{
-                        "status": WorkflowResultStatus.SUCCEEDED.value,
-                        "state": node_results,
-                        "latency": (time.perf_counter() - start_at),
-                    })
+                # A conditional branch can finish at LangGraph END without emitting an end-node event.
+                self.update(workflow_result, **{
+                    "status": WorkflowResultStatus.SUCCEEDED.value,
+                    "state": node_results,
+                    "latency": (time.perf_counter() - start_at),
+                })
+                workflow.is_debug_passed = True
+                self.db.session.add(workflow)
+                self.db.session.commit()
             except GeneratorExit:
                 self.update(workflow_result, **{
                     "status": WorkflowResultStatus.FAILED.value,
