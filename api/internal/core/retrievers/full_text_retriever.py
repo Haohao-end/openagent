@@ -47,30 +47,40 @@ class FullTextRetriever(BaseRetriever):
 
         # 7.获取频率最高的前k条数据，格式为[(segment_id, freq), (segment_id, freq), ...]
         k = self.search_kwargs.get("k", 4)
-        top_k_ids = id_counter.most_common(k)
-
-        # 8.根据得到的id列表检索数据库得到片段列表信息
-        segments = self.db.session.query(Segment).filter(
-            Segment.id.in_([id for id, _ in top_k_ids]),
-            Segment.dataset_id.in_(self.dataset_ids),
-        ).all()
-        document_dict = {
-            str(document.id): document
-            for document in self.db.session.query(Document).filter(
-                Document.id.in_([segment.document_id for segment in segments])
+        if k <= 0:
+            return []
+        ranked_ids = id_counter.most_common()
+        batch_size = max(k, 100)
+        document_dict = {}
+        segment_dict = {}
+        for offset in range(0, len(ranked_ids), batch_size):
+            batch_ids = ranked_ids[offset:offset + batch_size]
+            segments = self.db.session.query(Segment).filter(
+                Segment.id.in_([segment_id for segment_id, _ in batch_ids]),
+                Segment.dataset_id.in_(self.dataset_ids),
             ).all()
-        }
-        segment_dict = {
-            str(segment.id): segment for segment in segments
-            if segment.enabled
-            and segment.status == SegmentStatus.COMPLETED.value
-            and (document := document_dict.get(str(segment.document_id)))
-            and document.enabled
-            and document.status == DocumentStatus.COMPLETED.value
-        }
+            document_dict.update({
+                str(document.id): document
+                for document in self.db.session.query(Document).filter(
+                    Document.id.in_([segment.document_id for segment in segments])
+                ).all()
+            })
+            segment_dict.update({
+                str(segment.id): segment for segment in segments
+                if segment.enabled
+                and segment.status == SegmentStatus.COMPLETED.value
+                and (document := document_dict.get(str(segment.document_id)))
+                and document.enabled
+                and document.status == DocumentStatus.COMPLETED.value
+            })
+            if len(segment_dict) >= k:
+                break
 
         # 9.根据频率进行排序
-        sorted_segments = [segment_dict[str(id)] for id, freq in top_k_ids if id in segment_dict]
+        sorted_segments = [
+            segment_dict[str(segment_id)] for segment_id, _ in ranked_ids
+            if str(segment_id) in segment_dict
+        ][:k]
 
         # 10.构建LangChain文档列表
         lc_documents = [LCDocument(

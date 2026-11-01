@@ -25,7 +25,12 @@ class _FakeSegmentQuery:
     def __init__(self, segments):
         self.segments = segments
 
-    def filter(self, *_args, **_kwargs):
+    def filter(self, *criteria, **_kwargs):
+        for criterion in criteria:
+            field = getattr(getattr(criterion, "left", None), "key", None)
+            values = getattr(getattr(criterion, "right", None), "value", None)
+            if field and values is not None:
+                self.segments = [item for item in self.segments if getattr(item, field, None) in values]
         return self
 
     def all(self):
@@ -152,6 +157,26 @@ def test_full_text_retriever_should_exclude_disabled_segments_and_documents():
     assert [doc.page_content for doc in docs] == ["active"]
     assert docs[0].metadata["document_enabled"] is True
     assert docs[0].metadata["segment_enabled"] is True
+
+
+def test_full_text_retriever_backfills_ranked_hits_across_stale_batches():
+    dataset_id, other_dataset_id = uuid4(), uuid4()
+    documents = [SimpleNamespace(id=f"doc-{i}", enabled=True, status="completed") for i in range(3)]
+    segments = [SimpleNamespace(
+        id=f"segment-{i}", content=f"match-{i}", account_id=uuid4(),
+        dataset_id=other_dataset_id if i == 2 else dataset_id, document_id=documents[i].id,
+        node_id=uuid4(), enabled=True, status="completed",
+    ) for i in range(3)]
+    ids = [segments[2].id] * 3 + [
+        f"stale-{i}" for i in range(100) for _ in range(2)
+    ] + [segments[1].id] * 2 + [segments[0].id]
+    retriever = FullTextRetriever.model_construct(
+        db=SimpleNamespace(session=_FakeSession([{"match": ids}], segments, documents)),
+        dataset_ids=[dataset_id], jieba_service=_FakeJiebaService(["match"]), search_kwargs={"k": 2},
+    )
+
+    docs = retriever._get_relevant_documents("match", run_manager=None)
+    assert [doc.page_content for doc in docs] == ["match-1", "match-0"]
 
 
 def test_semantic_retriever_should_apply_filters_and_attach_scores(monkeypatch):
