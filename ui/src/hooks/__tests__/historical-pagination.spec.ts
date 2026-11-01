@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useGetAssistantAgentMessagesWithPage } from '@/hooks/use-assistant-agent'
-import { useGetConversationMessagesWithPage, useGetConversationName } from '@/hooks/use-conversation'
+import {
+  useGetConversationMessagesWithPage,
+  useGetConversationName,
+  useGetRecentConversations,
+} from '@/hooks/use-conversation'
 import { useGetDebugConversationMessagesWithPage } from '@/hooks/use-app'
 import * as assistantAgentService from '@/services/assistant-agent'
 import * as appService from '@/services/app'
@@ -23,6 +27,7 @@ vi.mock('@/services/conversation', async () => {
     ...actual,
     getConversationMessages: vi.fn(),
     getConversationName: vi.fn(),
+    getRecentConversations: vi.fn(),
   }
 })
 
@@ -280,6 +285,28 @@ describe('historical chat pagination', () => {
     await olderRequest
 
     expect(messages.value.map((message) => message.id)).toEqual(['new'])
+  })
+
+  it('ignores recent conversations from before logout without clearing current loading', async () => {
+    const olderResponse = createDeferred<{ data: Array<{ id: string }> }>()
+    const newerResponse = createDeferred<{ data: Array<{ id: string }> }>()
+    vi.mocked(conversationService.getRecentConversations)
+      .mockReturnValueOnce(olderResponse.promise as never)
+      .mockReturnValueOnce(newerResponse.promise as never)
+    const hook = useGetRecentConversations()
+    const olderRequest = hook.loadRecentConversations()
+    hook.invalidateRecentConversations()
+    hook.conversations.value = []
+    const newerRequest = hook.loadRecentConversations()
+
+    olderResponse.resolve({ data: [{ id: 'private-before-logout' }] })
+    await olderRequest
+    expect(hook.conversations.value).toEqual([])
+    expect(hook.loading.value).toBe(true)
+    newerResponse.resolve({ data: [{ id: 'new-session' }] })
+    await newerRequest
+    expect(hook.conversations.value.map(({ id }) => id)).toEqual(['new-session'])
+    expect(hook.loading.value).toBe(false)
   })
 
   it('ignores an older conversation name response after switching conversations', async () => {

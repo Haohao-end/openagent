@@ -187,12 +187,20 @@ export const useGetRecentConversations = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const conversations = ref<GetRecentConversationsResponse['data']>([])
+  let latestRequest = 0
+
+  const invalidateRecentConversations = () => {
+    latestRequest++
+    loading.value = false
+  }
 
   // 2.定义加载最近会话列表处理器
   const loadRecentConversations = async (limit: number = 20) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getRecentConversations(limit)
+      if (requestId !== latestRequest) return
       const data = resp.data || []
       // 直接赋值，不做任何转换
       conversations.value = data
@@ -203,9 +211,9 @@ export const useGetRecentConversations = () => {
         console.log('ai_message:', conversations.value[0].ai_message)
       }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
-  return { loading, conversations, loadRecentConversations }
+  return { loading, conversations, loadRecentConversations, invalidateRecentConversations }
 }
