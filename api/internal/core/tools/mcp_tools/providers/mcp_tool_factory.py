@@ -43,6 +43,8 @@ def _normalize_headers(raw_headers: Any) -> dict[str, str]:
 def _parse_json_payload(text: str, expected_id: str | None = None) -> dict[str, Any] | list[Any] | str | None:
     normalized = _normalize_text(text)
     if not normalized:
+        if expected_id is not None:
+            raise FailException("未找到与请求ID匹配的MCP响应")
         return None
 
     try:
