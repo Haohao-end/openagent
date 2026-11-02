@@ -225,7 +225,11 @@ const handleSubmitToolInfo = async () => {
 
   // 4.3 更新草稿配置
   const newTools = [...props.tools]
-  newTools[toolInfoIdx.value]['tool']['params'] = toolInfoSettingForm.value
+  const selectedTool = newTools[toolInfoIdx.value]
+  newTools[toolInfoIdx.value] = {
+    ...selectedTool,
+    tool: { ...selectedTool.tool, params: toolInfoSettingForm.value },
+  }
   await handleUpdateDraftAppConfig(props.app_id, {
     tools: newTools.map((item) => {
       return {
