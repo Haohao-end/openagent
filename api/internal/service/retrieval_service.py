@@ -27,6 +27,16 @@ class RetrievalService(BaseService):
     jieba_service: JiebaService
     vector_database_service: VectorDatabaseService
 
+    def _filter_active_documents(self, documents: list[LCDocument], dataset_ids: list[UUID]) -> list[LCDocument]:
+        segment_ids = {UUID(str(doc.metadata["segment_id"])) for doc in documents if doc.metadata.get("segment_id")}
+        rows = self.db.session.query(Segment.id).join(Document, Document.id == Segment.document_id).filter(
+            Segment.id.in_(segment_ids), Segment.dataset_id.in_(dataset_ids),
+            Segment.status == SegmentStatus.COMPLETED.value, Segment.enabled.is_(True),
+            Document.status == DocumentStatus.COMPLETED.value, Document.enabled.is_(True),
+        ).all()
+        active_ids = {str(row[0]) for row in rows}
+        return [doc for doc in documents if str(doc.metadata.get("segment_id")) in active_ids]
+
     def search_in_datasets(
             self,
             dataset_ids: list[UUID],
@@ -71,36 +81,24 @@ class RetrievalService(BaseService):
         )
 
         # 3.根据不同的检索策略执行检索
-        if retrieval_strategy == RetrievalStrategy.SEMANTIC.value:
-            lc_documents = semantic_retriever.invoke(query)
-        elif retrieval_strategy == RetrievalStrategy.FULL_TEXT.value:
+        if retrieval_strategy == RetrievalStrategy.FULL_TEXT.value:
             lc_documents = full_text_retriever.invoke(query)
         else:
-            lc_documents = hybrid_retriever.invoke(query)
-
-        if retrieval_strategy != RetrievalStrategy.FULL_TEXT.value and lc_documents:
-            segment_ids = {
-                UUID(str(lc_document.metadata["segment_id"]))
-                for lc_document in lc_documents
-                if lc_document.metadata.get("segment_id")
-            }
-            active_segment_ids = {
-                str(row[0])
-                for row in self.db.session.query(Segment.id).join(
-                    Document, Document.id == Segment.document_id
-                ).filter(
-                    Segment.id.in_(segment_ids),
-                    Segment.dataset_id.in_(dataset_ids),
-                    Segment.status == SegmentStatus.COMPLETED.value,
-                    Segment.enabled.is_(True),
-                    Document.status == DocumentStatus.COMPLETED.value,
-                    Document.enabled.is_(True),
-                ).all()
-            }
-            lc_documents = [
-                lc_document for lc_document in lc_documents
-                if str(lc_document.metadata.get("segment_id")) in active_segment_ids
-            ]
+            candidate_k, seen_ids = max(k, 1), set()
+            while True:
+                semantic_retriever.search_kwargs["k"] = full_text_retriever.search_kwargs["k"] = candidate_k
+                candidates = (
+                    semantic_retriever.invoke(query)
+                    if retrieval_strategy == RetrievalStrategy.SEMANTIC.value
+                    else hybrid_retriever.invoke(query)
+                )
+                lc_documents = self._filter_active_documents(candidates, dataset_ids)
+                candidate_ids = {str(doc.metadata.get("segment_id")) for doc in candidates}
+                exhausted = retrieval_strategy == RetrievalStrategy.SEMANTIC.value and len(candidates) < candidate_k
+                if len(lc_documents) >= k or not candidate_ids - seen_ids or exhausted:
+                    break
+                seen_ids.update(candidate_ids)
+                candidate_k *= 2
         lc_documents = lc_documents[:k]
 
         # 4.添加知识库查询记录（只存储唯一记录，也就是一个知识库如果检索了多篇文档，也只存储一条）
