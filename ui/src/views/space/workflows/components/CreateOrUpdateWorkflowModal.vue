@@ -29,14 +29,14 @@ const { image_url, handleUploadImage } = useUploadImage()
 const { loading: regenerateIconLoading, handleRegenerateIcon } = useRegenerateIcon()
 const { loading: generateIconPreviewLoading, handleGenerateIconPreview } = useGenerateIconPreview()
 type IconFileItem = { uid: string; name: string; url: string }
-const defaultForm = {
+const createDefaultForm = () => ({
   fileList: [] as IconFileItem[],
   icon: '',
   name: '',
   tool_call_name: '',
   description: '',
-}
-const form = ref({ ...defaultForm })
+})
+const form = ref(createDefaultForm())
 const formRef = ref<InstanceType<typeof Form>>()
 let detailRequest = 0
 
@@ -135,7 +135,7 @@ watch(
       }
     } else {
       // 4.6 关闭弹窗，需要清空表单数据
-      form.value = defaultForm
+      form.value = createDefaultForm()
       formRef.value?.resetFields()
       emits('update:workflow_id', '')
     }

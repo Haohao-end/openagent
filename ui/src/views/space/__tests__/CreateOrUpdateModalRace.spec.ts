@@ -59,6 +59,24 @@ describe('create/update modal detail request races', () => {
     wrapper.unmount()
   })
 
+  it('clears fields when reopening a canceled workflow create form', async () => {
+    const wrapper = mount(WorkflowModal as any, {
+      props: { workflow_id: '', visible: false },
+      global: { stubs },
+    })
+    await wrapper.setProps({ visible: true })
+    const state = (wrapper.vm.$ as any).setupState
+    state.form.name = 'First workflow'
+    await wrapper.setProps({ visible: false })
+    await wrapper.setProps({ visible: true })
+    state.form.name = 'Discarded workflow'
+    await wrapper.setProps({ visible: false })
+    await wrapper.setProps({ visible: true })
+
+    expect(state.form.name).toBe('')
+    wrapper.unmount()
+  })
+
   it('does not apply icon results from a previous app modal session', async () => {
     const pendingGeneration = deferredValue<string>()
     const pendingUpload = deferred()
