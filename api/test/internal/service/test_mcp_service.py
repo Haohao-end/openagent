@@ -286,6 +286,16 @@ def test_public_url_redacts_secret_fragments_but_keeps_plain_anchors(fragment):
     assert sanitize_public_url("https://example.com/docs#installation") == "https://example.com/docs#installation"
 
 
+@pytest.mark.parametrize("secret_key", ["accessToken", "clientSecret", "xMcpToken"])
+def test_public_url_redacts_camel_case_secret_parameters(secret_key):
+    url = f"https://example.com/mcp?{secret_key}=SYNTHETIC_SECRET&version=1"
+
+    assert sanitize_public_url(url) == "https://example.com/mcp?version=1"
+    assert sanitize_public_url(
+        f"https://example.com/mcp#{secret_key}=SYNTHETIC_SECRET"
+    ) == "https://example.com/mcp"
+
+
 @pytest.mark.parametrize(("current_page", "page_size"), [(None, 20), (1, None), (None, None)])
 def test_get_public_mcp_providers_with_page_uses_defaults_for_empty_page_values(current_page, page_size):
     service = _build_service(table_exists=False)

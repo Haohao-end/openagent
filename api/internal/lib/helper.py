@@ -55,6 +55,14 @@ _PUBLIC_URL_SECRET_QUERY_KEYS = {
     "x_amz_credential", "x_amz_security_token", "x_amz_signature",
     "x_goog_credential", "x_goog_signature",
 }
+_NORMALIZED_PUBLIC_URL_SECRET_QUERY_KEYS = {
+    key.replace("_", "").replace("-", "") for key in _PUBLIC_URL_SECRET_QUERY_KEYS
+}
+
+
+def _is_public_url_secret_query_key(key: str) -> bool:
+    normalized_key = key.lower().replace("_", "").replace("-", "")
+    return normalized_key in _NORMALIZED_PUBLIC_URL_SECRET_QUERY_KEYS
 
 
 def sanitize_public_url(value: Any) -> str:
@@ -70,11 +78,11 @@ def sanitize_public_url(value: Any) -> str:
     public_query = [
         (key, item)
         for key, item in query
-        if key.lower().replace("-", "_") not in _PUBLIC_URL_SECRET_QUERY_KEYS
+        if not _is_public_url_secret_query_key(key)
     ]
     fragment_query = parts.fragment.partition("?")[2] if "?" in parts.fragment else parts.fragment
     fragment_has_secret = any(
-        key.lower().replace("-", "_") in _PUBLIC_URL_SECRET_QUERY_KEYS
+        _is_public_url_secret_query_key(key)
         for key, _ in parse_qsl(fragment_query, keep_blank_values=True)
     )
     if netloc == parts.netloc and public_query == query and not fragment_has_secret:
