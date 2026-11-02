@@ -215,7 +215,7 @@ class McpToolFactory:
         status: str,
         tool_definitions: list[dict[str, Any]] | None,
         existing_snapshot: dict[str, Any] | None = None,
-        last_error: str = "",
+        last_error: str | None = None,
         retryable: bool = False,
         retry_count: int | None = None,
         last_success_at: int | None = None,
@@ -249,10 +249,9 @@ class McpToolFactory:
         if last_attempt_at is None:
             last_attempt_at = _utc_timestamp()
 
-        if not last_error:
+        if last_error is None:
             existing_last_error = existing_snapshot.get("last_error")
-            if isinstance(existing_last_error, str):
-                last_error = existing_last_error
+            last_error = existing_last_error if isinstance(existing_last_error, str) else ""
 
         snapshot = {
             "binding_identity": binding_identity,
@@ -426,6 +425,7 @@ class McpToolFactory:
                         status=status,
                         tool_definitions=tool_definitions,
                         existing_snapshot=existing_snapshot,
+                        last_error="",
                         last_success_at=_utc_timestamp(),
                         retry_count=0,
                         retryable=False,

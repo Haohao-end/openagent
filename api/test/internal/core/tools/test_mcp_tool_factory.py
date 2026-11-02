@@ -517,6 +517,12 @@ def test_mcp_tool_factory_should_prepare_and_refresh_binding_snapshots(monkeypat
     assert refreshed[0]["retry_count"] == 0
     assert refreshed[0]["binding_identity"] == factory.build_binding_identity(binding)
 
+    failed_snapshot = {**refreshed[0], "status": "failed", "last_error": "connection lost"}
+    recovered = factory.refresh_binding_snapshots([binding], [failed_snapshot])
+
+    assert recovered[0]["status"] == "ready"
+    assert recovered[0]["last_error"] == ""
+
 
 def test_mcp_tool_factory_should_build_tools_from_snapshots_without_live_discovery(monkeypatch):
     factory = McpToolFactory()
