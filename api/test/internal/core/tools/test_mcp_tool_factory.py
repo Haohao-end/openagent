@@ -183,6 +183,8 @@ def test_mcp_tool_factory_should_limit_tool_list_pages(monkeypatch):
 
 
 @pytest.mark.parametrize("response", [
+    "",
+    " \n ",
     json.dumps({"jsonrpc": "2.0", "id": "other-request", "result": {"content": ["wrong"]}}),
     'data: {"jsonrpc":"2.0","method":"notifications/progress"}\n\n'
     'data: {"jsonrpc":"2.0","id":"other-request","result":{"content":["wrong"]}}',
@@ -190,6 +192,10 @@ def test_mcp_tool_factory_should_limit_tool_list_pages(monkeypatch):
 def test_mcp_tool_factory_should_reject_response_with_unmatched_request_id(response):
     with pytest.raises(FailException, match="匹配的MCP响应"):
         _parse_json_payload(response, expected_id="current-request")
+
+
+def test_mcp_empty_payload_without_request_id_returns_none():
+    assert _parse_json_payload(" ") is None
 
 
 def test_mcp_connection_error_should_not_expose_query_credentials(monkeypatch, caplog):
