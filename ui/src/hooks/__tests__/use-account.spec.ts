@@ -1,20 +1,42 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ getAccountLoginHistory: vi.fn(), getAccountSessions: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  getAccountLoginHistory: vi.fn(),
+  getAccountSessions: vi.fn(),
+  getCurrentUser: vi.fn(),
+  credentialStore: { credential: { access_token: 'user-a' } },
+}))
 vi.mock('@/services/account', async importOriginal => ({
   ...await importOriginal<typeof import('@/services/account')>(),
   getAccountLoginHistory: mocks.getAccountLoginHistory,
   getAccountSessions: mocks.getAccountSessions,
+  getCurrentUser: mocks.getCurrentUser,
 }))
+vi.mock('@/stores/credential', () => ({ useCredentialStore: () => mocks.credentialStore }))
 vi.mock('@arco-design/web-vue', () => ({ Message: { success: vi.fn() } }))
 
-import { useGetAccountLoginHistory, useGetAccountSessions } from '@/hooks/use-account'
+import { useGetAccountLoginHistory, useGetAccountSessions, useGetCurrentUser } from '@/hooks/use-account'
 
 const deferred = () => {
   let resolve!: (value: any) => void
   const promise = new Promise<any>(done => { resolve = done })
   return { promise, resolve }
 }
+
+describe('useGetCurrentUser', () => {
+  it('ignores a user response that resolves after logout', async () => {
+    const request = deferred()
+    mocks.credentialStore.credential = { access_token: 'user-a' }
+    mocks.getCurrentUser.mockReturnValueOnce(request.promise)
+    const { current_user, loadCurrentUser } = useGetCurrentUser()
+    const pending = loadCurrentUser()
+    mocks.credentialStore.credential = { access_token: '' }
+    request.resolve({ data: { id: 'user-a' } })
+    await pending
+
+    expect(current_user.value).toEqual({})
+  })
+})
 
 describe('useGetAccountLoginHistory', () => {
   it('keeps the newest filter result when an older request finishes last', async () => {

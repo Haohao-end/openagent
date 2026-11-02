@@ -13,19 +13,26 @@ import {
   unbindOAuth,
 } from '@/services/account'
 import { Message } from '@arco-design/web-vue'
+import { useCredentialStore } from '@/stores/credential'
 export const useGetCurrentUser = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const current_user = ref<Record<string, any>>({})
+  const credentialStore = useCredentialStore()
+  let currentUserRequestId = 0
 
   // 2.定义加载数据处理器
   const loadCurrentUser = async () => {
+    const requestId = ++currentUserRequestId
+    const credential = credentialStore.credential
     try {
       loading.value = true
       const resp = await getCurrentUser()
-      current_user.value = resp.data
+      if (requestId === currentUserRequestId) {
+        current_user.value = credentialStore.credential === credential ? resp.data : {}
+      }
     } finally {
-      loading.value = false
+      if (requestId === currentUserRequestId) loading.value = false
     }
   }
 
