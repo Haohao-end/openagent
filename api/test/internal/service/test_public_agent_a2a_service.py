@@ -652,6 +652,59 @@ class TestPublicAgentA2AService:
         assert len(saved) == 1 and saved[0]["agent_thoughts"] == [thought]
         assert updates == [(message, {"status": MessageStatus.STOP.value})]
 
+    def test_stream_public_agent_should_persist_partial_history_when_agent_stream_raises(self, monkeypatch):
+        thought = AgentThought(
+            id=uuid4(), task_id=uuid4(), event=QueueEvent.AGENT_MESSAGE, answer="partial answer"
+        )
+        conversation = SimpleNamespace(id=uuid4(), summary="", name="Existing")
+        message = SimpleNamespace(id=uuid4())
+        created, updates = [], []
+        llm = SimpleNamespace(convert_to_human_message=lambda query, _images: query)
+
+        def stream(_state):
+            yield thought
+            raise RuntimeError("provider disconnected")
+
+        runtime_agent = SimpleNamespace(stream=stream)
+        monkeypatch.setattr(
+            "internal.service.public_agent_a2a_service.TokenBufferMemory",
+            lambda **_kwargs: SimpleNamespace(get_history_prompt_messages=lambda: []),
+        )
+        service = _build_service(
+            app_service=SimpleNamespace(
+                _build_runtime_tools=lambda *_args, **_kwargs: [],
+                _create_runtime_agent=lambda *_args, **_kwargs: runtime_agent,
+            ),
+            app_config_service=SimpleNamespace(get_app_config=lambda _app: {}),
+            language_model_service=SimpleNamespace(load_language_model=lambda _config: llm),
+        )
+        monkeypatch.setattr(service, "_resolve_public_conversation", lambda *_args: conversation)
+
+        def create(model, **kwargs):
+            if getattr(model, "__name__", "") == "Message":
+                return message
+            created.append((model, kwargs))
+            return SimpleNamespace()
+
+        monkeypatch.setattr(service, "create", create)
+        monkeypatch.setattr(service, "update", lambda target, **kwargs: updates.append((target, kwargs)))
+
+        events = service._stream_public_agent_events(
+            SimpleNamespace(id=uuid4(), account_id=uuid4()), "question", "ctx", {}
+        )
+        next(events)
+        next(events)
+        terminal = json.loads(next(events).split("data:", 1)[1].strip())
+
+        assert terminal["statusUpdate"]["status"]["state"] == "TASK_STATE_FAILED"
+        assert any(row[0].__name__ == "MessageAgentThought" for row in created)
+        assert updates[-1] == (
+            message,
+            {"status": MessageStatus.ERROR.value, "error": "Agent stream failed unexpectedly"},
+        )
+        with pytest.raises(StopIteration):
+            next(events)
+
     @pytest.mark.parametrize(
         ("context_id", "error_type"),
         [("client-session", ValidateErrorException), (str(uuid4()), NotFoundException)],
