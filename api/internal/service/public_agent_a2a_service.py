@@ -616,6 +616,10 @@ class PublicAgentA2AService(BaseService):
             runtime_context=runtime_context,
         )
 
+    @staticmethod
+    def _format_a2a_stream_response(response: dict[str, Any]) -> str:
+        return f"data: {json.dumps(response, ensure_ascii=False)}\n\n"
+
     def _stream_public_agent_events(
         self,
         app: App,
@@ -671,13 +675,30 @@ class PublicAgentA2AService(BaseService):
         )
         conversation_id = str(conversation.id)
         message_id = str(message.id)
-        task_id = conversation_id
+        task_id = message_id
         agent_thoughts: dict[str, Any] = {}
         history = TokenBufferMemory(
             db=self.db,
             conversation=conversation,
             model_instance=llm,
         ).get_history_prompt_messages()
+        task_state = "TASK_STATE_COMPLETED"
+        has_answer = False
+        try:
+            yield self._format_a2a_stream_response({"task": {
+                "id": task_id,
+                "contextId": conversation_id,
+                "status": {"state": "TASK_STATE_WORKING"},
+            }})
+        except GeneratorExit:
+            self._save_public_agent_thoughts(
+                app=app,
+                conversation=conversation,
+                message=message,
+                agent_thoughts=[],
+            )
+            self.update(message, status=MessageStatus.STOP.value)
+            raise
 
         for agent_thought in agent.stream({
             "messages": [llm.convert_to_human_message(query, [])],
@@ -708,22 +729,22 @@ class PublicAgentA2AService(BaseService):
                 else:
                     agent_thoughts[event_id] = agent_thought
 
-            usage_summary = summarize_agent_thoughts(agent_thoughts.values())
-            data = {
-                **agent_thought.model_dump(include={
-                    "event", "thought", "observation", "tool", "tool_input", "answer",
-                    "total_token_count", "total_price", "latency",
-                }),
-                "aggregate_total_token_count": usage_summary.total_token_count,
-                "aggregate_total_price": usage_summary.total_price,
-                "aggregate_latency": usage_summary.latency,
-                "id": event_id,
-                "conversation_id": conversation_id,
-                "message_id": message_id,
-                "task_id": task_id,
-            }
+            if agent_thought.event in (QueueEvent.ERROR, QueueEvent.TIMEOUT):
+                task_state = "TASK_STATE_FAILED"
+            elif agent_thought.event == QueueEvent.STOP:
+                task_state = "TASK_STATE_CANCELED"
+            if agent_thought.event != QueueEvent.AGENT_MESSAGE or not agent_thought.answer:
+                continue
             try:
-                yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data, ensure_ascii=False)}\n\n"
+                yield self._format_a2a_stream_response({"artifactUpdate": {
+                    "taskId": task_id,
+                    "contextId": conversation_id,
+                    "artifact": {
+                        "artifactId": "answer",
+                        "parts": [{"text": agent_thought.answer}],
+                    },
+                    "append": has_answer,
+                }})
             except GeneratorExit:
                 self._save_public_agent_thoughts(
                     app=app,
@@ -733,6 +754,7 @@ class PublicAgentA2AService(BaseService):
                 )
                 self.update(message, status=MessageStatus.STOP.value)
                 raise
+            has_answer = True
 
         self._save_public_agent_thoughts(
             app=app,
@@ -749,6 +771,11 @@ class PublicAgentA2AService(BaseService):
                 logging.exception(
                     f"生成公开会话名称失败: conversation_id={conversation.id}, error={exc}"
                 )
+        yield self._format_a2a_stream_response({"statusUpdate": {
+            "taskId": task_id,
+            "contextId": conversation_id,
+            "status": {"state": task_state},
+        }})
 
     def _invoke_public_agent(
         self,
