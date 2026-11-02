@@ -94,6 +94,7 @@ const openapiAssistantQuestion = ref<string>('')
 const openapiAssistantContent = ref<string>('')
 const openapiAssistantLoading = ref<boolean>(false)
 let iconUploadRequestId = 0
+let providerEditRequestId = 0
 
 const clearCreateTypeQuery = async () => {
   const nextQuery = { ...route.query }
@@ -317,12 +318,14 @@ const handleScroll = (event: UIEvent) => {
 
 // 3.定义打开更新模态窗
 const handleUpdate = async () => {
+  const requestId = ++providerEditRequestId
   iconUploadRequestId += 1
   // 3.1 获取当前显示的provider_id
   const provider_id = api_tool_providers.value[showIdx.value]['id']
 
   // 3.2 根据拿到的id获取该工具提供商的详情信息
   await loadApiToolProvider(provider_id)
+  if (requestId !== providerEditRequestId || showIdx.value < 0) return
 
   // 3.3 更新form表单数据
   formRef.value?.resetFields()
@@ -333,6 +336,11 @@ const handleUpdate = async () => {
   form.value.headers = api_tool_provider.value.headers
 
   showUpdateModal.value = true
+}
+
+const handleProviderDrawerCancel = () => {
+  providerEditRequestId += 1
+  showIdx.value = -1
 }
 
 // 4.定义删除工具提供者处理器
@@ -500,7 +508,7 @@ watch(
       :footer="false"
       :title="t('space.tools.detailTitle')"
       :drawer-style="{ background: '#F9FAFB' }"
-      @cancel="showIdx = -1"
+      @cancel="handleProviderDrawerCancel"
     >
       <!-- 外部容器，用于判断showIdx是否为-1，为-1的时候就不显示 -->
       <div v-if="showIdx != -1" class="">
