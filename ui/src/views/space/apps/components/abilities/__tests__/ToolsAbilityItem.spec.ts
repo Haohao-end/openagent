@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   loadApiTool: vi.fn().mockResolvedValue(undefined),
   loadBuiltinTool: vi.fn().mockResolvedValue(undefined),
   loadCategories: vi.fn().mockResolvedValue(undefined),
+  builtinTools: [] as Array<Record<string, unknown>>,
 }))
 
 vi.mock('@/hooks/use-app', () => ({
@@ -69,7 +70,7 @@ vi.mock('@/hooks/use-builtin-tool', () => ({
     loadBuiltinTool: mocks.loadBuiltinTool,
   }),
   useGetBuiltinTools: () => ({
-    builtin_tools: ref([]),
+    builtin_tools: ref(mocks.builtinTools),
     loadBuiltinTools: mocks.loadBuiltinTools,
   }),
   useGetCategories: () => ({
@@ -99,6 +100,8 @@ vi.mock('vue-i18n', () => {
     'appStudio.abilities.tools.builtinPlugin': '内置插件',
     'appStudio.abilities.tools.createCustomPlugin': '创建自定义插件',
     'appStudio.abilities.tools.all': '全部',
+    'appStudio.abilities.tools.add': '添加',
+    'appStudio.abilities.tools.remove': '移除',
     'common.actions.cancel': '取消',
     'common.actions.save': '保存',
   }
@@ -266,5 +269,33 @@ describe('ToolsAbilityItem', () => {
 
     expect(mocks.loadApiTool).toHaveBeenCalledWith('provider', 'tool')
     expect(wrapper.find('[data-testid="tools-modal"]').exists()).toBe(false)
+  })
+
+  it('removes only the selected tool when other tools share its provider or name', async () => {
+    mocks.builtinTools = [
+      { name: 'provider-a', label: 'Provider A', category: 'all', tools: [{ name: 'alpha', label: 'Alpha', params: [] }, { name: 'beta', label: 'Beta', params: [] }] },
+      { name: 'provider-b', label: 'Provider B', category: 'all', tools: [{ name: 'alpha', label: 'Alpha', params: [] }] },
+    ]
+    const selected = [
+      { type: 'builtin_tool', provider: { id: 'provider-a', name: 'provider-a' }, tool: { name: 'alpha', params: {} } },
+      { type: 'builtin_tool', provider: { id: 'provider-a', name: 'provider-a' }, tool: { name: 'beta', params: {} } },
+      { type: 'builtin_tool', provider: { id: 'provider-b', name: 'provider-b' }, tool: { name: 'alpha', params: {} } },
+    ]
+    const wrapper = mount(ToolsAbilityItem, {
+      props: { app_id: 'app-1', tools: selected as never[] },
+      global: { stubs: { 'a-collapse-item': collapseItemStub, 'a-button': buttonStub, 'a-modal': modalStub, 'a-avatar': true, 'a-tooltip': true, 'a-form': true, 'a-form-item': true, 'a-input': true, 'a-input-number': true, 'a-select': true, 'a-radio-group': true, 'a-radio': true, 'a-row': true, 'a-col': true, 'a-spin': true, 'a-empty': true, 'a-space': true, 'a-tag': true, 'a-input-search': true, 'a-divider': true, 'router-link': true, 'icon-plus': true, 'icon-settings': true, 'icon-delete': true, 'icon-close': true, 'icon-code': true, 'icon-translate': true, 'icon-apps': true, 'icon-oblique-line': true, 'icon-info-circle': true, 'icon-question-circle': true } },
+    })
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('.cursor-pointer').find(item => item.text().includes('内置插件'))!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === '移除')!.trigger('click')
+    await flushPromises()
+
+    const remaining = wrapper.emitted('update:tools')?.at(-1)?.[0] as typeof selected
+    expect(remaining.map(tool => [tool.provider.name, tool.tool.name])).toEqual([
+      ['provider-a', 'beta'],
+      ['provider-b', 'alpha'],
+    ])
   })
 })

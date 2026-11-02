@@ -350,7 +350,7 @@ const handleSelectTool = async (provider_idx: number, tool_idx: number) => {
   ) {
     // 8.4 删除关联的工具，筛选数据后更新
     const newTools = [...props.tools].filter((item) => {
-      return item.provider.id !== selectTool.provider.id && item.tool.name !== selectTool.tool.name
+      return item.provider.id !== selectTool.provider.id || item.tool.name !== selectTool.tool.name
     })
     await handleUpdateDraftAppConfig(props.app_id, {
       tools: newTools.map((item) => {
