@@ -28,13 +28,13 @@ type AppForm = {
   name: string
   description: string
 }
-const defaultForm: AppForm = {
+const createDefaultForm = (): AppForm => ({
   fileList: [],
   icon: '',
   name: '',
   description: '',
-}
-const form = ref<AppForm>({ ...defaultForm })
+})
+const form = ref<AppForm>(createDefaultForm())
 const formRef = ref<InstanceType<typeof Form>>()
 let detailRequest = 0
 
@@ -132,7 +132,7 @@ watch(
       }
     } else {
       // 4.6 关闭弹窗，需要清空表单数据
-      form.value = defaultForm
+      form.value = createDefaultForm()
       formRef.value?.resetFields()
       emits('update:app_id', '')
     }
