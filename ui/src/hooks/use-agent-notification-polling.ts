@@ -16,6 +16,7 @@ export const useAgentNotificationPolling = () => {
   const isLoading = ref(false)
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let pollingGeneration = 0
+  let requestGeneration = 0
 
   /**
    * 拉取通知
@@ -25,6 +26,7 @@ export const useAgentNotificationPolling = () => {
       return []
     }
 
+    const currentRequest = ++requestGeneration
     try {
       isLoading.value = true
       const response = await getNotifications(1, 10, 'agent')
@@ -39,7 +41,7 @@ export const useAgentNotificationPolling = () => {
     } catch (error) {
       console.error('Failed to fetch agent notifications:', error)
     } finally {
-      isLoading.value = false
+      if (currentRequest === requestGeneration) isLoading.value = false
     }
 
     return []
@@ -75,6 +77,8 @@ export const useAgentNotificationPolling = () => {
    */
   const stopPolling = () => {
     pollingGeneration += 1
+    requestGeneration += 1
+    isLoading.value = false
     if (pollTimer) {
       clearInterval(pollTimer)
       pollTimer = null
