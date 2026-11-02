@@ -1,13 +1,22 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ getMcpCategories: vi.fn(), getMcpProvider: vi.fn(), mcpSchemaAssistantChat: vi.fn(), messageError: vi.fn() }))
+const mocks = vi.hoisted(() => ({ getMcpCategories: vi.fn(), getMcpProvider: vi.fn(), generateMcpIconPreview: vi.fn(), regenerateMcpIcon: vi.fn(), uploadImage: vi.fn(), uploadImageUrl: null as any, mcpSchemaAssistantChat: vi.fn(), messageError: vi.fn(), messageSuccess: vi.fn() }))
 vi.mock('@/services/mcp', () => ({
-  ...Object.fromEntries(['createMcpProvider', 'updateMcpProvider', 'generateMcpIconPreview', 'regenerateMcpIcon'].map((key) => [key, vi.fn()])),
+  createMcpProvider: vi.fn(), updateMcpProvider: vi.fn(),
+  generateMcpIconPreview: mocks.generateMcpIconPreview, regenerateMcpIcon: mocks.regenerateMcpIcon,
   getMcpCategories: mocks.getMcpCategories, getMcpProvider: mocks.getMcpProvider,
 }))
 vi.mock('@/services/ai', () => ({ mcpSchemaAssistantChat: mocks.mcpSchemaAssistantChat }))
-vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError, success: vi.fn(), warning: vi.fn() } }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError, success: mocks.messageSuccess, warning: vi.fn() } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, locale: { value: 'en-US' } }) }))
+vi.mock('@/hooks/use-upload-file', async () => {
+  const { ref } = await import('vue')
+  return { useUploadImage: () => {
+    const image_url = ref('')
+    mocks.uploadImageUrl = image_url
+    return { image_url, handleUploadImage: mocks.uploadImage }
+  } }
+})
 import CreateOrUpdateMcpModal from '../CreateOrUpdateMcpModal.vue'
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -16,7 +25,7 @@ const deferred = <T,>() => {
   return { promise, resolve, reject }
 }
 const provider = (name: string) => ({ data: { name, description: name, icon: '' } })
-const IconStub = { props: ['name'], template: '<span />' }
+const IconStub = { props: ['name', 'icon', 'onGenerate', 'onUpload', 'loading'], template: '<span />' }
 const SlotStub = { template: '<div><slot /></div>' }
 const ModalStub = { props: ['visible'], template: '<div v-if="visible"><slot /></div>' }
 const SpinStub = { props: ['loading'], template: '<div><slot /></div>' }
@@ -96,6 +105,53 @@ describe('MCP provider request ordering', () => {
     await pending
 
     expect(state.form.name).toBe('B')
+    wrapper.unmount()
+  })
+
+  it('ignores icon results from a previous provider modal session', async () => {
+    mocks.getMcpCategories.mockResolvedValue({ data: { categories: [] } })
+    mocks.getMcpProvider.mockImplementation(async (id: string) => ({
+      data: { ...provider(id).data, icon: `icon-${id}` },
+    }))
+    const generationA = deferred<{ data: { icon: string } }>()
+    const generationB = deferred<{ data: { icon: string } }>()
+    mocks.regenerateMcpIcon.mockImplementation((id: string) => id === 'A' ? generationA.promise : generationB.promise)
+    const uploadA = deferred<void>()
+    mocks.uploadImage.mockImplementation(async () => {
+      await uploadA.promise
+      mocks.uploadImageUrl.value = 'icon-A-uploaded'
+    })
+
+    const wrapper = mountModal()
+    await wrapper.setProps({ visible: true, mcp_provider_id: 'A' })
+    await flushPromises()
+    const oldIcon = wrapper.findComponent(IconStub)
+    const oldGeneration = (oldIcon.props('onGenerate') as () => Promise<void>)()
+    const oldUpload = (oldIcon.props('onUpload') as (file: File) => Promise<void>)(new File(['icon'], 'mcp-icon.png'))
+    expect(mocks.regenerateMcpIcon).toHaveBeenCalledWith('A')
+
+    await wrapper.setProps({ visible: false, mcp_provider_id: '' })
+    await wrapper.setProps({ visible: true, mcp_provider_id: 'B' })
+    await flushPromises()
+    expect(wrapper.findComponent(IconStub).props('icon')).toBe('icon-B')
+    const currentIcon = wrapper.findComponent(IconStub)
+    const currentGeneration = (currentIcon.props('onGenerate') as () => Promise<void>)()
+    await flushPromises()
+    expect(currentIcon.props('loading')).toBe(true)
+
+    generationA.resolve({ data: { icon: 'icon-A-generated' } })
+    await oldGeneration
+    expect(wrapper.findComponent(IconStub).props('icon')).toBe('icon-B')
+    expect(wrapper.findComponent(IconStub).props('loading')).toBe(true)
+
+    uploadA.resolve()
+    await oldUpload
+    expect(wrapper.findComponent(IconStub).props('icon')).toBe('icon-B')
+    generationB.resolve({ data: { icon: 'icon-B-generated' } })
+    await currentGeneration
+    expect(wrapper.findComponent(IconStub).props('icon')).toBe('icon-B-generated')
+    expect(wrapper.findComponent(IconStub).props('loading')).toBe(false)
+    expect(mocks.messageSuccess).toHaveBeenCalledWith('space.mcp.iconGenerateSuccess')
     wrapper.unmount()
   })
 })

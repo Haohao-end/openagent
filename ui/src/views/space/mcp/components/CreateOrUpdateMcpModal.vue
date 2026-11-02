@@ -155,7 +155,9 @@ const loadProvider = async (providerId: string) => {
 }
 
 const handleUploadIcon = async (file: File) => {
+  const requestId = latestProviderRequest
   await handleUploadImage(file)
+  if (requestId !== latestProviderRequest) return
   form.value.icon = image_url.value
   form.value.fileList = [{ uid: '1', name: t('space.mcp.iconPlaceholder'), url: image_url.value }]
   Message.success(t('space.mcp.iconUploadSuccess'))
@@ -167,11 +169,13 @@ const handleGenerateIcon = async () => {
     return
   }
 
+  const requestId = latestProviderRequest
   try {
     generateLoading.value = true
     if (isEditMode.value) {
       const providerId = props.mcp_provider_id
       const res = await regenerateMcpIcon(providerId)
+      if (requestId !== latestProviderRequest) return
       if (res.data.icon) {
         form.value.icon = res.data.icon
         form.value.fileList = [{ uid: '1', name: t('space.mcp.iconPlaceholder'), url: res.data.icon }]
@@ -179,6 +183,7 @@ const handleGenerateIcon = async () => {
       }
     } else {
       const res = await generateMcpIconPreview(form.value.name, form.value.description)
+      if (requestId !== latestProviderRequest) return
       if (res.data.icon) {
         form.value.icon = res.data.icon
         form.value.fileList = [{ uid: '1', name: t('space.mcp.iconPlaceholder'), url: res.data.icon }]
@@ -186,9 +191,9 @@ const handleGenerateIcon = async () => {
       }
     }
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('space.mcp.iconGenerateFailed')))
+    if (requestId === latestProviderRequest) Message.error(getErrorMessage(error, t('space.mcp.iconGenerateFailed')))
   } finally {
-    generateLoading.value = false
+    if (requestId === latestProviderRequest) generateLoading.value = false
   }
 }
 
@@ -298,6 +303,7 @@ watch(
     const requestId = ++latestProviderRequest
     latestAiRequest += 1
     loadingProvider.value = false
+    generateLoading.value = false
     aiLoading.value = false
     formRef.value?.resetFields()
     form.value = defaultForm()
