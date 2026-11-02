@@ -80,6 +80,7 @@ const emailCodeCountdown = ref(0)
 const emailCodeTimer = ref<number>()
 const devicePanelError = ref('')
 let deviceSecurityRequestId = 0
+let avatarUploadRequestId = 0
 const historyFilters = ref({
   status: 'all',
   search: '',
@@ -266,17 +267,20 @@ const handleCopyAccountId = async () => {
 }
 
 const handleAvatarCustomRequest = (option: any) => {
+  const requestId = ++avatarUploadRequestId
   const uploadTask = async () => {
     const { fileItem, onSuccess, onError } = option
 
     try {
       await handleUploadImage(fileItem.file as File)
+      if (requestId !== avatarUploadRequestId) return
       accountForm.value.avatar = image_url.value
       onSuccess(image_url.value)
 
       await handleUpdateAvatar(String(accountForm.value.avatar))
       await updateAccount()
     } catch (error) {
+      if (requestId !== avatarUploadRequestId) return
       onError(error)
     }
   }
