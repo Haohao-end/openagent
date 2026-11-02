@@ -30,7 +30,9 @@ const globalStubs = {
   'a-avatar': slotStub,
   'a-button': slotStub,
   'a-input-search': {
-    template: '<input />',
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
+    template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
   },
   'a-row': slotStub,
   'a-col': slotStub,
@@ -104,5 +106,17 @@ describe('store tools list', () => {
     expect(scrollContainer.classes()).toContain('scrollbar-w-none')
     expect(scrollContainer.text()).toContain('搜索工具')
     expect(scrollContainer.text()).toContain('代码工具')
+  })
+
+  it('matches builtin tool labels without case sensitivity', async () => {
+    mocks.getBuiltinTools.mockResolvedValueOnce({
+      data: [{ background: '#fff', category: 'search', label: 'GitHub Search', name: 'github_search', tools: [] }],
+    })
+    const wrapper = shallowMount(StoreToolsListView, { global: { stubs: globalStubs } })
+
+    await flushPromises()
+    await wrapper.find('input').setValue('Search')
+
+    expect(wrapper.text()).toContain('GitHub Search')
   })
 })

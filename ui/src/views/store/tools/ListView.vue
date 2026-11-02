@@ -92,7 +92,7 @@ const filterBuiltinTools = computed(() => {
     // 分别检索分类信息+搜索词，只有同时符合的时候才返回数据
     const matchCategory = category.value === 'all' || item.category === category.value
     const matchSearchWord =
-      search_word.value === '' || item.label.toLowerCase().includes(search_word.value)
+      search_word.value === '' || item.label.toLowerCase().includes(search_word.value.toLowerCase())
 
     return matchCategory && matchSearchWord
   })
