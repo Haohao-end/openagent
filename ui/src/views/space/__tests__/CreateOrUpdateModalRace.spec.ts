@@ -77,6 +77,24 @@ describe('create/update modal detail request races', () => {
     wrapper.unmount()
   })
 
+  it('clears fields when reopening a canceled app create form', async () => {
+    const wrapper = mount(AppModal as any, {
+      props: { app_id: '', visible: false },
+      global: { stubs },
+    })
+    await wrapper.setProps({ visible: true })
+    const state = (wrapper.vm.$ as any).setupState
+    state.form.name = 'First app'
+    await wrapper.setProps({ visible: false })
+    await wrapper.setProps({ visible: true })
+    state.form.name = 'Discarded app'
+    await wrapper.setProps({ visible: false })
+    await wrapper.setProps({ visible: true })
+
+    expect(state.form.name).toBe('')
+    wrapper.unmount()
+  })
+
   it('does not apply icon results from a previous app modal session', async () => {
     const pendingGeneration = deferredValue<string>()
     const pendingUpload = deferred()
