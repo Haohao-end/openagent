@@ -20,6 +20,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from flask import has_app_context
 
+from internal.core.agent.agents.base_agent import AgentStreamCancelled
 from internal.core.agent.agents.function_call_agent import FunctionCallAgent
 from internal.core.agent.entities.artifact_policy_entity import ArtifactPolicy
 from internal.core.agent.entities.agent_entity import (
@@ -1564,6 +1565,13 @@ class DeepThinkingAgent(FunctionCallAgent):
 
     def _deep_agent_node(self, state: AgentState) -> AgentState:
         task_id = state["task_id"]
+        cancel_event = state.get("cancel_event")
+
+        def raise_if_cancelled() -> None:
+            if cancel_event is not None and cancel_event.is_set():
+                raise AgentStreamCancelled()
+
+        raise_if_cancelled()
         start_at = time.perf_counter()
         timeline = DeepTimelineMiddleware(
             task_id=task_id,
@@ -1584,6 +1592,7 @@ class DeepThinkingAgent(FunctionCallAgent):
 
         with track_language_model_usage(self.llm) as usage_tracker:
             route_decision = self._decide_deep_route(query)
+            raise_if_cancelled()
             timeline.publish_step(
                 step_id=route_step_id,
                 step_type="plan",
@@ -1595,6 +1604,7 @@ class DeepThinkingAgent(FunctionCallAgent):
             )
 
             backend = None
+            raise_if_cancelled()
             try:
                 deep_agent, backend, artifact_root, used_sandbox = self._build_deep_agent(
                     task_id=task_id,
@@ -1602,6 +1612,7 @@ class DeepThinkingAgent(FunctionCallAgent):
                     timeline=timeline,
                 )
             except Exception as e:
+                raise_if_cancelled()
                 logger.warning("deepagents 子 Agent 构建失败，降级为普通模式: %s", e)
                 timeline.publish_step(
                     step_id=uuid.uuid4(),
@@ -1612,6 +1623,15 @@ class DeepThinkingAgent(FunctionCallAgent):
                     technical_detail=f"{type(e).__name__}: {e}",
                 )
                 return {"messages": []}
+
+            if cancel_event is not None and cancel_event.is_set():
+                close_method = getattr(backend, "close", None)
+                if callable(close_method):
+                    try:
+                        close_method()
+                    except Exception:
+                        logger.debug("关闭已取消的深度执行 backend 时发生异常", exc_info=True)
+                raise AgentStreamCancelled()
 
             deep_answer = ""
             artifacts: list[dict[str, Any]] = []
@@ -1628,6 +1648,7 @@ class DeepThinkingAgent(FunctionCallAgent):
                         task_id=task_id,
                     )
                 except Exception as e:
+                    raise_if_cancelled()
                     if self._is_recoverable_model_request_error(e):
                         logger.warning("结构化文档流水线请求被模型提供方拒绝，切换到纯文本兜底: %s", e)
                         timeline.publish_step(
@@ -1692,9 +1713,11 @@ class DeepThinkingAgent(FunctionCallAgent):
 
             try:
                 if not structured_document_mode and not skip_regular_deep_invoke:
+                    raise_if_cancelled()
                     result = deep_agent.invoke({
                         "messages": [HumanMessage(content=query)],
                     })
+                    raise_if_cancelled()
                     messages = result.get("messages", [])
                     if messages:
                         last = messages[-1]
@@ -1720,7 +1743,10 @@ class DeepThinkingAgent(FunctionCallAgent):
                                     artifact_root=artifact_root,
                                     timeline=timeline,
                                 )
+            except AgentStreamCancelled:
+                raise
             except Exception as e:
+                raise_if_cancelled()
                 if structured_document_mode:
                     raise
                 if self._is_recoverable_model_request_error(e):
@@ -1786,6 +1812,7 @@ class DeepThinkingAgent(FunctionCallAgent):
                     except Exception:
                         logger.debug("关闭深度执行 backend 时发生异常", exc_info=True)
 
+        raise_if_cancelled()
         latency = time.perf_counter() - start_at
         deep_answer = self._sanitize_deep_answer(deep_answer, artifacts=artifacts)
         completion_summary = self._build_completion_summary(
