@@ -24,6 +24,7 @@ const router = useRouter()
 const { t } = useI18n()
 const accountStore = useAccountStore()
 let updateDatasetID = ''
+let iconUploadRequestId = 0
 const showCreateModal = ref(false)
 const { dataset, loadDataset } = useGetDataset()
 const { loading, datasets, paginator, loadDatasets } = useGetDatasetsWithPage()
@@ -54,7 +55,9 @@ const clearCreateTypeQuery = async () => {
 
 // 2.定义上传图标处理器
 const handleUploadIcon = async (file: File) => {
+  const requestId = ++iconUploadRequestId
   await handleUploadImage(file)
+  if (requestId !== iconUploadRequestId) return
   form.value.icon = image_url.value
   form.value.fileList = [{ uid: '1', name: t('space.datasets.modal.iconPlaceholder'), url: image_url.value }]
   Message.success(t('space.datasets.uploadSuccess'))
@@ -105,6 +108,7 @@ const handleScroll = async (event: UIEvent) => {
 
 // 5.定义编辑知识库处理器
 const handleUpdate = (dataset_id: string) => {
+  iconUploadRequestId += 1
   updateShowUpdateModal(true, async () => {
     // 1.调用api获取知识库详情
     const loadedDataset = await loadDataset(dataset_id)
@@ -121,12 +125,14 @@ const handleUpdate = (dataset_id: string) => {
 }
 
 const openCreateModal = async () => {
+  iconUploadRequestId += 1
   showCreateModal.value = true
   await clearCreateTypeQuery()
 }
 
 // 6.定义取消显示模态窗
 const handleCancel = async () => {
+  iconUploadRequestId += 1
   showCreateModal.value = false
   updateShowUpdateModal(false, async () => {
     // 1.重置整个表单数据
