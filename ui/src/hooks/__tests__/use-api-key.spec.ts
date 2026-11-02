@@ -45,6 +45,15 @@ describe('useGetApiKeysWithPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.routeQuery.current_page = '2'
+    mocks.routeQuery.page_size = '20'
+  })
+
+  it('falls back when positive fractional query values would round to zero', async () => {
+    mocks.routeQuery.current_page = '0.5'
+    mocks.routeQuery.page_size = '0.5'
+    mocks.getApiKeysWithPage.mockResolvedValueOnce({ data: { list: [], paginator: { current_page: 1, page_size: 20, total_page: 0, total_record: 0 } } })
+    await useGetApiKeysWithPage().loadApiKeys(true)
+    expect(mocks.getApiKeysWithPage).toHaveBeenCalledWith({ current_page: 1, page_size: 20 })
   })
 
   it('ignores an older page response after a newer page has loaded', async () => {
