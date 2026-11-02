@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import { type Form, type ValidatedError, Message } from '@arco-design/web-vue'
 import { useI18n } from 'vue-i18n'
 import { useCreateApp, useGetApp, useUpdateApp, useRegenerateIcon, useGenerateIconPreview } from '@/hooks/use-app'
@@ -43,12 +43,15 @@ const hideModal = () => emits('update:visible', false)
 
 // 2.5 定义上传图标处理器
 const handleUploadIcon = async (file: File) => {
+  const requestId = detailRequest
   try {
     await handleUploadImage(file)
+    if (requestId !== detailRequest) return
     form.value.icon = image_url.value
     form.value.fileList = [{ uid: '1', name: t('appStudio.createModal.iconFileName'), url: image_url.value }]
     Message.success(t('appStudio.createModal.uploadIconSuccess'))
   } catch (error: unknown) {
+    if (requestId !== detailRequest) return
     Message.error(getErrorMessage(error, t('appStudio.createModal.uploadIconFailed')))
     throw error
   }
@@ -61,10 +64,12 @@ const handleGenerateIcon = async () => {
     return
   }
 
+  const requestId = detailRequest
   try {
     // 如果是更新模式，调用regenerate API
     if (props.app_id) {
       const iconUrl = await handleRegenerateIcon(props.app_id)
+      if (requestId !== detailRequest) return
       if (iconUrl) {
         form.value.icon = iconUrl
         form.value.fileList = [{ uid: '1', name: t('appStudio.createModal.iconFileName'), url: iconUrl }]
@@ -72,6 +77,7 @@ const handleGenerateIcon = async () => {
       }
     } else {
       const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description)
+      if (requestId !== detailRequest) return
       if (iconUrl) {
         form.value.icon = iconUrl
         form.value.fileList = [{ uid: '1', name: t('appStudio.createModal.iconFileName'), url: iconUrl }]
@@ -132,6 +138,10 @@ watch(
     }
   },
 )
+
+onUnmounted(() => {
+  detailRequest += 1
+})
 </script>
 
 <template>

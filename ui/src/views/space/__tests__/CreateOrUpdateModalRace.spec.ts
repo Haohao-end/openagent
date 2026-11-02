@@ -4,7 +4,7 @@ import { defineComponent, ref } from 'vue'
 import AppModal from '../apps/components/CreateOrUpdateAppModal.vue'
 import WorkflowModal from '../workflows/components/CreateOrUpdateWorkflowModal.vue'
 
-const mocks = vi.hoisted(() => ({ app: null as any, workflow: null as any, loadApp: vi.fn(), loadWorkflow: vi.fn(), workflowRegenerateIcon: vi.fn(), uploadImage: vi.fn(), uploadImageUrl: null as any }))
+const mocks = vi.hoisted(() => ({ app: null as any, workflow: null as any, loadApp: vi.fn(), loadWorkflow: vi.fn(), appRegenerateIcon: vi.fn(), workflowRegenerateIcon: vi.fn(), uploadImage: vi.fn(), uploadImageUrl: null as any }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/hooks/use-upload-file', async () => {
@@ -18,7 +18,7 @@ vi.mock('@/hooks/use-upload-file', async () => {
 vi.mock('@/hooks/use-app', async () => {
   const { ref } = await import('vue')
   const noop = () => ({ loading: ref(false), handleCreateApp: vi.fn(), handleUpdateApp: vi.fn(), handleRegenerateIcon: vi.fn(), handleGenerateIconPreview: vi.fn() })
-  return { useCreateApp: noop, useUpdateApp: noop, useRegenerateIcon: noop, useGenerateIconPreview: noop, useGetApp: () => ({ app: mocks.app, loadApp: mocks.loadApp }) }
+  return { useCreateApp: noop, useUpdateApp: noop, useRegenerateIcon: () => ({ loading: ref(false), handleRegenerateIcon: mocks.appRegenerateIcon }), useGenerateIconPreview: noop, useGetApp: () => ({ app: mocks.app, loadApp: mocks.loadApp }) }
 })
 vi.mock('@/hooks/use-workflow', async () => {
   const { ref } = await import('vue')
@@ -36,7 +36,7 @@ const deferredValue = <T,>() => { let resolve!: (value: T) => void; const promis
 
 describe('create/update modal detail request races', () => {
   beforeEach(() => {
-    mocks.app = ref({}); mocks.workflow = ref({}); mocks.loadApp.mockReset(); mocks.loadWorkflow.mockReset(); mocks.workflowRegenerateIcon.mockReset(); mocks.uploadImage.mockReset(); mocks.uploadImageUrl = null
+    mocks.app = ref({}); mocks.workflow = ref({}); mocks.loadApp.mockReset(); mocks.loadWorkflow.mockReset(); mocks.appRegenerateIcon.mockReset(); mocks.workflowRegenerateIcon.mockReset(); mocks.uploadImage.mockReset(); mocks.uploadImageUrl = null
   })
 
   it.each([
@@ -56,6 +56,50 @@ describe('create/update modal detail request races', () => {
     await flushPromises()
 
     expect(wrapper.findComponent(IconStub).props('name')).toBe('')
+    wrapper.unmount()
+  })
+
+  it('does not apply icon results from a previous app modal session', async () => {
+    const pendingGeneration = deferredValue<string>()
+    const pendingUpload = deferred()
+    mocks.loadApp.mockImplementation(async (id: string) => {
+      mocks.app.value = { name: id, description: id, icon: `icon-${id}` }
+    })
+    mocks.appRegenerateIcon.mockImplementation(async () => {
+      await pendingGeneration.promise
+      return 'icon-app-a-generated'
+    })
+    mocks.uploadImage.mockImplementation(async () => {
+      await pendingUpload.promise
+      mocks.uploadImageUrl.value = 'icon-app-a-uploaded'
+    })
+
+    const wrapper = mount(AppModal as any, {
+      props: { app_id: '', visible: false },
+      global: { stubs },
+    })
+    await wrapper.setProps({ app_id: 'app-a', visible: true })
+    await flushPromises()
+
+    const icon = wrapper.findComponent(IconStub)
+    expect(icon.props('name')).toBe('app-a')
+    const generation = (icon.props('onGenerate') as () => Promise<void>)()
+    const upload = (icon.props('onUpload') as (file: File) => Promise<void>)(new File(['icon'], 'app-icon.png'))
+    expect(mocks.appRegenerateIcon).toHaveBeenCalledWith('app-a')
+    expect(mocks.uploadImage).toHaveBeenCalledTimes(1)
+
+    await wrapper.setProps({ app_id: '', visible: false })
+    await wrapper.setProps({ app_id: 'app-b', visible: true })
+    await flushPromises()
+    expect(wrapper.findComponent(IconStub).props('icon')).toBe('icon-app-b')
+
+    pendingGeneration.resolve('done')
+    await generation
+    expect(wrapper.findComponent(IconStub).props('icon')).toBe('icon-app-b')
+    pendingUpload.resolve()
+    await upload
+
+    expect(wrapper.findComponent(IconStub).props('icon')).toBe('icon-app-b')
     wrapper.unmount()
   })
 
