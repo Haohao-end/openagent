@@ -101,10 +101,17 @@ class IfElseNode(BaseNode):
                 return False
 
         # 字符串运算符
-        if operator == ConditionOperator.EQUALS:
-            return var_str == compare_value
-        elif operator == ConditionOperator.NOT_EQUALS:
-            return var_str != compare_value
+        if operator in {ConditionOperator.EQUALS, ConditionOperator.NOT_EQUALS}:
+            is_boolean_comparison = (
+                var_str.lower() in {"true", "false"}
+                and compare_value.lower() in {"true", "false"}
+            )
+            is_equal = (
+                var_str.lower() == compare_value.lower()
+                if is_boolean_comparison
+                else var_str == compare_value
+            )
+            return is_equal if operator == ConditionOperator.EQUALS else not is_equal
         elif operator == ConditionOperator.CONTAINS:
             return compare_value in var_str
         elif operator == ConditionOperator.NOT_CONTAINS:
