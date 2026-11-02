@@ -342,6 +342,32 @@ describe('useGetDocumentsWithPage', () => {
     await newerRequest
     expect(loading.value).toBe(false)
   })
+
+  it('ignores a stale document request failure but propagates the latest failure', async () => {
+    const olderResponse = createDeferred<DocumentsPageResponse>()
+    const newerResponse = createDeferred<DocumentsPageResponse>()
+    mocks.getDocumentsWithPage
+      .mockReturnValueOnce(olderResponse.promise)
+      .mockReturnValueOnce(newerResponse.promise)
+
+    const { documents, loadDocuments } = useGetDocumentsWithPage()
+    const olderRequest = loadDocuments('dataset-1')
+    const newerRequest = loadDocuments('dataset-1', { current_page: 1, page_size: 20, search_word: 'new' })
+
+    olderResponse.reject(new Error('stale failure'))
+    await expect(olderRequest).resolves.toBeUndefined()
+    newerResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'new-result' }],
+      },
+    })
+    await newerRequest
+
+    expect(documents.value).toEqual([{ id: 'new-result' }])
+    mocks.getDocumentsWithPage.mockRejectedValueOnce(new Error('latest failure'))
+    await expect(loadDocuments('dataset-1')).rejects.toThrow('latest failure')
+  })
 })
 
 describe('useGetDatasetQueries', () => {
@@ -567,6 +593,32 @@ describe('useGetSegmentsWithPage', () => {
     })
     await newerRequest
     expect(loading.value).toBe(false)
+  })
+
+  it('ignores a stale segment request failure but propagates the latest failure', async () => {
+    const olderResponse = createDeferred<SegmentsPageResponse>()
+    const newerResponse = createDeferred<SegmentsPageResponse>()
+    mocks.getSegmentsWithPage
+      .mockReturnValueOnce(olderResponse.promise)
+      .mockReturnValueOnce(newerResponse.promise)
+
+    const { segments, loadSegments } = useGetSegmentsWithPage()
+    const olderRequest = loadSegments('dataset-1', 'document-1', true, 'old')
+    const newerRequest = loadSegments('dataset-1', 'document-1', true, 'new')
+
+    olderResponse.reject(new Error('stale failure'))
+    await expect(olderRequest).resolves.toBeUndefined()
+    newerResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'new-result' }],
+      },
+    })
+    await newerRequest
+
+    expect(segments.value).toEqual([{ id: 'new-result' }])
+    mocks.getSegmentsWithPage.mockRejectedValueOnce(new Error('latest failure'))
+    await expect(loadSegments('dataset-1', 'document-1', true)).rejects.toThrow('latest failure')
   })
 })
 

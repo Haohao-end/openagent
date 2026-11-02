@@ -217,6 +217,8 @@ export const useGetDocumentsWithPage = () => {
       // 2.2 对于表格式+分页器实现的分页，可以直接填充数据进行替换
       paginator.value = data.paginator
       documents.value = data.list
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }
@@ -344,6 +346,8 @@ export const useGetSegmentsWithPage = () => {
       } else {
         segments.value.push(...data.list)
       }
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }
