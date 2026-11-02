@@ -26,6 +26,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import tool
 
+from internal.core.agent.agents.base_agent import AgentStreamCancelled
 from internal.core.agent.agents.deep_thinking_agent import (
     DeepRouteDecision,
     DeepThinkingAgent,
@@ -2303,6 +2304,26 @@ IPO招股说明书草案
         final_message = result["messages"][0].content
         assert "SpaceX_IPO_Prospectus_Draft.txt" in final_message
         assert "https://cos.example.com/artifacts/SpaceX_IPO_Prospectus_Draft.txt" in final_message
+
+    @patch.object(DeepThinkingAgent, "_build_deep_agent")
+    @patch.object(DeepThinkingAgent, "_decide_deep_route")
+    def test_deep_agent_node_should_stop_after_route_when_stream_cancelled(
+        self, mock_route, mock_build_deep
+    ):
+        state = self._build_state()
+        agent = self._build_agent()
+        agent.agent_queue_manager.publish = MagicMock()
+
+        def cancel_during_route(_query):
+            state["cancel_event"].set()
+            return self._route()
+
+        mock_route.side_effect = cancel_during_route
+
+        with pytest.raises(AgentStreamCancelled):
+            agent._agent.invoke(state)
+
+        mock_build_deep.assert_not_called()
 
     @patch.object(DeepThinkingAgent, "_build_deep_agent")
     @patch.object(DeepThinkingAgent, "_decide_deep_route")
