@@ -22,6 +22,15 @@ def _build_service(**kwargs) -> PublicAgentA2AService:
 
 
 class TestPublicAgentA2AService:
+    @pytest.mark.parametrize("method", ["_extract_query_from_payload", "_extract_answer_text"])
+    def test_extracts_all_text_parts_in_order(self, method):
+        payload = {"message": {"parts": [
+            {"type": "text", "text": " first "},
+            {"type": "image", "url": "https://example.com/image.png"},
+            {"type": "text", "text": "second"},
+        ]}}
+        assert getattr(PublicAgentA2AService, method)(payload) == "first\nsecond"
+
     def test_agent_card_should_advertise_streaming_support(self, monkeypatch):
         app = SimpleNamespace(id=uuid4(), account_id=uuid4(), name="Public", description="", tags=[])
         service = _build_service(

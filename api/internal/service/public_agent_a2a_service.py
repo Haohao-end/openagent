@@ -985,16 +985,11 @@ class PublicAgentA2AService(BaseService):
         if not isinstance(parts, list):
             return ""
 
-        for part in parts:
-            if not isinstance(part, dict):
-                continue
-            if str(part.get("type", "")).strip() != "text":
-                continue
-            text = str(part.get("text", "")).strip()
-            if text:
-                return text
-
-        return ""
+        return "\n".join(
+            text for part in parts
+            if isinstance(part, dict) and str(part.get("type", "")).strip() == "text"
+            if (text := str(part.get("text", "")).strip())
+        )
 
     @classmethod
     def _extract_image_urls_from_payload(cls, payload: dict[str, Any]) -> list[str]:
@@ -1050,12 +1045,8 @@ class PublicAgentA2AService(BaseService):
         parts = message.get("parts", [])
         if not isinstance(parts, list):
             return ""
-        for part in parts:
-            if not isinstance(part, dict):
-                continue
-            if str(part.get("type", "")).strip() != "text":
-                continue
-            text = str(part.get("text", "")).strip()
-            if text:
-                return text
-        return ""
+        return "\n".join(
+            text for part in parts
+            if isinstance(part, dict) and str(part.get("type", "")).strip() == "text"
+            if (text := str(part.get("text", "")).strip())
+        )
