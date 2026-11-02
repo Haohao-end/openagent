@@ -55,7 +55,7 @@ const handleCancelWorkflowsModal = () => {
   workflowsModalVisible.value = false
 
   // 4.2 还原初始值
-  activateWorkflows.value = originWorkflows.value
+  activateWorkflows.value = cloneDeep(originWorkflows.value)
   isWorkflowsInit.value = false
 }
 
