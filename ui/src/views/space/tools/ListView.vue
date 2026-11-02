@@ -93,6 +93,7 @@ const showOpenapiSchemaExampleModal = ref<boolean>(false)
 const openapiAssistantQuestion = ref<string>('')
 const openapiAssistantContent = ref<string>('')
 const openapiAssistantLoading = ref<boolean>(false)
+let iconUploadRequestId = 0
 
 const clearCreateTypeQuery = async () => {
   const nextQuery = { ...route.query }
@@ -105,7 +106,9 @@ const clearCreateTypeQuery = async () => {
 
 // 定义上传图标处理器
 const handleUploadIcon = async (file: File) => {
+  const requestId = ++iconUploadRequestId
   await handleUploadImage(file)
+  if (requestId !== iconUploadRequestId) return
   form.value.icon = image_url.value
   form.value.fileList = [{ uid: '1', name: t('space.tools.iconPlaceholder'), url: image_url.value }]
   Message.success(t('space.tools.iconUploadSuccess'))
@@ -314,6 +317,7 @@ const handleScroll = (event: UIEvent) => {
 
 // 3.定义打开更新模态窗
 const handleUpdate = async () => {
+  iconUploadRequestId += 1
   // 3.1 获取当前显示的provider_id
   const provider_id = api_tool_providers.value[showIdx.value]['id']
 
@@ -383,6 +387,7 @@ const handleSubmit = async ({
 
 // 取消显示模态窗处理器
 const handleCancel = () => {
+  iconUploadRequestId += 1
   // 1.重置整个表单的数据
   formRef.value?.resetFields()
   openapiAssistantQuestion.value = ''
@@ -411,6 +416,7 @@ watch(
   () => route.query?.create_type,
   (newValue) => {
     if (newValue !== 'tool') return
+    iconUploadRequestId += 1
     showCreateModal.value = true
     void clearCreateTypeQuery()
   },
