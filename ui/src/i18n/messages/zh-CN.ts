@@ -965,6 +965,7 @@ export default {
         key: '密钥',
         status: '状态',
         createdAt: '创建时间',
+        lastUsedAt: '最近使用',
         remark: '备注',
         actions: '操作',
       },
@@ -974,6 +975,7 @@ export default {
       editRemark: '编辑备注',
       deleteKey: '删除密钥',
       noRemark: '暂无备注',
+      neverUsed: '从未使用',
       loadFailed: '加载 API 密钥失败，请稍后重试',
     },
     quickStart: {

@@ -130,10 +130,13 @@ def test_request_loader_should_raise_when_openapi_api_key_inactive():
 
 def test_request_loader_should_return_account_when_openapi_api_key_active():
     expected_account = {"id": "acc-1"}
+    api_key_record = SimpleNamespace(is_active=True, account=expected_account)
+    marked_keys = []
     middleware = Middleware(
         jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
         api_key_service=SimpleNamespace(
-            get_api_by_by_credential=lambda _key: SimpleNamespace(is_active=True, account=expected_account)
+            get_api_by_by_credential=lambda _key: api_key_record,
+            mark_api_key_used=lambda record: marked_keys.append(record),
         ),
         account_service=SimpleNamespace(get_account=lambda _id: None),
     )
@@ -147,6 +150,7 @@ def test_request_loader_should_return_account_when_openapi_api_key_active():
         account = middleware.request_loader(request)
 
     assert account == expected_account
+    assert marked_keys == [api_key_record]
 
 
 def test_request_loader_should_return_none_for_unmatched_blueprint():

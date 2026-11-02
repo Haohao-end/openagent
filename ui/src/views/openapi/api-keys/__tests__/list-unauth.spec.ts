@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   loadApiKeys: vi.fn(),
   handleUpdateApiKeyIsActive: vi.fn(),
   handleDeleteApiKey: vi.fn(),
+  credential: { access_token: '', expire_at: 0 },
+  apiKeys: [] as Array<Record<string, unknown>>,
 }))
 
 vi.mock('vue-router', async (importOriginal) => {
@@ -26,11 +28,13 @@ vi.mock('vue-router', async (importOriginal) => {
 
 vi.mock('@/stores/credential', () => ({
   useCredentialStore: () => ({
-    credential: {
-      access_token: '',
-      expire_at: 0,
-    },
+    credential: mocks.credential,
   }),
+}))
+
+vi.mock('@/utils/auth', () => ({
+  isCredentialLoggedIn: (credential: { access_token: string; expire_at: number }) =>
+    Boolean(credential.access_token) && credential.expire_at > Date.now() / 1000,
 }))
 
 vi.mock('@/hooks/use-api-key', async () => {
@@ -44,7 +48,7 @@ vi.mock('@/hooks/use-api-key', async () => {
         total_page: 0,
         total_record: 0,
       }),
-      api_keys: ref([]),
+      api_keys: ref(mocks.apiKeys),
       loadApiKeys: mocks.loadApiKeys,
     }),
     useUpdateApiKeyIsActive: () => ({
@@ -63,6 +67,9 @@ const buttonStub = {
 describe('openapi api-keys unauthenticated state', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.credential.access_token = ''
+    mocks.credential.expire_at = 0
+    mocks.apiKeys = []
   })
 
   it('renders login prompt and does not request api keys when user is not logged in', async () => {
@@ -133,5 +140,43 @@ describe('openapi api-keys unauthenticated state', () => {
     expect(authRequiredEvents.at(-1)?.detail).toEqual({ redirect: '/openapi/api-keys' })
 
     dispatchSpy.mockRestore()
+  })
+
+  it('shows the last-used timestamp and a never-used state for API keys', async () => {
+    mocks.credential.access_token = 'valid-token'
+    mocks.credential.expire_at = Date.now() / 1000 + 3600
+    mocks.apiKeys = [{
+      id: 'key-1', api_key: '****************', is_active: true, remark: '',
+      created_at: 0, updated_at: 0, last_used_at: 0,
+    }]
+
+    const wrapper = shallowMount(ApiKeysListView, {
+      props: { create_api_key: false },
+      global: {
+        stubs: {
+          'a-button': buttonStub,
+          'a-table': { template: '<div><slot name="columns" /></div>' },
+          'a-table-column': {
+            props: ['title'],
+            data: () => ({ record: { id: 'key-1', api_key: '****************', is_active: true, remark: '', created_at: 0, last_used_at: 0 } }),
+            template: '<div><span>{{ title }}</span><slot name="cell" :record="record" /></div>',
+          },
+          'a-tooltip': true,
+          'a-switch': true,
+          'icon-user': true,
+          'icon-safe': true,
+          'icon-plus': true,
+          'icon-clock-circle': true,
+          'icon-edit': true,
+          'icon-delete': true,
+          'create-or-update-api-key-modal': true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('最近使用')
+    expect(wrapper.text()).toContain('从未使用')
   })
 })
