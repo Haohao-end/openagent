@@ -401,6 +401,28 @@ describe('useGetDatasetQueries', () => {
     expect(queries.value).toEqual([])
     expect(loading.value).toBe(false)
   })
+
+  it('ignores a stale query failure after clearing while propagating current failures', async () => {
+    const staleResponse = createDeferred<{ data: { query: string }[] }>()
+    const currentResponse = createDeferred<{ data: { query: string }[] }>()
+    mocks.getDatasetQueries
+      .mockReturnValueOnce(staleResponse.promise)
+      .mockReturnValueOnce(currentResponse.promise)
+
+    const { queries, loadDatasetQueries, clearDatasetQueries } = useGetDatasetQueries()
+    const staleRequest = loadDatasetQueries('dataset-a')
+    clearDatasetQueries()
+    const currentRequest = loadDatasetQueries('dataset-b')
+
+    staleResponse.reject(new Error('stale failure'))
+    await expect(staleRequest).resolves.toBeUndefined()
+    currentResponse.resolve({ data: [{ query: 'dataset-b-query' }] })
+    await currentRequest
+
+    expect(queries.value).toEqual([{ query: 'dataset-b-query' }])
+    mocks.getDatasetQueries.mockRejectedValueOnce(new Error('current failure'))
+    await expect(loadDatasetQueries('dataset-c')).rejects.toThrow('current failure')
+  })
 })
 
 describe('HitTestingModal request lifecycle', () => {

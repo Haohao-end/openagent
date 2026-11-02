@@ -425,6 +425,8 @@ export const useGetDatasetQueries = () => {
       loading.value = true
       const resp = await getDatasetQueries(dataset_id)
       if (requestId === latestRequest) queries.value = resp.data
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }
