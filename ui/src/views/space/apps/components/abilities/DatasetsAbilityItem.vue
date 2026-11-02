@@ -102,7 +102,7 @@ const handleCancelRetrievalConfigModal = () => {
   retrievalConfigModalVisible.value = false
 
   // 6.2 还原初始值
-  retrievalConfigForm.value = originRetrievalConfigForm.value
+  retrievalConfigForm.value = cloneDeep(originRetrievalConfigForm.value)
   isRetrievalConfigInit.value = false
 }
 
