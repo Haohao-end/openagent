@@ -92,7 +92,7 @@ const handleCancelDatasetsModal = () => {
   datasetsModalVisible.value = false
 
   // 5.2 还原初始值
-  activateDatasets.value = originDatasets.value
+  activateDatasets.value = cloneDeep(originDatasets.value)
   isDatasetsInit.value = false
 }
 
