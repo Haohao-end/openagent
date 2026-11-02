@@ -208,6 +208,19 @@ def test_mcp_rejects_invalid_jsonrpc_response_shape(monkeypatch, fields):
         McpToolFactory()._jsonrpc_request({"url": "https://mcp.example.com"}, "tools/list")
 
 
+@pytest.mark.parametrize("version", ["1.0", None, 2.0])
+def test_mcp_rejects_response_with_invalid_jsonrpc_version(monkeypatch, version):
+    def respond(_method, _url, **kwargs):
+        payload = {"id": kwargs["json"]["id"], "result": {"tools": []}}
+        if version is not None:
+            payload["jsonrpc"] = version
+        return _FakeResponse(payload)
+
+    monkeypatch.setattr("internal.core.tools.mcp_tools.providers.mcp_tool_factory.safe_request", respond)
+    with pytest.raises(RuntimeError, match="无效的 JSON-RPC 响应"):
+        McpToolFactory()._jsonrpc_request({"url": "https://mcp.example.com"}, "tools/list")
+
+
 def test_mcp_accepts_null_jsonrpc_result(monkeypatch):
     def respond(_method, _url, **kwargs):
         return _FakeResponse({"jsonrpc": "2.0", "id": kwargs["json"]["id"], "result": None})
