@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -91,7 +92,10 @@ class TestPublicAgentA2AService:
             monkeypatch.setattr(service, "_resolve_public_conversation", lambda *_args: conversation)
             monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: SimpleNamespace(id=uuid4()))
             monkeypatch.setattr(service, "_save_public_agent_thoughts", lambda **_kwargs: None)
-            list(service._stream_public_agent_events(app, "hello", "ctx", {}))
+            events = list(service._stream_public_agent_events(app, "hello", "ctx", {}))
+            assert [set(json.loads(event.split("data:", 1)[1].strip())) for event in events] == [
+                {"task"}, {"statusUpdate"},
+            ]
 
         assert runtime_agent_calls == [True]
 
@@ -630,10 +634,12 @@ class TestPublicAgentA2AService:
         events = service._stream_public_agent_events(
             SimpleNamespace(id=uuid4(), account_id=uuid4()), "question", "ctx", {}
         )
-        event = next(events)
+        task_event = next(events)
+        artifact_event = next(events)
+        assert set(json.loads(task_event.split("data:", 1)[1].strip())) == {"task"}
+        assert set(json.loads(artifact_event.split("data:", 1)[1].strip())) == {"artifactUpdate"}
         events.close()
 
-        assert event.startswith("event: agent_message")
         assert len(saved) == 1 and saved[0]["agent_thoughts"] == [thought]
         assert updates == [(message, {"status": MessageStatus.STOP.value})]
 
