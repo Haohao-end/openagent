@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy.exc import ProgrammingError
 
 from internal.exception import ValidateErrorException
+from internal.lib.helper import sanitize_public_url
 from internal.service.mcp_service import McpService
 
 
@@ -250,7 +251,7 @@ def test_public_provider_payload_redacts_signed_url_secrets():
         "X-Auth-Token", "X-MCP-Token",
     )
     query = "&".join(f"{key}=SYNTHETIC_SECRET" for key in secret_keys)
-    url = f"https://mcp.example.com/mcp?{query}&version=1"
+    url = f"https://mcp.example.com/mcp?{query}&version=1#access_token=SYNTHETIC_SECRET"
 
     payload = service._build_provider_payload(
         provider_key="provider-key",
@@ -277,6 +278,12 @@ def test_public_provider_payload_redacts_signed_url_secrets():
     assert "SYNTHETIC_SECRET" not in repr(payload)
     assert "version=1" in payload["url"]
     assert "version=1" in payload["source_url"]
+
+
+@pytest.mark.parametrize("fragment", ["access_token=SYNTHETIC_SECRET", "/callback?token=SYNTHETIC_SECRET"])
+def test_public_url_redacts_secret_fragments_but_keeps_plain_anchors(fragment):
+    assert sanitize_public_url(f"https://example.com/docs#{fragment}") == "https://example.com/docs"
+    assert sanitize_public_url("https://example.com/docs#installation") == "https://example.com/docs#installation"
 
 
 @pytest.mark.parametrize(("current_page", "page_size"), [(None, 20), (1, None), (None, None)])
