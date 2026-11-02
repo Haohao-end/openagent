@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, Generator
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from flask import Flask, current_app, has_app_context
 from injector import inject
@@ -17,7 +17,7 @@ from internal.entity.conversation_entity import InvokeFrom, MessageStatus
 from internal.exception import NotFoundException, ValidateErrorException
 from internal.lib.helper import build_input_parts, build_output_payload
 from internal.model import App, Conversation, Message, MessageAgentThought
-from internal.core.agent.entities.queue_entity import QueueEvent
+from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
 from internal.core.agent.usage_utils import summarize_agent_thoughts
 from internal.core.memory import TokenBufferMemory
 from sqlalchemy import desc
@@ -700,11 +700,22 @@ class PublicAgentA2AService(BaseService):
             self.update(message, status=MessageStatus.STOP.value)
             raise
 
-        for agent_thought in agent.stream({
-            "messages": [llm.convert_to_human_message(query, [])],
-            "history": history,
-            "long_term_memory": conversation.summary,
-        }):
+        def stream_agent_thoughts():
+            try:
+                yield from agent.stream({
+                    "messages": [llm.convert_to_human_message(query, [])], "history": history,
+                    "long_term_memory": conversation.summary,
+                })
+            except Exception as error:
+                logging.error("公开A2A Agent 流式执行失败: task_id=%s error_type=%s", task_id, type(error).__name__)
+                yield AgentThought(
+                    id=uuid4(),
+                    task_id=UUID(task_id),
+                    event=QueueEvent.ERROR,
+                    observation="Agent stream failed unexpectedly",
+                )
+
+        for agent_thought in stream_agent_thoughts():
             event_id = str(agent_thought.id)
 
             if agent_thought.event != QueueEvent.PING.value:
