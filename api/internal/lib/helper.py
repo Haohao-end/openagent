@@ -72,9 +72,17 @@ def sanitize_public_url(value: Any) -> str:
         for key, item in query
         if key.lower().replace("-", "_") not in _PUBLIC_URL_SECRET_QUERY_KEYS
     ]
-    if netloc == parts.netloc and public_query == query:
+    fragment_query = parts.fragment.partition("?")[2] if "?" in parts.fragment else parts.fragment
+    fragment_has_secret = any(
+        key.lower().replace("-", "_") in _PUBLIC_URL_SECRET_QUERY_KEYS
+        for key, _ in parse_qsl(fragment_query, keep_blank_values=True)
+    )
+    if netloc == parts.netloc and public_query == query and not fragment_has_secret:
         return url
-    return urlunsplit(parts._replace(netloc=netloc, query=urlencode(public_query, doseq=True)))
+    return urlunsplit(parts._replace(
+        netloc=netloc, query=urlencode(public_query, doseq=True),
+        fragment="" if fragment_has_secret else parts.fragment,
+    ))
 
 
 def dynamic_import(module_name: str, symbol_name: str) -> Any:
