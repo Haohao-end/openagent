@@ -211,6 +211,23 @@ class TestStartEndTemplateNodes:
 
 
 class TestLLMAndDatasetNodes:
+    def test_dataset_retrieval_node_forwards_runnable_config(self):
+        from langchain_core.runnables import RunnableConfig
+        from langchain_core.tools import tool
+
+        @tool
+        def probe(config: RunnableConfig) -> str:
+            """Return a request-specific marker."""
+            return config.get("configurable", {}).get("marker", "missing")
+
+        data = DatasetRetrievalNodeData.model_construct(
+            id=uuid4(), node_type="dataset_retrieval", title="dataset", inputs=[], outputs=[]
+        )
+        node = DatasetRetrievalNode.model_construct(node_data=data)
+        node._retrieval_tool = probe
+        result = node.invoke({"node_results": []}, config={"configurable": {"marker": "present"}})
+        assert result["node_results"][0].outputs["combine_documents"] == "present"
+
     def test_llm_node_should_stream_content_and_write_custom_output_key(
         self, monkeypatch
     ):
@@ -307,7 +324,7 @@ class TestLLMAndDatasetNodes:
     def test_dataset_retrieval_node_should_init_and_invoke(self, monkeypatch, app):
         class _FakeRetrievalTool:
             @staticmethod
-            def invoke(_payload):
+            def invoke(_payload, config=None):
                 return "doc-1\ndoc-2"
 
         class _FakeRetrievalService:
@@ -354,7 +371,7 @@ class TestLLMAndDatasetNodes:
 
         class _FakeRetrievalTool:
             @staticmethod
-            def invoke(_payload):
+            def invoke(_payload, config=None):
                 return "docs"
 
         class _FakeRetrievalService:
