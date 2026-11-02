@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive } from 'vue'
 import ToolListView from '../ListView.vue'
 
-const mocks = vi.hoisted(() => ({ route: null as any, imageUrl: null as any, upload: vi.fn() }))
+const mocks = vi.hoisted(() => ({ route: null as any, imageUrl: null as any, upload: vi.fn(), providers: [] as any[], loadProvider: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ replace: (target: any) => Object.assign(mocks.route, target) }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/account', () => ({ useAccountStore: () => ({ account: { avatar: '', name: 'Owner' } }) }))
@@ -22,8 +22,8 @@ vi.mock('@/hooks/use-tool', async () => {
   const { ref } = await import('vue')
   const state = () => ({ loading: ref(false) })
   return {
-    useGetApiToolProvider: () => ({ ...state(), api_tool_provider: ref({}), loadApiToolProvider: vi.fn() }),
-    useGetApiToolProvidersWithPage: () => ({ ...state(), paginator: ref({ current_page: 1, total_page: 1 }), api_tool_providers: ref([]), loadApiToolProviders: vi.fn() }),
+    useGetApiToolProvider: () => ({ ...state(), api_tool_provider: ref({ headers: [] }), loadApiToolProvider: mocks.loadProvider }),
+    useGetApiToolProvidersWithPage: () => ({ ...state(), paginator: ref({ current_page: 1, total_page: 1 }), api_tool_providers: ref(mocks.providers), loadApiToolProviders: vi.fn() }),
     useDeleteApiToolProvider: () => ({ handleDelete: vi.fn() }), useUpdateApiToolProvider: () => ({ ...state(), handleUpdateApiToolProvider: vi.fn() }),
     useCreateApiToolProvider: () => ({ ...state(), handleCreateApiToolProvider: vi.fn() }), useValidateOpenAPISchema: () => ({ handleValidateOpenAPISchema: vi.fn() }),
     useRegenerateIcon: () => ({ ...state(), handleRegenerateIcon: vi.fn() }), useGenerateIconPreview: () => ({ ...state(), handleGenerateIconPreview: vi.fn() }),
@@ -32,6 +32,7 @@ vi.mock('@/hooks/use-tool', async () => {
 
 const IconStub = defineComponent({ props: ['icon', 'onUpload'], emits: ['update:icon'], template: '<div />' })
 const ModalStub = defineComponent({ props: ['visible'], emits: ['cancel'], template: '<div v-if="visible"><slot /><button data-cancel @click="$emit(\'cancel\')">close</button></div>' })
+const DrawerStub = defineComponent({ props: ['visible'], emits: ['cancel'], template: '<div v-if="visible"><slot /><button data-drawer-cancel @click="$emit(\'cancel\')">close</button></div>' })
 const FormStub = { template: '<div><slot /></div>', methods: { resetFields() {} } }
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }
 
@@ -51,6 +52,25 @@ describe('space tools icon upload lifecycle', () => {
     pending.resolve()
     await oldUpload
     expect(wrapper.findComponent(IconStub).props('icon')).toBe('new-icon')
+    wrapper.unmount()
+  })
+
+  it('keeps a canceled provider edit closed when its detail request completes', async () => {
+    const pending = deferred()
+    mocks.route = reactive({ path: '/space/tools', query: {} })
+    mocks.providers = [{ id: 'provider-1', name: 'Provider', description: '', icon: '', tools: [], created_at: 0 }]
+    mocks.loadProvider.mockReset().mockReturnValueOnce(pending.promise)
+    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const state = (wrapper.vm.$ as any).setupState
+    state.showIdx = 0
+    await nextTick()
+    const edit = state.handleUpdate()
+
+    await wrapper.find('[data-drawer-cancel]').trigger('click')
+    pending.resolve()
+    await edit
+
+    expect(state.showUpdateModal).toBe(false)
     wrapper.unmount()
   })
 })
