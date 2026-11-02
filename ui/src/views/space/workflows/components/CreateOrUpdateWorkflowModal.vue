@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import { type Form, type ValidatedError, Message } from '@arco-design/web-vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -42,7 +42,9 @@ let detailRequest = 0
 
 // 2.定义上传图标处理器
 const handleUploadIcon = async (file: File) => {
+  const requestId = detailRequest
   await handleUploadImage(file)
+  if (requestId !== detailRequest) return
   form.value.icon = image_url.value
   form.value.fileList = [{ uid: '1', name: t('workflowEditor.workflowModal.iconName'), url: image_url.value }]
   Message.success(t('workflowEditor.workflowModal.iconUploadSuccess'))
@@ -55,10 +57,12 @@ const handleGenerateIcon = async () => {
     return
   }
 
+  const requestId = detailRequest
   try {
     // 更新模式：调用 regenerateIcon
     if (props.workflow_id) {
       const iconUrl = await handleRegenerateIcon(props.workflow_id)
+      if (requestId !== detailRequest) return
       if (iconUrl) {
         form.value.icon = iconUrl
         form.value.fileList = [{ uid: '1', name: t('workflowEditor.workflowModal.iconName'), url: iconUrl }]
@@ -68,6 +72,7 @@ const handleGenerateIcon = async () => {
     // 创建模式：调用 generateIconPreview
     else {
       const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description)
+      if (requestId !== detailRequest) return
       if (iconUrl) {
         form.value.icon = iconUrl
         form.value.fileList = [{ uid: '1', name: t('workflowEditor.workflowModal.iconName'), url: iconUrl }]
@@ -136,6 +141,10 @@ watch(
     }
   },
 )
+
+onUnmounted(() => {
+  detailRequest += 1
+})
 </script>
 
 <template>
