@@ -82,6 +82,8 @@ export const useGetDatasetsWithPage = () => {
       } else {
         datasets.value.push(...data.list)
       }
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }
