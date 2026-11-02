@@ -55,7 +55,7 @@ class DatasetRetrievalNode(BaseNode):
         inputs_dict = extract_variables_from_state(self.node_data.inputs, state)
 
         # 2.调用知识库检索工具
-        combine_documents = self._retrieval_tool.invoke(inputs_dict)
+        combine_documents = self._retrieval_tool.invoke(inputs_dict, config=config)
 
         # 3.提取并构建输出数据结构
         outputs = {}
