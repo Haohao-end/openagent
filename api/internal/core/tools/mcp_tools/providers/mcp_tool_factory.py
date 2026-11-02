@@ -775,7 +775,7 @@ class McpToolFactory:
 
         decoded = _parse_json_payload(response.text, expected_id=payload["id"])
         if isinstance(decoded, dict):
-            if ("result" in decoded) == ("error" in decoded):
+            if decoded.get("jsonrpc") != "2.0" or ("result" in decoded) == ("error" in decoded):
                 raise RuntimeError("MCP 服务返回无效的 JSON-RPC 响应")
             if "error" in decoded:
                 raise RuntimeError("MCP 服务返回 JSON-RPC 错误")
