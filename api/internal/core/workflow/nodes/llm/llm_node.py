@@ -33,7 +33,7 @@ class LLMNode(BaseNode):
 
         # 4.使用stream来代替invoke，避免接口长时间未响应超时
         content = ""
-        for chunk in llm.stream(prompt_value):
+        for chunk in llm.stream(prompt_value, config=config):
             if chunk is None:
                 continue
             content += chunk.content
