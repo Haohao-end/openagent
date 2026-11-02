@@ -130,8 +130,8 @@ class CodeNode(BaseNode):
         except FailException:
             raise
         except requests.exceptions.Timeout:
-            raise FailException("云函数执行超时")
-        except requests.exceptions.RequestException as e:
-            raise FailException(f"网络请求失败: {str(e)}")
+            raise FailException("云函数执行超时") from None
+        except requests.exceptions.RequestException:
+            raise FailException("网络请求失败") from None
         except Exception as e:
             raise FailException(f"Python代码执行出错: {str(e)}")

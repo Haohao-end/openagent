@@ -1059,6 +1059,19 @@ class TestVariableAssignerAndParameterExtractorNodes:
 
 
 class TestCodeNode:
+    @pytest.mark.parametrize("error_type", [requests.exceptions.ConnectionError, requests.exceptions.Timeout])
+    def test_sandbox_network_errors_do_not_expose_credentials(self, monkeypatch, error_type):
+        import traceback
+
+        secret = "synthetic-secret"
+        monkeypatch.setattr(CodeNode, "Sandbox_URL", f"https://sandbox.example.com/?token={secret}")
+        def fail(*_args, **_kwargs):
+            raise error_type(f"connection failed for ?token={secret}")
+        monkeypatch.setattr("internal.core.workflow.nodes.code.code_node.requests.post", fail)
+        with pytest.raises(FailException) as exc:
+            CodeNode._execute_function("def main(params): return params", params={})
+        assert secret not in "".join(traceback.format_exception(exc.value))
+
     def test_code_node_invoke_should_map_outputs_and_fill_default(self, monkeypatch):
         node_data = CodeNodeData(
             id=uuid4(),
