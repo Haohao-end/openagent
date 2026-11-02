@@ -144,10 +144,12 @@ class TestRetrievalService:
         dataset_id = uuid4()
         segment_id = uuid4()
         failed_segment_id = uuid4()
+        backfilled_segment_id = uuid4()
         datasets = [SimpleNamespace(id=dataset_id, account_id=account_id)]
         lc_docs = [
             SimpleNamespace(metadata={"dataset_id": dataset_id, "segment_id": segment_id, "score": 0.66}),
             SimpleNamespace(metadata={"dataset_id": dataset_id, "segment_id": failed_segment_id, "score": 0.55}),
+            SimpleNamespace(metadata={"dataset_id": dataset_id, "segment_id": backfilled_segment_id, "score": 0.44}),
         ]
 
         class _Session:
@@ -157,7 +159,7 @@ class TestRetrievalService:
             def query(self, model):
                 if model is Dataset:
                     return _QueryStub(all_result=datasets)
-                self.segment_query = _QueryStub(all_result=[(segment_id,)])
+                self.segment_query = _QueryStub(all_result=[(segment_id,), (backfilled_segment_id,)])
                 return self.segment_query
 
             def execute(self, _stmt):
@@ -168,15 +170,15 @@ class TestRetrievalService:
         service = self._build_service(db)
 
         class _SemanticRetriever:
-            def __init__(self, **_kwargs):
-                pass
+            def __init__(self, search_kwargs, **_kwargs):
+                self.search_kwargs = search_kwargs
 
             def invoke(self, _query):
-                return lc_docs
+                return lc_docs[:self.search_kwargs["k"]]
 
         class _FullTextRetriever:
-            def __init__(self, **_kwargs):
-                pass
+            def __init__(self, search_kwargs, **_kwargs):
+                self.search_kwargs = search_kwargs
 
             def invoke(self, _query):
                 return []
@@ -209,7 +211,7 @@ class TestRetrievalService:
             k=2,
         )
 
-        assert result == [lc_docs[0]]
+        assert result == [lc_docs[0], lc_docs[2]]
         assert any(
             getattr(getattr(condition, "left", None), "key", None) == "status"
             and getattr(getattr(getattr(condition, "left", None), "table", None), "name", None) == "document"
@@ -316,15 +318,15 @@ class TestRetrievalService:
         service = self._build_service(_DBStub(_Session()))
 
         class _SemanticRetriever:
-            def __init__(self, **_kwargs):
-                pass
+            def __init__(self, search_kwargs, **_kwargs):
+                self.search_kwargs = search_kwargs
 
             def invoke(self, _query):
                 return []
 
         class _FullTextRetriever:
-            def __init__(self, **_kwargs):
-                pass
+            def __init__(self, search_kwargs, **_kwargs):
+                self.search_kwargs = search_kwargs
 
             def invoke(self, _query):
                 return []
