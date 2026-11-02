@@ -30,6 +30,12 @@ from internal.core.workflow.nodes.http_request.http_request_entity import (
     HttpRequestNodeData,
 )
 from internal.core.workflow.nodes.http_request.http_request_node import HttpRequestNode
+from internal.core.workflow.nodes.if_else.if_else_entity import (
+    Condition,
+    ConditionOperator,
+    IfElseNodeData,
+)
+from internal.core.workflow.nodes.if_else.if_else_node import IfElseNode
 from internal.core.workflow.nodes.llm.llm_entity import LLMNodeData
 from internal.core.workflow.nodes.llm.llm_node import LLMNode
 from internal.core.workflow.nodes.parameter_extractor.parameter_extractor_entity import (
@@ -79,6 +85,42 @@ def _ref_var(name, ref_node_id, ref_var_name, var_type="string", meta=None):
         },
         meta=meta or {},
     )
+
+
+@pytest.mark.parametrize(
+    ("value", "operator", "compare_value", "expected"),
+    [
+        (True, ConditionOperator.EQUALS, "true", True),
+        (True, ConditionOperator.NOT_EQUALS, "true", False),
+        ("Ready", ConditionOperator.EQUALS, "ready", False),
+    ],
+)
+def test_if_else_node_should_match_lowercase_boolean_literal(
+    value, operator, compare_value, expected
+):
+    source_data = CodeNodeData(
+        id=uuid4(), node_type="code", title="source", outputs=[]
+    )
+    previous_result = NodeResult(node_data=source_data, outputs={"flag": value})
+    node_data = IfElseNodeData(
+        id=uuid4(),
+        node_type="if_else",
+        title="branch",
+        inputs=[_ref_var("flag", source_data.id, "flag")],
+        conditions=[
+            Condition(
+                variable_name="flag",
+                operator=operator,
+                compare_value=compare_value,
+            )
+        ],
+    )
+
+    result = IfElseNode(node_data=node_data).invoke(
+        _state_with_node_result(previous_result)
+    )
+
+    assert result["node_results"][0].outputs["result"] is expected
 
 
 class TestStartEndTemplateNodes:
