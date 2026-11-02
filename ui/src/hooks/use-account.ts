@@ -31,6 +31,8 @@ export const useGetCurrentUser = () => {
       if (requestId === currentUserRequestId) {
         current_user.value = credentialStore.credential === credential ? resp.data : {}
       }
+    } catch (error) {
+      if (requestId === currentUserRequestId && credentialStore.credential === credential) throw error
     } finally {
       if (requestId === currentUserRequestId) loading.value = false
     }

@@ -19,8 +19,9 @@ import { useGetAccountLoginHistory, useGetAccountSessions, useGetCurrentUser } f
 
 const deferred = () => {
   let resolve!: (value: any) => void
-  const promise = new Promise<any>(done => { resolve = done })
-  return { promise, resolve }
+  let reject!: (error: Error) => void
+  const promise = new Promise<any>((done, fail) => { resolve = done; reject = fail })
+  return { promise, resolve, reject }
 }
 
 describe('useGetCurrentUser', () => {
@@ -34,6 +35,19 @@ describe('useGetCurrentUser', () => {
     request.resolve({ data: { id: 'user-a' } })
     await pending
 
+    expect(current_user.value).toEqual({})
+  })
+
+  it('ignores a user request error that arrives after logout', async () => {
+    const request = deferred()
+    mocks.credentialStore.credential = { access_token: 'user-a' }
+    mocks.getCurrentUser.mockReturnValueOnce(request.promise)
+    const { current_user, loadCurrentUser } = useGetCurrentUser()
+    const pending = loadCurrentUser()
+    mocks.credentialStore.credential = { access_token: '' }
+    request.reject(new Error('expired user request'))
+
+    await expect(pending).resolves.toBeUndefined()
     expect(current_user.value).toEqual({})
   })
 })
