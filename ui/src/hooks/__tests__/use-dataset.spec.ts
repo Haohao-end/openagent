@@ -475,6 +475,34 @@ describe('useGetDatasetsWithPage', () => {
 
     expect(loading.value).toBe(false)
   })
+
+  it('ignores a stale dataset request failure after a newer search starts', async () => {
+    const olderResponse = createDeferred<DatasetsPageResponse>()
+    const newerResponse = createDeferred<DatasetsPageResponse>()
+    mocks.getDatasetsWithPage
+      .mockReturnValueOnce(olderResponse.promise)
+      .mockReturnValueOnce(newerResponse.promise)
+
+    const { datasets, loadDatasets } = useGetDatasetsWithPage()
+    const olderRequest = loadDatasets(true, 'old')
+    const newerRequest = loadDatasets(true, 'new')
+
+    olderResponse.reject(new Error('stale failure'))
+    await expect(olderRequest).resolves.toBeUndefined()
+
+    newerResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'new-result' }],
+      },
+    })
+    await newerRequest
+
+    expect(datasets.value).toEqual([{ id: 'new-result' }])
+
+    mocks.getDatasetsWithPage.mockRejectedValueOnce(new Error('latest failure'))
+    await expect(loadDatasets(true, 'latest')).rejects.toThrow('latest failure')
+  })
 })
 
 describe('useGetSegmentsWithPage', () => {
