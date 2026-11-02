@@ -114,6 +114,22 @@ def test_process_helpers_should_merge_dict_and_node_results():
     assert _process_node_results([result], []) == [result]
 
 
+def test_extract_boolean_strings_from_literals_and_references():
+    source = CodeNodeData(id=uuid4(), node_type="code", title="source", outputs=[])
+    state = {"node_results": [NodeResult(node_data=source, outputs={"flag": "false"})]}
+    variables = [
+        VariableEntity(name="literal", type="boolean", value={"type": "literal", "content": "false"}),
+        VariableEntity(name="truth", type="boolean", value={"type": "literal", "content": " TRUE "}),
+        VariableEntity(name="native", type="boolean", value={"type": "literal", "content": False}),
+        VariableEntity(name="reference", type="boolean", value={"type": "ref", "content": {
+            "ref_node_id": source.id, "ref_var_name": "flag",
+        }}),
+    ]
+    assert extract_variables_from_state(variables, state) == {
+        "literal": False, "truth": True, "native": False, "reference": False,
+    }
+
+
 def test_extract_variables_from_state_should_handle_literal_ref_and_default_value():
     source_node = CodeNodeData(id=uuid4(), node_type="code", title="source", outputs=[])
     state = {
