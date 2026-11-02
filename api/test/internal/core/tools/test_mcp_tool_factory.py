@@ -198,6 +198,24 @@ def test_mcp_empty_payload_without_request_id_returns_none():
     assert _parse_json_payload(" ") is None
 
 
+@pytest.mark.parametrize("fields", [{}, {"result": {}, "error": {"code": -1, "message": "failure"}}])
+def test_mcp_rejects_invalid_jsonrpc_response_shape(monkeypatch, fields):
+    def respond(_method, _url, **kwargs):
+        return _FakeResponse({"jsonrpc": "2.0", "id": kwargs["json"]["id"], **fields})
+
+    monkeypatch.setattr("internal.core.tools.mcp_tools.providers.mcp_tool_factory.safe_request", respond)
+    with pytest.raises(RuntimeError, match="无效的 JSON-RPC 响应"):
+        McpToolFactory()._jsonrpc_request({"url": "https://mcp.example.com"}, "tools/list")
+
+
+def test_mcp_accepts_null_jsonrpc_result(monkeypatch):
+    def respond(_method, _url, **kwargs):
+        return _FakeResponse({"jsonrpc": "2.0", "id": kwargs["json"]["id"], "result": None})
+
+    monkeypatch.setattr("internal.core.tools.mcp_tools.providers.mcp_tool_factory.safe_request", respond)
+    assert McpToolFactory()._jsonrpc_request({"url": "https://mcp.example.com"}, "tools/call") is None
+
+
 def test_mcp_connection_error_should_not_expose_query_credentials(monkeypatch, caplog):
     sentinel = "SYNTHETIC_SENTINEL"
 
