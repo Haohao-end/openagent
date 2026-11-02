@@ -211,6 +211,24 @@ class TestStartEndTemplateNodes:
 
 
 class TestLLMAndDatasetNodes:
+    def test_llm_node_forwards_runnable_config(self, monkeypatch):
+        from langchain_core.messages import AIMessage
+        from langchain_core.runnables import RunnableLambda
+
+        llm = RunnableLambda(lambda _prompt, config: AIMessage(
+            content=config.get("configurable", {}).get("marker", "missing")
+        ))
+        service = SimpleNamespace(load_language_model=lambda _cfg: llm)
+        monkeypatch.setattr("app.http.app.injector", SimpleNamespace(get=lambda _cls: service))
+        data = LLMNodeData.model_construct(
+            id=uuid4(), node_type="llm", title="llm", prompt="hello",
+            language_model_config={}, inputs=[], outputs=[]
+        )
+        result = LLMNode(node_data=data).invoke(
+            {"node_results": []}, config={"configurable": {"marker": "present"}}
+        )
+        assert result["node_results"][0].outputs["output"] == "present"
+
     def test_dataset_retrieval_node_forwards_runnable_config(self):
         from langchain_core.runnables import RunnableConfig
         from langchain_core.tools import tool
@@ -233,7 +251,7 @@ class TestLLMAndDatasetNodes:
     ):
         class _FakeLLM:
             @staticmethod
-            def stream(_prompt):
+            def stream(_prompt, config=None):
                 yield SimpleNamespace(content="hello ")
                 yield None
                 yield SimpleNamespace(content="world")
@@ -282,7 +300,7 @@ class TestLLMAndDatasetNodes:
     ):
         class _FakeLLM:
             @staticmethod
-            def stream(_prompt):
+            def stream(_prompt, config=None):
                 yield SimpleNamespace(content="ok")
 
         class _FakeLanguageModelService:
