@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   loadBuiltinTool: vi.fn().mockResolvedValue(undefined),
   loadCategories: vi.fn().mockResolvedValue(undefined),
   builtinTools: [] as Array<Record<string, unknown>>,
+  builtinTool: null as any,
 }))
 
 vi.mock('@/hooks/use-app', () => ({
@@ -55,17 +56,9 @@ vi.mock('@/hooks/use-tool', () => ({
 vi.mock('@/hooks/use-builtin-tool', () => ({
   useGetBuiltinTool: () => ({
     loading: ref(false),
-    builtin_tool: ref({
-      provider: {
-        name: '',
-        label: '',
-        description: '',
-      },
-      name: '',
-      label: '',
-      description: '',
-      inputs: [],
-      params: [],
+    builtin_tool: ref(mocks.builtinTool || {
+      provider: { name: '', label: '', description: '' },
+      name: '', label: '', description: '', inputs: [], params: [],
     }),
     loadBuiltinTool: mocks.loadBuiltinTool,
   }),
@@ -163,6 +156,9 @@ const collapseItemStub = defineComponent({
   `,
 })
 
+const radioGroupStub = defineComponent({ props: ['modelValue'], emits: ['update:modelValue'], template: '<div />' })
+const slotStub = { template: '<div><slot /></div>' }
+
 const mountToolsAbilityItem = () =>
   mount(ToolsAbilityItem, {
     props: {
@@ -176,18 +172,18 @@ const mountToolsAbilityItem = () =>
         'a-modal': modalStub,
         'a-avatar': true,
         'a-tooltip': true,
-        'a-form': true,
-        'a-form-item': true,
+        'a-form': slotStub,
+        'a-form-item': slotStub,
         'a-input': true,
         'a-input-number': true,
         'a-select': true,
-        'a-radio-group': true,
+        'a-radio-group': radioGroupStub,
         'a-radio': true,
         'a-row': true,
         'a-col': true,
         'a-spin': true,
         'a-empty': true,
-        'a-space': true,
+        'a-space': slotStub,
         'a-tag': true,
         'a-input-search': true,
         'a-divider': true,
@@ -297,5 +293,39 @@ describe('ToolsAbilityItem', () => {
       ['provider-a', 'beta'],
       ['provider-b', 'alpha'],
     ])
+  })
+
+  it('does not mutate tool props while a settings update is pending', async () => {
+    let resolveUpdate!: () => void
+    const update = new Promise<void>(resolve => { resolveUpdate = resolve })
+    const selected = [{
+      type: 'builtin_tool',
+      provider: { id: 'provider', name: 'provider', label: 'Provider', icon: '', description: '' },
+      tool: { id: 'flag', name: 'flag', label: 'Flag', description: '', params: { enabled: false } },
+    }]
+    mocks.builtinTool = {
+      provider: { name: 'provider', label: 'Provider', description: '' },
+      name: 'flag', label: 'Flag', description: '', inputs: [],
+      params: [{ name: 'enabled', label: 'Enabled', type: 'boolean', default: false }],
+    }
+    mocks.loadBuiltinTool.mockResolvedValueOnce(true)
+    mocks.updateDraftAppConfig.mockReturnValueOnce(update)
+    const wrapper = mountToolsAbilityItem()
+    await wrapper.setProps({ tools: selected as never[] })
+    await wrapper.get('button.rounded').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('.cursor-pointer').find(item => item.text().includes('appStudio.abilities.tools.settings'))!.trigger('click')
+    wrapper.findComponent(radioGroupStub).vm.$emit('update:modelValue', true)
+    await nextTick()
+
+    await wrapper.findAll('button').find(button => button.text() === '保存')!.trigger('click')
+    await nextTick()
+
+    expect(selected[0].tool.params).toEqual({ enabled: false })
+    expect(mocks.updateDraftAppConfig).toHaveBeenCalledWith('app-1', {
+      tools: [expect.objectContaining({ tool_id: 'flag', params: { enabled: true } })],
+    })
+    resolveUpdate()
+    await flushPromises()
   })
 })
