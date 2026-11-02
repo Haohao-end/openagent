@@ -405,6 +405,21 @@ class TestLLMAndDatasetNodes:
 
 
 class TestToolNode:
+    def test_tool_node_forwards_runnable_config(self):
+        from langchain_core.runnables import RunnableConfig
+        from langchain_core.tools import tool
+
+        @tool
+        def probe(config: RunnableConfig) -> str:
+            """Return a request-specific marker."""
+            return config.get("configurable", {}).get("marker", "missing")
+
+        data = ToolNodeData(id=uuid4(), node_type="tool", title="tool", inputs=[])
+        node = ToolNode.model_construct(node_data=data)
+        node._tool = probe
+        result = node.invoke({"node_results": []}, config={"configurable": {"marker": "present"}})
+        assert result["node_results"][0].outputs["text"] == "present"
+
     def test_tool_node_should_raise_not_found_for_missing_builtin_tool(
         self, monkeypatch
     ):
@@ -439,7 +454,7 @@ class TestToolNode:
                 self.kwargs = kwargs
 
             @staticmethod
-            def invoke(_payload):
+            def invoke(_payload, config=None):
                 return {"ok": True}
 
         class _BuiltinManager:
@@ -486,7 +501,7 @@ class TestToolNode:
                 pass
 
             @staticmethod
-            def invoke(_payload):
+            def invoke(_payload, config=None):
                 raise RuntimeError("tool boom")
 
         class _BuiltinManager:
@@ -528,7 +543,7 @@ class TestToolNode:
         class _ApiProviderManager:
             @staticmethod
             def get_tool(_tool_entity):
-                return SimpleNamespace(invoke=lambda _payload: "api-result")
+                return SimpleNamespace(invoke=lambda _payload, config=None: "api-result")
 
         class _DbQuery:
             @staticmethod
@@ -639,7 +654,7 @@ class TestToolNode:
                 pass
 
             @staticmethod
-            def invoke(_payload):
+            def invoke(_payload, config=None):
                 return "plain-text"
 
         class _BuiltinManager:

@@ -74,7 +74,7 @@ class ToolNode(BaseNode):
 
         # 2.调用插件并获取结果
         try:
-            result = self._tool.invoke(inputs_dict)
+            result = self._tool.invoke(inputs_dict, config=config)
         except Exception as e:
             raise FailException("扩展插件执行失败，请稍后尝试")
 
