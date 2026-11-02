@@ -182,6 +182,26 @@ describe('useAgentNotificationWebSocket', () => {
     wrapper.unmount()
   })
 
+  it('ignores an old subscription acknowledgement after reconnect', async () => {
+    const wrapper = await createHarness()
+    socketInstance.connect()
+    const oldAck = timeoutEmit.mock.calls[0][1]
+    socketInstance.disconnect()
+    socketInstance.connect()
+    const newAck = timeoutEmit.mock.calls[1][1]
+
+    oldAck(null, { ok: true, channel: 'old' })
+    await nextTick()
+    expect(wrapper.vm.isReady).toBe(false)
+    newAck(null, { ok: true, channel: 'new' })
+    await nextTick()
+    expect(wrapper.vm.isReady).toBe(true)
+    oldAck(new Error('late timeout'))
+    await nextTick()
+    expect(wrapper.vm.isReady).toBe(true)
+    wrapper.unmount()
+  })
+
   it('stays not ready when the server does not acknowledge the subscription', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const wrapper = await createHarness()

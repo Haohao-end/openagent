@@ -31,6 +31,7 @@ export const createNotificationWebSocket = <TNotification>(
     const socket = ref<Socket | null>(null)
     const isConnected = ref(false)
     const subscribedChannel = ref('')
+    let subscriptionGeneration = 0
     const notificationHandler = ref<NotificationHandler<TNotification> | null>(null)
     const accessToken = computed(() => getCredentialAccessToken(credentialStore.credential))
     const isEnabled = computed(() => Boolean(accessToken.value))
@@ -50,9 +51,14 @@ export const createNotificationWebSocket = <TNotification>(
         return
       }
 
-      socket.value.timeout(SUBSCRIBE_ACK_TIMEOUT_MS).emit(
+      const currentSocket = socket.value
+      const token = accessToken.value
+      const generation = ++subscriptionGeneration
+      currentSocket.timeout(SUBSCRIBE_ACK_TIMEOUT_MS).emit(
         options.subscribeEvent,
         (error: Error | null, response?: SubscriptionAck) => {
+          if (generation !== subscriptionGeneration || socket.value !== currentSocket ||
+              accessToken.value !== token || !currentSocket.connected) return
           if (error || !response?.ok || !response.channel) {
             subscribedChannel.value = ''
             console.warn(options.subscribeFailureLogMessage, error || response)
@@ -115,12 +121,14 @@ export const createNotificationWebSocket = <TNotification>(
       })
 
       socket.value.on('disconnect', () => {
+        subscriptionGeneration++
         isConnected.value = false
         subscribedChannel.value = ''
         console.log('[WebSocket] Disconnected')
       })
 
       socket.value.on('connect_error', (error) => {
+        subscriptionGeneration++
         isConnected.value = false
         subscribedChannel.value = ''
         console.error('[WebSocket] Connection error:', error)
@@ -148,6 +156,7 @@ export const createNotificationWebSocket = <TNotification>(
     }
 
     const disconnect = () => {
+      subscriptionGeneration++
       if (!socket.value) {
         return
       }
