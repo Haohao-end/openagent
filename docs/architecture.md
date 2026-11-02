@@ -59,3 +59,5 @@ docker compose ps llmops-db llmops-redis llmops-weaviate
 Use the published localhost ports in the host's `api/.env`. This command does not build or start the UI, API, Celery, or Nginx containers. Full-stack deployment has different settings and service dependencies; see [Docker configuration](../docker/README.md).
 
 Do not commit real `.env` credentials. For troubleshooting, prefer focused module tests over running or rebuilding the complete application stack.
+
+For an optional repository-inspection workflow, see [self-hosted Sem MCP](sem-mcp.md).
