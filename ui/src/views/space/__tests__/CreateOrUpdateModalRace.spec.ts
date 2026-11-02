@@ -4,12 +4,16 @@ import { defineComponent, ref } from 'vue'
 import AppModal from '../apps/components/CreateOrUpdateAppModal.vue'
 import WorkflowModal from '../workflows/components/CreateOrUpdateWorkflowModal.vue'
 
-const mocks = vi.hoisted(() => ({ app: null as any, workflow: null as any, loadApp: vi.fn(), loadWorkflow: vi.fn() }))
+const mocks = vi.hoisted(() => ({ app: null as any, workflow: null as any, loadApp: vi.fn(), loadWorkflow: vi.fn(), workflowRegenerateIcon: vi.fn(), uploadImage: vi.fn(), uploadImageUrl: null as any }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/hooks/use-upload-file', async () => {
   const { ref } = await import('vue')
-  return { useUploadImage: () => ({ image_url: ref(''), handleUploadImage: vi.fn() }) }
+  return { useUploadImage: () => {
+    const image_url = ref('')
+    mocks.uploadImageUrl = image_url
+    return { image_url, handleUploadImage: mocks.uploadImage }
+  } }
 })
 vi.mock('@/hooks/use-app', async () => {
   const { ref } = await import('vue')
@@ -19,19 +23,20 @@ vi.mock('@/hooks/use-app', async () => {
 vi.mock('@/hooks/use-workflow', async () => {
   const { ref } = await import('vue')
   const noop = () => ({ loading: ref(false), handleCreateWorkflow: vi.fn(), handleUpdateWorkflow: vi.fn(), handleRegenerateIcon: vi.fn(), handleGenerateIconPreview: vi.fn() })
-  return { useCreateWorkflow: noop, useUpdateWorkflow: noop, useRegenerateIcon: noop, useGenerateIconPreview: noop, useGetWorkflow: () => ({ workflow: mocks.workflow, loadWorkflow: mocks.loadWorkflow }) }
+  return { useCreateWorkflow: noop, useUpdateWorkflow: noop, useRegenerateIcon: () => ({ loading: ref(false), handleRegenerateIcon: mocks.workflowRegenerateIcon }), useGenerateIconPreview: noop, useGetWorkflow: () => ({ workflow: mocks.workflow, loadWorkflow: mocks.loadWorkflow }) }
 })
 
-const IconStub = defineComponent({ props: ['name', 'description'], template: '<span />' })
+const IconStub = defineComponent({ props: ['name', 'description', 'icon', 'onGenerate', 'onUpload'], template: '<span />' })
 const FormStub = defineComponent({ template: '<form><slot /></form>', methods: { resetFields() {} } })
 const SlotStub = { template: '<div><slot /></div>' }
 const ModalStub = defineComponent({ props: ['visible'], template: '<div v-if="visible"><slot /></div>' })
 const stubs = { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, IconUploadGenerator: IconStub }
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }
+const deferredValue = <T,>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done }); return { promise, resolve } }
 
 describe('create/update modal detail request races', () => {
   beforeEach(() => {
-    mocks.app = ref({}); mocks.workflow = ref({}); mocks.loadApp.mockReset(); mocks.loadWorkflow.mockReset()
+    mocks.app = ref({}); mocks.workflow = ref({}); mocks.loadApp.mockReset(); mocks.loadWorkflow.mockReset(); mocks.workflowRegenerateIcon.mockReset(); mocks.uploadImage.mockReset(); mocks.uploadImageUrl = null
   })
 
   it.each([
@@ -51,6 +56,48 @@ describe('create/update modal detail request races', () => {
     await flushPromises()
 
     expect(wrapper.findComponent(IconStub).props('name')).toBe('')
+    wrapper.unmount()
+  })
+
+  it('does not apply a generated workflow icon from a previous modal session', async () => {
+    const pending = deferredValue<string>()
+    mocks.loadWorkflow.mockImplementation(async (id: string) => {
+      mocks.workflow.value = { name: id, description: id, icon: `icon-${id}`, tool_call_name: id }
+    })
+    mocks.workflowRegenerateIcon.mockImplementation(async () => {
+      await pending.promise
+      return 'icon-workflow-a-generated'
+    })
+    const pendingUpload = deferred()
+    mocks.uploadImage.mockImplementation(async () => {
+      await pendingUpload.promise
+      mocks.uploadImageUrl.value = 'icon-workflow-a-uploaded'
+    })
+
+    const wrapper = mount(WorkflowModal as any, {
+      props: { workflow_id: '', visible: false },
+      global: { stubs },
+    })
+    await wrapper.setProps({ workflow_id: 'workflow-a', visible: true })
+    await flushPromises()
+
+    expect(wrapper.findComponent(IconStub).props('name')).toBe('workflow-a')
+    const generateIcon = wrapper.findComponent(IconStub).props('onGenerate') as () => Promise<void>
+    const generation = generateIcon()
+    expect(mocks.workflowRegenerateIcon).toHaveBeenCalledWith('workflow-a')
+    const uploadIcon = wrapper.findComponent(IconStub).props('onUpload') as (file: File) => Promise<void>
+    const upload = uploadIcon(new File(['icon'], 'workflow-icon.png'))
+    expect(mocks.uploadImage).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({ workflow_id: '', visible: false })
+    await wrapper.setProps({ workflow_id: 'workflow-b', visible: true })
+    await flushPromises()
+    expect(wrapper.findComponent(IconStub).props('icon')).toBe('icon-workflow-b')
+
+    pending.resolve('done')
+    pendingUpload.resolve()
+    await Promise.all([generation, upload])
+
+    expect(wrapper.findComponent(IconStub).props('icon')).toBe('icon-workflow-b')
     wrapper.unmount()
   })
 })
