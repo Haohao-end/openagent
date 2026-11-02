@@ -6,16 +6,18 @@ export const useUploadImage = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const image_url = ref<string>('')
+  let uploadRequestId = 0
 
   // 2.定义上传图片处理器
   const handleUploadImage = async (image: File) => {
+    const requestId = ++uploadRequestId
     try {
       loading.value = true
       const resp = await uploadImage(image)
-      image_url.value = resp.data.image_url
+      if (requestId === uploadRequestId) image_url.value = resp.data.image_url
       return resp
     } finally {
-      loading.value = false
+      if (requestId === uploadRequestId) loading.value = false
     }
   }
 
