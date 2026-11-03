@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useDeleteAssistantAgentConversation } from '@/hooks/use-assistant-agent'
+import { useAssistantAgentChat, useDeleteAssistantAgentConversation } from '@/hooks/use-assistant-agent'
 import * as assistantAgentService from '@/services/assistant-agent'
 import { Message } from '@arco-design/web-vue'
 
@@ -47,5 +47,24 @@ describe('useDeleteAssistantAgentConversation', () => {
     expect(assistantAgentService.deleteAssistantAgentConversation).toHaveBeenCalledTimes(1)
     expect(Message.success).not.toHaveBeenCalled()
     expect(loading.value).toBe(false)
+  })
+})
+
+describe('useAssistantAgentChat', () => {
+  it('forwards the cancellation signal to the chat service', async () => {
+    const controller = new AbortController()
+    vi.mocked(assistantAgentService.assistantAgentChat).mockResolvedValue(undefined as never)
+    const { handleAssistantAgentChat } = useAssistantAgentChat()
+
+    await handleAssistantAgentChat('question', [], '', vi.fn(), false, controller.signal)
+
+    expect(assistantAgentService.assistantAgentChat).toHaveBeenCalledWith(
+      'question',
+      [],
+      '',
+      expect.any(Function),
+      false,
+      controller.signal,
+    )
   })
 })

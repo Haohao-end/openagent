@@ -132,6 +132,7 @@ const { t, locale } = useI18n()
 const isHomeRoute = computed(() => route.path === '/home')
 const hasLoginQueryFlag = computed(() => String(route.query.login || '') === '1')
 const introductionAbortController = ref<AbortController | null>(null)
+const assistantAgentChatAbortController = ref<AbortController | null>(null)
 const accountStore = useAccountStore()
 const credentialStore = useCredentialStore()
 const { current_user, loadCurrentUser } = useGetCurrentUser()
@@ -677,6 +678,8 @@ const loadAssistantIntroduction = async () => {
 const handleStop = async () => {
   if (task_id.value === '' || !assistantAgentChatLoading.value) return
   await handleStopAssistantAgentChat(task_id.value)
+  assistantAgentChatAbortController.value?.abort()
+  assistantAgentChatAbortController.value = null
 }
 
 const clearHomeNewConversationQuery = async () => {
@@ -1134,6 +1137,8 @@ const handleSubmit = async () => {
   isStreamingResponse.value = true
   const humanQuery = query.value
   const humanImageUrls = image_urls.value
+  const abortController = new AbortController()
+  assistantAgentChatAbortController.value = abortController
   query.value = ''
   image_urls.value = []
 
@@ -1169,8 +1174,14 @@ const handleSubmit = async () => {
         }
       },
       enableDeepThinking.value,
+      abortController.signal,
     )
+  } catch (error) {
+    if (!abortController.signal.aborted) throw error
   } finally {
+    if (assistantAgentChatAbortController.value === abortController) {
+      assistantAgentChatAbortController.value = null
+    }
     if (streamGeneration === assistantAgentStreamGeneration) {
       isStreamingResponse.value = false
       stopAutoScrollObserver()
@@ -1338,6 +1349,8 @@ onActivated(async () => {
 onDeactivated(() => {
   assistantAgentStreamGeneration += 1
   isStreamingResponse.value = false
+  assistantAgentChatAbortController.value?.abort()
+  assistantAgentChatAbortController.value = null
   // 停止音频播放，避免切换页面后音频继续播放
   stopAudioStream()
 
@@ -1348,6 +1361,8 @@ onDeactivated(() => {
 
 onUnmounted(() => {
   assistantAgentStreamGeneration += 1
+  assistantAgentChatAbortController.value?.abort()
+  assistantAgentChatAbortController.value = null
   clearInputBreathTimer()
   typingBreathing.value = false
   introductionAbortController.value?.abort()

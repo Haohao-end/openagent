@@ -306,7 +306,43 @@ describe('HomeView deep thinking submit', () => {
       '',
       expect.any(Function),
       true,
+      expect.any(AbortSignal),
     )
+  })
+
+  it('aborts assistant chat streaming when HomeView unmounts', async () => {
+    let resolveStream!: () => void
+    let signal: AbortSignal | undefined
+    mocks.handleAssistantAgentChat.mockImplementationOnce((...args: unknown[]) => {
+      signal = args[5] as AbortSignal
+      return new Promise<void>((resolve) => { resolveStream = resolve })
+    })
+    const wrapper = shallowMount(HomeView, {
+      global: {
+        stubs: {
+          AiDynamicBackground: componentStub,
+          AiMessage: componentStub,
+          ChatComposer: chatComposerStub,
+          HumanMessage: componentStub,
+          ChatConversationSkeleton: componentStub,
+          LoginModal: componentStub,
+          'a-button': componentStub,
+          'icon-down': componentStub,
+          'icon-poweroff': componentStub,
+        },
+      },
+    })
+    await flushPromises()
+
+    mocks.queryRef.value = 'request to cancel'
+    const submitPromise = (wrapper.vm.$ as any).setupState.handleSubmit()
+    await flushPromises()
+    expect(signal).toBeDefined()
+
+    wrapper.unmount()
+    expect(signal?.aborted).toBe(true)
+    resolveStream()
+    await submitPromise
   })
 
   it('renders the current conversation header when a conversation id is provided', async () => {
