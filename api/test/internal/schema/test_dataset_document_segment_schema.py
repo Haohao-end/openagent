@@ -476,6 +476,19 @@ def test_update_segment_validate_keywords_should_cover_length_error_and_dedup(fo
         assert form.keywords.data == ["x", "y"]
 
 
+@pytest.mark.parametrize("form_cls", [CreateSegmentReq, UpdateSegmentReq])
+@pytest.mark.parametrize(("length", "valid"), [(256, True), (257, False)])
+def test_segment_keyword_validation_should_bound_item_length(form_request, form_cls, length, valid):
+    with form_request(json={"keywords": ["x" * length]}):
+        form = form_cls(meta={"csrf": False})
+        if valid:
+            form.validate_keywords(form.keywords)
+            assert form.keywords.data == ["x" * length]
+        else:
+            with pytest.raises(ValidationError, match="关键词长度不能超过256"):
+                form.validate_keywords(form.keywords)
+
+
 def test_segment_response_schema_should_dump_expected_fields():
     segment = ns(
         id=uuid4(),

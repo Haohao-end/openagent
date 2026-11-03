@@ -8,6 +8,8 @@ from internal.model import Segment
 from pkg.paginator import PaginatorReq
 from .schema import ListField, StrictStringField as StringField
 
+MAX_SEGMENT_KEYWORD_LENGTH = 256
+
 
 def _get_keywords_from_json() -> list:
     """
@@ -144,6 +146,8 @@ class CreateSegmentReq(FlaskForm):
         for keyword in field.data:
             if not isinstance(keyword, str):
                 raise ValidationError("关键词必须是字符串")
+            if len(keyword) > MAX_SEGMENT_KEYWORD_LENGTH:
+                raise ValidationError("关键词长度不能超过256")
 
         # 5.删除重复的数据并更新
         field.data = list(dict.fromkeys(field.data))
@@ -176,6 +180,8 @@ class UpdateSegmentReq(FlaskForm):
         for keyword in field.data:
             if not isinstance(keyword, str):
                 raise ValidationError("关键词必须是字符串")
+            if len(keyword) > MAX_SEGMENT_KEYWORD_LENGTH:
+                raise ValidationError("关键词长度不能超过256")
 
         # 5.删除重复数据并更新
         field.data = list(dict.fromkeys(field.data))
