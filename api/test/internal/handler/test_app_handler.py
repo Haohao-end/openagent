@@ -302,9 +302,7 @@ class TestAppHandler:
         assert status_code == 200
         payload = response.get_json()
         assert payload["data"]["status"] == "healthy"
-        assert payload["data"]["metrics"]["status_code"] == 1
-        assert payload["data"]["metrics"]["healthy_components"] == 4
-        assert payload["data"]["metrics"]["unhealthy_components"] == 0
+        assert set(payload["data"]) == {"status", "service"}
 
     def test_health_should_return_degraded_when_optional_dependency_is_unhealthy(self, app, monkeypatch):
         handler = self._new_app_handler()
@@ -318,8 +316,7 @@ class TestAppHandler:
 
         payload = response.get_json()
         assert payload["data"]["status"] == "degraded"
-        assert payload["data"]["metrics"]["status_code"] == 0
-        assert payload["data"]["metrics"]["unhealthy_components"] == 1
+        assert set(payload["data"]) == {"status", "service"}
 
     def test_health_should_return_unhealthy_when_database_is_unhealthy(self, app, monkeypatch):
         handler = self._new_app_handler()
@@ -333,8 +330,7 @@ class TestAppHandler:
 
         payload = response.get_json()
         assert payload["data"]["status"] == "unhealthy"
-        assert payload["data"]["metrics"]["status_code"] == -1
-        assert payload["data"]["metrics"]["unhealthy_components"] == 1
+        assert set(payload["data"]) == {"status", "service"}
 
     def test_healthz_should_return_ok_without_probing_dependencies(self, app, monkeypatch):
         handler = self._new_app_handler()
