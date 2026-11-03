@@ -214,6 +214,23 @@ def test_app_task_sync_public_app_registry_should_retry_on_connection_error(monk
     assert retry_calls[0][1] == 30
 
 
+def test_app_task_prewarm_mcp_tool_snapshots_should_not_log_refresh_exception(monkeypatch, caplog):
+    import logging
+
+    error_marker = "private-mcp-error-marker"
+    service = SimpleNamespace(
+        refresh_mcp_tool_snapshots=lambda *_args: (_ for _ in ()).throw(RuntimeError(error_marker))
+    )
+    monkeypatch.setattr("app.http.app.injector", _RecordingInjector(service))
+
+    with caplog.at_level(logging.ERROR, logger="internal.task.app_task"):
+        with pytest.raises(RuntimeError):
+            app_task.prewarm_mcp_tool_snapshots.run(str(uuid4()), "draft")
+
+    assert error_marker not in caplog.text
+    assert "Traceback" not in caplog.text
+
+
 def test_app_task_prewarm_mcp_tool_snapshots_should_delegate(monkeypatch):
     calls = []
 
