@@ -141,14 +141,17 @@ const getCategoryName = (category: string) => {
   return getStoreCategoryDisplayName(category, locale.value as 'zh-CN' | 'en-US')
 }
 
-const loadCategories = async () => {
+const loadCategories = async (): Promise<boolean> => {
   const requestId = ++latestCategoriesRequest
   try {
     const res = await getPublicMcpCategories()
-    if (requestId !== latestCategoriesRequest) return
+    if (requestId !== latestCategoriesRequest) return false
     categories.value = res.data.categories || []
+    return true
   } catch (_error: unknown) {
-    if (requestId === latestCategoriesRequest) categories.value = []
+    if (requestId !== latestCategoriesRequest) return false
+    categories.value = []
+    return true
   }
 }
 
@@ -229,7 +232,8 @@ watch(
       loading.value = false
       return
     }
-    await loadCategories()
+    const categoriesLoaded = await loadCategories()
+    if (!categoriesLoaded || !props.visible) return
     await loadProviders(true)
   },
   { immediate: true },

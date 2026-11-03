@@ -182,6 +182,55 @@ describe('McpMarketplacePickerModal', () => {
     wrapper.unmount()
   })
 
+  it('does not load providers when categories finish after the picker closes', async () => {
+    const pending = deferredCategories()
+    mocks.getPublicMcpCategories.mockReturnValueOnce(pending.promise)
+    mocks.getPublicMcpProvidersWithPage.mockResolvedValue({
+      data: { list: [], paginator: makePaginator(1, 1, 0) },
+    })
+    const wrapper = mount(McpMarketplacePickerModal, {
+      props: { visible: false, selected_bindings: [] },
+      global: { stubs: globalStubs },
+    })
+
+    await wrapper.setProps({ visible: true })
+    await nextTick()
+    await wrapper.setProps({ visible: false })
+    pending.resolve({ data: { categories: [{ id: 'late', name: 'Late' }] } })
+    await flushPromises()
+
+    expect(mocks.getPublicMcpProvidersWithPage).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('does not start a duplicate provider load from a stale open after reopening', async () => {
+    const stale = deferredCategories()
+    const current = deferredCategories()
+    mocks.getPublicMcpCategories.mockReturnValueOnce(stale.promise).mockReturnValueOnce(current.promise)
+    mocks.getPublicMcpProvidersWithPage.mockResolvedValue({
+      data: { list: [], paginator: makePaginator(1, 1, 0) },
+    })
+    const wrapper = mount(McpMarketplacePickerModal, {
+      props: { visible: false, selected_bindings: [] },
+      global: { stubs: globalStubs },
+    })
+
+    await wrapper.setProps({ visible: true })
+    await nextTick()
+    await wrapper.setProps({ visible: false })
+    await wrapper.setProps({ visible: true })
+    await nextTick()
+    stale.resolve({ data: { categories: [{ id: 'stale', name: 'Stale' }] } })
+    await flushPromises()
+
+    expect(mocks.getPublicMcpProvidersWithPage).not.toHaveBeenCalled()
+    current.resolve({ data: { categories: [{ id: 'current', name: 'Current' }] } })
+    await flushPromises()
+
+    expect(mocks.getPublicMcpProvidersWithPage).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
   it('loads the first page and appends the next page on scroll', async () => {
     mocks.getPublicMcpCategories.mockResolvedValue({ data: { categories: [{ id: 'cat-1', name: '分类一' }] } })
     mocks.getPublicMcpProvidersWithPage.mockImplementation(async (params: Record<string, unknown>) => {
