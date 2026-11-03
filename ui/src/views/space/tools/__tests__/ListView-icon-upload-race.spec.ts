@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive } from 'vue'
 import ToolListView from '../ListView.vue'
 
-const mocks = vi.hoisted(() => ({ route: null as any, imageUrl: null as any, upload: vi.fn(), providers: [] as any[], loadProvider: vi.fn(), success: vi.fn(), generatePreview: vi.fn() }))
+const mocks = vi.hoisted(() => ({ route: null as any, imageUrl: null as any, upload: vi.fn(), providers: [] as any[], loadProvider: vi.fn(), loadProviders: vi.fn(), success: vi.fn(), generatePreview: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ replace: (target: any) => Object.assign(mocks.route, target) }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/account', () => ({ useAccountStore: () => ({ account: { avatar: '', name: 'Owner' } }) }))
@@ -23,7 +23,7 @@ vi.mock('@/hooks/use-tool', async () => {
   const state = () => ({ loading: ref(false) })
   return {
     useGetApiToolProvider: () => ({ ...state(), api_tool_provider: ref({ headers: [] }), loadApiToolProvider: mocks.loadProvider }),
-    useGetApiToolProvidersWithPage: () => ({ ...state(), paginator: ref({ current_page: 1, total_page: 1 }), api_tool_providers: ref(mocks.providers), loadApiToolProviders: vi.fn() }),
+    useGetApiToolProvidersWithPage: () => ({ ...state(), paginator: ref({ current_page: 1, total_page: 1 }), api_tool_providers: ref(mocks.providers), loadApiToolProviders: mocks.loadProviders }),
     useDeleteApiToolProvider: () => ({ handleDelete: vi.fn() }), useUpdateApiToolProvider: () => ({ ...state(), handleUpdateApiToolProvider: vi.fn() }),
     useCreateApiToolProvider: () => ({ ...state(), handleCreateApiToolProvider: vi.fn() }), useValidateOpenAPISchema: () => ({ handleValidateOpenAPISchema: vi.fn() }),
     useRegenerateIcon: () => ({ ...state(), handleRegenerateIcon: vi.fn() }), useGenerateIconPreview: () => ({ ...state(), handleGenerateIconPreview: mocks.generatePreview }),
@@ -37,6 +37,20 @@ const FormStub = { template: '<div><slot /></div>', methods: { resetFields() {} 
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }
 
 describe('space tools icon upload lifecycle', () => {
+  it('uses an empty search when route navigation removes the query', async () => {
+    mocks.route = reactive({ path: '/space/tools', query: { search_word: 'northwind' } })
+    mocks.loadProviders.mockReset()
+    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    await flushPromises()
+
+    mocks.loadProviders.mockClear()
+    mocks.route.query = {}
+    await flushPromises()
+
+    expect(mocks.loadProviders).toHaveBeenCalledWith(true, '')
+    wrapper.unmount()
+  })
+
   it('does not apply icon generation from a canceled form to a reopened tool form', async () => {
     const pending = deferred()
     mocks.route = reactive({ path: '/space/tools', query: { create_type: 'tool' } })

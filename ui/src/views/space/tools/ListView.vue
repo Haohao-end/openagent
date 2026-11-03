@@ -430,7 +430,7 @@ onMounted(() => loadApiToolProviders(true, String(route.query?.search_word ?? ''
 watch(
   () => route.query?.search_word,
   (newValue) => {
-    loadApiToolProviders(true, String(newValue))
+    loadApiToolProviders(true, String(newValue ?? ''))
   },
 )
 
