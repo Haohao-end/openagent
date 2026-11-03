@@ -203,6 +203,7 @@ class Workflow(BaseTool):
             for branches in conditional_edges.values()
             for target_node in branches.values()
         }
+        conditional_end_routes = set()
 
         # 5.设置开始和终点
         graph.set_entry_point(start_node)
@@ -211,8 +212,23 @@ class Workflow(BaseTool):
         # 6.普通汇聚等待全部前置节点；互斥分支目标分别等待各自路径。
         for target_node, source_nodes in parallel_edges.items():
             if target_node in conditional_targets:
-                for source_node in source_nodes:
-                    graph.add_edge(source_node, target_node)
+                if target_node.startswith(f"{NodeType.END.value}_"):
+                    for if_else_node, branches in conditional_edges.items():
+                        matching_branches = [
+                            branch for branch, branch_target in branches.items()
+                            if branch_target == target_node
+                        ]
+                        if matching_branches:
+                            gate_node = f"conditional_end_gate_{if_else_node}_{target_node}"
+                            graph.add_node(gate_node, lambda _state: {})
+                            graph.add_edge(if_else_node, gate_node)
+                            graph.add_edge([gate_node, *source_nodes], target_node)
+                            conditional_end_routes.update(
+                                (if_else_node, branch) for branch in matching_branches
+                            )
+                else:
+                    for source_node in source_nodes:
+                        graph.add_edge(source_node, target_node)
                 continue
 
             barriers = []
@@ -254,8 +270,16 @@ class Workflow(BaseTool):
 
             # An unwired condition side means that branch terminates the workflow.
             path_map = {
-                "true": branches.get("true", END),
-                "false": branches.get("false", END),
+                "true": (
+                    END
+                    if (if_else_node, "true") in conditional_end_routes
+                    else branches.get("true", END)
+                ),
+                "false": (
+                    END
+                    if (if_else_node, "false") in conditional_end_routes
+                    else branches.get("false", END)
+                ),
             }
             graph.add_conditional_edges(
                 if_else_node,
