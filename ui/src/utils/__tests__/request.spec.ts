@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { post } from '@/utils/request'
+import { post, upload } from '@/utils/request'
 
 const { routerPush } = vi.hoisted(() => ({
   routerPush: vi.fn().mockResolvedValue(undefined),
@@ -58,5 +58,37 @@ describe('request utils', () => {
     const [, requestInit] = fetchMock.mock.calls[0]
     const headers = requestInit?.headers as Headers
     expect(headers.get('Authorization')).toBe('Bearer stored-token')
+  })
+
+  it('does not log upload response bodies', async () => {
+    const response = { code: 'success', message: 'ok', data: { id: 'private-file-id' } }
+    class FakeXMLHttpRequest {
+      readyState = 0
+      status = 200
+      response = response
+      responseType: XMLHttpRequestResponseType = 'json'
+      withCredentials = false
+      upload = { onprogress: null as ((event: ProgressEvent) => void) | null }
+      onreadystatechange: (() => void) | null = null
+      onerror: (() => void) | null = null
+      open = vi.fn()
+      setRequestHeader = vi.fn()
+      send = vi.fn(() => {
+        this.readyState = 4
+        this.onreadystatechange?.()
+      })
+    }
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.stubGlobal('XMLHttpRequest', FakeXMLHttpRequest)
+
+    try {
+      await expect(upload('/files/upload')).resolves.toEqual(response)
+      expect(log).not.toHaveBeenCalled()
+      expect(error).not.toHaveBeenCalled()
+    } finally {
+      log.mockRestore()
+      error.mockRestore()
+    }
   })
 })

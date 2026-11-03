@@ -543,11 +543,7 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
 
       const response: unknown = xhr.response
 
-      // 添加调试日志
-      console.log('[Upload] Response:', response)
-
       if (!isApiResponse(response)) {
-        console.error('[Upload] Invalid response format:', response)
         reject(
           createRequestError({
             message: '上传失败: 响应格式错误',
