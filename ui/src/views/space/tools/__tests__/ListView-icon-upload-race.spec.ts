@@ -3,13 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive } from 'vue'
 import ToolListView from '../ListView.vue'
 
-const mocks = vi.hoisted(() => ({ route: null as any, imageUrl: null as any, upload: vi.fn(), providers: [] as any[], loadProvider: vi.fn() }))
+const mocks = vi.hoisted(() => ({ route: null as any, imageUrl: null as any, upload: vi.fn(), providers: [] as any[], loadProvider: vi.fn(), success: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ replace: (target: any) => Object.assign(mocks.route, target) }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/account', () => ({ useAccountStore: () => ({ account: { avatar: '', name: 'Owner' } }) }))
 vi.mock('@/utils/helper', () => ({ getUserAvatarUrl: () => '' }))
 vi.mock('@/services/ai', () => ({ openapiSchemaAssistantChat: vi.fn() }))
-vi.mock('@arco-design/web-vue', () => ({ Message: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { success: mocks.success, error: vi.fn(), warning: vi.fn() } }))
 vi.mock('@/components/IconUploadGenerator.vue', async () => {
   const { defineComponent } = await import('vue')
   return { default: defineComponent({ props: ['icon', 'onUpload'], emits: ['update:icon'], template: '<div />' }) }
@@ -72,5 +72,43 @@ describe('space tools icon upload lifecycle', () => {
 
     expect(state.showUpdateModal).toBe(false)
     wrapper.unmount()
+  })
+
+  it('does not report upload success after the tools view unmounts', async () => {
+    const pending = deferred()
+    mocks.route = reactive({ path: '/space/tools', query: { create_type: 'tool' } })
+    mocks.success.mockReset()
+    mocks.upload.mockReset().mockImplementation(async () => {
+      await pending.promise
+      mocks.imageUrl.value = 'late-icon'
+    })
+    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    await flushPromises()
+    const upload = wrapper.findComponent(IconStub).props('onUpload') as (file: File) => Promise<void>
+    const oldUpload = upload(new File(['old'], 'old.png'))
+
+    wrapper.unmount()
+    pending.resolve()
+    await oldUpload
+
+    expect(mocks.success).not.toHaveBeenCalled()
+  })
+
+  it('does not open a provider editor after the tools view unmounts', async () => {
+    const pending = deferred()
+    mocks.route = reactive({ path: '/space/tools', query: {} })
+    mocks.providers = [{ id: 'provider-1', name: 'Provider', description: '', icon: '', tools: [], created_at: 0 }]
+    mocks.loadProvider.mockReset().mockReturnValueOnce(pending.promise)
+    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const state = (wrapper.vm.$ as any).setupState
+    state.showIdx = 0
+    await nextTick()
+    const edit = state.handleUpdate()
+
+    wrapper.unmount()
+    pending.resolve()
+    await edit
+
+    expect(state.showUpdateModal).toBe(false)
   })
 })
