@@ -176,7 +176,7 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
 // 8.监听路由query的变化
 watch(
   () => route.query?.search_word,
-  (newValue) => loadDatasets(true, String(newValue)),
+  (newValue) => loadDatasets(true, String(newValue ?? '')),
 )
 
 watch(
