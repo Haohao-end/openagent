@@ -51,7 +51,7 @@ onMounted(async () => {
 
 watch(
   () => route.query?.search_word,
-  (newValue) => loadApps(true, String(newValue)),
+  (newValue) => loadApps(true, String(newValue ?? '')),
 )
 
 watch(
