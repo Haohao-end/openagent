@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   useCreateApiToolProvider,
@@ -95,6 +95,11 @@ const openapiAssistantContent = ref<string>('')
 const openapiAssistantLoading = ref<boolean>(false)
 let iconUploadRequestId = 0
 let providerEditRequestId = 0
+
+onBeforeUnmount(() => {
+  iconUploadRequestId += 1
+  providerEditRequestId += 1
+})
 
 const clearCreateTypeQuery = async () => {
   const nextQuery = { ...route.query }
