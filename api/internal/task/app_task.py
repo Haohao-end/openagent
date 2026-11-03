@@ -46,11 +46,7 @@ def auto_create_app(
     notification_service = injector.get(NotificationService)
 
     try:
-        logger.info(
-            "Starting auto_create_app task, account_id=%s, name=%s",
-            account_id,
-            name,
-        )
+        logger.info("Starting auto_create_app task")
         # 创建应用
         app = app_service.auto_create_app(name, description, account_id)
 
@@ -67,9 +63,9 @@ def auto_create_app(
         agent_notification_key = f"agent:{account_id}"
         ws_manager.emit_notification_to_user(agent_notification_key, notification_data, event="agent_notification")
 
-        logger.info("Created and emitted notification for agent %s", app.id)
+        logger.info("Created and emitted notification for agent")
     except Exception as e:
-        logger.exception("Error in auto_create_app task: %s", str(e))
+        logger.error("Error in auto_create_app task: error_type=%s", type(e).__name__)
         raise
 
 

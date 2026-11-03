@@ -115,14 +115,18 @@ class TestAutoCreateAppTask:
         assert key.startswith("agent:")
         assert str(self.account_id) in key
 
-    def test_auto_create_app_error_handling(self, setup):
+    def test_auto_create_app_error_handling(self, setup, caplog):
         """测试auto_create_app错误处理"""
         mock_app_service = Mock()
-        mock_app_service.auto_create_app.side_effect = Exception("Database error")
+        mock_app_service.auto_create_app.side_effect = Exception("PRIVATE_AGENT_DESCRIPTION")
         injector = SimpleNamespace(
             get=lambda cls: mock_app_service if cls.__name__ == "AppService" else Mock()
         )
 
         with patch("app.http.app.injector", injector):
             with pytest.raises(Exception):
-                auto_create_app(self.app_name, self.description, self.account_id)
+                auto_create_app("PRIVATE_AGENT_NAME", "PRIVATE_AGENT_DESCRIPTION", self.account_id)
+
+        assert "PRIVATE_AGENT_NAME" not in caplog.text
+        assert "PRIVATE_AGENT_DESCRIPTION" not in caplog.text
+        assert str(self.account_id) not in caplog.text
