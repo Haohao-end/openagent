@@ -123,9 +123,63 @@ const globalStubs = {
   'icon-apps': true,
 }
 
+const deferredCategories = () => {
+  let resolve!: (value: { data: { categories: Array<{ id: string; name: string }> } }) => void
+  let reject!: (error: Error) => void
+  const promise = new Promise<{ data: { categories: Array<{ id: string; name: string }> } }>((done, fail) => {
+    resolve = done
+    reject = fail
+  })
+  return { promise, resolve, reject }
+}
+
 describe('McpMarketplacePickerModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('does not fetch categories while the picker is hidden', async () => {
+    mocks.getPublicMcpCategories.mockResolvedValue({ data: { categories: [] } })
+    const wrapper = mount(McpMarketplacePickerModal, {
+      props: { visible: false, selected_bindings: [] },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    expect(mocks.getPublicMcpCategories).not.toHaveBeenCalled()
+    await wrapper.setProps({ visible: true })
+    await flushPromises()
+    expect(mocks.getPublicMcpCategories).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('keeps the newest categories when an earlier category request fails', async () => {
+    const requests: ReturnType<typeof deferredCategories>[] = []
+    mocks.getPublicMcpCategories.mockImplementation(() => {
+      const request = deferredCategories()
+      requests.push(request)
+      return request.promise
+    })
+    mocks.getPublicMcpProvidersWithPage.mockResolvedValue({
+      data: { list: [], paginator: makePaginator(1, 1, 0) },
+    })
+    const wrapper = mount(McpMarketplacePickerModal, {
+      props: { visible: true, selected_bindings: [] },
+      global: { stubs: globalStubs },
+    })
+    await nextTick()
+    await wrapper.setProps({ visible: false })
+    await wrapper.setProps({ visible: true })
+    await nextTick()
+
+    const latestRequest = requests[requests.length - 1]
+    latestRequest.resolve({ data: { categories: [{ id: 'latest', name: 'Latest' }] } })
+    await flushPromises()
+    requests.slice(0, -1).forEach(request => request.reject(new Error('stale category request failed')))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="mcp-category-latest"]').exists()).toBe(true)
+    wrapper.unmount()
   })
 
   it('loads the first page and appends the next page on scroll', async () => {
