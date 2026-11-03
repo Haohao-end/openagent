@@ -94,7 +94,11 @@ class PublicAppHandler:
         """获取公共应用的A2A Agent Card。"""
         if not self.public_agent_a2a_service:
             return jsonify({"error": "A2A service unavailable"}), 503
-        return jsonify(self.public_agent_a2a_service.get_agent_card(app_id))
+        try:
+            card = self.public_agent_a2a_service.get_agent_card(app_id)
+        except NotFoundException as exc:
+            return jsonify({"error": str(exc) or "Agent not found"}), 404
+        return jsonify(card)
 
     def send_public_app_a2a_message(self, app_id: str):
         """以A2A协议向公共应用发送消息。"""

@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 from flask import Flask
 
+from internal.exception import NotFoundException
 from internal.handler.public_app_handler import PublicAppHandler
 
 
@@ -62,3 +63,14 @@ def test_a2a_message_should_stream_object_payload(context_key):
     assert response.status_code == 200
     assert response.mimetype == "text/event-stream"
     assert calls == [("app-id", payload)]
+
+
+def test_a2a_card_should_return_404_when_app_is_not_found():
+    def raise_not_found(_app_id):
+        raise NotFoundException("Agent not found")
+
+    handler = PublicAppHandler(None, SimpleNamespace(get_agent_card=raise_not_found))
+    with Flask(__name__).test_request_context("/public/apps/missing/a2a/card"):
+        response = handler.get_public_app_a2a_card("missing")
+    assert response[1] == 404
+    assert response[0].get_json() == {"error": "Agent not found"}
