@@ -73,12 +73,12 @@ class GaodeWeatherTool(BaseTool):
             city_response.raise_for_status()
             city_data = city_response.json()
             if not self._is_success(city_data):
-                logger.warning("高德行政区查询失败: city=%s payload=%s", city, city_data)
+                logger.warning("高德行政区查询失败")
                 return f"获取{city}天气预报信息失败：行政区查询失败"
 
             districts = city_data.get("districts") or []
             if not districts or not districts[0].get("adcode"):
-                logger.warning("高德行政区查询无结果: city=%s payload=%s", city, city_data)
+                logger.warning("高德行政区查询无结果")
                 return f"获取{city}天气预报信息失败：未找到对应城市编码"
 
             ad_code = districts[0]["adcode"]
@@ -102,24 +102,19 @@ class GaodeWeatherTool(BaseTool):
                 # 5.返回最后的结果字符串
                 return json.dumps(weather_data, ensure_ascii=False)
 
-            logger.warning(
-                "高德天气查询失败: city=%s ad_code=%s payload=%s",
-                city,
-                ad_code,
-                weather_data,
-            )
+            logger.warning("高德天气查询失败")
             return f"获取{city}天气预报信息失败：天气接口返回异常"
         except requests.Timeout:
-            logger.warning("高德天气查询超时: city=%s timeout=%s", city, self._get_timeout())
+            logger.warning("高德天气查询超时: timeout=%s", self._get_timeout())
             return f"获取{city}天气预报信息失败：请求超时"
         except requests.RequestException:
-            logger.warning("高德天气查询请求异常: city=%s", city)
+            logger.warning("高德天气查询请求异常")
             return f"获取{city}天气预报信息失败：网络请求异常"
         except (ValueError, KeyError, IndexError, TypeError) as e:
-            logger.warning("高德天气查询响应解析异常: city=%s error=%s", city, e)
+            logger.warning("高德天气查询响应解析异常: error_type=%s", type(e).__name__)
             return f"获取{city}天气预报信息失败：响应解析异常"
         except Exception as e:
-            logger.exception("高德天气查询未知异常: city=%s", city)
+            logger.error("高德天气查询未知异常: error_type=%s", type(e).__name__)
             return f"获取{city}天气预报信息失败：{type(e).__name__}"
         finally:
             try:

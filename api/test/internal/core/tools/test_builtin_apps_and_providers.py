@@ -23,7 +23,7 @@ from internal.core.tools.builtin_tools.providers.time.timezone_converter import 
 from internal.core.tools.builtin_tools.providers.wikipedia.wikipedia_search import wikipedia_search
 
 
-def test_gaode_weather_tool_should_cover_success_failure_and_exception(monkeypatch):
+def test_gaode_weather_tool_should_cover_success_failure_and_exception(monkeypatch, caplog):
     gaode_module = importlib.import_module("internal.core.tools.builtin_tools.providers.gaode.gaode_weather")
 
     class _FakeResponse:
@@ -83,6 +83,10 @@ def test_gaode_weather_tool_should_cover_success_failure_and_exception(monkeypat
     exception_session = _FakeSession([_FakeResponse({}, should_raise=True)])
     monkeypatch.setattr(gaode_module.requests, "session", lambda: exception_session)
     assert tool._run(city="北京") == "获取北京天气预报信息失败：RuntimeError"
+    assert "深圳" not in caplog.text
+    assert "北京" not in caplog.text
+    assert "payload=" not in caplog.text
+    assert "boom" not in caplog.text
 
 
 def test_gaode_weather_tool_should_cover_timeout_and_missing_city(monkeypatch):
