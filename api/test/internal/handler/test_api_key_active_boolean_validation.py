@@ -1,7 +1,9 @@
 from uuid import UUID
 
+from flask import Flask
 import pytest
 
+from internal.handler.api_key_handler import ApiKeyHandler
 from pkg.response import HttpCode
 
 
@@ -37,3 +39,41 @@ def test_update_api_key_is_active_accepts_boolean_json(app, monkeypatch, is_acti
 
     assert response.json["code"] == HttpCode.SUCCESS
     assert received["is_active"] is is_active
+
+
+def test_update_api_key_remark_only_does_not_change_active_status():
+    received = {}
+    service = type("Service", (), {
+        "update_api_key": lambda _self, _id, _user, **values: received.update(values),
+    })()
+    app = Flask(__name__)
+    app.config.update(SECRET_KEY="test", LOGIN_DISABLED=True, WTF_CSRF_ENABLED=False)
+
+    with app.test_request_context(
+        f"/openapi/api-keys/{UUID(int=1)}",
+        method="POST",
+        json={"remark": "updated"},
+    ):
+        response = ApiKeyHandler(service).update_api_key(UUID(int=1))
+
+    assert response[0].get_json()["code"] == HttpCode.SUCCESS
+    assert received == {"remark": "updated"}
+
+
+def test_update_api_key_preserves_explicit_false_status():
+    received = {}
+    service = type("Service", (), {
+        "update_api_key": lambda _self, _id, _user, **values: received.update(values),
+    })()
+    app = Flask(__name__)
+    app.config.update(SECRET_KEY="test", LOGIN_DISABLED=True, WTF_CSRF_ENABLED=False)
+
+    with app.test_request_context(
+        f"/openapi/api-keys/{UUID(int=1)}",
+        method="POST",
+        json={"is_active": False},
+    ):
+        response = ApiKeyHandler(service).update_api_key(UUID(int=1))
+
+    assert response[0].get_json()["code"] == HttpCode.SUCCESS
+    assert received == {"is_active": False}

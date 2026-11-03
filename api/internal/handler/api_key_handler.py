@@ -51,7 +51,9 @@ class ApiKeyHandler:
             return validate_error_json(req.errors)
 
         # 2.调用服务更新密钥
-        self.api_key_service.update_api_key(api_key_id, current_user, **req.data)
+        payload = request.get_json(silent=True) if request.is_json else request.form
+        updates = {name: value for name, value in req.data.items() if name in payload}
+        self.api_key_service.update_api_key(api_key_id, current_user, **updates)
 
         return success_message("更新API密钥成功")
 
