@@ -299,8 +299,10 @@ onMounted(() => {
             size="mini"
             type="text"
             class="hidden group-hover:block flex-shrink-0 ml-2 !text-red-700 rounded"
+            :disabled="updateDraftAppConfigLoading"
             @click="
               async () => {
+                if (updateDraftAppConfigLoading) return
                 // 1.清除props中指定的数据
                 const newDatasets = [...props.datasets]
                 newDatasets.splice(idx, 1)
