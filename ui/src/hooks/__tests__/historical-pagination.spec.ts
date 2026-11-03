@@ -309,6 +309,24 @@ describe('historical chat pagination', () => {
     expect(hook.loading.value).toBe(false)
   })
 
+  it('does not log recent conversation message content', async () => {
+    const data = [
+      { id: 'private-conversation', human_message: 'private question', ai_message: 'private answer' },
+    ]
+    vi.mocked(conversationService.getRecentConversations).mockResolvedValueOnce({ data } as never)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    try {
+      const hook = useGetRecentConversations()
+      await hook.loadRecentConversations()
+
+      expect(hook.conversations.value).toEqual(data)
+      expect(log).not.toHaveBeenCalled()
+    } finally {
+      log.mockRestore()
+    }
+  })
+
   it('ignores an older conversation name response after switching conversations', async () => {
     const olderResponse = createDeferred<{ data: { name: string } }>()
     const newerResponse = createDeferred<{ data: { name: string } }>()
