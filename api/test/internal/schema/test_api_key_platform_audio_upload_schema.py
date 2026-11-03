@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import pytest
+
 from internal.schema.api_key_schema import (
     CreateApiKeyReq,
     GetApiKeysWithPageResp,
@@ -40,6 +42,22 @@ def test_update_api_key_is_active_req_should_accept_boolean_field(form_request):
     ok, form = _validate_form(form_request, UpdateApiKeyIsActiveReq, data={"is_active": "y"})
     assert ok, form.errors
     assert form.is_active.data is True
+
+
+@pytest.mark.parametrize("form_cls", [CreateApiKeyReq, UpdateApiKeyReq])
+def test_api_key_create_and_update_should_reject_non_boolean_json_status(form_request, form_cls):
+    with form_request(json={"is_active": "invalid"}):
+        form = form_cls(meta={"csrf": False})
+        assert not form.validate()
+        assert "is_active" in form.errors
+
+
+@pytest.mark.parametrize("form_cls", [CreateApiKeyReq, UpdateApiKeyReq])
+@pytest.mark.parametrize("is_active", [True, False])
+def test_api_key_create_and_update_should_keep_boolean_json_status(form_request, form_cls, is_active):
+    ok, form = _validate_form(form_request, form_cls, json={"is_active": is_active})
+    assert ok, form.errors
+    assert form.is_active.data is is_active
 
 
 def test_get_api_keys_with_page_resp_should_dump_expected_fields():
