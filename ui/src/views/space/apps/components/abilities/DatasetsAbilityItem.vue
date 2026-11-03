@@ -88,6 +88,8 @@ const isRetrievalConfigFormModified = () => {
 
 // 5.定义取消模态窗处理器
 const handleCancelDatasetsModal = () => {
+  if (updateDraftAppConfigLoading.value) return
+
   // 5.1 隐藏模态窗
   datasetsModalVisible.value = false
 
@@ -413,7 +415,7 @@ onMounted(() => {
         </div>
         <!-- 按钮组 -->
         <a-space :size="12">
-          <a-button class="rounded-lg" @click="handleCancelDatasetsModal">
+          <a-button class="rounded-lg" :disabled="updateDraftAppConfigLoading" @click="handleCancelDatasetsModal">
             {{ t('common.actions.cancel') }}
           </a-button>
           <a-button

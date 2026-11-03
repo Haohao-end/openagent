@@ -67,6 +67,36 @@ it('clears the picker baseline when the last bound dataset is removed', async ()
   wrapper.unmount()
 })
 
+it('keeps the dataset picker open while a submitted selection is saving', async () => {
+  let resolveUpdate!: () => void
+  const pending = new Promise<void>((resolve) => { resolveUpdate = resolve })
+  mocks.update.mockReset().mockReturnValue(pending)
+  const wrapper = mount(DatasetsAbilityItem, {
+    props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
+    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
+  })
+  await flushPromises()
+  await wrapper.findAll('button')[1].trigger('click')
+  await flushPromises()
+  await wrapper.findAll('.cursor-pointer').find(item => item.text().includes('Available dataset'))!.trigger('click')
+
+  const state = (wrapper.vm.$ as any).setupState
+  const submit = state.handleSubmitDatasets()
+  await nextTick()
+  expect(mocks.update).toHaveBeenCalledWith('app-1', { datasets: ['ds-1'] })
+  const cancel = wrapper.findAll('button').find(button => button.text() === 'common.actions.cancel')!
+  expect(cancel.attributes('disabled')).toBeDefined()
+  await cancel.trigger('click')
+  expect(state.datasetsModalVisible).toBe(true)
+
+  resolveUpdate()
+  await submit
+  expect(wrapper.emitted('update:datasets')?.[0][0]).toEqual([
+    { id: 'ds-1', name: 'Available dataset', icon: '', description: '' },
+  ])
+  wrapper.unmount()
+})
+
 it('does not submit stale dataset lists for concurrent removals', async () => {
   const pending = new Promise<void>(() => {})
   mocks.update.mockReset().mockReturnValue(pending)
