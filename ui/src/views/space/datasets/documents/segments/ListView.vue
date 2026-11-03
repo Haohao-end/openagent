@@ -41,18 +41,6 @@ const handleScroll = async (event: UIEvent) => {
   }
 }
 
-// 监听路由query的变化
-watch(
-  () => route.query?.search_word,
-  (newValue) =>
-    loadSegments(
-      String(route.params?.dataset_id),
-      String(route.params?.document_id),
-      true,
-      String(newValue ?? ''),
-    ),
-)
-
 const loadRouteData = () => {
   const datasetId = String(route.params?.dataset_id)
   const documentId = String(route.params?.document_id)
@@ -60,7 +48,14 @@ const loadRouteData = () => {
   loadSegments(datasetId, documentId, true, String(route.query?.search_word ?? ''))
 }
 
-watch(() => [route.params?.dataset_id, route.params?.document_id], loadRouteData)
+watch(
+  () => [route.params?.dataset_id, route.params?.document_id, route.query?.search_word],
+  ([datasetId, documentId, searchWord], previous) => {
+    if (datasetId !== previous[0] || documentId !== previous[1])
+      loadDocument(String(datasetId), String(documentId))
+    loadSegments(String(datasetId), String(documentId), true, String(searchWord ?? ''))
+  },
+)
 onMounted(loadRouteData)
 </script>
 
