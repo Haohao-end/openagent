@@ -25,8 +25,10 @@ const { t } = useI18n()
 const accountStore = useAccountStore()
 let updateDatasetID = ''
 let iconUploadRequestId = 0
+let datasetEditRequestId = 0
 onBeforeUnmount(() => {
   iconUploadRequestId += 1
+  datasetEditRequestId += 1
 })
 const showCreateModal = ref(false)
 const { dataset, loadDataset } = useGetDataset()
@@ -114,11 +116,12 @@ const handleScroll = async (event: UIEvent) => {
 
 // 5.定义编辑知识库处理器
 const handleUpdate = (dataset_id: string) => {
+  const requestId = ++datasetEditRequestId
   iconUploadRequestId += 1
   updateShowUpdateModal(true, async () => {
     // 1.调用api获取知识库详情
     const loadedDataset = await loadDataset(dataset_id)
-    if (!loadedDataset) return
+    if (requestId !== datasetEditRequestId || !loadedDataset) return
     updateDatasetID = dataset_id
 
     // 2.更新表单数据
@@ -131,6 +134,7 @@ const handleUpdate = (dataset_id: string) => {
 }
 
 const openCreateModal = async () => {
+  datasetEditRequestId += 1
   iconUploadRequestId += 1
   showCreateModal.value = true
   await clearCreateTypeQuery()
@@ -138,6 +142,7 @@ const openCreateModal = async () => {
 
 // 6.定义取消显示模态窗
 const handleCancel = async () => {
+  datasetEditRequestId += 1
   iconUploadRequestId += 1
   showCreateModal.value = false
   updateShowUpdateModal(false, async () => {
