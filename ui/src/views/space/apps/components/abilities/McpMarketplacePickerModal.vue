@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, type PropType } from 'vue'
+import { computed, ref, watch, type PropType } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { apiPrefix } from '@/config'
 import ResourceCardDescription from '@/components/ResourceCardDescription.vue'
@@ -45,6 +45,7 @@ const paginator = ref<PaginatorState>({
   page_size: PAGE_SIZE,
 })
 let latestProvidersRequest = 0
+let latestCategoriesRequest = 0
 
 const hideModal = () => emits('update:visible', false)
 
@@ -141,11 +142,13 @@ const getCategoryName = (category: string) => {
 }
 
 const loadCategories = async () => {
+  const requestId = ++latestCategoriesRequest
   try {
     const res = await getPublicMcpCategories()
+    if (requestId !== latestCategoriesRequest) return
     categories.value = res.data.categories || []
   } catch (_error: unknown) {
-    categories.value = []
+    if (requestId === latestCategoriesRequest) categories.value = []
   }
 }
 
@@ -221,6 +224,7 @@ watch(
   () => props.visible,
   async (visible) => {
     if (!visible) {
+      latestCategoriesRequest += 1
       latestProvidersRequest += 1
       loading.value = false
       return
@@ -231,9 +235,6 @@ watch(
   { immediate: true },
 )
 
-onMounted(async () => {
-  await loadCategories()
-})
 </script>
 
 <template>
