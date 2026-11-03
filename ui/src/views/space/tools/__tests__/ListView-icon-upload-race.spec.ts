@@ -64,6 +64,24 @@ describe('space tools icon upload lifecycle', () => {
     wrapper.unmount()
   })
 
+  it('invalidates icon error notifications after the create modal is canceled', async () => {
+    let reject!: (error: Error) => void
+    const pending = new Promise<string>((_, rejectPromise) => { reject = rejectPromise })
+    mocks.route = reactive({ path: '/space/tools', query: { create_type: 'tool' } })
+    mocks.generatePreview.mockReset().mockReturnValueOnce(pending)
+    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    await flushPromises()
+    const state = (wrapper.vm.$ as any).setupState
+    state.form.name = 'Old tool'
+    const staleGeneration = state.handleGenerateIcon()
+    await wrapper.find('[data-cancel]').trigger('click')
+    const shouldNotifyError = mocks.generatePreview.mock.calls[0]?.[2] as () => boolean
+    expect(shouldNotifyError()).toBe(false)
+    reject(new Error('generation failed'))
+    await staleGeneration
+    wrapper.unmount()
+  })
+
   it('does not apply an upload from a closed modal to a reopened tool form', async () => {
     const pending = deferred()
     mocks.route = reactive({ path: '/space/tools', query: { create_type: 'tool' } })

@@ -6,6 +6,7 @@ import {
   useGetApiTool,
   useGetApiToolProvidersWithPage,
   useValidateOpenAPISchema,
+  useGenerateIconPreview,
 } from '@/hooks/use-tool'
 
 const mocks = vi.hoisted(() => ({
@@ -48,6 +49,17 @@ vi.mock('@arco-design/web-vue', () => ({
 describe('use-tool request feedback', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('suppresses icon errors when the caller invalidates its request', async () => {
+    mocks.generateIconPreview.mockRejectedValueOnce(new Error('generation failed'))
+    const { handleGenerateIconPreview } = useGenerateIconPreview()
+
+    await expect(handleGenerateIconPreview('tool', '', () => false)).rejects.toThrow(
+      'generation failed',
+    )
+
+    expect(messageErrorMock).not.toHaveBeenCalled()
   })
 
   it('returns true when OpenAPI validation succeeds', async () => {
