@@ -51,6 +51,8 @@ const isWorkflowsModified = () => {
 
 // 4.定义取消模态窗处理器
 const handleCancelWorkflowsModal = () => {
+  if (updateDraftAppConfigLoading.value) return
+
   // 4.1 隐藏模态窗
   workflowsModalVisible.value = false
 
@@ -306,7 +308,7 @@ watch(
         </div>
         <!-- 按钮组 -->
         <a-space :size="12">
-          <a-button class="rounded-lg" @click="handleCancelWorkflowsModal">
+          <a-button class="rounded-lg" :disabled="updateDraftAppConfigLoading" @click="handleCancelWorkflowsModal">
             {{ t('common.actions.cancel') }}
           </a-button>
           <a-button
