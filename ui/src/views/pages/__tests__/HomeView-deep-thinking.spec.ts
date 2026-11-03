@@ -89,6 +89,7 @@ vi.mock('@/hooks/use-ai', async () => {
     useGenerateSuggestedQuestions: () => ({
       suggested_questions: ref([]),
       handleGenerateSuggestedQuestions: mocks.handleGenerateSuggestedQuestions,
+      clearSuggestedQuestions: vi.fn(),
     }),
   }
 })

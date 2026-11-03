@@ -129,6 +129,7 @@ vi.mock('@/hooks/use-ai', () => ({
   useGenerateSuggestedQuestions: () => ({
     suggested_questions: mocks.suggestedQuestions,
     handleGenerateSuggestedQuestions: mocks.handleGenerateSuggestedQuestions,
+    clearSuggestedQuestions: vi.fn(),
   }),
 }))
 

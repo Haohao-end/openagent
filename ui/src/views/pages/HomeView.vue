@@ -178,7 +178,7 @@ const defaultAssistantIntroduction = computed(() => {
 const assistantIntroduction = ref('')
 const { stopAudioStream } = useAudioPlayer()
 const { loadHomeIntent } = useGetHomeIntent()
-const { suggested_questions, handleGenerateSuggestedQuestions } = useGenerateSuggestedQuestions()
+const { suggested_questions, handleGenerateSuggestedQuestions, clearSuggestedQuestions } = useGenerateSuggestedQuestions()
 const {
   loading: generateAssistantAgentIntroductionLoading,
   handleGenerateAssistantAgentIntroduction,
@@ -726,7 +726,7 @@ const startNewAssistantConversation = async (
     currentConversationName.value = ''
     message_id.value = ''
     task_id.value = ''
-    suggested_questions.value = []
+    clearSuggestedQuestions()
     shouldAutoScrollToBottom.value = true
 
     await syncRouteConversationId('')
@@ -1090,7 +1090,7 @@ const handleSubmit = async () => {
   }
 
   // 5.3 满足条件，处理正式提问的前置工作，涵盖：清空建议问题、删除消息id、任务id
-  suggested_questions.value = []
+  clearSuggestedQuestions()
   message_id.value = ''
   task_id.value = ''
   shouldAutoScrollToBottom.value = true
