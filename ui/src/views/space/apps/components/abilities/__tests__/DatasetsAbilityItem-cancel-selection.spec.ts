@@ -43,3 +43,19 @@ it('does not retain an unsaved dataset after cancelling a later selection', asyn
   expect(reopenedRow.classes()).not.toContain('bg-blue-50')
   wrapper.unmount()
 })
+
+it('clears the picker baseline when the last bound dataset is removed', async () => {
+  const wrapper = mount(DatasetsAbilityItem, {
+    props: { app_id: 'app-1', datasets: [{ id: 'ds-1', name: 'Bound dataset', icon: '', description: '' }], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
+    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
+  })
+  await flushPromises()
+  const remove = wrapper.findAll('button').find(button => button.classes().includes('!text-red-700'))!
+  await remove.trigger('click')
+  await wrapper.setProps({ datasets: [] })
+  const state = (wrapper.vm.$ as any).setupState
+
+  expect(state.activateDatasets).toEqual([])
+  expect(state.originDatasets).toEqual([])
+  wrapper.unmount()
+})

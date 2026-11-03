@@ -43,3 +43,19 @@ it('does not retain an unsaved workflow after cancelling a later selection', asy
   expect(reopenedRow.classes()).not.toContain('bg-blue-50')
   wrapper.unmount()
 })
+
+it('clears the picker baseline when the last bound workflow is removed', async () => {
+  const wrapper = mount(WorkflowsAbilityItem, {
+    props: { app_id: 'app-1', workflows: [{ id: 'wf-1', name: 'Bound workflow', icon: '', description: '' }] },
+    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true } },
+  })
+  await flushPromises()
+  const remove = wrapper.findAll('button').find(button => button.classes().includes('!text-red-700'))!
+  await remove.trigger('click')
+  await wrapper.setProps({ workflows: [] })
+  const state = (wrapper.vm.$ as any).setupState
+
+  expect(state.activateWorkflows).toEqual([])
+  expect(state.originWorkflows).toEqual([])
+  wrapper.unmount()
+})

@@ -180,9 +180,9 @@ watch(
     // 10.1 检测数据是否初始化
     if (!isDatasetsInit.value || !isDatasetsModified()) {
       // 10.2 判断草稿配置是否已传递配置
-      if (newValue && newValue.length > 0) {
+      if (newValue) {
         // 10.3 赋初始值
-        const initData = props.datasets.map((dataset) => {
+        const initData = newValue.map((dataset) => {
           return {
             id: dataset.id,
             name: dataset.name,

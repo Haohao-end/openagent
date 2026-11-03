@@ -110,9 +110,9 @@ watch(
     // 10.1 检测数据是否初始化
     if (!isWorkflowsInit.value || !isWorkflowsModified()) {
       // 10.2 判断草稿配置是否已传递配置
-      if (newValue && newValue.length > 0) {
+      if (newValue) {
         // 10.3 赋初始值
-        const initData = props.workflows.map((workflow) => {
+        const initData = newValue.map((workflow) => {
           return {
             id: workflow.id,
             name: workflow.name,
