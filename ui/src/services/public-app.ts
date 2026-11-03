@@ -85,6 +85,7 @@ export function sendPublicAppA2aMessage(
   contextId: string = '',
   imageUrls: string[] = [],
   onData?: Parameters<typeof ssePost>[2],
+  signal?: AbortSignal,
 ) {
   const req = {
     message: {
@@ -97,7 +98,7 @@ export function sendPublicAppA2aMessage(
     contextId,
   }
   if (onData) {
-    return ssePost(`/public/apps/${appId}/a2a/messages`, { body: req }, onData)
+    return ssePost(`/public/apps/${appId}/a2a/messages`, { body: req, signal }, onData)
   }
   return post<BaseResponse<{
     contextId: string

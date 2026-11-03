@@ -64,6 +64,11 @@ const uploadFileLoading = ref(false)
 const isRecording = ref(false)
 const chatContextId = ref('')
 let contextGeneration = 0
+let streamAbortController: AbortController | null = null
+const abortActiveStream = () => {
+  streamAbortController?.abort()
+  streamAbortController = null
+}
 const accountStore = useAccountStore()
 const activeAccount = computed(() => ({
   name:
@@ -131,6 +136,7 @@ const createStreamMessage = (queryText: string): PublicStreamMessage =>
 
 const clearConversation = () => {
   contextGeneration += 1
+  abortActiveStream()
   loading.value = false
   messages.value = []
   chatContextId.value = ''
@@ -217,6 +223,8 @@ const handleSubmit = async () => {
   query.value = ''
   image_urls.value = []
   loading.value = true
+  const abortController = new AbortController()
+  streamAbortController = abortController
   try {
     await sendPublicAppA2aMessage(
       String(route.params?.app_id),
@@ -240,11 +248,13 @@ const handleSubmit = async () => {
         }
         void timelineRef.value?.scrollToBottom?.()
       },
+      abortController.signal,
     )
   } catch (error: unknown) {
     if (streamGeneration !== contextGeneration) return
     Message.error(error instanceof Error ? error.message : t('publicApps.debug.sendFailed'))
   } finally {
+    if (streamAbortController === abortController) streamAbortController = null
     if (streamGeneration === contextGeneration) loading.value = false
   }
 }
@@ -270,6 +280,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   contextGeneration += 1
+  abortActiveStream()
 })
 
 watch(
@@ -277,6 +288,7 @@ watch(
   async ([appId, conversationId], [prevAppId, prevConversationId]) => {
     if (appId === prevAppId && conversationId === prevConversationId) return
     contextGeneration += 1
+    abortActiveStream()
     loading.value = false
     messages.value = []
     chatContextId.value = ''
