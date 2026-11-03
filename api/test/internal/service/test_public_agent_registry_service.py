@@ -232,7 +232,7 @@ class TestPublicAgentRegistryService:
             }
         ]
 
-    def test_search_public_apps_should_fallback_to_db_when_vector_search_connection_error(self, monkeypatch):
+    def test_search_public_apps_should_fallback_to_db_when_vector_search_connection_error(self, monkeypatch, caplog):
         app_id = uuid4()
         public_app = SimpleNamespace(
             id=app_id,
@@ -271,9 +271,13 @@ class TestPublicAgentRegistryService:
             lambda: rebuild_calls.append(True) or 1,
         )
 
-        result = service.search_public_apps("请使用护肤智能体回答我油痘肌该怎么护肤", limit=3)
+        query = "专业护肤顾问"
+        result = service.search_public_apps(query, limit=3)
 
         assert rebuild_calls == []
+        assert "falling back to database search" in caplog.text
+        assert query not in caplog.text
+        assert "Connection error." not in caplog.text
         assert result == [
             {
                 "app_id": str(app_id),
