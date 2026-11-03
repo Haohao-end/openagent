@@ -30,6 +30,14 @@ def test_create_and_update_api_key_req_should_validate_remark_length(form_reques
     assert not ok
     assert "remark" in form.errors
 
+
+@pytest.mark.parametrize("form_cls", [CreateApiKeyReq, UpdateApiKeyReq])
+@pytest.mark.parametrize("remark", [None, 123])
+def test_api_key_create_and_update_reject_non_string_json_remark(form_request, form_cls, remark):
+    ok, form = _validate_form(form_request, form_cls, json={"remark": remark})
+    assert not ok
+    assert "remark" in form.errors
+
     ok, form = _validate_form(form_request, UpdateApiKeyReq, data={"remark": "x" * 100})
     assert ok, form.errors
 
