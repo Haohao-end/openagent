@@ -93,11 +93,9 @@ def prewarm_mcp_tool_snapshots(self, app_id: str, config_type: str) -> None:
         ]
         needs_retry = bool(retryable_snapshots)
     except Exception as exc:
-        logger.exception(
-            "Error in prewarm_mcp_tool_snapshots task: app_id=%s, config_type=%s, error=%s",
-            normalized_app_id,
-            normalized_config_type,
-            str(exc),
+        logger.error(
+            "Error in prewarm_mcp_tool_snapshots task: error_type=%s",
+            type(exc).__name__,
         )
         raise
 
