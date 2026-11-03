@@ -208,16 +208,36 @@ class Workflow(BaseTool):
         graph.set_entry_point(start_node)
         graph.set_finish_point(end_node)
 
-        # 6.普通节点等待所有普通前置节点；条件目标保留按实际分支触发的语义。
+        # 6.普通汇聚等待全部前置节点；互斥分支目标分别等待各自路径。
         for target_node, source_nodes in parallel_edges.items():
             if target_node in conditional_targets:
                 for source_node in source_nodes:
                     graph.add_edge(source_node, target_node)
+                continue
+
+            barriers = []
+            for branches in conditional_edges.values():
+                branch_sources = [
+                    set(source_nodes) & {branch_target}
+                    for branch_target in set(branches.values())
+                ]
+                branch_sources = [sources for sources in branch_sources if sources]
+                if len(branch_sources) > 1 and all(
+                    branch_sources[left].isdisjoint(branch_sources[right])
+                    for left in range(len(branch_sources))
+                    for right in range(left + 1, len(branch_sources))
+                ):
+                    independent = set(source_nodes) - set.union(*branch_sources)
+                    barriers = [sorted(independent | sources) for sources in branch_sources]
+                    break
+
+            if barriers:
+                for barrier in barriers:
+                    graph.add_edge(barrier if len(barrier) > 1 else barrier[0], target_node)
             elif len(source_nodes) > 1:
                 graph.add_edge(source_nodes, target_node)
             else:
-                source_node = source_nodes[0]
-                graph.add_edge(source_node, target_node)
+                graph.add_edge(source_nodes[0], target_node)
 
         # 7.添加条件边
         for if_else_node, branches in conditional_edges.items():
