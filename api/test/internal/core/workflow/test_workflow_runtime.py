@@ -233,6 +233,59 @@ def test_workflow_ordinary_join_waits_for_all_predecessors(monkeypatch):
     assert calls.index(slow2_id) < calls.index(join_id)
 
 
+@pytest.mark.parametrize("condition_result", [True, False])
+def test_workflow_conditional_branches_should_rejoin_after_selected_branch_once(monkeypatch, condition_result):
+    start_id, if_else_id, true_id, false_id, ordinary_id, join_id, end_id = (uuid4() for _ in range(7))
+    nodes = [
+        _start_node(start_id), _node(if_else_id, NodeType.IF_ELSE.value),
+        _node(true_id, NodeType.CODE.value), _node(false_id, NodeType.TOOL.value),
+        _node(ordinary_id, NodeType.LLM.value), _node(join_id, NodeType.TEXT_PROCESSOR.value), _end_node(end_id),
+    ]
+    edges = [
+        _edge(uuid4(), start_id, NodeType.START, if_else_id, NodeType.IF_ELSE),
+        _edge(uuid4(), start_id, NodeType.START, ordinary_id, NodeType.LLM),
+        _edge(uuid4(), if_else_id, NodeType.IF_ELSE, true_id, NodeType.CODE, "true"),
+        _edge(uuid4(), if_else_id, NodeType.IF_ELSE, false_id, NodeType.TOOL, "false"),
+        _edge(uuid4(), true_id, NodeType.CODE, join_id, NodeType.TEXT_PROCESSOR),
+        _edge(uuid4(), false_id, NodeType.TOOL, join_id, NodeType.TEXT_PROCESSOR),
+        _edge(uuid4(), ordinary_id, NodeType.LLM, join_id, NodeType.TEXT_PROCESSOR),
+        _edge(uuid4(), join_id, NodeType.TEXT_PROCESSOR, end_id, NodeType.END),
+    ]
+    workflow = _build_workflow_obj(SimpleNamespace(nodes=nodes, edges=edges))
+    calls = []
+
+    class _TrackingNode:
+        def __init__(self, node_data, **_kwargs):
+            self.node_data = node_data
+
+        async def __call__(self, _state):
+            if self.node_data.id == ordinary_id:
+                await asyncio.sleep(0.02)
+            calls.append(self.node_data.id)
+            if self.node_data.id == if_else_id:
+                return {"node_results": [SimpleNamespace(
+                    node_data=SimpleNamespace(node_type=NodeType.IF_ELSE.value, id=if_else_id),
+                    outputs={"result": condition_result},
+                )]}
+            return {}
+
+    monkeypatch.setattr(
+        "internal.core.workflow.workflow.NodeClasses",
+        {node_type.value: _TrackingNode for node_type in NodeType},
+    )
+    compiled = Workflow._build_workflow(workflow)
+    asyncio.run(compiled.ainvoke({"inputs": {}}))
+
+    selected_id = true_id if condition_result else false_id
+    inactive_id = false_id if condition_result else true_id
+    assert calls.count(selected_id) == 1
+    assert calls.count(inactive_id) == 0
+    assert calls.count(join_id) == 1
+    assert calls.count(ordinary_id) == 1
+    assert calls.count(end_id) == 1
+    assert max(calls.index(selected_id), calls.index(ordinary_id)) < calls.index(join_id) < calls.index(end_id)
+
+
 @pytest.mark.parametrize(
     ("wired_branch", "condition_result", "reaches_end"),
     [
