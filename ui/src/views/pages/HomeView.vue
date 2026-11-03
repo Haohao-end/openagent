@@ -677,9 +677,12 @@ const loadAssistantIntroduction = async () => {
 // 6.定义停止辅助 Agent 会话函数
 const handleStop = async () => {
   if (task_id.value === '' || !assistantAgentChatLoading.value) return
-  await handleStopAssistantAgentChat(task_id.value)
-  assistantAgentChatAbortController.value?.abort()
-  assistantAgentChatAbortController.value = null
+  try {
+    await handleStopAssistantAgentChat(task_id.value)
+  } finally {
+    assistantAgentChatAbortController.value?.abort()
+    assistantAgentChatAbortController.value = null
+  }
 }
 
 const clearHomeNewConversationQuery = async () => {
