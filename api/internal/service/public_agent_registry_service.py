@@ -98,7 +98,7 @@ class PublicAgentRegistryService(BaseService):
             )
         except (APIConnectionError, httpx.TransportError) as exc:
             vector_search_available = False
-            self._log_vector_search_fallback("search", query, exc)
+            self._log_vector_search_fallback("search", exc)
 
         if not documents and vector_search_available and self._has_public_apps():
             try:
@@ -109,7 +109,7 @@ class PublicAgentRegistryService(BaseService):
                     metadata_filter=normalized_filter,
                 )
             except (APIConnectionError, httpx.TransportError) as exc:
-                self._log_vector_search_fallback("rebuild", query, exc)
+                self._log_vector_search_fallback("rebuild", exc)
         if not documents:
             return self._search_public_apps_from_db(
                 query=query,
@@ -171,13 +171,11 @@ class PublicAgentRegistryService(BaseService):
 
         return results
 
-    def _log_vector_search_fallback(self, stage: str, query: str, exc: Exception) -> None:
+    def _log_vector_search_fallback(self, stage: str, exc: Exception) -> None:
         logger.warning(
-            "Public agent vector %s failed, falling back to database search. query=%s error=%s",
+            "Public agent vector %s failed, falling back to database search. error_type=%s",
             stage,
-            query,
-            str(exc),
-            exc_info=True,
+            type(exc).__name__,
         )
 
     def convert_public_agent_search_to_tool(self) -> BaseTool:
