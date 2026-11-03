@@ -310,8 +310,6 @@ class AppHandler:
         return success_json({
             "status": status,
             "service": "llmops-api",
-            "components": components,
-            "metrics": metrics,
         })
 
     def healthz(self):
