@@ -49,7 +49,7 @@ watch(
       String(route.params?.dataset_id),
       String(route.params?.document_id),
       true,
-      String(newValue),
+      String(newValue ?? ''),
     ),
 )
 
