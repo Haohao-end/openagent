@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ uploadImage: vi.fn() }))
-vi.mock('@/services/upload-file', () => ({ uploadImage: mocks.uploadImage, uploadFile: vi.fn() }))
+const mocks = vi.hoisted(() => ({ uploadImage: vi.fn(), uploadFile: vi.fn() }))
+vi.mock('@/services/upload-file', () => mocks)
 
-import { useUploadImage } from '@/hooks/use-upload-file'
+import { useUploadFile, useUploadImage } from '@/hooks/use-upload-file'
 
 const deferred = () => {
   let resolve!: (value: any) => void
@@ -29,5 +29,27 @@ describe('useUploadImage', () => {
     await newRequest
     expect(image_url.value).toBe('new.png')
     expect(loading.value).toBe(false)
+  })
+})
+
+describe('useUploadFile', () => {
+  it('does not log upload response data or errors', async () => {
+    const response = { data: { file_id: 'private-file-id', name: 'private.txt' } }
+    mocks.uploadFile.mockReset().mockResolvedValueOnce(response)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const hook = useUploadFile()
+
+    await hook.handleUploadFile(new File(['private contents'], 'private.txt'))
+    mocks.uploadFile.mockRejectedValueOnce(new Error('private upload failure'))
+    await expect(hook.handleUploadFile(new File(['private contents'], 'private.txt'))).rejects.toThrow(
+      'private upload failure',
+    )
+
+    expect(hook.upload_file.value).toEqual(response.data)
+    expect(log).not.toHaveBeenCalled()
+    expect(error).not.toHaveBeenCalled()
+    log.mockRestore()
+    error.mockRestore()
   })
 })
