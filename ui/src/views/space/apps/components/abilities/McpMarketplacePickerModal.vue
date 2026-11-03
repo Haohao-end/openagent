@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, type PropType } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, type PropType } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { apiPrefix } from '@/config'
 import ResourceCardDescription from '@/components/ResourceCardDescription.vue'
@@ -46,6 +46,11 @@ const paginator = ref<PaginatorState>({
 })
 let latestProvidersRequest = 0
 let latestCategoriesRequest = 0
+
+onBeforeUnmount(() => {
+  latestCategoriesRequest += 1
+  latestProvidersRequest += 1
+})
 
 const hideModal = () => emits('update:visible', false)
 

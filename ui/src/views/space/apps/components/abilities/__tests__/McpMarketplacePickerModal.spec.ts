@@ -153,6 +153,23 @@ describe('McpMarketplacePickerModal', () => {
     wrapper.unmount()
   })
 
+  it('does not continue category loading after the picker unmounts', async () => {
+    const pending = deferredCategories()
+    mocks.getPublicMcpCategories.mockReturnValueOnce(pending.promise)
+    const wrapper = mount(McpMarketplacePickerModal, {
+      props: { visible: true, selected_bindings: [] },
+      global: { stubs: globalStubs },
+    })
+    await nextTick()
+
+    wrapper.unmount()
+    pending.reject(new Error('late category request failed'))
+    await flushPromises()
+
+    expect(mocks.getPublicMcpProvidersWithPage).not.toHaveBeenCalled()
+    expect(mocks.messageError).not.toHaveBeenCalled()
+  })
+
   it('keeps the newest categories when an earlier category request fails', async () => {
     const requests: ReturnType<typeof deferredCategories>[] = []
     mocks.getPublicMcpCategories.mockImplementation(() => {
