@@ -185,8 +185,8 @@ def test_workflow_build_workflow_should_register_nodes_edges_and_special_points(
     parallel_edges = [edge for edge in _FakeGraph.latest.edges if edge[1] == extractor_target]
     assert parallel_edges
     assert set(parallel_edges[0][0]) == {
+        f"{NodeType.VARIABLE_ASSIGNER.value}_{assigner_id}",
         f"{NodeType.CODE.value}_{code_id}",
-        extractor_target,
     }
 
 
