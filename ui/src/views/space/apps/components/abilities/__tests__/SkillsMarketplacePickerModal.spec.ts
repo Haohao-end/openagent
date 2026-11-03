@@ -117,6 +117,16 @@ describe('SkillsMarketplacePickerModal', () => {
     vi.clearAllMocks()
   })
 
+  it('does not load categories while hidden', async () => {
+    const wrapper = mount(SkillsMarketplacePickerModal, {
+      props: { visible: false },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    expect(mocks.getSkillCategories).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('loads the first page and appends the next page on scroll', async () => {
     mocks.getSkillCategories.mockResolvedValue({ data: { categories: [{ id: 'cat-1', name: '分类一' }] } })
     mocks.getSkillsWithPage.mockImplementation(async (params: Record<string, unknown>) => {
@@ -154,7 +164,7 @@ describe('SkillsMarketplacePickerModal', () => {
     await flushPromises()
     await nextTick()
 
-    expect(mocks.getSkillCategories).toHaveBeenCalled()
+    expect(mocks.getSkillCategories).toHaveBeenCalledTimes(1)
     expect(mocks.getSkillsWithPage).toHaveBeenCalledWith(
       expect.objectContaining({
         current_page: 1,
