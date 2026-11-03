@@ -132,7 +132,10 @@ const handleGenerateIcon = async () => {
     // 更新模式：调用 regenerateIcon
     if (showUpdateModal.value) {
       const provider_id = api_tool_providers.value[showIdx.value]['id']
-      const iconUrl = await handleRegenerateIcon(provider_id)
+      const iconUrl = await handleRegenerateIcon(
+        provider_id,
+        () => requestId === iconUploadRequestId,
+      )
       if (requestId !== iconUploadRequestId) return
       if (iconUrl) {
         form.value.icon = iconUrl
@@ -142,7 +145,11 @@ const handleGenerateIcon = async () => {
     }
     // 创建模式：调用 generateIconPreview
     else {
-      const iconUrl = await handleGenerateIconPreview(form.value.name, '')
+      const iconUrl = await handleGenerateIconPreview(
+        form.value.name,
+        '',
+        () => requestId === iconUploadRequestId,
+      )
       if (requestId !== iconUploadRequestId) return
       if (iconUrl) {
         form.value.icon = iconUrl
