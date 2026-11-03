@@ -361,7 +361,7 @@ class WorkflowService(BaseService):
 
                     # 8.检查是否是最后一个节点（end节点）
                     node_type = node_result_dict.get("node_data", {}).get("node_type")
-                    logging.info(f"节点类型: {node_type}, 节点数据: {node_result_dict.get('node_data', {})}")
+                    logging.info("节点类型: %s", node_type)
 
                 # 9.流式输出完毕后，将结果存储到数据库中
                 # A conditional branch can finish at LangGraph END without emitting an end-node event.
