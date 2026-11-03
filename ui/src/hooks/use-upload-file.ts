@@ -33,16 +33,9 @@ export const useUploadFile = () => {
   const handleUploadFile = async (file: File): Promise<UploadFileResponse | undefined> => {
     try {
       loading.value = true
-      console.log('[useUploadFile] Starting upload...')
       const resp = await uploadFile(file)
-      console.log('[useUploadFile] Response received:', resp)
-      console.log('[useUploadFile] Response data:', resp.data)
       upload_file.value = resp.data
-      console.log('[useUploadFile] upload_file.value set to:', upload_file.value)
       return resp
-    } catch (error) {
-      console.error('[useUploadFile] Upload error:', error)
-      throw error
     } finally {
       loading.value = false
     }
