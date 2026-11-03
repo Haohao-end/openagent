@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, type PropType } from 'vue'
+import { computed, ref, watch, type PropType } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { apiPrefix } from '@/config'
 import { getErrorMessage } from '@/utils/error'
@@ -175,9 +175,6 @@ watch(
   { immediate: true },
 )
 
-onMounted(async () => {
-  await loadCategories()
-})
 </script>
 
 <template>
