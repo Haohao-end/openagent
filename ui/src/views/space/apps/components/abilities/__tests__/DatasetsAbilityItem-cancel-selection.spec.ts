@@ -1,11 +1,18 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, ref } from 'vue'
+import { defineComponent, nextTick } from 'vue'
 import { expect, it, vi } from 'vitest'
 import DatasetsAbilityItem from '../DatasetsAbilityItem.vue'
 
 const mocks = vi.hoisted(() => ({ load: vi.fn(), update: vi.fn(), datasets: null as any }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
-vi.mock('@/hooks/use-app', () => ({ useUpdateDraftAppConfig: () => ({ loading: ref(false), handleUpdateDraftAppConfig: mocks.update }) }))
+vi.mock('@/hooks/use-app', async () => {
+  const { ref } = await import('vue')
+  const loading = ref(false)
+  return { useUpdateDraftAppConfig: () => ({ loading, handleUpdateDraftAppConfig: async (...args: any[]) => {
+    loading.value = true
+    try { return await mocks.update(...args) } finally { loading.value = false }
+  } }) }
+})
 vi.mock('@/hooks/use-dataset', async () => {
   const { ref } = await import('vue')
   return { useGetDatasetsWithPage: () => {
@@ -17,7 +24,7 @@ vi.mock('@/hooks/use-dataset', async () => {
 vi.mock('@arco-design/web-vue', () => ({ Message: { warning: vi.fn() } }))
 
 const WrapperStub = { template: '<div><slot /><slot name="header" /><slot name="extra" /></div>' }
-const ButtonStub = defineComponent({ emits: ['click'], template: '<button @click="$emit(\'click\', $event)"><slot /></button>' })
+const ButtonStub = defineComponent({ props: ['disabled'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>' })
 const ModalStub = defineComponent({ props: ['visible'], template: '<div v-if="visible"><slot /></div>' })
 
 it('does not retain an unsaved dataset after cancelling a later selection', async () => {
@@ -57,5 +64,26 @@ it('clears the picker baseline when the last bound dataset is removed', async ()
 
   expect(state.activateDatasets).toEqual([])
   expect(state.originDatasets).toEqual([])
+  wrapper.unmount()
+})
+
+it('does not submit stale dataset lists for concurrent removals', async () => {
+  const pending = new Promise<void>(() => {})
+  mocks.update.mockReset().mockReturnValue(pending)
+  const wrapper = mount(DatasetsAbilityItem, {
+    props: { app_id: 'app-1', datasets: [
+      { id: 'ds-1', name: 'First', icon: '', description: '' },
+      { id: 'ds-2', name: 'Second', icon: '', description: '' },
+    ], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
+    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
+  })
+  await flushPromises()
+  const removals = wrapper.findAll('button').filter((button) => button.classes().includes('!text-red-700'))
+
+  await removals[0].trigger('click')
+  await nextTick()
+  await removals[1].trigger('click')
+
+  expect(mocks.update).toHaveBeenCalledTimes(1)
   wrapper.unmount()
 })
