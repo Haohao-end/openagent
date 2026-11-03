@@ -104,12 +104,12 @@ const mountPreview = () => (mountedWrapper = shallowMount(PublicPreviewDebugChat
 }))
 
 const beginStream = (wrapper: ReturnType<typeof shallowMount>, query: string) => {
-  let finish!: () => void; let fail!: (error: Error) => void; let event!: (value: unknown) => void
+  let finish!: () => void; let fail!: (error: Error) => void; let event!: (value: unknown) => void; let signal: AbortSignal | undefined
   const pending = new Promise<void>((resolve, reject) => { finish = resolve; fail = reject })
-  mocks.sendPublicAppA2aMessage.mockImplementationOnce((...args: unknown[]) => { event = args[4] as typeof event; return pending })
+  mocks.sendPublicAppA2aMessage.mockImplementationOnce((...args: unknown[]) => { event = args[4] as typeof event; signal = args[5] as AbortSignal; return pending })
   mocks.queryRef!.value = query
   wrapper.getComponent(chatComposerStub).vm.$emit('submit')
-  return { finish, fail, emit: (id: string) => event({ event: 'agent_message', data: { message_id: id, conversation_id: id } }) }
+  return { finish, fail, signal: () => signal, emit: (id: string) => event({ event: 'agent_message', data: { message_id: id, conversation_id: id } }) }
 }
 
 describe('PublicPreviewDebugChat', () => {
@@ -207,6 +207,20 @@ describe('PublicPreviewDebugChat', () => {
     composer.vm.$emit('submit')
     await flushPromises()
     expect(mocks.sendPublicAppA2aMessage.mock.calls[1][2]).toBe('conversation-b')
+  })
+
+  it('aborts the active stream when the conversation route changes', async () => {
+    const wrapper = mountPreview()
+    const stream = beginStream(wrapper, 'cancel after route change')
+    await flushPromises()
+    const signal = stream.signal()
+    expect(signal).toBeDefined()
+
+    mocks.routeProxy!.query = { conversation_id: 'replacement' }
+    await flushPromises()
+
+    expect(signal?.aborted).toBe(true)
+    stream.finish()
   })
 
   it('clears old context and ignores callbacks after clear and unmount', async () => {
