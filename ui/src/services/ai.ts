@@ -27,8 +27,9 @@ export const codeAssistantChat = (
 export const openapiSchemaAssistantChat = (
   question: string,
   onData: (event_response: Record<string, any>) => void,
+  signal?: AbortSignal,
 ) => {
-  return ssePost(`/ai/openapi-schema-chat`, { body: { question } }, onData)
+  return ssePost(`/ai/openapi-schema-chat`, { body: { question }, signal }, onData)
 }
 
 // MCP Schema 助手流式对话接口
