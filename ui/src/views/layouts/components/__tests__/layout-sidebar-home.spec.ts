@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   recentConversationsRef: undefined as any,
   allRecentConversations: [] as any[],
   loadRecentConversations: vi.fn(),
+  invalidateRecentConversations: vi.fn(),
   handleDeleteConversation: vi.fn(),
 }))
 
@@ -47,6 +48,7 @@ vi.mock('@/hooks/use-conversation', async () => {
       loading: ref(false),
       conversations: mocks.recentConversationsRef,
       loadRecentConversations: mocks.loadRecentConversations,
+      invalidateRecentConversations: mocks.invalidateRecentConversations,
     }),
     useDeleteConversation: () => ({
       handleDeleteConversation: mocks.handleDeleteConversation,
@@ -145,6 +147,7 @@ describe('LayoutSidebar home navigation', () => {
     await wrapper.get('[data-testid="sidebar-home-new-conversation"]').trigger('click')
 
     expect(mocks.routerPush).toHaveBeenCalledWith('/home')
+    expect(mocks.invalidateRecentConversations).toHaveBeenCalledTimes(1)
   })
 
   it('renders the skills and mcp store entries only once', async () => {
