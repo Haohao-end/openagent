@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import DatasetListView from '@/views/space/datasets/ListView.vue'
 import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
 
-const mocks = vi.hoisted(() => ({ route: null as any, form: null as any, imageUrl: null as any, loadDataset: vi.fn(), saveDataset: vi.fn(), uploadImage: vi.fn(), generateIconPreview: vi.fn(), success: vi.fn() }))
+const mocks = vi.hoisted(() => ({ route: null as any, form: null as any, imageUrl: null as any, loadDataset: vi.fn(), loadDatasets: vi.fn(), saveDataset: vi.fn(), uploadImage: vi.fn(), generateIconPreview: vi.fn(), success: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ push: vi.fn(), replace: (target: any) => Object.assign(mocks.route, target) }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/account', () => ({ useAccountStore: () => ({ account: { avatar: '', name: 'Owner' } }) }))
@@ -25,7 +25,7 @@ vi.mock('@/hooks/use-dataset', async () => {
     useDeleteDataset: () => ({ handleDelete: vi.fn() }),
     useGenerateIconPreview: () => ({ loading: ref(false), handleGenerateIconPreview: mocks.generateIconPreview }),
     useGetDataset: () => ({ dataset: ref({}), loadDataset: mocks.loadDataset }),
-    useGetDatasetsWithPage: () => ({ loading: ref(false), datasets: ref([]), paginator: ref({ current_page: 1, total_page: 1 }), loadDatasets: vi.fn() }),
+    useGetDatasetsWithPage: () => ({ loading: ref(false), datasets: ref([]), paginator: ref({ current_page: 1, total_page: 1 }), loadDatasets: mocks.loadDatasets }),
     useRegenerateIcon: () => ({ loading: ref(false), handleRegenerateIcon: vi.fn() }),
   }
 })
@@ -37,6 +37,20 @@ const deferred = () => { let resolve!: () => void; const promise = new Promise<v
 const deferredValue = () => { let resolve!: (value: string) => void; const promise = new Promise<string>(done => { resolve = done }); return { promise, resolve } }
 
 describe('dataset icon upload lifecycle', () => {
+  it('uses an empty search when browser navigation removes the route query', async () => {
+    mocks.route = reactive({ path: '/space/datasets', query: { search_word: 'northwind' } })
+    mocks.loadDatasets.mockReset()
+    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    await flushPromises()
+
+    mocks.loadDatasets.mockClear()
+    mocks.route.query = {}
+    await flushPromises()
+
+    expect(mocks.loadDatasets).toHaveBeenCalledWith(true, '')
+    wrapper.unmount()
+  })
+
   it('does not apply an upload from a closed create modal to a new form', async () => {
     const pending = deferred()
     mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
