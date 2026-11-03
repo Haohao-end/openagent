@@ -184,7 +184,53 @@ def test_workflow_build_workflow_should_register_nodes_edges_and_special_points(
     extractor_target = f"{NodeType.PARAMETER_EXTRACTOR.value}_{extractor_id}"
     parallel_edges = [edge for edge in _FakeGraph.latest.edges if edge[1] == extractor_target]
     assert parallel_edges
-    assert len(parallel_edges[0][0]) >= 2
+    assert set(parallel_edges[0][0]) == {
+        f"{NodeType.CODE.value}_{code_id}",
+        extractor_target,
+    }
+
+
+def test_workflow_ordinary_join_waits_for_all_predecessors(monkeypatch):
+    start_id, fast_id, slow1_id, slow2_id, join_id, end_id = (uuid4() for _ in range(6))
+    nodes = [
+        _start_node(start_id),
+        _node(fast_id, NodeType.LLM.value),
+        _node(slow1_id, NodeType.CODE.value),
+        _node(slow2_id, NodeType.TEXT_PROCESSOR.value),
+        _node(join_id, NodeType.TOOL.value),
+        _end_node(end_id),
+    ]
+    edges = [
+        _edge(uuid4(), start_id, NodeType.START, fast_id, NodeType.LLM),
+        _edge(uuid4(), start_id, NodeType.START, slow1_id, NodeType.CODE),
+        _edge(uuid4(), fast_id, NodeType.LLM, join_id, NodeType.TOOL),
+        _edge(uuid4(), slow1_id, NodeType.CODE, slow2_id, NodeType.TEXT_PROCESSOR),
+        _edge(uuid4(), slow2_id, NodeType.TEXT_PROCESSOR, join_id, NodeType.TOOL),
+        _edge(uuid4(), join_id, NodeType.TOOL, end_id, NodeType.END),
+    ]
+    workflow = _build_workflow_obj(SimpleNamespace(account_id=uuid4(), nodes=nodes, edges=edges))
+    calls = []
+
+    class _TrackingNode:
+        def __init__(self, node_data, **_kwargs):
+            self.node_data = node_data
+
+        async def __call__(self, _state):
+            if self.node_data.id == slow2_id:
+                await asyncio.sleep(0.02)
+            calls.append(self.node_data.id)
+            return {}
+
+    monkeypatch.setattr(
+        "internal.core.workflow.workflow.NodeClasses",
+        {node_type.value: _TrackingNode for node_type in NodeType},
+    )
+    compiled = Workflow._build_workflow(workflow)
+
+    asyncio.run(compiled.ainvoke({"inputs": {}}))
+
+    assert calls.count(join_id) == 1
+    assert calls.index(slow2_id) < calls.index(join_id)
 
 
 @pytest.mark.parametrize(

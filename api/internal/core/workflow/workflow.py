@@ -198,13 +198,25 @@ class Workflow(BaseTool):
             if edge.target_type == NodeType.END.value:
                 end_node = target_node
 
+        conditional_targets = {
+            target_node
+            for branches in conditional_edges.values()
+            for target_node in branches.values()
+        }
+
         # 5.设置开始和终点
         graph.set_entry_point(start_node)
         graph.set_finish_point(end_node)
 
-        # 6.添加普通边（单独添加每条边，而不是作为并行边）
+        # 6.普通节点等待所有普通前置节点；条件目标保留按实际分支触发的语义。
         for target_node, source_nodes in parallel_edges.items():
-            for source_node in source_nodes:
+            if target_node in conditional_targets:
+                for source_node in source_nodes:
+                    graph.add_edge(source_node, target_node)
+            elif len(source_nodes) > 1:
+                graph.add_edge(source_nodes, target_node)
+            else:
+                source_node = source_nodes[0]
                 graph.add_edge(source_node, target_node)
 
         # 7.添加条件边
