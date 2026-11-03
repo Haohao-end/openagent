@@ -204,13 +204,13 @@ class AudioService(BaseService):
                     error_message = "TTS服务请求过于频繁，请稍后重试"
             except Exception:
                 pass
-            logger.error("文字转语音请求失败: %(error)s", {"error": error}, exc_info=True)
+            logger.error("文字转语音请求失败: error_type=%s", type(error).__name__)
             raise FailException(error_message)
         except requests.exceptions.RequestException as error:
-            logger.error("文字转语音请求失败: %(error)s", {"error": error}, exc_info=True)
+            logger.error("文字转语音请求失败: error_type=%s", type(error).__name__)
             raise FailException("文字转语音请求失败，请稍后重试")
         except Exception as error:
-            logger.error("文字转语音失败: %(error)s", {"error": error}, exc_info=True)
+            logger.error("文字转语音失败: error_type=%s", type(error).__name__)
             raise FailException("文字转语音失败，请稍后重试")
 
     @staticmethod
@@ -232,7 +232,7 @@ class AudioService(BaseService):
                         yield f"event: tts_message\ndata: {json.dumps(data)}\n\n"
                 yield f"event: tts_end\ndata: {json.dumps(common_data)}\n\n"
             except Exception as error:
-                logger.error("流式输出语音数据失败: %(error)s", {"error": error}, exc_info=True)
+                logger.error("流式输出语音数据失败: error_type=%s", type(error).__name__)
                 error_data = {**common_data, "error": "流式输出失败"}
                 yield f"event: tts_error\ndata: {json.dumps(error_data)}\n\n"
             finally:

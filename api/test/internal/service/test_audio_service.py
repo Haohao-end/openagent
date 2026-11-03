@@ -13,14 +13,15 @@ from internal.service.audio_service import AudioService
 
 
 class _DummyResponse:
-    def __init__(self, chunks=None, raise_error=False):
+    def __init__(self, chunks=None, raise_error=False, error_message="stream failed"):
         self._chunks = chunks or []
         self._raise_error = raise_error
+        self._error_message = error_message
         self.closed = False
 
     def iter_content(self, chunk_size=1024):
         if self._raise_error:
-            raise RuntimeError("stream failed")
+            raise RuntimeError(self._error_message)
         for chunk in self._chunks:
             yield chunk
 
@@ -410,13 +411,14 @@ class TestAudioService:
         assert events[-1].startswith("event: tts_end")
         assert response.closed is True
 
-    def test_stream_tts_response_should_emit_error_event_on_exception(self):
-        response = _DummyResponse(chunks=[], raise_error=True)
+    def test_stream_tts_response_should_emit_error_event_on_exception(self, caplog):
+        response = _DummyResponse(chunks=[], raise_error=True, error_message="PRIVATE_TTS_TEXT")
         common_data = {"conversation_id": "c1", "message_id": "m1", "audio": ""}
 
         events = list(AudioService._stream_tts_response(response=response, common_data=common_data))
 
         assert any(event.startswith("event: tts_error") for event in events)
+        assert "PRIVATE_TTS_TEXT" not in caplog.text
         assert response.closed is True
 
     def test_stream_tts_response_should_skip_empty_chunks(self):
@@ -429,19 +431,22 @@ class TestAudioService:
         assert len(message_events) == 1
         assert events[-1].startswith("event: tts_end")
 
-    def test_create_tts_response_should_raise_fail_exception_when_request_fails(self, monkeypatch):
+    def test_create_tts_response_should_raise_fail_exception_when_request_fails(self, monkeypatch, caplog):
         service = _build_service()
         monkeypatch.setenv("SILICONFLOW_API_KEY", "test-key")
         monkeypatch.setenv("SILICONFLOW_API_BASE", "https://api.example.com")
         monkeypatch.setattr(
             "internal.service.audio_service.requests.Session",
             lambda: _FakeSession(
-                lambda *_args, **_kwargs: (_ for _ in ()).throw(requests.exceptions.RequestException("boom"))
+                lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                    requests.exceptions.RequestException("provider echoed PRIVATE_TTS_TEXT")
+                )
             ),
         )
 
         with pytest.raises(FailException):
-            service._create_tts_response(input_text="hello", voice="alex")
+            service._create_tts_response(input_text="PRIVATE_TTS_TEXT", voice="alex")
+        assert "PRIVATE_TTS_TEXT" not in caplog.text
 
     def test_create_tts_response_should_raise_when_siliconflow_config_missing(self, monkeypatch):
         service = _build_service()
