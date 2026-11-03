@@ -9,13 +9,13 @@ from internal.model import ApiKey
 
 
 def _validate_json_boolean(field: BooleanField) -> None:
+    if not request.is_json:
+        return
+
     payload = request.get_json(silent=True)
-    if (
-        request.is_json
-        and isinstance(payload, dict)
-        and field.name in payload
-        and not isinstance(payload[field.name], bool)
-    ):
+    if not isinstance(payload, dict):
+        raise ValidationError("请求内容必须为JSON对象")
+    if field.name in payload and not isinstance(payload[field.name], bool):
         raise ValidationError("激活状态必须为布尔值")
 
 

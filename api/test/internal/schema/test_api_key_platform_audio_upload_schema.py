@@ -53,6 +53,14 @@ def test_api_key_create_and_update_should_reject_non_boolean_json_status(form_re
 
 
 @pytest.mark.parametrize("form_cls", [CreateApiKeyReq, UpdateApiKeyReq])
+def test_api_key_create_and_update_should_reject_non_object_json_status(form_request, form_cls):
+    with form_request(json=[["is_active", "0"]]):
+        form = form_cls(meta={"csrf": False})
+        assert not form.validate()
+        assert "is_active" in form.errors
+
+
+@pytest.mark.parametrize("form_cls", [CreateApiKeyReq, UpdateApiKeyReq])
 @pytest.mark.parametrize("is_active", [True, False])
 def test_api_key_create_and_update_should_keep_boolean_json_status(form_request, form_cls, is_active):
     ok, form = _validate_form(form_request, form_cls, json={"is_active": is_active})
