@@ -400,7 +400,7 @@ class TestWorkflowService:
         assert result is workflow
         assert updates == [(workflow, {"draft_graph": validated_graph, "is_debug_passed": False})]
 
-    def test_debug_workflow_should_persist_success_and_disconnect_state(self, monkeypatch):
+    def test_debug_workflow_should_persist_success_and_disconnect_state(self, monkeypatch, caplog):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
         workflow = SimpleNamespace(
@@ -423,12 +423,20 @@ class TestWorkflowService:
 
             @staticmethod
             def stream(_inputs):
-                yield {"node_1": {"node_results": [SimpleNamespace(node_id="node_1", status="succeeded")]}}
+                yield {"node_1": {"node_results": [SimpleNamespace(
+                    node_id="node_1",
+                    status="succeeded",
+                    node_data={"node_type": "llm", "prompt": "private workflow prompt"},
+                )]}}
 
         monkeypatch.setattr("internal.service.workflow_service.WorkflowTool", _WorkflowTool)
         monkeypatch.setattr(
             "internal.service.workflow_service.convert_model_to_dict",
-            lambda node_result: {"node_id": node_result.node_id, "status": node_result.status},
+            lambda node_result: {
+                "node_id": node_result.node_id,
+                "status": node_result.status,
+                "node_data": node_result.node_data,
+            },
         )
 
         workflow_result = SimpleNamespace(id=uuid4())
@@ -440,9 +448,12 @@ class TestWorkflowService:
             lambda target, **kwargs: updates.append((target, kwargs)) or target,
         )
 
+        caplog.set_level(20)
         events = list(service.debug_workflow(workflow.id, {"query": "hello"}, account))
 
         assert len(events) == 1
+        assert "节点类型: llm" in caplog.text
+        assert "private workflow prompt" not in caplog.text
         assert events[0].startswith("event: workflow")
         assert any(
             target is workflow_result and payload["status"] == WorkflowResultStatus.SUCCEEDED.value
@@ -460,7 +471,11 @@ class TestWorkflowService:
 
         assert len(updates) == 1
         assert updates[0][1]["status"] == WorkflowResultStatus.FAILED.value
-        assert updates[0][1]["state"] == [{"node_id": "node_1", "status": "succeeded"}]
+        assert updates[0][1]["state"] == [{
+            "node_id": "node_1",
+            "status": "succeeded",
+            "node_data": {"node_type": "llm", "prompt": "private workflow prompt"},
+        }]
 
     @pytest.mark.parametrize(
         ("failure", "event_name"),
