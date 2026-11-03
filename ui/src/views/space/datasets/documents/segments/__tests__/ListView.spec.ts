@@ -107,3 +107,13 @@ it('reloads the document and segments when reused for another document', async (
   expect(mocks.loadSegments).toHaveBeenCalledWith('dataset-b', 'document-b', true, '')
   wrapper.unmount()
 })
+
+it('reloads segments once when the route and search query change together', async () => {
+  const wrapper = mountView()
+  mocks.loadSegments.mockClear()
+  Object.assign(mocks.route.params, { dataset_id: 'dataset-b', document_id: 'document-b' })
+  mocks.route.query.search_word = 'needle'
+  await nextTick()
+  expect(mocks.loadSegments.mock.calls).toEqual([['dataset-b', 'document-b', true, 'needle']])
+  wrapper.unmount()
+})
