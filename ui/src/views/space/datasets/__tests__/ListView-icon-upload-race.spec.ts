@@ -81,6 +81,25 @@ describe('dataset icon upload lifecycle', () => {
     wrapper.unmount()
   })
 
+  it('does not report a stale icon generation failure after canceling the modal', async () => {
+    let reject!: (error: Error) => void
+    const pending = new Promise<string>((_, rejectPromise) => { reject = rejectPromise })
+    mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
+    mocks.generateIconPreview.mockReset().mockReturnValueOnce(pending)
+    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    await flushPromises()
+    const state = (wrapper.vm.$ as any).setupState
+    state.form.name = 'Old dataset'
+    const staleGeneration = state.handleGenerateIcon()
+    await wrapper.find('[data-cancel]').trigger('click')
+    const shouldNotifyError = mocks.generateIconPreview.mock.calls[0]?.[2] as () => boolean
+    expect(shouldNotifyError()).toBe(false)
+    reject(new Error('generation failed'))
+    await staleGeneration
+
+    wrapper.unmount()
+  })
+
   it('ignores an edit detail response after canceling into a create form', async () => {
     let resolve!: (value: Record<string, string>) => void
     const pending = new Promise<Record<string, string>>(done => { resolve = done })

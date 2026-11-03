@@ -11,6 +11,7 @@ import {
   useGetDatasetQueries,
   useGetDocumentsWithPage,
   useGetSegmentsWithPage,
+  useGenerateIconPreview,
   useUpdateDocumentEnabled,
   useUpdateDocumentName,
   useUpdateSegmentEnabled,
@@ -116,6 +117,17 @@ import HitTestingModal from '@/views/space/datasets/documents/components/HitTest
 describe('use-dataset action callbacks', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('suppresses icon generation errors when the caller invalidates its request', async () => {
+    mocks.generateIconPreview.mockRejectedValueOnce(new Error('generation failed'))
+    const { handleGenerateIconPreview } = useGenerateIconPreview()
+
+    await expect(handleGenerateIconPreview('dataset', 'description', () => false)).rejects.toThrow(
+      'generation failed',
+    )
+
+    expect(mocks.messageError).not.toHaveBeenCalled()
   })
 
   it('only invokes document enabled callback after a successful update', async () => {
