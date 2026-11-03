@@ -272,7 +272,10 @@ const handleScroll = (event: Event) => {
 watch(
   () => props.visible,
   async (visible) => {
-    if (!visible) return
+    if (!visible) {
+      latestOwnRequest += 1
+      return
+    }
     await loadActiveTab(true)
   },
   { immediate: true },

@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick } from 'vue'
+import { Message } from '@arco-design/web-vue'
 
 import AgentBindingsMarketplacePickerModal from '../AgentBindingsMarketplacePickerModal.vue'
 import type { AgentBinding } from '@/models/app'
@@ -57,10 +58,12 @@ const makePublicApp = (id: string, name: string, overrides: Record<string, unkno
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
+    reject = rejectPromise
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 const ownAppsResponse = (id: string, name: string) => ({
@@ -359,6 +362,20 @@ describe('AgentBindingsMarketplacePickerModal', () => {
     expect(mocks.getPublicApps.mock.calls[1][0].search_word).toBe('new query')
     expect(wrapper.text()).toContain('New Public App')
     expect(wrapper.text()).not.toContain('Old Public App')
+    wrapper.unmount()
+  })
+
+  it('ignores own-app errors after the picker closes', async () => {
+    const request = deferred<ReturnType<typeof ownAppsResponse>>()
+    mocks.getAppsWithPage.mockReturnValueOnce(request.promise)
+    const wrapper = mount(AgentBindingsMarketplacePickerModal, {
+      props: { visible: true, selected_bindings: [], current_app_id: 'current-app' },
+      global: { stubs: globalStubs },
+    })
+    await wrapper.setProps({ visible: false })
+    request.reject(new Error('offline'))
+    await flushPromises()
+    expect(Message.error).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })
