@@ -274,6 +274,7 @@ watch(
   async (visible) => {
     if (!visible) {
       latestOwnRequest += 1
+      latestPublicRequest += 1
       return
     }
     await loadActiveTab(true)
