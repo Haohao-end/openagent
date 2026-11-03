@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive } from 'vue'
 import ToolListView from '../ListView.vue'
 
-const mocks = vi.hoisted(() => ({ route: null as any, imageUrl: null as any, upload: vi.fn(), providers: [] as any[], loadProvider: vi.fn(), loadProviders: vi.fn(), success: vi.fn(), generatePreview: vi.fn() }))
+const mocks = vi.hoisted(() => ({ route: null as any, imageUrl: null as any, upload: vi.fn(), providers: [] as any[], loadProvider: vi.fn(), loadProviders: vi.fn(), openapiSchemaAssistantChat: vi.fn(), validateOpenapi: vi.fn(), success: vi.fn(), generatePreview: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ replace: (target: any) => Object.assign(mocks.route, target) }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/account', () => ({ useAccountStore: () => ({ account: { avatar: '', name: 'Owner' } }) }))
 vi.mock('@/utils/helper', () => ({ getUserAvatarUrl: () => '' }))
-vi.mock('@/services/ai', () => ({ openapiSchemaAssistantChat: vi.fn() }))
+vi.mock('@/services/ai', () => ({ openapiSchemaAssistantChat: mocks.openapiSchemaAssistantChat }))
 vi.mock('@arco-design/web-vue', () => ({ Message: { success: mocks.success, error: vi.fn(), warning: vi.fn() } }))
 vi.mock('@/components/IconUploadGenerator.vue', async () => {
   const { defineComponent } = await import('vue')
@@ -25,7 +25,7 @@ vi.mock('@/hooks/use-tool', async () => {
     useGetApiToolProvider: () => ({ ...state(), api_tool_provider: ref({ headers: [] }), loadApiToolProvider: mocks.loadProvider }),
     useGetApiToolProvidersWithPage: () => ({ ...state(), paginator: ref({ current_page: 1, total_page: 1 }), api_tool_providers: ref(mocks.providers), loadApiToolProviders: mocks.loadProviders }),
     useDeleteApiToolProvider: () => ({ handleDelete: vi.fn() }), useUpdateApiToolProvider: () => ({ ...state(), handleUpdateApiToolProvider: vi.fn() }),
-    useCreateApiToolProvider: () => ({ ...state(), handleCreateApiToolProvider: vi.fn() }), useValidateOpenAPISchema: () => ({ handleValidateOpenAPISchema: vi.fn() }),
+    useCreateApiToolProvider: () => ({ ...state(), handleCreateApiToolProvider: vi.fn() }), useValidateOpenAPISchema: () => ({ handleValidateOpenAPISchema: mocks.validateOpenapi }),
     useRegenerateIcon: () => ({ ...state(), handleRegenerateIcon: vi.fn() }), useGenerateIconPreview: () => ({ ...state(), handleGenerateIconPreview: mocks.generatePreview }),
   }
 })
@@ -37,6 +37,39 @@ const FormStub = { template: '<div><slot /></div>', methods: { resetFields() {} 
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }
 
 describe('space tools icon upload lifecycle', () => {
+  it('ignores OpenAPI assistant chunks and results after canceling the form', async () => {
+    let resolve!: (value: Record<string, never>) => void
+    let onData!: (event: Record<string, any>) => void
+    let signal!: AbortSignal
+    const pending = new Promise<Record<string, never>>(done => { resolve = done })
+    mocks.route = reactive({ path: '/space/tools', query: { create_type: 'tool' } })
+    mocks.openapiSchemaAssistantChat.mockReset().mockImplementation((_question: string, callback: typeof onData, requestSignal: AbortSignal) => {
+      onData = callback
+      signal = requestSignal
+      return pending
+    })
+    mocks.validateOpenapi.mockResolvedValue(true)
+    mocks.success.mockReset()
+    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    await flushPromises()
+    const state = (wrapper.vm.$ as any).setupState
+    state.openapiAssistantQuestion = 'Create a schema'
+    const oldGeneration = state.handleGenerateOpenapiSchemaByAI()
+
+    state.handleCancel()
+    expect(signal.aborted).toBe(true)
+    mocks.route.query = { create_type: 'tool' }
+    await flushPromises()
+    state.form.openapi_schema = 'new form schema'
+    onData({ data: { content: '{"openapi":"3.0.0","paths":{}}' } })
+    resolve({})
+    await oldGeneration
+
+    expect(state.form.openapi_schema).toBe('new form schema')
+    expect(mocks.success).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('uses an empty search when route navigation removes the query', async () => {
     mocks.route = reactive({ path: '/space/tools', query: { search_word: 'northwind' } })
     mocks.loadProviders.mockReset()

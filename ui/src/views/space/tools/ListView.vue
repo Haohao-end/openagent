@@ -95,10 +95,20 @@ const openapiAssistantContent = ref<string>('')
 const openapiAssistantLoading = ref<boolean>(false)
 let iconUploadRequestId = 0
 let providerEditRequestId = 0
+let openapiAssistantRequestId = 0
+let openapiAssistantAbortController: AbortController | undefined
+
+const cancelOpenapiSchemaAssistant = () => {
+  openapiAssistantRequestId += 1
+  openapiAssistantAbortController?.abort()
+  openapiAssistantAbortController = undefined
+  openapiAssistantLoading.value = false
+}
 
 onBeforeUnmount(() => {
   iconUploadRequestId += 1
   providerEditRequestId += 1
+  cancelOpenapiSchemaAssistant()
 })
 
 const clearCreateTypeQuery = async () => {
@@ -259,15 +269,22 @@ const handleGenerateOpenapiSchemaByAI = async () => {
     return
   }
 
+  cancelOpenapiSchemaAssistant()
+  const requestId = openapiAssistantRequestId
+  const abortController = new AbortController()
+  openapiAssistantAbortController = abortController
   openapiAssistantLoading.value = true
   openapiAssistantContent.value = ''
 
   try {
     const response = await openapiSchemaAssistantChat(question, (eventResponse) => {
+      if (requestId !== openapiAssistantRequestId) return
       const content = String(eventResponse?.data?.content ?? '')
       if (!content) return
       openapiAssistantContent.value += content
-    })
+    }, abortController.signal)
+
+    if (requestId !== openapiAssistantRequestId) return
 
     if (response && typeof response === 'object' && 'code' in response) {
       throw new Error(String((response as { message?: string }).message || t('space.tools.aiFillFailed')))
@@ -278,12 +295,18 @@ const handleGenerateOpenapiSchemaByAI = async () => {
     form.value.openapi_schema = JSON.stringify(schemaObject, null, 2)
 
     const isValid = await handleValidateOpenAPISchema(form.value.openapi_schema)
+    if (requestId !== openapiAssistantRequestId) return
     if (!isValid) return
     Message.success(t('space.tools.aiFilled'))
   } catch (_error: unknown) {
-    Message.error(t('space.tools.aiFillFailed'))
+    if (requestId === openapiAssistantRequestId) {
+      Message.error(t('space.tools.aiFillFailed'))
+    }
   } finally {
-    openapiAssistantLoading.value = false
+    if (requestId === openapiAssistantRequestId) {
+      openapiAssistantLoading.value = false
+      openapiAssistantAbortController = undefined
+    }
   }
 }
 const tools = computed(() => {
@@ -411,6 +434,7 @@ const handleSubmit = async ({
 // 取消显示模态窗处理器
 const handleCancel = () => {
   iconUploadRequestId += 1
+  cancelOpenapiSchemaAssistant()
   // 1.重置整个表单的数据
   formRef.value?.resetFields()
   openapiAssistantQuestion.value = ''
