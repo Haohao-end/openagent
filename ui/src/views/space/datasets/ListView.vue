@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import moment from 'moment'
 import type { ValidatedError } from '@arco-design/web-vue'
@@ -25,6 +25,9 @@ const { t } = useI18n()
 const accountStore = useAccountStore()
 let updateDatasetID = ''
 let iconUploadRequestId = 0
+onBeforeUnmount(() => {
+  iconUploadRequestId += 1
+})
 const showCreateModal = ref(false)
 const { dataset, loadDataset } = useGetDataset()
 const { loading, datasets, paginator, loadDatasets } = useGetDatasetsWithPage()
@@ -70,10 +73,12 @@ const handleGenerateIcon = async () => {
     return
   }
 
+  const requestId = ++iconUploadRequestId
   try {
     // 更新模式：调用 regenerateIcon
     if (updateDatasetID) {
       const iconUrl = await handleRegenerateIcon(updateDatasetID)
+      if (requestId !== iconUploadRequestId) return
       if (iconUrl) {
         form.value.icon = iconUrl
         form.value.fileList = [{ uid: '1', name: t('space.datasets.modal.iconPlaceholder'), url: iconUrl }]
@@ -83,6 +88,7 @@ const handleGenerateIcon = async () => {
     // 创建模式：调用 generateIconPreview
     else {
       const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description)
+      if (requestId !== iconUploadRequestId) return
       if (iconUrl) {
         form.value.icon = iconUrl
         form.value.fileList = [{ uid: '1', name: t('space.datasets.modal.iconPlaceholder'), url: iconUrl }]
