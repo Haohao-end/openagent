@@ -130,7 +130,7 @@ class WebSocketManager:
                 socketio.emit(event, data, room=sid)
                 logging.debug(f"[WS] Emitted {event} to sid={sid}, account={account_id}")
             except Exception as e:
-                logging.error(f"[WS] Failed to emit {event} to sid={sid}: {e}")
+                logging.error("[WS] Failed to emit event=%s error_type=%s", event, type(e).__name__)
 
     def subscribe_notification(self, sid: str, user_id: str) -> None:
         """订阅用户的通知"""
