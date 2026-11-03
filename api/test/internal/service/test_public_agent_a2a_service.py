@@ -457,12 +457,14 @@ class TestPublicAgentA2AService:
 
     def test_stream_message_should_delegate_to_streaming_pipeline(self, monkeypatch):
         app_id = uuid4()
+        owner_id = uuid4()
+        caller_id = uuid4()
         captured = {}
         service = _build_service()
         monkeypatch.setattr(
             service,
             "_get_public_app",
-            lambda _app_id: SimpleNamespace(id=app_id, account_id=uuid4()),
+            lambda _app_id: SimpleNamespace(id=app_id, account_id=owner_id),
         )
         monkeypatch.setattr(
             service,
@@ -482,7 +484,7 @@ class TestPublicAgentA2AService:
         result = list(
             service.stream_message(
                 app_id,
-                {"query": "hello", "contextId": "ctx-2"},
+                {"query": "hello", "contextId": "ctx-2", "runtimeContext": {"account_id": str(caller_id)}},
             )
         )
 
@@ -490,6 +492,7 @@ class TestPublicAgentA2AService:
         assert captured["query"] == "hello"
         assert captured["context_id"] == "ctx-2"
         assert captured["request_payload"]["query"] == "hello"
+        assert captured["runtime_context"]["account_id"] == str(owner_id)
 
     def test_convert_public_agent_route_to_tool_should_capture_app_context(self, monkeypatch):
         flask_app = Flask(__name__)
