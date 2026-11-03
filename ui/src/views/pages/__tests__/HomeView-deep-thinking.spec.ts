@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   handleGenerateSuggestedQuestions: vi.fn(),
   handleGenerateAssistantAgentIntroduction: vi.fn(),
   handleAssistantAgentChat: vi.fn(),
+  chatLoading: null as any,
   handleStopAssistantAgentChat: vi.fn(),
   handleDeleteAssistantAgentConversation: vi.fn(),
   loadAssistantAgentCapabilities: vi.fn(),
@@ -123,7 +124,7 @@ vi.mock('@/hooks/use-assistant-agent', async () => {
   }
   return {
     useAssistantAgentChat: () => ({
-      loading: ref(false),
+      loading: (mocks.chatLoading = ref(false)),
       handleAssistantAgentChat: mocks.handleAssistantAgentChat,
     }),
     useGetAssistantAgentCapabilities: () => ({
@@ -264,6 +265,9 @@ describe('HomeView deep thinking submit', () => {
     if (mocks.queryRef) {
       mocks.queryRef.value = ''
     }
+    if (mocks.chatLoading) {
+      mocks.chatLoading.value = false
+    }
     if (mocks.messagesRef) {
       mocks.messagesRef.value = []
     }
@@ -344,6 +348,45 @@ describe('HomeView deep thinking submit', () => {
     expect(signal?.aborted).toBe(true)
     resolveStream()
     await submitPromise
+  })
+
+  it('aborts the local stream when the server stop request fails', async () => {
+    let resolveStream!: () => void
+    let signal: AbortSignal | undefined
+    mocks.handleAssistantAgentChat.mockImplementationOnce((...args: unknown[]) => {
+      signal = args[5] as AbortSignal
+      return new Promise<void>((resolve) => { resolveStream = resolve })
+    })
+    mocks.handleStopAssistantAgentChat.mockRejectedValueOnce(new Error('stop failed'))
+    const wrapper = shallowMount(HomeView, {
+      global: {
+        stubs: {
+          AiDynamicBackground: componentStub,
+          AiMessage: componentStub,
+          ChatComposer: chatComposerStub,
+          HumanMessage: componentStub,
+          ChatConversationSkeleton: componentStub,
+          LoginModal: componentStub,
+          'a-button': componentStub,
+          'icon-down': componentStub,
+          'icon-poweroff': componentStub,
+        },
+      },
+    })
+    await flushPromises()
+
+    mocks.queryRef.value = 'request to cancel'
+    const state = (wrapper.vm.$ as any).setupState
+    const submitPromise = state.handleSubmit()
+    await flushPromises()
+    mocks.chatLoading.value = true
+    state.task_id = 'task-1'
+
+    await expect(state.handleStop()).rejects.toThrow('stop failed')
+    expect(signal?.aborted).toBe(true)
+    resolveStream()
+    await submitPromise
+    wrapper.unmount()
   })
 
   it('renders the current conversation header when a conversation id is provided', async () => {
