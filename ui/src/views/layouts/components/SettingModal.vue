@@ -81,6 +81,7 @@ const emailCodeTimer = ref<number>()
 const devicePanelError = ref('')
 let deviceSecurityRequestId = 0
 let avatarUploadRequestId = 0
+let avatarSaveQueue: Promise<void> = Promise.resolve()
 const historyFilters = ref({
   status: 'all',
   search: '',
@@ -266,6 +267,16 @@ const handleCopyAccountId = async () => {
   Message.success(t('settings.messages.copyAccountIdSuccess'))
 }
 
+const saveAvatarInOrder = (avatar: string, requestId: number) => {
+  const save = avatarSaveQueue.catch(() => undefined).then(async () => {
+    if (requestId !== avatarUploadRequestId) return
+    await handleUpdateAvatar(avatar)
+    await updateAccount()
+  })
+  avatarSaveQueue = save.catch(() => undefined)
+  return save
+}
+
 const handleAvatarCustomRequest = (option: any) => {
   const requestId = ++avatarUploadRequestId
   const uploadTask = async () => {
@@ -274,11 +285,11 @@ const handleAvatarCustomRequest = (option: any) => {
     try {
       await handleUploadImage(fileItem.file as File)
       if (requestId !== avatarUploadRequestId) return
-      accountForm.value.avatar = image_url.value
-      onSuccess(image_url.value)
+      const avatar = String(image_url.value)
+      accountForm.value.avatar = avatar
+      onSuccess(avatar)
 
-      await handleUpdateAvatar(String(accountForm.value.avatar))
-      await updateAccount()
+      await saveAvatarInOrder(avatar, requestId)
     } catch (error) {
       if (requestId !== avatarUploadRequestId) return
       onError(error)

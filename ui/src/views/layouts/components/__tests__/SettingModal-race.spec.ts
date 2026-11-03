@@ -42,6 +42,12 @@ const deferredUpload = () => {
   return { promise, resolve }
 }
 
+const deferredSave = () => {
+  let resolve!: () => void
+  const promise = new Promise<void>(done => { resolve = done })
+  return { promise, resolve }
+}
+
 describe('SettingModal device request ordering', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -113,6 +119,48 @@ describe('SettingModal device request ordering', () => {
     expect(mocks.updateAvatar).toHaveBeenCalledWith('new-icon')
     expect(oldOption.onSuccess).not.toHaveBeenCalled()
     expect(newOption.onSuccess).toHaveBeenCalledWith('new-icon')
+    wrapper.unmount()
+  })
+
+  it('keeps the latest avatar when an earlier save finishes last', async () => {
+    const olderUpload = deferredUpload()
+    const newerUpload = deferredUpload()
+    const olderSave = deferredSave()
+    const newerSave = deferredSave()
+    let persistedAvatar = ''
+    mocks.uploadImage.mockReset().mockReturnValueOnce(olderUpload.promise).mockReturnValueOnce(newerUpload.promise)
+    mocks.updateAvatar.mockReset().mockImplementation((avatar: string) => {
+      const save = avatar === 'old-icon' ? olderSave : newerSave
+      return save.promise.then(() => {
+        persistedAvatar = avatar
+        return { message: 'updated' }
+      })
+    })
+    mocks.getCurrentUser.mockReset().mockImplementation(async () => ({ data: { id: 'account', avatar: persistedAvatar } }))
+    const wrapper = shallowMount(SettingModal, {
+      props: { visible: true, initialTab: 'profile' },
+      global: { plugins: [createTestI18n(), createPinia()], stubs: { 'a-modal': { template: '<div><slot /></div>' } } },
+    })
+    const { handleAvatarCustomRequest } = (
+      wrapper.vm.$ as unknown as { setupState: { handleAvatarCustomRequest: (option: any) => unknown } }
+    ).setupState
+    const upload = (name: string) => ({ fileItem: { file: new File([name], `${name}.png`) }, onSuccess: vi.fn(), onError: vi.fn() })
+    const oldOption = upload('old')
+    const newOption = upload('new')
+
+    handleAvatarCustomRequest(oldOption)
+    olderUpload.resolve({ data: { image_url: 'old-icon' } })
+    await flushPromises()
+    handleAvatarCustomRequest(newOption)
+    newerUpload.resolve({ data: { image_url: 'new-icon' } })
+    await flushPromises()
+
+    newerSave.resolve()
+    await flushPromises()
+    olderSave.resolve()
+    await flushPromises()
+
+    expect(persistedAvatar).toBe('new-icon')
     wrapper.unmount()
   })
 })
