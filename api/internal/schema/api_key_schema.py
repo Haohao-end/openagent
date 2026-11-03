@@ -1,10 +1,22 @@
+from flask import request
 from flask_wtf import FlaskForm
 from marshmallow import Schema, fields, pre_dump
 from wtforms import BooleanField, StringField
-from wtforms.validators import Length
+from wtforms.validators import Length, ValidationError
 
 from internal.lib.helper import datetime_to_timestamp
 from internal.model import ApiKey
+
+
+def _validate_json_boolean(field: BooleanField) -> None:
+    payload = request.get_json(silent=True)
+    if (
+        request.is_json
+        and isinstance(payload, dict)
+        and field.name in payload
+        and not isinstance(payload[field.name], bool)
+    ):
+        raise ValidationError("激活状态必须为布尔值")
 
 
 class CreateApiKeyReq(FlaskForm):
@@ -14,6 +26,9 @@ class CreateApiKeyReq(FlaskForm):
         Length(max=100, message="秘钥备注不能超过100个字符")
     ])
 
+    def validate_is_active(self, field: BooleanField) -> None:
+        _validate_json_boolean(field)
+
 
 class UpdateApiKeyReq(FlaskForm):
     """更新API秘钥请求"""
@@ -21,6 +36,9 @@ class UpdateApiKeyReq(FlaskForm):
     remark = StringField("remark", validators=[
         Length(max=100, message="秘钥备注不能超过100个字符")
     ])
+
+    def validate_is_active(self, field: BooleanField) -> None:
+        _validate_json_boolean(field)
 
 
 class UpdateApiKeyIsActiveReq(FlaskForm):
