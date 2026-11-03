@@ -4,7 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import SegmentListView from '../ListView.vue'
 
 const mocks = vi.hoisted(() => ({
-  route: { path: '/datasets/dataset/documents/doc/segments', params: { dataset_id: 'dataset', document_id: 'doc' }, query: { search_word: '' } },
+  route: { path: '/datasets/dataset/documents/doc/segments', params: { dataset_id: 'dataset', document_id: 'doc' }, query: { search_word: '' as string | undefined } },
   segment: { id: 'segment', position: 1, enabled: false, status: 'completed', content: 'example', character_count: 7, hit_count: 0 },
   updateEnabled: vi.fn(),
   loadDocument: vi.fn().mockResolvedValue(undefined),
@@ -63,6 +63,16 @@ it('syncs the search input when the route query changes', async () => {
   mocks.route.query.search_word = ''
   await nextTick()
   expect(searchValue()).toBe('')
+  wrapper.unmount()
+})
+
+it('clears segment search when the route query is removed', async () => {
+  const wrapper = mountView()
+  mocks.loadSegments.mockClear()
+  mocks.route.query.search_word = undefined
+  await nextTick()
+  await flushPromises()
+  expect(mocks.loadSegments).toHaveBeenCalledWith('dataset', 'doc', true, '')
   wrapper.unmount()
 })
 
