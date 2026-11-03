@@ -108,7 +108,7 @@ const {
 const { handleUpdateConversationIsPinned } = useUpdateConversationIsPinned()
 const { loading: webAppChatLoading, handleWebAppChat } = useWebAppChat()
 const { loading: stopWebAppChatLoading, handleStopWebAppChat } = useStopWebAppChat()
-const { suggested_questions, handleGenerateSuggestedQuestions } = useGenerateSuggestedQuestions()
+const { suggested_questions, handleGenerateSuggestedQuestions, clearSuggestedQuestions } = useGenerateSuggestedQuestions()
 const can_image_input = computed(() => {
   if (web_app.value) {
     if (web_app.value?.app_config?.capabilities?.image_input?.enabled === true) {
@@ -387,7 +387,7 @@ const handleSubmit = async () => {
   const requestGeneration = ++webAppChatGeneration
 
   // 11.3 满足条件，处理正式提问的前置工作，涵盖：清空建议问题、删除消息id、任务id
-  suggested_questions.value = []
+  clearSuggestedQuestions()
   message_id.value = ''
   task_id.value = ''
   stopAudioStream()

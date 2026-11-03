@@ -135,7 +135,7 @@ const {
 } = useGetDebugConversationMessagesWithPage()
 const { loading: debugChatLoading, handleDebugChat } = useDebugChat()
 const { loading: stopDebugChatLoading, handleStopDebugChat } = useStopDebugChat()
-const { suggested_questions, handleGenerateSuggestedQuestions } = useGenerateSuggestedQuestions()
+const { suggested_questions, handleGenerateSuggestedQuestions, clearSuggestedQuestions } = useGenerateSuggestedQuestions()
 const { loading: audioToTextLoading, text, handleAudioToText } = useAudioToText()
 const { startAudioStream, stopAudioStream } = useAudioPlayer()
 const { triggerFileInput, handleFileChange } = useChatImageUpload({
@@ -486,7 +486,7 @@ const handleSubmit = async () => {
   }
 
   // 5.3 满足条件，处理正式提问的前置工作，涵盖：清空建议问题、删除消息id、任务id
-  suggested_questions.value = []
+  clearSuggestedQuestions()
   message_id.value = ''
   task_id.value = ''
   shouldAutoScrollToBottom.value = true

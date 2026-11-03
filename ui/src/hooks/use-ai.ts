@@ -5,19 +5,31 @@ export const useGenerateSuggestedQuestions = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const suggested_questions = ref<string[]>([])
+  let requestGeneration = 0
+
+  const clearSuggestedQuestions = () => {
+    requestGeneration += 1
+    suggested_questions.value = []
+    loading.value = false
+  }
 
   // 2.定义加载数据函数
   const handleGenerateSuggestedQuestions = async (message_id: string) => {
+    const currentGeneration = ++requestGeneration
     try {
       loading.value = true
       const resp = await generateSuggestedQuestions(message_id)
-      suggested_questions.value = resp.data
+      if (currentGeneration === requestGeneration) {
+        suggested_questions.value = resp.data
+      }
     } finally {
-      loading.value = false
+      if (currentGeneration === requestGeneration) {
+        loading.value = false
+      }
     }
   }
 
-  return { loading, suggested_questions, handleGenerateSuggestedQuestions }
+  return { loading, suggested_questions, handleGenerateSuggestedQuestions, clearSuggestedQuestions }
 }
 
 export const useOptimizePrompt = () => {
