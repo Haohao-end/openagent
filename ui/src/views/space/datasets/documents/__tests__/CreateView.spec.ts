@@ -2,9 +2,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { handleCreateDocuments, loadDocumentsStatus } = vi.hoisted(() => ({
+const { handleCreateDocuments, loadDocumentsStatus, handleUploadFile } = vi.hoisted(() => ({
   handleCreateDocuments: vi.fn().mockResolvedValue(undefined),
   loadDocumentsStatus: vi.fn().mockResolvedValue([{ id: 'doc-1', status: 'error' }]),
+  handleUploadFile: vi.fn(),
 }))
 
 vi.mock('@/hooks/use-dataset', async () => {
@@ -19,7 +20,7 @@ vi.mock('@/hooks/use-dataset', async () => {
 })
 vi.mock('@/hooks/use-upload-file', async () => {
   const { ref } = await import('vue')
-  return { useUploadFile: () => ({ upload_file: ref({}), handleUploadFile: vi.fn() }) }
+  return { useUploadFile: () => ({ upload_file: ref({}), handleUploadFile }) }
 })
 vi.mock('@arco-design/web-vue', () => ({ Message: { error: vi.fn(), warning: vi.fn() } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -35,6 +36,7 @@ const ButtonStub = defineComponent({
   },
 })
 const UploadStub = defineComponent({
+  props: { customRequest: Function },
   emits: ['update:fileList'],
   setup(_props, { emit }) {
     return () => h('button', { 'data-testid': 'upload', onClick: () => emit('update:fileList', [{ response: { id: 'file-1' } }]) })
@@ -45,6 +47,7 @@ describe('document creation status', () => {
   beforeEach(() => {
     handleCreateDocuments.mockReset().mockResolvedValue(undefined)
     loadDocumentsStatus.mockReset().mockResolvedValue([{ id: 'doc-1', status: 'error' }])
+    handleUploadFile.mockReset()
   })
 
   it('shows parsing errors when the document has no segments', async () => {
@@ -60,6 +63,35 @@ describe('document creation status', () => {
 
     expect(wrapper.text()).toContain('space.datasets.documents.create.processingError')
     wrapper.unmount()
+  })
+
+  it('does not log file names, upload responses or errors', async () => {
+    const response = { data: { id: 'private-file-id' } }
+    const uploadError = new Error('private upload failure')
+    handleUploadFile.mockResolvedValueOnce(response).mockRejectedValueOnce(uploadError)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { default: CreateView } = await import('../CreateView.vue')
+    const wrapper = mount(CreateView, { global: { stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub } } })
+    const customRequest = wrapper.findComponent(UploadStub).props('customRequest') as (option: any) => unknown
+    const onSuccess = vi.fn()
+    const onError = vi.fn()
+
+    try {
+      customRequest({ fileItem: { file: new File(['private contents'], 'private-document.pdf') }, onSuccess, onError })
+      await flushPromises()
+      customRequest({ fileItem: { file: new File(['private contents'], 'private-document.pdf') }, onSuccess, onError })
+      await flushPromises()
+
+      expect(onSuccess).toHaveBeenCalledWith({ id: 'private-file-id' })
+      expect(onError).toHaveBeenCalledWith(uploadError)
+      expect(log).not.toHaveBeenCalled()
+      expect(error).not.toHaveBeenCalled()
+    } finally {
+      wrapper.unmount()
+      log.mockRestore()
+      error.mockRestore()
+    }
   })
 
   it('does not submit document creation again when the first status lookup fails', async () => {

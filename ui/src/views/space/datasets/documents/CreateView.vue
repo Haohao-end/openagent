@@ -262,21 +262,16 @@ onUnmounted(() => {
                     onError(new Error(t('space.datasets.documents.create.invalidFile')))
                     return
                   }
-                  console.log('[Upload] Starting upload for file:', fileItem.file.name)
                   const response = await handleUploadFile(fileItem.file as File)
-                  console.log('[Upload] Upload completed, response:', response)
 
                   // 从响应的 data 字段中获取文件ID
                   const fileId = response?.data?.id
                   if (!fileId) {
-                    console.error('[Upload] No file ID in response:', response)
                     onError(new Error(t('space.datasets.documents.create.uploadMissingId')))
                     return
                   }
-                  console.log('[Upload] File ID:', fileId)
                   onSuccess({ id: fileId })
                 } catch (error: unknown) {
-                  console.error('[Upload] Error:', error)
                   onError(error instanceof Error ? error : new Error(t('space.datasets.documents.create.uploadFailed')))
                 }
               }
