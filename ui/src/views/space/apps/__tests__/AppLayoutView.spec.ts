@@ -11,7 +11,9 @@ describe('AppLayoutView', () => {
     )
 
     expect(source).toContain('<div class="flex min-h-0 flex-1 overflow-hidden">')
-    expect(source).toContain(':key="String(route.params?.app_id ?? \'\')"')
+    expect(source).toContain(
+      ':key="`${String(route.params?.app_id ?? \'\')}-${draftConfigRefreshToken}`"',
+    )
     expect(source).toContain('<router-view')
     expect(source).toContain(':app="app"')
     expect(source).toContain(':published-refresh-token="publishedRefreshToken"')
