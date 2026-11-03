@@ -240,4 +240,22 @@ describe('useAgentNotificationWebSocket', () => {
 
     wrapper.unmount()
   })
+
+  it('forwards notification payloads without logging them', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const wrapper = await createHarness()
+    const callback = vi.fn()
+    const notification = { id: 'private-notification', content: 'private document detail' }
+    wrapper.vm.subscribeToNotifications(callback)
+
+    try {
+      handlers.get('agent_notification')?.(notification)
+
+      expect(callback).toHaveBeenCalledWith(notification)
+      expect(log.mock.calls.flat()).not.toContain(notification)
+    } finally {
+      wrapper.unmount()
+      log.mockRestore()
+    }
+  })
 })
