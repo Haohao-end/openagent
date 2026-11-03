@@ -130,7 +130,11 @@ class PublicAgentRegistryService(BaseService):
             app_id_to_document[app_id] = document
 
         if not ordered_app_ids:
-            return []
+            return self._search_public_apps_from_db(
+                query=query,
+                limit=normalized_limit,
+                exclude_app_ids=exclude_app_ids,
+            )
 
         valid_uuid_ids = []
         for app_id in ordered_app_ids:
