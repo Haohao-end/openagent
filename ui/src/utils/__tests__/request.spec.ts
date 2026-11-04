@@ -78,6 +78,28 @@ describe('request utils', () => {
     expect(onData).toHaveBeenCalledWith({ event: 'message', data: { content: 'final' } })
   })
 
+  it('dispatches events separated by CR-only lines across chunks', async () => {
+    const onData = vi.fn()
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('event: message\rdata: {"content":"cr-only"}\r'))
+        controller.enqueue(new TextEncoder().encode('\r'))
+        controller.enqueue(new TextEncoder().encode('event: message\r\ndata: {"content":\r'))
+        controller.enqueue(new TextEncoder().encode('\ndata: "crlf"}\r\r'))
+        controller.close()
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    })))
+
+    await ssePost('/stream', {}, onData)
+
+    expect(onData).toHaveBeenCalledWith({ event: 'message', data: { content: 'cr-only' } })
+    expect(onData).toHaveBeenNthCalledWith(2, { event: 'message', data: { content: 'crlf' } })
+  })
+
   it('does not log upload response bodies', async () => {
     const response = { code: 'success', message: 'ok', data: { id: 'private-file-id' } }
     class FakeXMLHttpRequest {
