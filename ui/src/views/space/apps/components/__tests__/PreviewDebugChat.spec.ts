@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
-import { nextTick, ref } from 'vue'
+import { nextTick, reactive, ref } from 'vue'
 
 import PreviewDebugChat from '../PreviewDebugChat.vue'
 
@@ -90,12 +90,10 @@ const dynamicScrollerItemHiddenTargetStub = {
     '<div class="vue-recycle-scroller__item-view" :style="item.id === targetId && !targetVisible ? \'transform: translateY(-9999px) translateX(0px);\' : \'transform: translateY(0px) translateX(0px);\'"><div class="dynamic-scroller-item-stub-hidden-target" :data-index="item.id" :data-size-dependencies="JSON.stringify(sizeDependencies)"><slot /></div></div>',
 }
 
-vi.mock('vue-router', () => ({
-  useRoute: () => mocks.route,
-  useRouter: () => ({
-    replace: mocks.replace,
-  }),
-}))
+vi.mock('vue-router', async () => {
+  const { reactive } = await import('vue')
+  return { useRoute: () => reactive(mocks.route), useRouter: () => ({ replace: mocks.replace }) }
+})
 
 vi.mock('@/hooks/use-chat-query-input', () => ({
   useChatQueryInput: () => ({
@@ -695,5 +693,29 @@ describe('PreviewDebugChat', () => {
     await flushPromises()
 
     expect(errors).toEqual([])
+  })
+
+  it('aborts the active response and resets message state when the conversation route changes', async () => {
+    const route = reactive(mocks.route); route.query = { conversation_id: 'conversation-before' }
+    mocks.query.value = 'hello'
+    let finishStream!: () => void
+    let streamSignal: AbortSignal | undefined
+    mocks.handleDebugChat.mockImplementationOnce((_appId, _query, _images, _conversationId, _callback, _deepThinking, signal) => { streamSignal = signal; return new Promise<void>((resolve) => { finishStream = resolve }) })
+    const wrapper = shallowMount(PreviewDebugChat, {
+      global: { stubs: { 'scroll-navigator': { template: '<div><slot /></div>' }, 'chat-composer': true } }, props: { app: { id: 'app-1' }, suggested_after_answer: { enable: false }, opening_statement: '', opening_questions: [] },
+    })
+    await flushPromises()
+    const state = (wrapper.vm.$ as any).setupState; const pendingSubmit = state.handleSubmit()
+    await flushPromises()
+    state.message_id = 'old-message'; state.task_id = 'old-task'
+    route.query = { ...route.query, conversation_id: 'conversation-after' }
+    await flushPromises()
+
+    expect(streamSignal?.aborted).toBe(true)
+    expect(state.selectedConversationId).toBe('conversation-after')
+    expect(state.message_id).toBe('')
+    expect(state.task_id).toBe('')
+    expect(mocks.loadDebugConversationMessages).toHaveBeenLastCalledWith('app-1', true, 'conversation-after')
+    finishStream(); await pendingSubmit; wrapper.unmount()
   })
 })
