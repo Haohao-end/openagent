@@ -611,10 +611,12 @@ describe('PreviewDebugChat', () => {
   it('ignores a debug stream event after unmount', async () => {
     let onData: ((event: Record<string, any>) => void) | undefined
     let finishStream: (() => void) | undefined
+    let streamSignal: AbortSignal | undefined
     mocks.query.value = 'hello'
     mocks.handleDebugChat.mockImplementation(
-      (_appId, _query, _images, _conversationId, callback) => {
+      (_appId, _query, _images, _conversationId, callback, _deepThinking, signal) => {
         onData = callback
+        streamSignal = signal
         return new Promise<void>((resolve) => {
           finishStream = resolve
         })
@@ -645,6 +647,7 @@ describe('PreviewDebugChat', () => {
     const pendingMessage = mocks.messages.value[0]
 
     wrapper.unmount()
+    expect(streamSignal?.aborted).toBe(true)
     mocks.route.params = { app_id: 'other-app' }
     onData?.({
       event: 'agent_message',

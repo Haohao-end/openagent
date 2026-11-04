@@ -389,6 +389,7 @@ const scrollChatToBottom = () => {
 let scrollToBottomScheduled = false
 let autoScrollTicker: number | null = null
 let streamGeneration = 0
+let streamAbortController: AbortController | null = null
 
 const stopAutoScrollTicker = () => {
   if (typeof window === 'undefined') return
@@ -524,6 +525,8 @@ const handleSubmit = async () => {
   }
   const requestStartAt = Date.now()
   isStreamingResponse.value = true
+  const abortController = new AbortController()
+  streamAbortController = abortController
   const humanQuery = query.value
   const humanImageUrls = image_urls.value
   query.value = ''
@@ -561,10 +564,12 @@ const handleSubmit = async () => {
         }
       },
       enableDeepThinking.value,
+      abortController.signal,
     )
   } catch (error: unknown) {
     if (requestGeneration === streamGeneration) throw error
   } finally {
+    if (streamAbortController === abortController) streamAbortController = null
     if (requestGeneration === streamGeneration) {
       isStreamingResponse.value = false
       stopAutoScrollTicker()
@@ -701,6 +706,8 @@ watch(
 // 11.页面卸载后停止播放
 onUnmounted(() => {
   streamGeneration += 1
+  streamAbortController?.abort()
+  streamAbortController = null
   isStreamingResponse.value = false
   stopAutoScrollTicker()
   stopAudioStream()
