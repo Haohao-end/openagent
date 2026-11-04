@@ -173,6 +173,13 @@ class PublicAgentRegistryService(BaseService):
                 }
             )
 
+        if not results:
+            return self._search_public_apps_from_db(
+                query=query,
+                limit=normalized_limit,
+                exclude_app_ids=exclude_app_ids,
+            )
+
         return results
 
     def _log_vector_search_fallback(self, stage: str, exc: Exception) -> None:
