@@ -288,6 +288,25 @@ describe('HomeView sidebar new conversation request', () => {
     }
   })
 
+  it('does not log private details when a route-triggered history reload fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.loadAssistantAgentMessages
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('private assistant history'))
+    const wrapper = shallowMount(HomeView, {
+      global: { stubs: { 'a-button': componentStub, 'icon-down': componentStub, 'icon-poweroff': componentStub } },
+    })
+    try {
+      await flushPromises()
+      mocks.route.query = { conversation_id: 'conversation-2' }
+      await flushPromises()
+      expect(errorSpy).toHaveBeenCalledWith('Failed to reload messages when conversation_id changed:', 'Error')
+    } finally {
+      wrapper.unmount()
+      errorSpy.mockRestore()
+    }
+  })
+
   it('keeps the latest home intent when an older locale request resolves later', async () => {
     const resolveRequests: Array<(value: unknown) => void> = []
     mocks.loadHomeIntent.mockImplementation(() => new Promise((resolve) => { resolveRequests.push(resolve) }))
