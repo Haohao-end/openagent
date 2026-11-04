@@ -93,7 +93,7 @@ const handleSearch = async () => {
     const response = await searchConversations(searchQuery.value, 100)
     if (requestId === latestSearchRequest) conversations.value = response.data || []
   } catch (error) {
-    if (requestId === latestSearchRequest) console.error('Search failed:', error)
+    if (requestId === latestSearchRequest) console.error('Search failed:', error instanceof Error ? error.name : 'unknown_error')
   } finally {
     if (requestId === latestSearchRequest) loading.value = false
   }

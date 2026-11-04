@@ -197,6 +197,20 @@ describe('ConversationSearchView', () => {
   wrapper.unmount()
  })
 
+ it('does not log private response details when conversation search fails', async () => {
+  const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.mocked(conversationSearchService.searchConversations).mockRejectedValueOnce(new Error('private search response'))
+  const wrapper = mountView()
+  try {
+   await searchFor(wrapper, 'private query')
+   expect(errorSpy.mock.calls.flat().join(' ')).not.toContain('private search response')
+   expect(errorSpy).toHaveBeenCalledWith('Search failed:', 'Error')
+  } finally {
+   wrapper.unmount()
+   errorSpy.mockRestore()
+  }
+ })
+
  it('highlights matched keywords in title and message preview', async () => {
  vi.mocked(conversationSearchService.searchConversations).mockResolvedValue({
  data: [
