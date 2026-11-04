@@ -367,6 +367,7 @@ const handleStream = <TData>(
 
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
+    let skipLeadingLf = false
     let event = ''
     let data = ''
 
@@ -395,8 +396,14 @@ const handleStream = <TData>(
             return
           }
 
-          buffer += decoder.decode(result.value, { stream: true })
-          const lines = buffer.split('\n')
+          let chunk = decoder.decode(result.value, { stream: true })
+          if (skipLeadingLf && chunk) {
+            if (chunk.startsWith('\n')) chunk = chunk.slice(1)
+            skipLeadingLf = false
+          }
+          if (chunk) skipLeadingLf = chunk.endsWith('\r')
+          buffer += chunk
+          const lines = buffer.split(/\r\n|\r|\n/)
           buffer = lines.pop() || ''
 
           try {
