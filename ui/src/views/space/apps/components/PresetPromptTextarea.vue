@@ -20,7 +20,7 @@ const handleReplacePresetPrompt = async (optimizedPrompt: string) => {
   try {
     await handleUpdateDraftAppConfig(props.app_id, { preset_prompt: optimizedPrompt })
   } catch (error) {
-    console.error('替换预设prompt失败:', error)
+    console.error('替换预设prompt失败:', error instanceof Error ? error.name : 'unknown_error')
   }
 }
 
@@ -37,7 +37,7 @@ const handleEditorBlur = async () => {
     })
   } catch (error) {
     // 错误已在 handleUpdateDraftAppConfig 中处理，这里只是防止未捕获的异常
-    console.error('编辑器失焦时更新失败:', error)
+    console.error('编辑器失焦时更新失败:', error instanceof Error ? error.name : 'unknown_error')
   }
 }
 </script>
