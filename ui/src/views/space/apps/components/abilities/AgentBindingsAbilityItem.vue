@@ -119,7 +119,7 @@ const handleDeleteBinding = async (idx: number) => {
   await persistAgentBindings(newBindings)
 }
 
-const handleSelectMarketplaceBinding = async (binding: AgentBindingTarget) => {
+const saveMarketplaceAgentBinding = async (binding: AgentBindingTarget) => {
   const appId = String(binding.app_id || '').trim()
   if (!appId) return
 
@@ -142,6 +142,13 @@ const handleSelectMarketplaceBinding = async (binding: AgentBindingTarget) => {
 
   await persistAgentBindings([...activateAgentBindings.value, nextBinding])
   Message.success(t('appStudio.abilities.agents.addedSuccess'))
+}
+
+let marketplaceAgentSaveQueue: Promise<void> = Promise.resolve()
+const handleSelectMarketplaceBinding = (binding: AgentBindingTarget) => {
+  const queuedSave = marketplaceAgentSaveQueue.then(() => saveMarketplaceAgentBinding(binding))
+  marketplaceAgentSaveQueue = queuedSave.catch(() => {})
+  return queuedSave
 }
 
 watch(
