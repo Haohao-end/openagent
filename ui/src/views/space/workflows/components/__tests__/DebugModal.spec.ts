@@ -360,6 +360,12 @@ describe('DebugModal node outputs', () => {
   })
 
   it('clears old execution markers when the debug modal is reopened', async () => {
+    let emitResult: ((event: Record<string, unknown>) => void) | undefined
+    let finishStream: (() => void) | undefined
+    mocks.handleDebugWorkflow.mockImplementationOnce((_workflowId, _inputs, onData) => {
+      emitResult = onData
+      return new Promise<void>((resolve) => { finishStream = resolve })
+    })
     const wrapper = mount(DebugModal, {
       props: { visible: false, workflow_id: 'workflow-1' },
     })
@@ -367,10 +373,10 @@ describe('DebugModal node outputs', () => {
     await wrapper.setProps({ visible: true })
     await wrapper.find('a-form').trigger('submit')
     await flushPromises()
-    expect(mocks.canvas.nodes[0].class).toContain('workflow-debug-succeeded')
 
     await wrapper.setProps({ visible: false })
     await wrapper.setProps({ visible: true })
+    emitResult?.({ event: 'workflow', data: { node_data: { id: 'stale-end', node_type: 'end', title: 'Stale' }, status: 'succeeded', outputs: { answer: 'stale' }, latency: 0.1 } })
     await flushPromises()
 
     expect(mocks.canvas.nodes.map(({ class: className }) => className)).toEqual([
@@ -382,6 +388,9 @@ describe('DebugModal node outputs', () => {
     ])
     expect(mocks.canvas.edges.every(({ class: className }) => !className)).toBe(true)
     expect(wrapper.findAll('[data-testid="workflow-node-result"]')).toHaveLength(0)
+    finishStream?.()
+    await flushPromises()
+    wrapper.unmount()
   })
 
   it('shows localized error details for failed nodes with no error message', async () => {
