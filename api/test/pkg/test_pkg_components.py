@@ -281,8 +281,31 @@ class TestPaginatorPasswordResponseAndDB:
             failing_response = compact_generate_response(_failing_stream())
             failing_body = failing_response.get_data(as_text=True)
             assert "event: timeout" in failing_body
-            assert "流式响应执行失败" in failing_body
-            assert "gateway timed out" in failing_body
+            assert "流式响应执行超时" in failing_body
+            assert "gateway timed out" not in failing_body
+
+    @pytest.mark.parametrize(
+        ("error", "expected_event", "expected_observation"),
+        [
+            (TimeoutError("credential=SYNTHETIC_STREAM_CREDENTIAL"), "timeout", "流式响应执行超时"),
+            (RuntimeError("credential=SYNTHETIC_STREAM_CREDENTIAL"), "error", "流式响应执行失败"),
+        ],
+    )
+    def test_compact_generate_response_should_redact_stream_failure_details(
+        self, error, expected_event, expected_observation
+    ):
+        app = Flask(__name__)
+
+        def failing_stream():
+            raise error
+            yield ""
+
+        with app.test_request_context("/"):
+            body = compact_generate_response(failing_stream()).get_data(as_text=True)
+
+        assert f"event: {expected_event}" in body
+        assert expected_observation in body
+        assert "SYNTHETIC_STREAM_CREDENTIAL" not in body
 
     def test_sqlalchemy_auto_commit_should_commit_and_rollback(self, monkeypatch):
         app = Flask(__name__)
