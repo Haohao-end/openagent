@@ -41,6 +41,8 @@ class Middleware:
             if not api_key_record or not api_key_record.is_active:
                 raise UnauthorizedException("该密钥不存在或未激活")
 
+            self.api_key_service.mark_api_key_used(api_key_record)
+
             # 7.获取密钥账号信息并返回
             return api_key_record.account
         else:

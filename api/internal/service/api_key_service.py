@@ -12,6 +12,7 @@ from internal.schema.api_key_schema import CreateApiKeyReq
 from internal.model import Account, ApiKey
 from internal.exception import ForbiddenException
 from pkg.paginator import PaginatorReq, Paginator
+from internal.lib.helper import utc_now_naive
 
 @inject
 @dataclass
@@ -54,6 +55,11 @@ class ApiKeyService(BaseService):
                 self.db.session.commit()
 
         return legacy_api_key_record
+
+    def mark_api_key_used(self, api_key_record: ApiKey) -> None:
+        """Persist the UTC time of an authenticated API-key request."""
+        api_key_record.last_used_at = utc_now_naive()
+        self.db.session.commit()
 
     def get_api_key(self, api_key_id: UUID, account: Account) -> ApiKey:
         """根据传递的密钥id+账号信息获取记录"""

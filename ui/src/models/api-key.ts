@@ -24,4 +24,5 @@ export type GetApiKeysWithPageResponse = BasePaginatorResponse<{
   remark: string
   updated_at: number
   created_at: number
+  last_used_at: number
 }>

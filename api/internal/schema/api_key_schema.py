@@ -66,6 +66,7 @@ class GetApiKeysWithPageResp(Schema):
     remark = fields.String(dump_default="")
     updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
+    last_used_at = fields.Integer(dump_default=0)
 
     @pre_dump
     def process_data(self, data: ApiKey, **kwargs):
@@ -76,4 +77,5 @@ class GetApiKeysWithPageResp(Schema):
             "remark": data.remark,
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),
+            "last_used_at": datetime_to_timestamp(data.last_used_at),
         }
