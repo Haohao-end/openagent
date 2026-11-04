@@ -127,6 +127,25 @@ class TestAudioService:
         with pytest.raises(FailException):
             service.audio_to_text(audio)
 
+    def test_audio_to_text_should_not_log_provider_error_details(self, monkeypatch, caplog):
+        service = _build_service()
+        monkeypatch.setenv("SILICONFLOW_API_KEY", "test-key")
+        monkeypatch.setenv("SILICONFLOW_API_BASE", "https://api.example.com")
+        secret = "PRIVATE_PROVIDER_RESPONSE_MARKER"
+        monkeypatch.setattr(
+            service,
+            "_get_requests_session",
+            lambda: _FakeSession(
+                lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError(secret))
+            ),
+        )
+        audio = FileStorage(stream=BytesIO(b"wav-data"), filename="voice.wav")
+
+        with pytest.raises(FailException, match="语音识别请求失败"):
+            service.audio_to_text(audio)
+
+        assert secret not in caplog.text
+
     def test_text_to_audio_should_raise_when_text_is_empty(self):
         service = _build_service()
 
