@@ -46,7 +46,7 @@ const handleScroll = async (event: UIEvent) => {
 
 // 3.定义判断工作流数据是否发生变化函数
 const isWorkflowsModified = () => {
-  return isEqual(activateWorkflows.value, originWorkflows.value)
+  return !isEqual(activateWorkflows.value, originWorkflows.value)
 }
 
 // 4.定义取消模态窗处理器
