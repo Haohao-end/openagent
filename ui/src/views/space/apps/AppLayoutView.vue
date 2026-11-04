@@ -10,7 +10,7 @@ const route = useRoute()
 const publishHistoryDrawerVisible = ref(false)
 const publishedRefreshToken = ref(0)
 const draftConfigRefreshToken = ref(0)
-const { loading, app, loadApp } = useGetApp()
+const { loading, app, loadApp: loadAppById } = useGetApp()
 const { loading: publishLoading, handlePublish } = usePublish()
 const { handleCancelPublish } = useCancelPublish()
 const { loading: shareLoading, handleShareAppToSquare } = useShareAppToSquare()
@@ -18,6 +18,9 @@ const { handleUnshareAppFromSquare } = useUnshareAppFromSquare()
 const { t } = useI18n()
 
 const getAppId = () => String(route.params?.app_id ?? '').trim()
+const loadApp = async (appId: string) => {
+  if (appId === getAppId()) await loadAppById(appId)
+}
 
 onMounted(async () => await loadApp(getAppId()))
 
