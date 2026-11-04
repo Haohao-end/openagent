@@ -1,3 +1,4 @@
+import sys
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -212,6 +213,31 @@ def test_app_task_sync_public_app_registry_should_retry_on_connection_error(monk
     assert len(retry_calls) == 1
     assert isinstance(retry_calls[0][0], APIConnectionError)
     assert retry_calls[0][1] == 30
+
+
+@pytest.mark.parametrize("transient", [False, True])
+def test_app_task_sync_public_app_registry_should_redact_failure_details(monkeypatch, caplog, transient):
+    secret = "SYNTHETIC_PROVIDER_CREDENTIAL"
+    error = (
+        APIConnectionError(message=secret, request=httpx.Request("POST", "https://example.com"))
+        if transient else RuntimeError(secret)
+    )
+    service = SimpleNamespace(sync_public_app=lambda _app_id: (_ for _ in ()).throw(error))
+    retry_calls = []
+    monkeypatch.setitem(sys.modules, "app.http.app", SimpleNamespace(injector=_RecordingInjector(service)))
+    monkeypatch.setattr(
+        app_task.sync_public_app_registry,
+        "retry",
+        lambda **kwargs: retry_calls.append(kwargs) or error,
+    )
+    with caplog.at_level("WARNING", logger="internal.task.app_task"):
+        with pytest.raises(type(error)) as raised:
+            app_task.sync_public_app_registry.run(str(uuid4()))
+
+    assert raised.value is error
+    assert secret not in caplog.text
+    assert f"error_type={type(error).__name__}" in caplog.text
+    assert retry_calls == ([{"exc": error, "countdown": 30}] if transient else [])
 
 
 def test_app_task_prewarm_mcp_tool_snapshots_should_not_log_refresh_exception(monkeypatch, caplog):
