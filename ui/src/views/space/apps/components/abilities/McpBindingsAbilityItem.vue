@@ -319,7 +319,7 @@ const handleDeleteBinding = async (idx: number) => {
   emits('reload-draft-app-config')
 }
 
-const handleSelectMarketplaceBinding = async (binding: McpBinding) => {
+const saveMarketplaceBinding = async (binding: McpBinding) => {
   const nextBinding = normalizeBindingToForm(binding)
   const duplicate = activateMcpBindings.value.some((item) => isSameBinding(item, nextBinding))
   if (duplicate) {
@@ -343,6 +343,13 @@ const handleSelectMarketplaceBinding = async (binding: McpBinding) => {
   emits('reload-draft-app-config')
   Message.success(t('appStudio.abilities.mcp.addedSuccess'))
   showMarketplacePickerModal.value = false
+}
+
+let marketplaceBindingSaveQueue: Promise<void> = Promise.resolve()
+const handleSelectMarketplaceBinding = (binding: McpBinding) => {
+  const queuedSave = marketplaceBindingSaveQueue.then(() => saveMarketplaceBinding(binding))
+  marketplaceBindingSaveQueue = queuedSave.catch(() => {})
+  return queuedSave
 }
 
 watch(

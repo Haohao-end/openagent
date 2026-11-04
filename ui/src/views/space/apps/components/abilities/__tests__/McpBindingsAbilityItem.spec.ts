@@ -136,4 +136,28 @@ describe('McpBindingsAbilityItem', () => {
     expect(wrapper.text()).not.toContain('已启用')
     expect(wrapper.text()).not.toContain('已停用')
   })
+
+  it('includes an earlier marketplace selection when a second save overlaps', async () => {
+    let resolveFirst!: () => void
+    const firstSave = new Promise<void>((resolve) => { resolveFirst = resolve })
+    mocks.updateDraftAppConfig.mockReset().mockReturnValueOnce(firstSave).mockResolvedValue({})
+    const wrapper = mount(McpBindingsAbilityItem, {
+      props: { app_id: 'app-1', mcp_bindings: [], mcp_tool_snapshots: [] },
+      global: { stubs: globalStubs },
+    })
+    const state = (wrapper.vm.$ as any).setupState
+    const firstBinding = makeBinding({ name: 'First MCP', provider_key: 'catalog::first' })
+    const secondBinding = makeBinding({ name: 'Second MCP', provider_key: 'catalog::second' })
+    const firstSelection = state.handleSelectMarketplaceBinding(firstBinding)
+    const secondSelection = state.handleSelectMarketplaceBinding(secondBinding)
+    await nextTick()
+    const requestsWhileFirstSavePending = mocks.updateDraftAppConfig.mock.calls.length
+    resolveFirst()
+    await Promise.all([firstSelection, secondSelection])
+    const secondRequestBindings = mocks.updateDraftAppConfig.mock.calls[1]?.[1].mcp_bindings.map((item: any) => item.provider_key)
+    expect(requestsWhileFirstSavePending).toBe(1)
+    expect(secondRequestBindings).toEqual(['catalog::first', 'catalog::second'])
+    expect(state.activateMcpBindings.map((item: any) => item.provider_key)).toEqual(['catalog::first', 'catalog::second'])
+    wrapper.unmount()
+  })
 })
