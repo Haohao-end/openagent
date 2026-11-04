@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { post, upload } from '@/utils/request'
+import { post, ssePost, upload } from '@/utils/request'
 
 const { routerPush } = vi.hoisted(() => ({
   routerPush: vi.fn().mockResolvedValue(undefined),
@@ -58,6 +58,24 @@ describe('request utils', () => {
     const [, requestInit] = fetchMock.mock.calls[0]
     const headers = requestInit?.headers as Headers
     expect(headers.get('Authorization')).toBe('Bearer stored-token')
+  })
+
+  it('dispatches the last SSE event when EOF follows an unterminated data line', async () => {
+    const onData = vi.fn()
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('event: message\ndata: {"content":"final"}'))
+        controller.close()
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    })))
+
+    await ssePost('/stream', {}, onData)
+
+    expect(onData).toHaveBeenCalledWith({ event: 'message', data: { content: 'final' } })
   })
 
   it('does not log upload response bodies', async () => {

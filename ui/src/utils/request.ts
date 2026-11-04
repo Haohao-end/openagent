@@ -384,6 +384,9 @@ const handleStream = <TData>(
         .then((result: ReadableStreamReadResult<Uint8Array>) => {
           if (result.done) {
             try {
+              const finalLine = buffer.trim()
+              if (finalLine.startsWith('event:')) event = finalLine.slice(6).trim()
+              if (finalLine.startsWith('data:')) data += `${data ? '\n' : ''}${finalLine.slice(5).trim()}`
               emitEvent()
               resolve()
             } catch (error: unknown) {
