@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
+from internal.exception import FailException
 from internal.service.intent_recognition_service import IntentRecognitionService
 
 
@@ -50,6 +51,23 @@ class TestIntentRecognitionService:
 
         assert "用户: 第一条用户消息" in formatted
         assert "助手: 第一条助手回复" in formatted
+
+    def test_recognition_failure_hides_provider_error_details(self, service, monkeypatch, caplog):
+        model = Mock()
+        model.invoke.side_effect = RuntimeError("synthetic-intent-secret")
+        monkeypatch.setattr("internal.service.intent_recognition_service.Chat", lambda **_kwargs: model)
+        monkeypatch.setattr(
+            "internal.service.intent_recognition_service.trim_messages",
+            lambda **kwargs: kwargs["messages"],
+        )
+
+        with pytest.raises(FailException, match="意图识别失败") as error:
+            service.recognize([{"role": "user", "content": "private prompt"}])
+
+        assert "synthetic-intent-secret" not in caplog.text
+        assert "synthetic-intent-secret" not in str(error.value)
+        assert error.value.__cause__ is None
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_should_parse_markdown_wrapped_json_response(self, service):
         response = """分析结果如下：
