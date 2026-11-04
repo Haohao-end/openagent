@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   updateApiKeyIsActive: vi.fn(),
   getApiKeysWithPage: vi.fn(),
   routeQuery: { current_page: '2', page_size: '20' },
+  credentialStore: { credential: { access_token: 'token-a', expire_at: 4102444800 } },
 }))
 
 vi.mock('@/services/api-key', () => ({
@@ -18,6 +19,7 @@ vi.mock('vue-router', async (importOriginal) => {
   return { ...actual, useRoute: () => ({ query: mocks.routeQuery }) }
 })
 vi.mock('@arco-design/web-vue', () => ({ Message: { success: vi.fn() }, Modal: { warning: vi.fn() } }))
+vi.mock('@/stores/credential', () => ({ useCredentialStore: () => mocks.credentialStore }))
 
 import { useGetApiKeysWithPage, useUpdateApiKeyIsActive } from '@/hooks/use-api-key'
 
@@ -104,4 +106,19 @@ describe('useGetApiKeysWithPage', () => {
     expect(api_keys.value).toEqual([{ id: 'key-1' }])
     expect(paginator.value.current_page).toBe(1)
   })
+
+
+  it('ignores a page response from a previous credential', async () => {
+    mocks.getApiKeysWithPage.mockResolvedValueOnce({
+      data: { list: [{ id: 'user-a-key' }], paginator: { current_page: 2, page_size: 20, total_page: 2, total_record: 21 } },
+    })
+    const { api_keys, loadApiKeys } = useGetApiKeysWithPage()
+    const request = loadApiKeys(true)
+    mocks.credentialStore.credential = { access_token: 'token-b', expire_at: 4102444800 }
+
+    await request
+
+    expect(api_keys.value).toEqual([])
+  })
+
 })
