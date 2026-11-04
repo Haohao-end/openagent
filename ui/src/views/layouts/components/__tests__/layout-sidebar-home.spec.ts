@@ -158,6 +158,22 @@ describe('LayoutSidebar home navigation', () => {
     expect(wrapper.findAll('a[data-to="/store/mcp"]')).toHaveLength(1)
   })
 
+  it('does not log private details when sidebar bootstrap pagination fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.loadRecentConversations
+      .mockImplementationOnce(async () => { mocks.recentConversationsRef.value = [createRecentConversation(0)] })
+      .mockRejectedValueOnce(new Error('private conversation response'))
+    const wrapper = mountSidebar()
+    try {
+      await flushPromises()
+      await flushPromises()
+      expect(errorSpy).toHaveBeenCalledWith('Failed to bootstrap recent conversations:', 'Error')
+    } finally {
+      wrapper.unmount()
+      errorSpy.mockRestore()
+    }
+  })
+
   it('uses different icons for workflow, skills, and mcp stores', async () => {
     const wrapper = mountSidebar()
     await flushPromises()
