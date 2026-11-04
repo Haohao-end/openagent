@@ -168,7 +168,7 @@ class WebSocketManager:
         try:
             # Use Socket.IO rooms so Celery workers can broadcast through Redis message_queue.
             socketio.emit(event, notification_data, room=user_id)
-            logging.debug(f"[WS] Emitted {event} to room={user_id}")
+            logging.debug("[WS] Emitted %s", event)
         except Exception as e:
             logging.error("[WS] Failed to emit event=%s error_type=%s", event, type(e).__name__)
 
