@@ -55,6 +55,23 @@ it.each([
 })
 
 it.each([
+  ['document', useDocumentIndexNotificationPolling, 'Failed to fetch notifications:'],
+  ['agent', useAgentNotificationPolling, 'Failed to fetch agent notifications:'],
+])('redacts non-Error %s notification failures', async (_kind, usePolling, message) => {
+  mocks.getNotifications.mockReset().mockRejectedValueOnce('private details')
+  const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  let polling: any
+  const wrapper = mount({ setup() { polling = usePolling(); return () => h('div') } })
+  try {
+    await polling.fetchNotifications()
+    expect(errorSpy).toHaveBeenCalledWith(message, 'unknown_error')
+  } finally {
+    wrapper.unmount()
+    errorSpy.mockRestore()
+  }
+})
+
+it.each([
   ['document', useDocumentIndexNotificationPolling, { dataset_id: 'dataset', document_id: 'document', is_read: false }],
   ['agent', useAgentNotificationPolling, { app_id: 'app', app_name: 'Agent', is_read: false }],
 ])('fetches immediately when %s polling restarts during an old request', async (_kind, usePolling, notification) => {
