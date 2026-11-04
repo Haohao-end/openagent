@@ -78,12 +78,12 @@ const handleScroll = async (event: UIEvent) => {
 
 // 3.定义判断知识库数据是否发生变化函数
 const isDatasetsModified = () => {
-  return isEqual(activateDatasets.value, originDatasets.value)
+  return !isEqual(activateDatasets.value, originDatasets.value)
 }
 
 // 4.定义判断检索设置是否发生变化函数
 const isRetrievalConfigFormModified = () => {
-  return isEqual(retrievalConfigForm.value, originRetrievalConfigForm.value)
+  return !isEqual(retrievalConfigForm.value, originRetrievalConfigForm.value)
 }
 
 // 5.定义取消模态窗处理器

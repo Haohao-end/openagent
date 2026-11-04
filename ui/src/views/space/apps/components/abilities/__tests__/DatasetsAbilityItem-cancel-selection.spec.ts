@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, shallowMount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { expect, it, vi } from 'vitest'
 import DatasetsAbilityItem from '../DatasetsAbilityItem.vue'
@@ -115,5 +115,27 @@ it('does not submit stale dataset lists for concurrent removals', async () => {
   await removals[1].trigger('click')
 
   expect(mocks.update).toHaveBeenCalledTimes(1)
+  wrapper.unmount()
+})
+
+it('syncs datasets that arrive after the ability first renders', async () => {
+  const wrapper = shallowMount(DatasetsAbilityItem, { props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } } })
+  const state = (wrapper.vm.$ as any).setupState
+  const dataset = { id: 'ds-1', name: 'Loaded dataset', icon: '', description: '' }
+
+  await wrapper.setProps({ datasets: [dataset] })
+
+  expect(state.activateDatasets).toEqual([dataset])
+  wrapper.unmount()
+})
+
+it('preserves unsaved retrieval settings when parent props change', async () => {
+  const wrapper = shallowMount(DatasetsAbilityItem, { props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } } })
+  const state = (wrapper.vm.$ as any).setupState
+  state.retrievalConfigForm.k = 7
+
+  await wrapper.setProps({ retrieval_config: { retrieval_strategy: 'hybrid', k: 8, score: 0.4 } })
+
+  expect(state.retrievalConfigForm).toMatchObject({ retrieval_strategy: 'semantic', k: 7, score: 0 })
   wrapper.unmount()
 })
