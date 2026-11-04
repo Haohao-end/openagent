@@ -127,7 +127,7 @@ class IconGeneratorService(BaseService):
 
             return str(icon_prompt).strip()
         except Exception as e:
-            logging.warning(f"生成图标提示词失败，使用默认提示词: {str(e)}")
+            logging.warning("生成图标提示词失败，使用默认提示词: error_type=%s", type(e).__name__)
             return (
                 f"A premium mobile app launcher icon for {name}, single centered subject, "
                 f"rounded square app icon composition, modern polished visual style, distinctive color palette, "

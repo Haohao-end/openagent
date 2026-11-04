@@ -189,15 +189,19 @@ class TestIconGeneratorService:
 
         assert prompt == "A polished business app icon prompt"
 
-    def test_generate_icon_prompt_should_fallback_to_default_when_llm_raises(self, monkeypatch):
+    def test_generate_icon_prompt_should_fallback_to_default_when_llm_raises(self, monkeypatch, caplog):
         monkeypatch.setattr(
             IconGeneratorService,
             "_generate_icon_prompt",
             _ORIGINAL_GENERATE_ICON_PROMPT,
         )
+        monkeypatch.setattr(
+            "internal.core.language_model.providers.deepseek.chat.Chat",
+            lambda **_kwargs: object(),
+        )
 
         def _raise_template_error(_template):
-            raise RuntimeError("prompt-generation-failed")
+            raise RuntimeError("synthetic-prompt-secret")
 
         monkeypatch.setattr(
             "internal.service.icon_generator_service.ChatPromptTemplate.from_template",
@@ -210,6 +214,8 @@ class TestIconGeneratorService:
         assert "mobile app launcher icon" in prompt
         assert "rounded square app icon composition" in prompt
         assert "no text, no watermark, no extra elements" in prompt
+        assert "synthetic-prompt-secret" not in caplog.text
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_missing_cos_domain_rejects_before_download_or_upload(self, monkeypatch):
         app = Mock()
