@@ -265,8 +265,11 @@ class PublicAgentA2AService(BaseService):
                 limit=limit,
             )
         except Exception as exc:
-            logging.exception("公开Agent二次筛选失败: %s", str(exc))
-            return [], f"模型筛选失败: {str(exc)}"
+            logging.error(
+                "公开Agent二次筛选失败: error_type=%s",
+                type(exc).__name__,
+            )
+            return [], "模型筛选失败"
 
     @classmethod
     def _build_agent_selection_prompt(

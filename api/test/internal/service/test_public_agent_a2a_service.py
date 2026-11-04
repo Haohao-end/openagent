@@ -214,6 +214,26 @@ class TestPublicAgentA2AService:
         assert result["delegated_results"][0]["error"] == "公共Agent调用失败"
         assert secret not in repr(result)
 
+    def test_selection_provider_failure_should_redact_exception_details(self, caplog):
+        secret = "SYNTHETIC_PROVIDER_CREDENTIAL"
+
+        class _FailingLanguageModel:
+            def invoke(self, _messages):
+                raise RuntimeError(f"provider failed with credential={secret}")
+
+        service = _build_service(
+            language_model_service=SimpleNamespace(
+                load_default_language_model=lambda: _FailingLanguageModel(),
+            ),
+        )
+        matches = [{"app_id": str(uuid4()), "name": "candidate", "description": "test"}]
+
+        result = service._select_relevant_agent_ids_with_llm("query", matches, 1)
+
+        assert result == ([], "模型筛选失败")
+        assert secret not in repr(result)
+        assert secret not in caplog.text
+
     def test_route_public_agents_should_delegate_only_llm_selected_matches(self, monkeypatch):
         caller_account_id = uuid4()
         app_ids = [str(uuid4()) for _ in range(3)]
