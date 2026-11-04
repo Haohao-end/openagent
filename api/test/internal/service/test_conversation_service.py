@@ -158,6 +158,22 @@ class TestConversationServiceSaveAgentThoughts:
         assert summary_calls[0]["query"] == "这个问题"
         assert summary_calls[0]["answer"] == "这是答案"
 
+    def test_should_not_log_agent_answer_content(self, monkeypatch, caplog):
+        answer = "PRIVATE_CONVERSATION_ANSWER_V47"
+        conversation = SimpleNamespace(id=uuid4(), is_new=False, name="existing", summary="")
+        message = SimpleNamespace(id=uuid4(), query="question", answer="")
+        service = _build_service(monkeypatch, conversation, message)
+        caplog.set_level("INFO")
+
+        service.save_agent_thoughts(
+            account_id=uuid4(), app_id=uuid4(),
+            app_config={"long_term_memory": {"enable": False}},
+            conversation_id=conversation.id, message_id=message.id,
+            agent_thoughts=[_build_agent_message_thought(answer=answer)],
+        )
+
+        assert answer not in caplog.text
+
     def test_should_mark_message_error_on_error_event(self, monkeypatch):
         conversation = SimpleNamespace(id=uuid4(), is_new=False, name="自定义", summary="")
         message = SimpleNamespace(id=uuid4(), query="hello", answer="", status="", error="")
