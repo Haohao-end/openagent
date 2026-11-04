@@ -5,6 +5,7 @@ import LayoutSidebar from '@/views/layouts/components/LayoutSidebar.vue'
 
 const mocks = vi.hoisted(() => ({
   loggedIn: true,
+  credentialState: { credential: { access_token: 'token-a' } },
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
   route: {
@@ -28,11 +29,11 @@ vi.mock('vue-router', () => ({
   }),
 }))
 
-vi.mock('@/stores/credential', () => ({
-  useCredentialStore: () => ({
-    credential: {},
-  }),
-}))
+vi.mock('@/stores/credential', async () => {
+  const { reactive } = await import('vue')
+  mocks.credentialState = reactive(mocks.credentialState)
+  return { useCredentialStore: () => mocks.credentialState }
+})
 
 vi.mock('@/utils/auth', () => ({
   isCredentialLoggedIn: () => mocks.loggedIn,
@@ -127,6 +128,25 @@ describe('LayoutSidebar home navigation', () => {
       mocks.recentConversationsRef.value = []
     }
     mocks.allRecentConversations.splice(0, mocks.allRecentConversations.length)
+  })
+
+  it('clears recent conversations and reloads when the authenticated credential changes', async () => {
+    mocks.loadRecentConversations.mockImplementationOnce(async () => {
+      mocks.recentConversationsRef.value = [createRecentConversation(0)]
+    })
+    const wrapper = mountSidebar()
+    const list = wrapper.get('.recent-conversation-list')
+    Object.defineProperty(list.element, 'clientHeight', { value: 400 })
+    Object.defineProperty(list.element, 'scrollHeight', { value: 500 })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Conversation 1')
+
+    mocks.credentialState.credential = { access_token: 'token-b' }
+    await flushPromises()
+
+    expect(mocks.loadRecentConversations).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('Conversation 1')
+    wrapper.unmount()
   })
 
   it('navigates to plain home when a logged-in user clicks Home', async () => {
