@@ -507,6 +507,7 @@ watch(
 
 watch(isAuthenticated, (loggedIn) => {
   if (loggedIn) return
+  homeIntentRequestVersion.value += 1
   invalidateAssistantAgentMessages()
   accountStore.clear()
   messages.value = []
