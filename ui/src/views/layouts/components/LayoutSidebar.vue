@@ -333,16 +333,10 @@ const handleRecentConversationsLeave = () => {
 }
 
 watch(
-  () => isLoggedIn.value,
-  async (loggedIn) => {
-    if (!loggedIn) {
-      invalidateRecentConversations()
-      recentConversations.value = []
-      recentConversationsLimit.value = DEFAULT_RECENT_CONVERSATIONS_LIMIT
-      hasMoreRecentConversations.value = true
-      recentConversationsBottomLocked.value = false
-      return
-    }
+  () => credentialStore.credential,
+  async () => {
+    invalidateRecentConversations()
+    recentConversations.value = []
     await loadRecentConversations(true)
   },
   { immediate: true },
