@@ -39,7 +39,7 @@ export const useAgentNotificationPolling = () => {
           !notification.is_read,
       )
     } catch (error) {
-      console.error('Failed to fetch agent notifications:', error)
+      console.error('Failed to fetch agent notifications:', error instanceof Error ? error.name : 'unknown_error')
     } finally {
       if (currentRequest === requestGeneration) isLoading.value = false
     }

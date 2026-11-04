@@ -37,6 +37,24 @@ it.each([
 })
 
 it.each([
+  ['document', useDocumentIndexNotificationPolling],
+  ['agent', useAgentNotificationPolling],
+])('does not log private %s notification error details', async (_kind, usePolling) => {
+  mocks.getNotifications.mockReset().mockRejectedValueOnce(new Error('private notification response data'))
+  const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  let polling: any
+  const wrapper = mount({ setup() { polling = usePolling(); return () => h('div') } })
+  try {
+    await polling.fetchNotifications()
+    expect(errorSpy).toHaveBeenCalledOnce()
+    expect(errorSpy.mock.calls.flat().join(' ')).not.toContain('private notification response data')
+  } finally {
+    wrapper.unmount()
+    errorSpy.mockRestore()
+  }
+})
+
+it.each([
   ['document', useDocumentIndexNotificationPolling, { dataset_id: 'dataset', document_id: 'document', is_read: false }],
   ['agent', useAgentNotificationPolling, { app_id: 'app', app_name: 'Agent', is_read: false }],
 ])('fetches immediately when %s polling restarts during an old request', async (_kind, usePolling, notification) => {

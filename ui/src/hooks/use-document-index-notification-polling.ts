@@ -38,7 +38,7 @@ export const useDocumentIndexNotificationPolling = () => {
           Boolean(notification.dataset_id && notification.document_id) && !notification.is_read,
       )
     } catch (error) {
-      console.error('Failed to fetch notifications:', error)
+      console.error('Failed to fetch notifications:', error instanceof Error ? error.name : 'unknown_error')
     } finally {
       if (currentRequest === requestGeneration) isLoading.value = false
     }
