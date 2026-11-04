@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { useI18n } from 'vue-i18n'
@@ -74,6 +74,7 @@ const laneScrollRefs = ref<Record<LaneKey, HTMLDivElement | null>>({
   candidate: null,
 })
 const lanes = ref<CompareLane[]>([])
+const activeStreamControllers = new Set<AbortController>()
 const { draftAppConfigForm, loadDraftAppConfig } = useGetDraftAppConfig()
 const { handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
 
@@ -234,6 +235,8 @@ const streamLane = async (lane: CompareLane, userQuery: string) => {
     conversation_id: lane.lane_id,
   }
   const requestStartAt = Date.now()
+  const abortController = new AbortController()
+  activeStreamControllers.add(abortController)
 
   try {
     const resp = await promptCompareChat(
@@ -261,6 +264,7 @@ const streamLane = async (lane: CompareLane, userQuery: string) => {
           scrollLaneToBottom(lane.key)
         }
       },
+      abortController.signal,
     )
 
     const apiResp = resp as { code?: unknown; message?: unknown } | void
@@ -271,6 +275,7 @@ const streamLane = async (lane: CompareLane, userQuery: string) => {
     currentMessage.errorType = 'error'
     currentMessage.answer = getErrorMessage(error, t('appStudio.promptCompare.debugFailed'))
   } finally {
+    activeStreamControllers.delete(abortController)
     lane.loading = false
     lane.task_id = ''
     normalizeMessageMetrics(currentMessage as MessageMetrics, Math.max(Date.now() - requestStartAt, 0))
@@ -320,6 +325,8 @@ onMounted(async () => {
   await loadDraftAppConfig(appId.value)
   initializeLanes()
 })
+
+onUnmounted(() => activeStreamControllers.forEach((controller) => controller.abort()))
 </script>
 
 <template>
