@@ -561,7 +561,7 @@ class PublicAgentA2AService(BaseService):
             "metadata": {
                 "app_id": str(app.id),
                 "status": agent_result.status,
-                "error": agent_result.error,
+                "error": "公共Agent调用失败" if str(agent_result.error or "").strip() else "",
                 "capabilities": {
                     "image_input": {
                         "enabled": False,

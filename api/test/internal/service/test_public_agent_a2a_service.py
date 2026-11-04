@@ -411,6 +411,20 @@ class TestPublicAgentA2AService:
         assert result["metadata"]["app_id"] == str(app_id)
         assert result["metadata"]["status"] == "success"
 
+    def test_send_message_should_redact_agent_failure_details(self, monkeypatch):
+        app_id = uuid4()
+        secret = "SYNTHETIC_PROVIDER_CREDENTIAL"
+        service = _build_service()
+        monkeypatch.setattr(service, "_get_public_app", lambda _app_id: SimpleNamespace(id=app_id))
+        monkeypatch.setattr(service, "_invoke_public_agent", lambda *_args, **_kwargs: SimpleNamespace(
+            answer="", status=MessageStatus.ERROR.value, error=f"provider failed with credential={secret}"
+        ))
+
+        result = service.send_message(app_id, {"message": {"parts": [{"type": "text", "text": "hello"}]}})
+
+        assert result["metadata"]["error"] == "公共Agent调用失败"
+        assert secret not in repr(result)
+
     def test_send_message_should_return_multimodal_parts_and_artifacts(self, monkeypatch):
         app_id = uuid4()
         service = _build_service()
