@@ -473,14 +473,44 @@ class TestDatasetService:
             retrieval_service=SimpleNamespace(),
         )
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: dataset)
-        monkeypatch.setattr(
-            service,
-            "delete",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("db-error")),
+
+        def fail_delete(*_args):
+            raise RuntimeError("db-error")
+
+        monkeypatch.setattr(service.db.session, "delete", fail_delete, raising=False)
+        with pytest.raises(FailException):
+            service.delete_dataset(dataset.id, account)
+
+    def test_delete_dataset_should_roll_back_dataset_when_join_cleanup_fails(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset = SimpleNamespace(id=uuid4(), account_id=account.id)
+        transaction_results = []
+
+        @contextmanager
+        def auto_commit():
+            try:
+                yield
+            except Exception:
+                transaction_results.append("rolled_back")
+                raise
+            transaction_results.append("committed")
+
+        join_query = _QueryStub()
+        join_query.delete = lambda: (_ for _ in ()).throw(RuntimeError("join cleanup failed"))
+        session = SimpleNamespace(
+            delete=lambda _dataset: None,
+            query=lambda _model: join_query,
         )
+        service = _new_dataset_service(
+            db=SimpleNamespace(session=session, auto_commit=auto_commit),
+            retrieval_service=SimpleNamespace(),
+        )
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: dataset)
 
         with pytest.raises(FailException):
             service.delete_dataset(dataset.id, account)
+
+        assert transaction_results == ["rolled_back"]
 
     def test_delete_dataset_should_raise_when_dataset_not_accessible(self, monkeypatch):
         service = _new_dataset_service(
@@ -499,13 +529,13 @@ class TestDatasetService:
         join_query = _QueryStub()
         db = _DBStub(
             SimpleNamespace(
+                delete=lambda target: deleted.append(target),
                 query=lambda model: join_query if model is AppDatasetJoin else _QueryStub(),
             )
         )
         service = _new_dataset_service(db=db, retrieval_service=SimpleNamespace())
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: dataset)
         deleted = []
-        monkeypatch.setattr(service, "delete", lambda target: deleted.append(target))
         delay_calls = []
         monkeypatch.setattr(
             "internal.service.dataset_service.delete_dataset.delay",
