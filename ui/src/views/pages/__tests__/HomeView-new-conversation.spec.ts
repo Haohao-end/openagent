@@ -365,6 +365,38 @@ describe('HomeView sidebar new conversation request', () => {
     wrapper.unmount()
   })
 
+  it('does not apply a pending home intent after logout', async () => {
+    const resolveIntents: Array<(value: unknown) => void> = []
+    mocks.loadHomeIntent.mockImplementation(() => new Promise((resolve) => { resolveIntents.push(resolve) }))
+    const wrapper = shallowMount(HomeView, {
+      global: {
+        stubs: {
+          AiDynamicBackground: componentStub,
+          AiMessage: { props: ['answer'], template: '<div data-testid="assistant-introduction">{{ answer }}</div>' },
+          ChatComposer: componentStub,
+          HumanMessage: componentStub,
+          ChatConversationSkeleton: componentStub,
+          LoginModal: componentStub,
+          'a-button': componentStub,
+          'icon-down': componentStub,
+          'icon-poweroff': componentStub,
+        },
+      },
+    })
+    await flushPromises()
+    expect(resolveIntents.length).toBeGreaterThan(0)
+
+    mocks.isLoggedIn.value = false
+    await flushPromises()
+    resolveIntents.forEach((resolve) => resolve({
+      intent: 'previous account intent', confidence: 0.9, suggested_actions: [],
+    }))
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="assistant-introduction"]').text()).not.toContain('previous account intent')
+    wrapper.unmount()
+  })
+
   it('invalidates pending assistant history when the user logs out', async () => {
     const wrapper = shallowMount(HomeView, {
       global: {
