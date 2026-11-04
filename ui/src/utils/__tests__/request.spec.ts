@@ -123,6 +123,35 @@ describe('request utils', () => {
     expect(onData).toHaveBeenCalledWith({ event: 'message', data: { content: 'default-event' } })
   })
 
+  it('rejects uploads that stall instead of leaving the promise pending', async () => {
+    let xhrInstance!: XMLHttpRequest
+    class FakeXMLHttpRequest {
+      readyState = 0
+      status = 0
+      response = null
+      timeout = 0
+      ontimeout: ((event: ProgressEvent) => void) | null = null
+      responseType: XMLHttpRequestResponseType = 'json'
+      withCredentials = false
+      upload = { onprogress: null as ((event: ProgressEvent) => void) | null }
+      onreadystatechange: (() => void) | null = null
+      onerror: (() => void) | null = null
+      open = vi.fn()
+      setRequestHeader = vi.fn()
+      send = vi.fn()
+      constructor() {
+        xhrInstance = this as unknown as XMLHttpRequest
+      }
+    }
+    vi.stubGlobal('XMLHttpRequest', FakeXMLHttpRequest)
+
+    const request = upload('/files/upload')
+    expect(xhrInstance.timeout).toBe(100000)
+    expect(xhrInstance.ontimeout).toBeTypeOf('function')
+    xhrInstance.ontimeout?.(new ProgressEvent('timeout'))
+    await expect(request).rejects.toMatchObject({ message: '上传超时' })
+  })
+
   it('does not log upload response bodies', async () => {
     const response = { code: 'success', message: 'ok', data: { id: 'private-file-id' } }
     class FakeXMLHttpRequest {

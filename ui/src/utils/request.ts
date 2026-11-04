@@ -536,6 +536,7 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
 
     xhr.withCredentials = true
     xhr.responseType = 'json'
+    xhr.timeout = TIME_OUT
 
     xhr.onreadystatechange = () => {
       if (xhr.readyState !== 4) return
@@ -588,6 +589,15 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
           code: response.code,
           status: xhr.status,
           response,
+        }),
+      )
+    }
+
+    xhr.ontimeout = () => {
+      reject(
+        createRequestError({
+          message: '上传超时',
+          status: xhr.status,
         }),
       )
     }
