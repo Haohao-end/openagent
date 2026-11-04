@@ -286,7 +286,7 @@ class ConversationService(BaseService):
             # 7.检测事件是否为Agent_message
             if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
                 # 8.更新消息信息
-                logging.info(f"Updating message {message_id} with answer: {agent_thought.answer}")
+                logging.info("Updating agent response")
                 self.update(
                     message,
                     # 消息相关字段
