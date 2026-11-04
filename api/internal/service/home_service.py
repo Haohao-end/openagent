@@ -86,7 +86,7 @@ class HomeService(BaseService):
         except FailException:
             raise
         except Exception as e:
-            logging.error(f"Failed to get user intent: {str(e)}")
+            logging.error("Failed to get user intent: error_type=%s", type(e).__name__)
 
             # 尝试返回缓存的旧数据
             cached_intent = self.intent_recognition_service.get_cached_intent(
@@ -149,7 +149,7 @@ class HomeService(BaseService):
             return result
 
         except Exception as e:
-            logging.error(f"Failed to get recent messages: {str(e)}")
+            logging.error("Failed to get recent messages: error_type=%s", type(e).__name__)
             raise
 
     @classmethod

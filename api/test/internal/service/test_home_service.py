@@ -130,19 +130,22 @@ class TestHomeService:
         service,
         mock_db,
         mock_intent_service,
+        caplog,
     ):
         user = SimpleNamespace(id=uuid4())
         cached_intent = {"intent": "cached intent", "is_default": False}
         all_messages = (
             mock_db.session.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all
         )
-        all_messages.side_effect = RuntimeError("database unavailable")
+        all_messages.side_effect = RuntimeError("synthetic-db-credential")
         mock_intent_service.get_cached_intent.return_value = cached_intent
 
         result = service.get_user_intent(user)
 
         assert result == cached_intent
         mock_intent_service.recognize.assert_not_called()
+        assert "synthetic-db-credential" not in caplog.text
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_get_user_intent_single_user_message_triggers_recognition(
         self,
