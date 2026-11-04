@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
+import { defineComponent, h } from 'vue'
 import ApiKeysListView from '@/views/openapi/api-keys/ListView.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -8,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   handleUpdateApiKeyIsActive: vi.fn(),
   handleDeleteApiKey: vi.fn(),
   credentialState: { credential: { access_token: '', expire_at: 0 } },
-  apiKeys: { value: [] as Array<{ id: string }> },
+  apiKeys: { value: [] as Array<{ id: string; is_active?: boolean }> },
 }))
 
 vi.mock('vue-router', async (importOriginal) => {
@@ -35,7 +36,7 @@ vi.mock('@/stores/credential', async () => {
 
 vi.mock('@/hooks/use-api-key', async () => {
   const { ref } = await import('vue')
-  mocks.apiKeys = ref([] as Array<{ id: string }>)
+  mocks.apiKeys = ref([] as Array<{ id: string; is_active?: boolean }>)
   return {
     useGetApiKeysWithPage: () => ({
       loading: ref(false),
@@ -60,6 +61,14 @@ vi.mock('@/hooks/use-api-key', async () => {
 const buttonStub = {
   template: '<button v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>',
 }
+const tableStub = { template: '<div><slot name="columns" /></div>' }
+const tableColumnStub = defineComponent({
+  setup(_, { slots }) { return () => h('div', mocks.apiKeys.value.map((record, rowIndex) => slots.cell?.({ record, rowIndex }))) },
+})
+const switchStub = defineComponent({
+  emits: ['change'],
+  setup(_, { emit }) { return () => h('button', { 'data-testid': 'api-key-toggle', onClick: () => emit('change', false) }) },
+})
 
 describe('openapi api-keys credential state', () => {
   beforeEach(() => {
@@ -105,6 +114,25 @@ describe('openapi api-keys credential state', () => {
 
     expect(mocks.apiKeys.value).toEqual([])
     expect(mocks.loadApiKeys).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not apply a late toggle result to the next account row', async () => {
+    const wrapper = shallowMount(ApiKeysListView, {
+      props: { create_api_key: false },
+      global: { stubs: { 'a-table': tableStub, 'a-table-column': tableColumnStub, 'a-switch': switchStub } },
+    })
+    mocks.credentialState.credential = { access_token: 'token-a', expire_at: 4102444800 }
+    await flushPromises()
+    mocks.apiKeys.value = [{ id: 'user-a-key', is_active: true }]
+    await flushPromises()
+    let finishUpdate!: () => void
+    mocks.handleUpdateApiKeyIsActive.mockImplementationOnce((_id, _value, callback) => { finishUpdate = callback })
+    await wrapper.find('[data-testid="api-key-toggle"]').trigger('click')
+    mocks.credentialState.credential = { access_token: 'token-b', expire_at: 4102444800 }
+    await flushPromises()
+    mocks.apiKeys.value = [{ id: 'user-b-key', is_active: true }]
+    finishUpdate()
+    expect(mocks.apiKeys.value).toEqual([{ id: 'user-b-key', is_active: true }])
   })
 
   it('dispatches auth-required event when clicking login button', async () => {

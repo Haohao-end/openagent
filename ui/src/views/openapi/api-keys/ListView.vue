@@ -269,7 +269,7 @@ watch(
                       (value: string | number | boolean) => {
                         const nextValue = Boolean(value)
                         handleUpdateApiKeyIsActive(record.id, nextValue, () => {
-                          api_keys[rowIndex].is_active = nextValue
+                          if (api_keys[rowIndex]?.id === record.id) api_keys[rowIndex].is_active = nextValue
                         })
                       }
                     "
