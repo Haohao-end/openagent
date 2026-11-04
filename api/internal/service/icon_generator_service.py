@@ -75,9 +75,8 @@ class IconGeneratorService(BaseService):
                 logging.info(f"Kolors 生成图标成功: {icon_url}")
                 return icon_url
         except Exception as e:
-            error_msg = str(e)
-            logging.warning(f"Kolors 生成图标失败: {error_msg}")
-            errors.append(f"Kolors: {error_msg}")
+            logging.warning("Kolors 生成图标失败: error_type=%s", type(e).__name__)
+            errors.append(f"Kolors: {type(e).__name__}")
 
         # 2. 尝试使用 Qwen (通义万相)
         try:
@@ -87,9 +86,8 @@ class IconGeneratorService(BaseService):
                 logging.info(f"Qwen 生成图标成功: {icon_url}")
                 return icon_url
         except Exception as e:
-            error_msg = str(e)
-            logging.warning(f"Qwen 生成图标失败: {error_msg}")
-            errors.append(f"Qwen: {error_msg}")
+            logging.warning("Qwen 生成图标失败: error_type=%s", type(e).__name__)
+            errors.append(f"Qwen: {type(e).__name__}")
 
         # 3. 最后使用 DALLE 兜底
         try:
@@ -99,9 +97,8 @@ class IconGeneratorService(BaseService):
                 logging.info(f"DALLE 生成图标成功: {icon_url}")
                 return icon_url
         except Exception as e:
-            error_msg = str(e)
-            logging.error(f"DALLE 生成图标失败: {error_msg}")
-            errors.append(f"DALLE: {error_msg}")
+            logging.error("DALLE 生成图标失败: error_type=%s", type(e).__name__)
+            errors.append(f"DALLE: {type(e).__name__}")
 
         # 所有服务都失败，返回友好的错误信息
         error_summary = "; ".join(errors)

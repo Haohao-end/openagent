@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from io import BytesIO
 from types import SimpleNamespace
@@ -631,6 +632,23 @@ class TestIconGeneratorService:
             service.generate_icon("测试应用", "desc")
 
         assert call_order == ["kolors", "qwen", "dalle"]
+
+    def test_generate_icon_should_not_log_provider_exception_details(self, monkeypatch, caplog):
+        mock_app = Mock()
+        mock_app.config = {}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
+        service = _build_service()
+        secret = "SYNTHETIC_PROVIDER_CREDENTIAL"
+        failure = RuntimeError(f"provider response contains {secret}")
+        monkeypatch.setattr(service, "_generate_with_kolors", lambda *_args: (_ for _ in ()).throw(failure))
+        monkeypatch.setattr(service, "_generate_with_qwen", lambda *_args: (_ for _ in ()).throw(failure))
+        monkeypatch.setattr(service, "_generate_with_dalle", lambda *_args: (_ for _ in ()).throw(failure))
+
+        with caplog.at_level(logging.INFO), pytest.raises(FailException, match="图标生成服务暂时不可用"):
+            service.generate_icon("test app", "desc")
+
+        assert secret not in caplog.text
+        assert "RuntimeError" in caplog.text
 
     def test_generate_with_kolors_should_send_expected_request_payload(self, monkeypatch):
         mock_app = Mock()
