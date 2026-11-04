@@ -278,22 +278,25 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
     return
   }
 
+  const requestId = latestProviderRequest
   submitLoading.value = true
   try {
     if (isEditMode.value) {
       await updateMcpProvider(props.mcp_provider_id, payload)
+      if (requestId !== latestProviderRequest) return
       Message.success(t('space.mcp.updateSuccess'))
     } else {
       await createMcpProvider(payload)
+      if (requestId !== latestProviderRequest) return
       Message.success(t('space.mcp.createSuccess'))
     }
     emits('update:visible', false)
     emits('update:mcp_provider_id', '')
     props.callback && props.callback()
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('space.mcp.saveFailed')))
+    if (requestId === latestProviderRequest) Message.error(getErrorMessage(error, t('space.mcp.saveFailed')))
   } finally {
-    submitLoading.value = false
+    if (requestId === latestProviderRequest) submitLoading.value = false
   }
 }
 
@@ -303,6 +306,7 @@ watch(
     const requestId = ++latestProviderRequest
     latestAiRequest += 1
     loadingProvider.value = false
+    submitLoading.value = false
     generateLoading.value = false
     aiLoading.value = false
     formRef.value?.resetFields()

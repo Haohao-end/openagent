@@ -1,8 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ getMcpCategories: vi.fn(), getMcpProvider: vi.fn(), generateMcpIconPreview: vi.fn(), regenerateMcpIcon: vi.fn(), uploadImage: vi.fn(), uploadImageUrl: null as any, mcpSchemaAssistantChat: vi.fn(), messageError: vi.fn(), messageSuccess: vi.fn() }))
+const mocks = vi.hoisted(() => ({ getMcpCategories: vi.fn(), getMcpProvider: vi.fn(), createMcpProvider: vi.fn(), updateMcpProvider: vi.fn(), generateMcpIconPreview: vi.fn(), regenerateMcpIcon: vi.fn(), uploadImage: vi.fn(), uploadImageUrl: null as any, mcpSchemaAssistantChat: vi.fn(), messageError: vi.fn(), messageSuccess: vi.fn() }))
 vi.mock('@/services/mcp', () => ({
-  createMcpProvider: vi.fn(), updateMcpProvider: vi.fn(),
+  createMcpProvider: mocks.createMcpProvider, updateMcpProvider: mocks.updateMcpProvider,
   generateMcpIconPreview: mocks.generateMcpIconPreview, regenerateMcpIcon: mocks.regenerateMcpIcon,
   getMcpCategories: mocks.getMcpCategories, getMcpProvider: mocks.getMcpProvider,
 }))
@@ -152,6 +152,29 @@ describe('MCP provider request ordering', () => {
     expect(wrapper.findComponent(IconStub).props('icon')).toBe('icon-B-generated')
     expect(wrapper.findComponent(IconStub).props('loading')).toBe(false)
     expect(mocks.messageSuccess).toHaveBeenCalledWith('space.mcp.iconGenerateSuccess')
+    wrapper.unmount()
+  })
+
+  it('does not let a previous save close a reopened modal session', async () => {
+    const saving = deferred<void>()
+    mocks.createMcpProvider.mockReturnValue(saving.promise)
+    const wrapper = mountModal()
+    await wrapper.setProps({ visible: true })
+    await flushPromises()
+
+    const state = (wrapper.vm.$ as any).setupState
+    state.form.name = 'Provider A'
+    state.form.url = 'https://provider-a.example/mcp'
+    const previousSave = state.handleSubmit({ errors: undefined })
+    await flushPromises()
+
+    await wrapper.setProps({ visible: false })
+    await wrapper.setProps({ visible: true })
+    await flushPromises()
+    saving.resolve()
+    await previousSave
+
+    expect(wrapper.emitted('update:visible')).toBeUndefined()
     wrapper.unmount()
   })
 })
