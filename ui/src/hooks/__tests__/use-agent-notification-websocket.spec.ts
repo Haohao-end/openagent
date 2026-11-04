@@ -238,6 +238,29 @@ describe('useAgentNotificationWebSocket', () => {
     errorSpy.mockRestore()
   })
 
+  it('restores its listener when credentials become available after mount and logout', async () => {
+    credentialState.credential = { access_token: '', expire_at: 0 }
+    const wrapper = await createHarness()
+    const callback = vi.fn()
+    wrapper.vm.subscribeToNotifications(callback)
+    expect(ioMock).not.toHaveBeenCalled()
+
+    credentialState.credential = { access_token: 'token-1', expire_at: 4102444800 }
+    await nextTick()
+    socketInstance.connect()
+    handlers.get('agent_notification')?.({})
+    expect(callback).toHaveBeenCalledTimes(1)
+
+    credentialState.credential = { access_token: '', expire_at: 0 }
+    await nextTick()
+    credentialState.credential = { access_token: 'token-2', expire_at: 4102444800 }
+    await nextTick()
+    socketInstance.connect()
+    handlers.get('agent_notification')?.({})
+    expect(callback).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
   it('disconnects when the credential becomes unavailable', async () => {
     const wrapper = await createHarness()
 
