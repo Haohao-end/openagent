@@ -94,6 +94,8 @@ const saveApp = async ({ errors }: { errors: Record<string, ValidatedError> | un
   // 3.1 判断表单是否出错
   if (errors) return
 
+  const requestId = detailRequest
+
   // 3.2 检测是保存还是新增，调用不同的API接口
   if (props.app_id) {
     await handleUpdateApp(props.app_id, form.value)
@@ -102,7 +104,7 @@ const saveApp = async ({ errors }: { errors: Record<string, ValidatedError> | un
   }
 
   // 3.3 完成保存操作，隐藏模态窗并调用回调函数
-  emits('update:visible', false)
+  if (requestId === detailRequest) emits('update:visible', false)
   props.callback && props.callback()
 }
 
