@@ -1202,7 +1202,7 @@ const handleSubmit = async () => {
       await reloadAssistantMessages(true, selectedConversationId.value)
     } catch (error) {
       // 重新加载消息失败时，不影响用户体验
-      console.error('Failed to reload messages:', error)
+      console.error('Failed to reload messages:', error instanceof Error ? error.name : 'unknown_error')
     }
   }
 
