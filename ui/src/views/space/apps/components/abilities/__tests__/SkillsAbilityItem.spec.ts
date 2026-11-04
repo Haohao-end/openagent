@@ -175,4 +175,25 @@ describe('SkillsAbilityItem', () => {
     expect(wrapper.find('.skill-markdown').text()).toBe('latest content')
     wrapper.unmount()
   })
+
+  it('includes an earlier skill selection when a second save overlaps', async () => {
+    const firstSave = deferred<void>()
+    mocks.updateDraftAppConfig.mockReset().mockReturnValueOnce(firstSave.promise).mockResolvedValue({})
+    const wrapper = mount(SkillsAbilityItem, { props: { app_id: 'app-1', skills: [] }, global: { stubs: globalStubs } })
+    const state = (wrapper.vm.$ as any).setupState
+    const [first, second] = [
+      makeSkillBinding({ id: 'skill-1', skill_id: 'skill-1' }),
+      makeSkillBinding({ id: 'skill-2', skill_id: 'skill-2' }),
+    ]
+    const selections = [first, second].map((skill) => state.handleSelectMarketplaceSkill(skill))
+    await Promise.resolve()
+    const requestsWhileFirstSavePending = mocks.updateDraftAppConfig.mock.calls.length
+    firstSave.resolve()
+    await Promise.all(selections)
+    const savedSkills = mocks.updateDraftAppConfig.mock.calls[1]?.[1].skills.map((item: any) => item.skill_id)
+    expect(requestsWhileFirstSavePending).toBe(1)
+    expect(savedSkills).toEqual(['skill-1', 'skill-2'])
+    expect(state.activateSkills.map((item: any) => item.skill_id)).toEqual(['skill-1', 'skill-2'])
+    wrapper.unmount()
+  })
 })

@@ -177,7 +177,7 @@ const handleDeleteSkill = async (idx: number) => {
   await persistSkills(newSkills)
 }
 
-const handleSelectMarketplaceSkill = async (skill: SkillPackage) => {
+const saveMarketplaceSkill = async (skill: SkillPackage) => {
   const skillId = String(skill.id || '').trim()
   if (!skillId) return
 
@@ -194,6 +194,13 @@ const handleSelectMarketplaceSkill = async (skill: SkillPackage) => {
 
   await persistSkills([...activateSkills.value, nextSkill])
   Message.success(t('appStudio.abilities.skills.addedSuccess'))
+}
+
+let marketplaceSkillSaveQueue: Promise<void> = Promise.resolve()
+const handleSelectMarketplaceSkill = (skill: SkillPackage) => {
+  const queuedSave = marketplaceSkillSaveQueue.then(() => saveMarketplaceSkill(skill))
+  marketplaceSkillSaveQueue = queuedSave.catch(() => {})
+  return queuedSave
 }
 
 watch(
