@@ -1,3 +1,4 @@
+import logging
 from types import SimpleNamespace
 from uuid import uuid4
 import random
@@ -480,13 +481,14 @@ class TestWorkflowService:
     @pytest.mark.parametrize(
         ("failure", "event_name"),
         [
-            (RuntimeError("node execution failed"), "error"),
+            (RuntimeError("credential=SYNTHETIC_WORKFLOW_CREDENTIAL"), "error"),
             (TimeoutError("node execution timed out"), "timeout"),
         ],
     )
     def test_debug_workflow_should_persist_failure_and_emit_sse_error(
         self,
         monkeypatch,
+        caplog,
         failure,
         event_name,
     ):
@@ -525,6 +527,7 @@ class TestWorkflowService:
         )
 
         with Flask(__name__).test_request_context():
+            caplog.set_level(logging.ERROR)
             response = compact_generate_response(service.debug_workflow(workflow.id, {}, account))
             body = response.get_data(as_text=True)
 
@@ -534,6 +537,8 @@ class TestWorkflowService:
         assert updates[0][1]["state"] == []
         assert f"event: {event_name}" in body
         assert str(failure) in body
+        assert type(failure).__name__ in caplog.text
+        assert str(failure) not in caplog.text
 
     def test_get_workflow_should_raise_when_workflow_not_found(self, monkeypatch):
         service = _build_service()

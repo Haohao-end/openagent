@@ -381,7 +381,7 @@ class WorkflowService(BaseService):
                 })
                 raise
             except Exception as e:
-                logging.error(f"工作流调试失败: {str(e)}", exc_info=True)
+                logging.error("工作流调试失败: error_type=%s", type(e).__name__)
                 self.update(workflow_result, **{
                     "status": WorkflowResultStatus.FAILED.value,
                     "state": node_results,

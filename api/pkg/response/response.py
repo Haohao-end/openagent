@@ -84,7 +84,7 @@ def compact_generate_response(response: Union[Response, Generator]) -> FlaskResp
             try:
                 yield from response
             except Exception as error:
-                logging.exception("流式响应生成失败: %s", error)
+                logging.error("流式响应生成失败: error_type=%s", type(error).__name__)
                 failure_event = classify_failure_event(error)
                 payload = {
                     "event": failure_event.value,
