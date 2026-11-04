@@ -32,6 +32,7 @@ export const createNotificationWebSocket = <TNotification>(
     const subscribedChannel = ref('')
     let subscriptionGeneration = 0
     const notificationHandler = ref<NotificationHandler<TNotification> | null>(null)
+    const notificationCallback = ref<NotificationHandler<TNotification> | null>(null)
     const accessToken = computed(() => getCredentialAccessToken(credentialStore.credential))
     const isEnabled = computed(() => Boolean(accessToken.value))
 
@@ -132,9 +133,15 @@ export const createNotificationWebSocket = <TNotification>(
         subscribedChannel.value = ''
         console.error('[WebSocket] Connection error:', error.name)
       })
+      if (notificationCallback.value) {
+        const handler = (notification: TNotification) => notificationCallback.value?.(notification)
+        notificationHandler.value = handler
+        socket.value.on(options.notificationEvent, handler)
+      }
     }
 
     const subscribeToNotifications = (callback: (notification: TNotification) => void) => {
+      notificationCallback.value = callback
       if (!socket.value) {
         initializeSocket()
       }
@@ -200,6 +207,7 @@ export const createNotificationWebSocket = <TNotification>(
     )
 
     onUnmounted(() => {
+      notificationCallback.value = null
       disconnect()
     })
 
