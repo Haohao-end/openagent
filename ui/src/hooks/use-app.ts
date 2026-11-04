@@ -556,10 +556,11 @@ export const useDebugChat = () => {
     conversation_id: string = '',
     onData: (event_response: Record<string, any>) => void,
     enable_deep_thinking: boolean = false,
+    signal?: AbortSignal,
   ) => {
     try {
       loading.value = true
-      await debugChat(app_id, query, image_urls, conversation_id, onData, enable_deep_thinking)
+      await debugChat(app_id, query, image_urls, conversation_id, onData, enable_deep_thinking, signal)
     } finally {
       loading.value = false
     }

@@ -75,10 +75,11 @@ export const debugChat = (
   conversation_id: string = '',
   onData: (event_response: Record<string, any>) => void,
   enable_deep_thinking: boolean = false,
+  signal?: AbortSignal,
 ) => {
   return ssePost(
     `/apps/${app_id}/conversations`,
-    { body: { query, image_urls, conversation_id, enable_deep_thinking } },
+    { body: { query, image_urls, conversation_id, enable_deep_thinking }, signal },
     onData,
   )
 }
