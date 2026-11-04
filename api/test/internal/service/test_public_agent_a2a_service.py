@@ -198,6 +198,22 @@ class TestPublicAgentA2AService:
         assert send_calls[0][0] == app_id
         assert send_calls[0][1]["metadata"]["caller_account_id"] == str(caller_account_id)
 
+    def test_route_public_agents_should_redact_downstream_exception_details(self, monkeypatch):
+        secret = "SYNTHETIC_PROVIDER_CREDENTIAL"
+        service = _build_service(public_agent_registry_service=SimpleNamespace(search_public_apps=lambda **_: [{
+            "app_id": str(uuid4()), "name": "public agent", "description": "",
+            "a2a_card_url": "", "a2a_message_url": "",
+        }]))
+
+        def fail_send_message(**_kwargs):
+            raise RuntimeError(f"provider failed with credential={secret}")
+
+        monkeypatch.setattr(service, "send_message", fail_send_message)
+        result = service.route_public_agents("delegate", caller_account_id=uuid4())
+
+        assert result["delegated_results"][0]["error"] == "公共Agent调用失败"
+        assert secret not in repr(result)
+
     def test_route_public_agents_should_delegate_only_llm_selected_matches(self, monkeypatch):
         caller_account_id = uuid4()
         app_ids = [str(uuid4()) for _ in range(3)]

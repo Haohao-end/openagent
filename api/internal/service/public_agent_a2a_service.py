@@ -142,7 +142,7 @@ class PublicAgentA2AService(BaseService):
                         "a2a_message_url": match["a2a_message_url"],
                         "answer": "",
                         "status": "error",
-                        "error": str(exc),
+                        "error": "公共Agent调用失败",
                     }
                 )
 
