@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { markNotificationAsRead } from '@/services/notification'
 import AgentNotification from '../AgentNotification.vue'
 import type { AgentNotification as AgentNotificationType } from '@/models/agent-notification'
@@ -42,6 +42,19 @@ describe('AgentNotification.vue', () => {
     expect(wrapper.vm.notifications).toHaveLength(1)
     expect(wrapper.vm.notifications[0]).toEqual(notification)
     expect(markNotificationAsRead).toHaveBeenCalledWith('test-1')
+  })
+
+  it('does not log private mark-as-read error details', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(markNotificationAsRead).mockRejectedValueOnce(new Error('private notification response'))
+    wrapper.vm.addNotification({ id: 'private-agent' } as any)
+    try {
+      await flushPromises()
+      expect(warning).toHaveBeenCalledWith('Failed to mark agent notification as read:', 'Error')
+    } finally {
+      wrapper.vm.removeNotification('private-agent')
+      warning.mockRestore()
+    }
   })
 
   it('should not add duplicate notifications', () => {
