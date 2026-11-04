@@ -43,7 +43,7 @@ const addNotification = (notification: DocumentIndexNotification) => {
   // 立即标记为已读（调用后端 API）
   // 即使失败也不重试，只在前端标记为已显示
   Promise.resolve(markNotificationAsRead(notification.id)).catch((error) => {
-    console.warn('Failed to mark notification as read:', error)
+    console.warn('Failed to mark notification as read:', error instanceof Error ? error.name : 'unknown_error')
     // 不抛出错误，继续显示通知
   })
 

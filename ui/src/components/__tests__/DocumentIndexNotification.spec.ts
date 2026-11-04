@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { markNotificationAsRead } from '@/services/notification'
 import DocumentIndexNotification from '../DocumentIndexNotification.vue'
 import type { DocumentIndexNotification as DocumentNotificationType } from '@/models/notification'
@@ -47,6 +47,19 @@ describe('DocumentIndexNotification.vue', () => {
     expect(wrapper.vm.notifications).toHaveLength(1)
     expect(wrapper.vm.notifications[0]).toEqual(notification)
     expect(markNotificationAsRead).toHaveBeenCalledWith('doc-1')
+  })
+
+  it('does not log private mark-as-read error details', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(markNotificationAsRead).mockRejectedValueOnce(new Error('private notification response'))
+    wrapper.vm.addNotification({ id: 'private-doc' } as any)
+    try {
+      await flushPromises()
+      expect(warning).toHaveBeenCalledWith('Failed to mark notification as read:', 'Error')
+    } finally {
+      wrapper.vm.removeNotification('private-doc')
+      warning.mockRestore()
+    }
   })
 
   it('should add error notification', () => {

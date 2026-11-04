@@ -45,7 +45,7 @@ const addNotification = (notification: AgentNotification) => {
   notifications.value.push(notification)
 
   Promise.resolve(markNotificationAsRead(notification.id)).catch((error) => {
-    console.warn('Failed to mark agent notification as read:', error)
+    console.warn('Failed to mark agent notification as read:', error instanceof Error ? error.name : 'unknown_error')
   })
 
   // 设置 10 秒后自动消失
