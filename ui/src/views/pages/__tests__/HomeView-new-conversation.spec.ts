@@ -307,6 +307,28 @@ describe('HomeView sidebar new conversation request', () => {
     }
   })
 
+  it('does not log private details when starting a conversation fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.route.query = { [HOME_NEW_CONVERSATION_QUERY_KEY]: '1710835200000' }
+    mocks.handleDeleteAssistantAgentConversation.mockRejectedValueOnce(new Error('private delete response'))
+    const wrapper = shallowMount(HomeView, {
+      global: {
+        stubs: {
+          'a-button': componentStub,
+          'icon-down': componentStub,
+          'icon-poweroff': componentStub,
+        },
+      },
+    })
+    try {
+      await flushPromises()
+      expect(errorSpy).toHaveBeenCalledWith('Failed to start new assistant conversation:', 'Error')
+    } finally {
+      wrapper.unmount()
+      errorSpy.mockRestore()
+    }
+  })
+
   it('keeps the latest home intent when an older locale request resolves later', async () => {
     const resolveRequests: Array<(value: unknown) => void> = []
     mocks.loadHomeIntent.mockImplementation(() => new Promise((resolve) => { resolveRequests.push(resolve) }))
