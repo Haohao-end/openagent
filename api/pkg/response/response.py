@@ -6,7 +6,7 @@ from typing import Any, Union, Generator
 from flask import jsonify, stream_with_context, Response as FlaskResponse
 
 from .http_code import HttpCode
-from internal.core.agent.failure_utils import build_failure_observation, classify_failure_event
+from internal.core.agent.failure_utils import classify_failure_event
 
 
 @dataclass
@@ -88,7 +88,11 @@ def compact_generate_response(response: Union[Response, Generator]) -> FlaskResp
                 failure_event = classify_failure_event(error)
                 payload = {
                     "event": failure_event.value,
-                    "observation": build_failure_observation(error, "流式响应执行失败"),
+                    "observation": (
+                        "流式响应执行超时"
+                        if failure_event.value == "timeout"
+                        else "流式响应执行失败"
+                    ),
                 }
                 yield f"event: {failure_event.value}\ndata:{json_module.dumps(payload, ensure_ascii=False)}\n\n"
 
