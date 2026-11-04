@@ -89,14 +89,11 @@ watch(
 )
 
 watch(
-  isLoggedIn,
-  async (loggedIn) => {
-    if (!loggedIn) {
-      api_keys.value = []
-      createOrUpdateApiKeyModalVisible.value = false
-      return
-    }
-    await loadApiKeysSafely(true)
+  () => credentialStore.credential,
+  async (credential) => {
+    api_keys.value = []
+    createOrUpdateApiKeyModalVisible.value = false
+    if (isCredentialLoggedIn(credential)) await loadApiKeysSafely(true)
   },
   { immediate: true },
 )
