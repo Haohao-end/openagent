@@ -184,7 +184,7 @@ const loadMoreRecentConversations = async () => {
   } catch (error) {
     recentConversationsLimit.value = previousLimit
     recentConversationsBottomLocked.value = false
-    console.error('Failed to load more recent conversations:', error)
+    console.error('Failed to load more recent conversations:', error instanceof Error ? error.name : 'unknown_error')
   }
 }
 
