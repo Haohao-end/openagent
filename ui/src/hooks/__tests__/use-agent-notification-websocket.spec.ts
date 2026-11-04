@@ -212,18 +212,30 @@ describe('useAgentNotificationWebSocket', () => {
     const acknowledgeSubscription = timeoutEmit.mock.calls[0][1]
     acknowledgeSubscription(null, {
       ok: false,
-      error: 'unauthorized',
+      error: 'token=private-subscription-detail',
     })
     await nextTick()
 
     expect(wrapper.vm.isReady).toBe(false)
     expect(warnSpy).toHaveBeenCalledWith(
       '[WebSocket] Failed to subscribe agent notifications:',
-      { ok: false, error: 'unauthorized' },
+      'server_rejected',
     )
+    expect(warnSpy.mock.calls.flat().join(' ')).not.toContain('private-subscription-detail')
 
     warnSpy.mockRestore()
     wrapper.unmount()
+  })
+
+  it('does not log raw socket connection error details', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const wrapper = await createHarness()
+    handlers.get('connect_error')?.(new Error('token=private-connection-detail'))
+
+    expect(errorSpy).toHaveBeenCalledWith('[WebSocket] Connection error:', 'Error')
+    expect(errorSpy.mock.calls.flat().join(' ')).not.toContain('private-connection-detail')
+    wrapper.unmount()
+    errorSpy.mockRestore()
   })
 
   it('disconnects when the credential becomes unavailable', async () => {

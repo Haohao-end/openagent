@@ -60,7 +60,7 @@ export const createNotificationWebSocket = <TNotification>(
               accessToken.value !== token || !currentSocket.connected) return
           if (error || !response?.ok || !response.channel) {
             subscribedChannel.value = ''
-            console.warn(options.subscribeFailureLogMessage, error || response)
+            console.warn(options.subscribeFailureLogMessage, error?.name || 'server_rejected')
             return
           }
 
@@ -130,7 +130,7 @@ export const createNotificationWebSocket = <TNotification>(
         subscriptionGeneration++
         isConnected.value = false
         subscribedChannel.value = ''
-        console.error('[WebSocket] Connection error:', error)
+        console.error('[WebSocket] Connection error:', error.name)
       })
     }
 
