@@ -267,6 +267,27 @@ describe('HomeView sidebar new conversation request', () => {
     })
   })
 
+  it('does not log private details when initial assistant history fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.loadAssistantAgentMessages.mockRejectedValueOnce(new Error('private assistant history'))
+    const wrapper = shallowMount(HomeView, {
+      global: {
+        stubs: {
+          'a-button': componentStub,
+          'icon-down': componentStub,
+          'icon-poweroff': componentStub,
+        },
+      },
+    })
+    try {
+      await flushPromises()
+      expect(errorSpy).toHaveBeenCalledWith('Failed to load initial messages:', 'Error')
+    } finally {
+      wrapper.unmount()
+      errorSpy.mockRestore()
+    }
+  })
+
   it('keeps the latest home intent when an older locale request resolves later', async () => {
     const resolveRequests: Array<(value: unknown) => void> = []
     mocks.loadHomeIntent.mockImplementation(() => new Promise((resolve) => { resolveRequests.push(resolve) }))

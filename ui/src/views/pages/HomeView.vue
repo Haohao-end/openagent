@@ -450,7 +450,7 @@ const initializeHomeAfterLogin = async () => {
     }
     await loadSelectedConversationName(selectedConversationId.value)
   } catch (error) {
-    console.error('Failed to load initial messages:', error)
+    console.error('Failed to load initial messages:', error instanceof Error ? error.name : 'unknown_error')
   }
 
   if (isHomeRoute.value) {
