@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import VChart from 'vue-echarts'
@@ -280,6 +280,8 @@ const trendInsights = computed(() => {
 onMounted(() => {
   loadAppAnalysis(String(route.params?.app_id))
 })
+
+watch(() => route.params?.app_id, (appId) => void loadAppAnalysis(String(appId ?? '')))
 </script>
 
 <template>

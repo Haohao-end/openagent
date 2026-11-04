@@ -1,10 +1,12 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { reactive } from 'vue'
 
 import AnalysisView from '../AnalysisView.vue'
 
 const mocks = vi.hoisted(() => ({
   loadAppAnalysis: vi.fn(),
+  route: { params: { app_id: 'app-1' } },
   appAnalysis: {
     total_messages: { data: 128, pop: 12 },
     active_accounts: { data: 16, pop: 4 },
@@ -32,13 +34,10 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('vue-router', () => ({
-  useRoute: () => ({
-    params: {
-      app_id: 'app-1',
-    },
-  }),
-}))
+vi.mock('vue-router', async () => {
+  const { reactive } = await import('vue')
+  return { useRoute: () => reactive(mocks.route) }
+})
 
 vi.mock('vue-echarts', () => ({
   default: {
@@ -165,5 +164,8 @@ describe('AnalysisView', () => {
     expect(wrapper.text()).not.toContain('过去 7 天关键业务指标')
     expect(wrapper.text()).not.toContain('趋势分布与关键统计特征')
     expect(wrapper.text()).not.toContain('近 7 天')
+    reactive(mocks.route).params.app_id = 'app-2'
+    await flushPromises()
+    expect(mocks.loadAppAnalysis).toHaveBeenLastCalledWith('app-2')
   })
 })
