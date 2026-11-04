@@ -681,10 +681,19 @@ watch(
   async (newValue, oldValue) => {
     const newConversationId = normalizeConversationId(newValue)
     const oldConversationId = normalizeConversationId(oldValue)
-    if (newConversationId === oldConversationId) return
-    if (isStreamingResponse.value) return
+    if (newConversationId === oldConversationId || newConversationId === selectedConversationId.value) return
+    if (isStreamingResponse.value) {
+      streamGeneration += 1
+      streamAbortController?.abort()
+      streamAbortController = null
+      isStreamingResponse.value = false
+      stopAutoScrollTicker()
+    }
 
     selectedConversationId.value = newConversationId
+    message_id.value = ''
+    task_id.value = ''
+    clearSuggestedQuestions()
     await loadConversationMessages(true)
     const hasFocusedTargetMessage = await focusRouteMessageIfNeeded()
     if (!hasFocusedTargetMessage) {
