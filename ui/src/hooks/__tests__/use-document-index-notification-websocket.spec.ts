@@ -188,7 +188,7 @@ describe('useDocumentIndexNotificationWebSocket', () => {
     expect(wrapper.vm.isReady).toBe(false)
     expect(warnSpy).toHaveBeenCalledWith(
       '[WebSocket] Failed to subscribe document notifications:',
-      { ok: false, error: 'unauthorized' },
+      'server_rejected',
     )
 
     warnSpy.mockRestore()
