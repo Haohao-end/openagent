@@ -36,3 +36,17 @@ def test_emit_notification_to_user_failure_log_omits_user_and_error_text(monkeyp
     assert user_id not in caplog.text
     assert "PRIVATE_NOTIFICATION_PAYLOAD" not in caplog.text
     assert "error_type=RuntimeError" in caplog.text
+
+
+def test_emit_notification_to_user_success_log_omits_user_id(monkeypatch, caplog):
+    user_id = "private-user-room"
+    caplog.set_level("DEBUG")
+
+    class _Socket:
+        def emit(self, *_args, **_kwargs):
+            return None
+
+    monkeypatch.setattr(socketio_extension, "socketio", _Socket())
+    WebSocketManager().emit_notification_to_user(user_id, {})
+
+    assert user_id not in caplog.text
