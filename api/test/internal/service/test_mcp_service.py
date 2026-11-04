@@ -2,10 +2,11 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from internal.exception import ValidateErrorException
 from internal.lib.helper import sanitize_public_url
+import internal.service.mcp_service as mcp_service_module
 from internal.service.mcp_service import McpService
 
 
@@ -207,6 +208,22 @@ def test_get_mcp_providers_with_page_should_return_empty_when_table_missing():
     assert providers == []
     assert paginator.total_record == 0
     assert paginator.total_page == 0
+
+
+def test_get_mcp_providers_with_page_should_propagate_database_inspection_errors(monkeypatch):
+    service = _build_service(table_exists=True)
+    service.db.engine = object()
+    service._has_mcp_provider_table = lambda: McpService._has_mcp_provider_table(service)
+    error = OperationalError("SELECT 1", {}, ConnectionError("database unavailable"))
+
+    class _Inspector:
+        def has_table(self, _table_name):
+            raise error
+
+    monkeypatch.setattr(mcp_service_module, "inspect", lambda _engine: _Inspector())
+
+    with pytest.raises(OperationalError):
+        service.get_mcp_providers_with_page(_req(), SimpleNamespace(id="account"))
 
 
 def test_get_public_mcp_providers_with_page_should_support_catalog_integer_timestamps():

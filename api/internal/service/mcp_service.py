@@ -57,10 +57,7 @@ class McpService(BaseService):
         return base64.urlsafe_b64decode(f"{normalized}{padding}".encode("utf-8")).decode("utf-8")
 
     def _has_mcp_provider_table(self) -> bool:
-        try:
-            return inspect(self.db.engine).has_table(McpProvider.__tablename__)
-        except Exception:
-            return False
+        return inspect(self.db.engine).has_table(McpProvider.__tablename__)
 
     @staticmethod
     def _is_missing_mcp_provider_table_error(error: Exception) -> bool:
