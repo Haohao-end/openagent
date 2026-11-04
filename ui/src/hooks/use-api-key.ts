@@ -13,6 +13,7 @@ import {
   updateApiKeyIsActive,
 } from '@/services/api-key'
 import { Message, Modal } from '@arco-design/web-vue'
+import { useCredentialStore } from '@/stores/credential'
 const parsePositiveIntegerQuery = (value: unknown, fallbackValue: number): number => {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed < 1) return fallbackValue
@@ -22,6 +23,7 @@ const parsePositiveIntegerQuery = (value: unknown, fallbackValue: number): numbe
 export const useGetApiKeysWithPage = () => {
   // 1.定义hooks所需数据
   const route = useRoute()
+  const credentialStore = useCredentialStore()
   const loading = ref(false)
   const api_keys = ref<GetApiKeysWithPageResponse['data']['list']>([])
   const defaultPaginator = {
@@ -36,6 +38,7 @@ export const useGetApiKeysWithPage = () => {
   // 2.定义加载数据函数
   const loadApiKeys = async (init: boolean = false) => {
     const requestId = ++latestLoadRequest
+    const credential = credentialStore.credential
     if (!init && paginator.value.current_page > paginator.value.total_page) {
       loading.value = false
       return
@@ -50,16 +53,16 @@ export const useGetApiKeysWithPage = () => {
           page_size: pageSize,
         })
       ).data
-      if (requestId !== latestLoadRequest) return
+      if (requestId !== latestLoadRequest || credential !== credentialStore.credential) return
       if (data.paginator.total_record > 0 && data.paginator.current_page > data.paginator.total_page) {
         data = (await getApiKeysWithPage({ current_page: data.paginator.total_page, page_size: pageSize })).data
-        if (requestId !== latestLoadRequest) return
+        if (requestId !== latestLoadRequest || credential !== credentialStore.credential) return
       }
 
       paginator.value = data.paginator
       api_keys.value = data.list
     } catch (error) {
-      if (requestId === latestLoadRequest) throw error
+      if (requestId === latestLoadRequest && credential === credentialStore.credential) throw error
     } finally {
       if (requestId === latestLoadRequest) loading.value = false
     }
