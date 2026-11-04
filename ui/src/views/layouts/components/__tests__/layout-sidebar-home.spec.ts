@@ -174,6 +174,31 @@ describe('LayoutSidebar home navigation', () => {
     }
   })
 
+  it('does not log private details when sidebar load-more pagination fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const page = Array.from({ length: 20 }, (_item, index) => createRecentConversation(index))
+    mocks.loadRecentConversations
+      .mockReset()
+      .mockImplementationOnce(async () => { mocks.recentConversationsRef.value = page as any })
+      .mockRejectedValueOnce(new Error('private conversation response'))
+    const wrapper = mountSidebar()
+    const list = wrapper.get('.recent-conversation-list')
+    Object.defineProperties(list.element, {
+      scrollTop: { value: 400, writable: true, configurable: true },
+      clientHeight: { value: 200, configurable: true },
+      scrollHeight: { value: 600, configurable: true },
+    })
+    try {
+      await flushPromises()
+      await list.trigger('scroll')
+      await flushPromises()
+      expect(errorSpy).toHaveBeenCalledWith('Failed to load more recent conversations:', 'Error')
+    } finally {
+      wrapper.unmount()
+      errorSpy.mockRestore()
+    }
+  })
+
   it('uses different icons for workflow, skills, and mcp stores', async () => {
     const wrapper = mountSidebar()
     await flushPromises()
