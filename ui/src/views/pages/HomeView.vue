@@ -738,7 +738,7 @@ const startNewAssistantConversation = async (
     emitRecentConversationsRefresh()
     return true
   } catch (error) {
-    console.error('Failed to start new assistant conversation:', error)
+    console.error('Failed to start new assistant conversation:', error instanceof Error ? error.name : 'unknown_error')
     Message.error(options.errorMessage || t('home.messages.startNewConversationFailed'))
     return false
   } finally {
