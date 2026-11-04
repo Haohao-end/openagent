@@ -191,8 +191,8 @@ class DatasetService(BaseService):
 
         try:
             # 2.删除知识库基础记录以及知识库和应用关联的记录
-            self.delete(dataset)
             with self.db.auto_commit():
+                self.db.session.delete(dataset)
                 self.db.session.query(AppDatasetJoin).filter(
                     AppDatasetJoin.dataset_id == dataset_id,
                 ).delete()
