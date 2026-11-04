@@ -315,6 +315,29 @@ describe('HomeView deep thinking submit', () => {
     )
   })
 
+  it('does not log private details when post-chat history synchronization fails', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.route.query = { conversation_id: 'conversation-1' }
+    mocks.route.fullPath = '/home?conversation_id=conversation-1'
+    mocks.messagesRef.value = [{ id: 'history', conversation_id: 'conversation-1', query: 'old', answer: '', agent_thoughts: [] }] as any
+    mocks.loadAssistantAgentMessages.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('private history response'))
+    mocks.handleAssistantAgentChat.mockImplementationOnce((_query, _images, _conversation, onEvent) => {
+      onEvent({ event: 'agent_message', data: { message_id: 'reply-1', task_id: 'task-1', conversation_id: 'conversation-1', thought: 'reply' } })
+    })
+    const wrapper = shallowMount(HomeView, {
+      global: { stubs: ['a-button', 'icon-down', 'icon-poweroff'] },
+    })
+    try {
+      await flushPromises()
+      mocks.queryRef.value = 'new question'
+      await (wrapper.vm.$ as any).setupState.handleSubmit()
+      expect(errorSpy).toHaveBeenCalledWith('Failed to reload messages:', 'Error')
+    } finally {
+      wrapper.unmount()
+      errorSpy.mockRestore()
+    }
+  })
+
   it('aborts assistant chat streaming when HomeView unmounts', async () => {
     let resolveStream!: () => void
     let signal: AbortSignal | undefined
