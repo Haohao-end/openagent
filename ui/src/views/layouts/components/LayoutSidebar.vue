@@ -122,7 +122,7 @@ const bootstrapRecentConversations = async () => {
       }
     }
   } catch (error) {
-    console.error('Failed to bootstrap recent conversations:', error)
+    console.error('Failed to bootstrap recent conversations:', error instanceof Error ? error.name : 'unknown_error')
   } finally {
     recentConversationsBootstrapRunning.value = false
   }
