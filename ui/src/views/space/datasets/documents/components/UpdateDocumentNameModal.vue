@@ -23,9 +23,11 @@ const { loading: updateDocumentNameLoading, handleUpdateDocumentName } = useUpda
 const form = ref({ name: '' })
 const formRef = ref<InstanceType<typeof Form>>()
 const { t } = useI18n()
+let modalGeneration = 0
 
 // 2.定义关闭模态窗函数，执行关闭模态窗并重置表单操作
 const hideModal = () => {
+  modalGeneration += 1
   emits('update:visible', false)
   formRef.value?.resetFields()
 }
@@ -36,7 +38,9 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
   if (errors) return
 
   // 3.3 调用处理器发起请求
+  const generation = modalGeneration
   await handleUpdateDocumentName(props.dataset_id, props.document_id, form.value.name)
+  if (generation !== modalGeneration) return
 
   // 3.4 隐藏模态窗并重置表单
   hideModal()
@@ -49,8 +53,10 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
 watch(
   () => props.visible,
   async (newValue: boolean) => {
+    const generation = ++modalGeneration
     if (newValue) {
       await loadDocument(props.dataset_id, props.document_id)
+      if (generation !== modalGeneration) return
 
       formRef.value?.resetFields()
       form.value.name = document.value.name
