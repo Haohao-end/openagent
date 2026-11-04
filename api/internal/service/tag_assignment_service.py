@@ -169,7 +169,7 @@ class TagAssignmentService:
             return []
 
         except Exception as e:
-            logging.exception(f"使用DeepSeek分配标签失败: {str(e)}")
+            logging.error("使用DeepSeek分配标签失败: error_type=%s", type(e).__name__)
             return []
 
     @staticmethod
