@@ -115,8 +115,8 @@ class IntentRecognitionService(BaseService):
             return result
 
         except Exception as e:
-            logging.error(f"Intent recognition failed: {str(e)}")
-            raise FailException(f"意图识别失败: {str(e)}")
+            logging.error("Intent recognition failed: error_type=%s", type(e).__name__)
+            raise FailException("意图识别失败，请稍后重试") from None
 
     def _build_langchain_messages(self, messages: list[dict[str, str]]) -> list[BaseMessage]:
         """构建LangChain消息列表"""
