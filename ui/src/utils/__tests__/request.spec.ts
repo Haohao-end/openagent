@@ -100,6 +100,17 @@ describe('request utils', () => {
     expect(onData).toHaveBeenNthCalledWith(2, { event: 'message', data: { content: 'crlf' } })
   })
 
+  it('joins multiple SSE data fields before parsing JSON', async () => {
+    const onData = vi.fn()
+    const stream = 'event: message\ndata: {"content":\ndata: "joined"}\n\n'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(stream, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    })))
+    await ssePost('/stream', {}, onData)
+    expect(onData).toHaveBeenCalledWith({ event: 'message', data: { content: 'joined' } })
+  })
+
   it('does not log upload response bodies', async () => {
     const response = { code: 'success', message: 'ok', data: { id: 'private-file-id' } }
     class FakeXMLHttpRequest {
