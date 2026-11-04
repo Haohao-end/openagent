@@ -304,7 +304,7 @@ class TestConversationServiceBasics:
         assert captured["llm"].model == "deepseek-chat"
         assert captured["parser"] == "output-parser"
 
-    def test_generate_conversation_name_should_fallback_when_subject_extract_failed(self, monkeypatch):
+    def test_generate_conversation_name_should_fallback_when_subject_extract_failed(self, monkeypatch, caplog):
         class _Prompt:
             def __or__(self, other):
                 return other
@@ -312,6 +312,9 @@ class TestConversationServiceBasics:
         class _ConversationInfo:
             def __init__(self):
                 self._read_count = 0
+
+            def __repr__(self):
+                return "<ConversationInfo synthetic-private-conversation>"
 
             @property
             def subject(self):
@@ -325,7 +328,6 @@ class TestConversationServiceBasics:
             def invoke(self, _payload):
                 return _ConversationInfo()
 
-        logged = {}
         monkeypatch.setattr(
             "internal.service.conversation_service.ChatPromptTemplate.from_messages",
             lambda _messages: _Prompt(),
@@ -336,15 +338,12 @@ class TestConversationServiceBasics:
                 with_structured_output=lambda _schema: _StructuredLLM(),
             ),
         )
-        monkeypatch.setattr(
-            "internal.service.conversation_service.logging.exception",
-            lambda message: logged.setdefault("message", message),
-        )
-
         name = ConversationService.generate_conversation_name("hello")
 
         assert name == "新的会话"
-        assert "提取会话名称出错" in logged["message"]
+        assert "synthetic-private-conversation" not in caplog.text
+        assert "subject read failed" not in caplog.text
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_generate_conversation_name_should_truncate_long_subject(self, monkeypatch):
         class _Prompt:
@@ -423,7 +422,7 @@ class TestConversationServiceBasics:
         assert captured_histories["value"] == "Human: hi\nAI: hello"
         assert questions == ["q1", "q2", "q3"]
 
-    def test_generate_suggested_questions_should_fallback_on_extract_error(self, monkeypatch):
+    def test_generate_suggested_questions_should_fallback_on_extract_error(self, monkeypatch, caplog):
         class _Prompt:
             def __or__(self, other):
                 return other
@@ -431,6 +430,9 @@ class TestConversationServiceBasics:
         class _SuggestedQuestions:
             def __init__(self):
                 self._read_count = 0
+
+            def __repr__(self):
+                return "<SuggestedQuestions synthetic-private-suggestion>"
 
             @property
             def questions(self):
@@ -444,7 +446,6 @@ class TestConversationServiceBasics:
             def invoke(self, _payload):
                 return _SuggestedQuestions()
 
-        logged = {}
         monkeypatch.setattr(
             "internal.service.conversation_service.ChatPromptTemplate.from_messages",
             lambda _messages: _Prompt(),
@@ -455,15 +456,12 @@ class TestConversationServiceBasics:
                 with_structured_output=lambda _schema: _StructuredLLM(),
             ),
         )
-        monkeypatch.setattr(
-            "internal.service.conversation_service.logging.exception",
-            lambda message: logged.setdefault("message", message),
-        )
-
         questions = ConversationService.generate_suggested_questions("history")
 
         assert questions == []
-        assert "生成建议问题出错" in logged["message"]
+        assert "synthetic-private-suggestion" not in caplog.text
+        assert "questions read failed" not in caplog.text
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_generate_suggested_questions_should_return_empty_when_questions_missing(self, monkeypatch):
         class _Prompt:
