@@ -1432,7 +1432,7 @@ class TestAssistantAgentService:
         assert done_payload["suggested_questions_message_id"] == str(latest_message.id)
 
     def test_generate_introduction_should_emit_error_event_when_stream_failed(
-        self, monkeypatch
+        self, monkeypatch, caplog
     ):
         latest_message = SimpleNamespace(id=uuid4(), query="你好", answer="你好呀")
 
@@ -1465,11 +1465,15 @@ class TestAssistantAgentService:
         class _FakeLLM:
             @staticmethod
             def stream(_messages):
-                raise RuntimeError("stream boom")
+                raise RuntimeError("synthetic-assistant-provider-secret")
 
         monkeypatch.setattr(
             "internal.service.assistant_agent_service.DeepSeekChat",
             lambda **_kwargs: _FakeLLM(),
+        )
+        monkeypatch.setattr(
+            "internal.service.assistant_agent_service.trim_messages",
+            lambda **kwargs: kwargs["messages"],
         )
         service = AssistantAgentService(
             db=SimpleNamespace(session=_Session()),
@@ -1485,6 +1489,8 @@ class TestAssistantAgentService:
         assert events[0].startswith("event: error")
         payload = json.loads(events[0].split("data:", 1)[1].strip())
         assert "个性化介绍生成失败" in payload["observation"]
+        assert "synthetic-assistant-provider-secret" not in caplog.text
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_get_conversations_should_return_active_flag_and_timestamps(self, app):
         assistant_agent_id = uuid4()

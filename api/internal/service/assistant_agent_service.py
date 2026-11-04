@@ -510,8 +510,8 @@ class AssistantAgentService(BaseService):
                 introduction += chunk_content
                 data = {"content": chunk_content}
                 yield f"event: intro_chunk\ndata:{json.dumps(data)}\n\n"
-        except Exception:
-            logging.exception("辅助Agent介绍流式生成失败")
+        except Exception as e:
+            logging.error("辅助Agent介绍流式生成失败: error_type=%s", type(e).__name__)
             error_data = {"observation": "个性化介绍生成失败，请稍后重试"}
             yield f"event: error\ndata:{json.dumps(error_data)}\n\n"
             return
