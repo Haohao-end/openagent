@@ -123,6 +123,16 @@ describe('request utils', () => {
     expect(onData).toHaveBeenCalledWith({ event: 'message', data: { content: 'default-event' } })
   })
 
+  it('resets event names after empty SSE frames', async () => {
+    const onData = vi.fn()
+    const stream = 'event: empty-frame\n\ndata: {"content":"message"}\n\n'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(stream, {
+      status: 200, headers: { 'Content-Type': 'text/event-stream' },
+    })))
+    await ssePost('/stream', {}, onData)
+    expect(onData).toHaveBeenCalledWith({ event: 'message', data: { content: 'message' } })
+  })
+
   it('rejects uploads that stall instead of leaving the promise pending', async () => {
     let xhrInstance!: XMLHttpRequest
     class FakeXMLHttpRequest {

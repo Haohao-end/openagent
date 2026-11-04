@@ -372,7 +372,10 @@ const handleStream = <TData>(
     let data = ''
 
     const emitEvent = () => {
-      if (data === '') return
+      if (data === '') {
+        event = ''
+        return
+      }
       const parsedData = parseStreamPayload<TData>(data)
       onData({ event: event || 'message', data: parsedData })
       event = ''
