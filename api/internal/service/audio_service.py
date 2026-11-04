@@ -64,7 +64,7 @@ class AudioService(BaseService):
             resp.raise_for_status()
             return resp.json()["text"].strip()
         except Exception as e:
-            logger.exception("语音转文本请求失败", exc_info=e)
+            logger.error("语音转文本请求失败: error_type=%s", type(e).__name__)
             raise FailException("语音识别请求失败，请稍后重试")
 
     def message_to_audio(self, message_id: UUID, account: Account) -> Generator:
