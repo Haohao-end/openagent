@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useVueFlow } from '@vue-flow/core'
 import { Message } from '@arco-design/web-vue'
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDebugWorkflow } from '@/hooks/use-workflow'
 import { copyTextToClipboard } from '@/utils/clipboard'
@@ -46,6 +46,7 @@ const form = ref<Record<string, string | number | boolean>>({})
 const nodeResults = ref<DebugNodeResult[]>([])
 const succeededNodeIds = ref<Set<string>>(new Set())
 const activatedTab = ref('input')
+let debugRunGeneration = 0
 const {
   error: debugWorkflowError,
   loading: debugWorkflowLoading,
@@ -87,6 +88,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
 
   // 6.2 检查表单是否出错，如果出错则直接结束
   if (errors) return
+  const requestId = ++debugRunGeneration
 
   // 6.3 将tab选项切换到输出选项卡
   activatedTab.value = 'output'
@@ -97,6 +99,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
       props.workflow_id,
       form.value,
       (event_response: Record<string, unknown>) => {
+        if (requestId !== debugRunGeneration) return
         const eventName = typeof event_response.event === 'string' ? event_response.event : ''
         const payload = event_response.data
 
@@ -133,10 +136,13 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
       },
     )
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error || '')
-    debugWorkflowError.value = errorMessage.trim() || t('workflowEditor.runFailed')
+    if (requestId === debugRunGeneration) {
+      const errorMessage = error instanceof Error ? error.message : String(error || '')
+      debugWorkflowError.value = errorMessage.trim() || t('workflowEditor.runFailed')
+    }
   }
 
+  if (requestId !== debugRunGeneration) return
   // 6.5 如果调试成功（没有错误且有输出结果），触发 debug-success 事件
   if (!debugWorkflowError.value && hasOutputs.value) {
     emits('debug-success')
@@ -148,15 +154,20 @@ watch(
   () => props.visible,
   (newValue) => {
     if (newValue) {
+      debugRunGeneration += 1
       debugWorkflowError.value = ''
       nodeResults.value = []
       succeededNodeIds.value = new Set()
       clearDebugCanvas(nodes.value, edges.value)
       activatedTab.value = 'input'
       form.value = {}
+    } else {
+      debugRunGeneration += 1
     }
   },
 )
+
+onUnmounted(() => { debugRunGeneration += 1 })
 </script>
 
 <template>
