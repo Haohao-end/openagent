@@ -536,7 +536,7 @@ watch(
       await loadSelectedConversationName(selectedConversationId.value)
       await nextTick(() => scrollChatToBottom())
     } catch (error) {
-      console.error('Failed to reload messages when conversation_id changed:', error)
+      console.error('Failed to reload messages when conversation_id changed:', error instanceof Error ? error.name : 'unknown_error')
     }
   },
 )
