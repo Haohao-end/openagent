@@ -34,7 +34,7 @@ const originTextToSpeechForm = ref({ ...cloneDeep(textToSpeechForm.value) })
 
 // 2.定义检查表单修改函数
 const isFormModified = () => {
-    return isEqual(originTextToSpeechForm.value, textToSpeechForm.value)
+    return !isEqual(originTextToSpeechForm.value, textToSpeechForm.value)
 }
 
 // 3.隐藏文本转语音配置模态窗
