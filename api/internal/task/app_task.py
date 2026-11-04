@@ -135,12 +135,12 @@ def sync_public_app_registry(self, app_id: str) -> None:
     except (APIConnectionError, httpx.TransportError) as exc:
         countdown = _public_app_registry_retry_countdown(getattr(self.request, "retries", 0))
         logger.warning(
-            "Transient connection error in sync_public_app_registry task, app_id=%s, retry_in=%ss",
+            "Transient connection error in sync_public_app_registry task, app_id=%s, retry_in=%ss, error_type=%s",
             normalized_app_id,
             countdown,
-            exc_info=True,
+            type(exc).__name__,
         )
         raise self.retry(exc=exc, countdown=countdown)
-    except Exception as e:
-        logger.exception("Error in sync_public_app_registry task: %s", str(e))
+    except Exception as exc:
+        logger.error("Error in sync_public_app_registry task: error_type=%s", type(exc).__name__)
         raise
