@@ -89,8 +89,9 @@ export const promptCompareChat = (
   app_id: string,
   req: PromptCompareChatRequest,
   onData: (event_response: Record<string, any>) => void,
+  signal?: AbortSignal,
 ) => {
-  return ssePost(`/apps/${app_id}/prompt-compare/chat`, { body: req }, onData)
+  return ssePost(`/apps/${app_id}/prompt-compare/chat`, { body: req, signal }, onData)
 }
 
 // 停止某次应用的调试会话
