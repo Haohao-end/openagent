@@ -58,7 +58,7 @@ const originReviewConfigForm = ref({ ...cloneDeep(reviewConfigForm.value) })
 
 // 2.定义检查表单修改函数
 const isFormModified = () => {
-  return isEqual(originReviewConfigForm.value, reviewConfigForm.value)
+  return !isEqual(originReviewConfigForm.value, reviewConfigForm.value)
 }
 
 // 3.隐藏审核配置模态窗处理器
