@@ -624,15 +624,19 @@ export const useGetPublishedConfig = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const published_config = ref<Record<string, any>>({})
+  let latestRequest = 0
 
   // 2.定义加载数据函数
   const loadPublishedConfig = async (app_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getPublishedConfig(app_id)
-      published_config.value = resp.data
+      if (requestId === latestRequest) published_config.value = resp.data
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
