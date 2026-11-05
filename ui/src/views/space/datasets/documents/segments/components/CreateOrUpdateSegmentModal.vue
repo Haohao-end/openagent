@@ -30,6 +30,7 @@ const hideModal = () => emits('update:visible', false)
 const saveSegment = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断表单是否出错
   if (errors) return
+  const session = modalSession
 
   // 3.2 检测是保存还是新增，调用不同的API接口
   if (isUpdateOperation.value) {
@@ -49,6 +50,8 @@ const saveSegment = async ({ errors }: { errors: Record<string, ValidatedError> 
     )
   }
 
+  if (session !== modalSession || !props.visible) return
+
   // 3.5 完成保存操作，隐藏模态窗并调用回调函数
   emits('update:visible', false)
   props.callback && props.callback()
@@ -56,9 +59,11 @@ const saveSegment = async ({ errors }: { errors: Record<string, ValidatedError> 
 
 // 4.监听模态窗显示状态变化
 let latestLoadRequest = 0
+let modalSession = 0
 watch(
-  () => props.visible,
-  async (newValue) => {
+  () => [props.visible, props.dataset_id, props.document_id, props.segment_id] as const,
+  async ([newValue]) => {
+    modalSession += 1
     const requestId = ++latestLoadRequest
     // 4.1 清除表单校验信息
     formRef.value?.resetFields()
