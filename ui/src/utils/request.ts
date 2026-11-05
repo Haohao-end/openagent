@@ -40,6 +40,7 @@ type UploadOptions = {
   headers?: Record<string, string>
   data?: Document | XMLHttpRequestBodyInit | null
   onprogress?: NonNullable<XMLHttpRequestUpload['onprogress']>
+  signal?: AbortSignal
 }
 
 type RequestOptions = RequestInit & {
@@ -531,6 +532,9 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
+    const signal = mergedOptions.signal, abort = () => xhr.abort()
+    const removeAbortListener = () => signal?.removeEventListener('abort', abort)
+    const rejectAbort = () => reject(new DOMException('The operation was aborted.', 'AbortError'))
 
     xhr.open(mergedOptions.method, mergedOptions.url)
     Object.entries(mergedOptions.headers).forEach(([key, value]) => {
@@ -543,6 +547,7 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
 
     xhr.onreadystatechange = () => {
       if (xhr.readyState !== 4) return
+      removeAbortListener()
 
       if (xhr.status !== 200) {
         reject(
@@ -597,6 +602,7 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
     }
 
     xhr.ontimeout = () => {
+      removeAbortListener()
       reject(
         createRequestError({
           message: '上传超时',
@@ -606,6 +612,7 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
     }
 
     xhr.onerror = () => {
+      removeAbortListener()
       console.error('[Upload] Network error')
       reject(
         createRequestError({
@@ -615,7 +622,10 @@ export const upload = <T>(url: string, options: UploadOptions = {}): Promise<T> 
       )
     }
 
+    xhr.onabort = rejectAbort
     xhr.upload.onprogress = mergedOptions.onprogress || null
+    if (signal?.aborted) return rejectAbort()
+    signal?.addEventListener('abort', abort, { once: true })
     xhr.send(mergedOptions.data)
   })
 }

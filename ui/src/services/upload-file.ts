@@ -14,7 +14,7 @@ export const uploadImage = (image: File) => {
 }
 
 // 上传文件服务
-export const uploadFile = (file: File) => {
+export const uploadFile = (file: File, signal?: AbortSignal) => {
   // 1.构建表单并添加图片数据
   const formData = new FormData()
   formData.append('file', file)
@@ -22,5 +22,6 @@ export const uploadFile = (file: File) => {
   // 2.调用upload服务实现图片上传
   return upload<UploadFileResponse>(`/upload-files/file`, {
     data: formData,
+    signal,
   })
 }

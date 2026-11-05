@@ -30,10 +30,10 @@ export const useUploadFile = () => {
   const upload_file = ref<Record<string, any>>({})
 
   // 2.定义上传文件处理器
-  const handleUploadFile = async (file: File): Promise<UploadFileResponse | undefined> => {
+  const handleUploadFile = async (file: File, signal?: AbortSignal): Promise<UploadFileResponse | undefined> => {
     try {
       loading.value = true
-      const resp = await uploadFile(file)
+      const resp = await uploadFile(file, signal)
       upload_file.value = resp.data
       return resp
     } finally {
