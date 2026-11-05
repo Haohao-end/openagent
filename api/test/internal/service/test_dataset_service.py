@@ -465,7 +465,10 @@ class TestDatasetService:
                 SimpleNamespace(id=uuid4()),
             )
 
-    def test_delete_dataset_should_raise_fail_exception_when_delete_failed(self, monkeypatch):
+    def test_delete_dataset_should_raise_fail_exception_when_delete_failed(
+        self, monkeypatch, caplog
+    ):
+        secret = "SYNTHETIC_DATABASE_DETAIL"
         account = SimpleNamespace(id=uuid4())
         dataset = SimpleNamespace(id=uuid4(), account_id=account.id)
         service = _new_dataset_service(
@@ -475,11 +478,12 @@ class TestDatasetService:
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: dataset)
 
         def fail_delete(*_args):
-            raise RuntimeError("db-error")
+            raise RuntimeError(secret)
 
         monkeypatch.setattr(service.db.session, "delete", fail_delete, raising=False)
         with pytest.raises(FailException):
             service.delete_dataset(dataset.id, account)
+        assert secret not in caplog.text
 
     def test_delete_dataset_should_roll_back_dataset_when_join_cleanup_fails(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
