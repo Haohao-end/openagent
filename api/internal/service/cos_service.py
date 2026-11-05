@@ -62,12 +62,13 @@ class CosService:
             # 5.将数据上传到cos存储桶中
             self._upload_with_retry(client, bucket, file_content, upload_filename)
             stored_key = upload_filename
-        except Exception:
-            logging.exception(
-                "COS upload failed: bucket=%s key=%s account_id=%s",
+        except Exception as e:
+            logging.error(
+                "COS upload failed: bucket=%s key=%s account_id=%s error_type=%s",
                 bucket,
                 upload_filename,
                 account.id,
+                type(e).__name__,
             )
             raise FailException("上传文件失败，请稍后重试")
 
@@ -100,12 +101,13 @@ class CosService:
             bucket = self._get_bucket()
             self._upload_with_retry(client, bucket, content, upload_filename)
             stored_key = upload_filename
-        except Exception:
-            logging.exception(
-                "COS bytes upload failed: bucket=%s key=%s account_id=%s",
+        except Exception as e:
+            logging.error(
+                "COS bytes upload failed: bucket=%s key=%s account_id=%s error_type=%s",
                 bucket,
                 upload_filename,
                 account_id,
+                type(e).__name__,
             )
             raise FailException("上传产物文件失败，请稍后重试")
 
@@ -186,11 +188,12 @@ class CosService:
             bucket = cls._get_bucket()
             cls._upload_with_retry(client, bucket, content, upload_filename)
             stored_key = upload_filename
-        except Exception:
-            logging.exception(
-                "COS bytes upload without record failed: bucket=%s key=%s",
+        except Exception as e:
+            logging.error(
+                "COS bytes upload without record failed: bucket=%s key=%s error_type=%s",
                 bucket,
                 upload_filename,
+                type(e).__name__,
             )
             raise FailException("上传产物文件失败，请稍后重试")
         return cls.get_file_url(stored_key)

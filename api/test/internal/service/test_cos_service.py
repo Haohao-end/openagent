@@ -273,6 +273,31 @@ class TestCosService:
         with pytest.raises(FailException):
             service.upload_file(file=file, only_image=False, account=account)
 
+    @pytest.mark.parametrize(
+        "operation", ["upload_file", "upload_bytes", "upload_bytes_without_record"]
+    )
+    def test_cos_upload_failures_should_redact_provider_error(self, operation, monkeypatch, caplog):
+        secret = "SYNTHETIC_COS_PROVIDER_SECRET"
+
+        def fail_client(cls):
+            raise RuntimeError(secret)
+
+        monkeypatch.setattr(CosService, "_get_client", classmethod(fail_client))
+        service = self._build_service()
+        with pytest.raises(FailException):
+            if operation == "upload_file":
+                service.upload_file(
+                    FileStorage(BytesIO(b"image"), filename="image.png", content_type="image/png"),
+                    only_image=True,
+                    account=SimpleNamespace(id=uuid4()),
+                )
+            elif operation == "upload_bytes":
+                service.upload_bytes(filename="image.png", content=b"image", account_id=uuid4())
+            else:
+                CosService.upload_bytes_without_record(filename="image.png", content=b"image")
+
+        assert secret not in caplog.text
+
     def test_upload_file_should_retry_transient_errors_then_succeed(
         self, monkeypatch, caplog
     ):
