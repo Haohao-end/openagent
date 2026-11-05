@@ -812,7 +812,10 @@ class TestSegmentService:
 
         service.update_segment(dataset_id, document_id, segment.id, req, account)
 
-    def test_update_segment_should_raise_fail_exception_when_update_failed(self, monkeypatch):
+    def test_update_segment_should_raise_fail_exception_when_update_failed(
+        self, monkeypatch, caplog
+    ):
+        secret = "SYNTHETIC_SEGMENT_DATABASE_SECRET"
         account = SimpleNamespace(id=uuid4())
         dataset_id = uuid4()
         document_id = uuid4()
@@ -823,7 +826,7 @@ class TestSegmentService:
             document_id=document_id,
             status=SegmentStatus.COMPLETED.value,
             hash="old-hash",
-            content="old",
+            content=secret,
             node_id=uuid4(),
             document=SimpleNamespace(id=document_id),
         )
@@ -832,12 +835,13 @@ class TestSegmentService:
         monkeypatch.setattr(
             service,
             "update",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("db-update-error")),
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError(secret)),
         )
         req = SimpleNamespace(content=SimpleNamespace(data="new"), keywords=SimpleNamespace(data=[]))
 
         with pytest.raises(FailException):
             service.update_segment(dataset_id, document_id, segment.id, req, account)
+        assert secret not in caplog.text
 
     def test_update_segment_should_raise_when_segment_not_found(self, monkeypatch):
         service = self._build_service()
