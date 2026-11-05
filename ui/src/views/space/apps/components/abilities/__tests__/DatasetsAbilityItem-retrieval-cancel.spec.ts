@@ -39,3 +39,21 @@ it('restores the saved retrieval settings after a later cancelled edit', async (
   expect(wrapper.findAllComponents(SliderStub)[0].props('modelValue')).toBe(4)
   wrapper.unmount()
 })
+
+it('keeps reopened retrieval settings open after an earlier save completes', async () => {
+  let resolve!: () => void
+  mocks.update.mockReturnValueOnce(new Promise<void>((done) => { resolve = done }))
+  const wrapper = mount(DatasetsAbilityItem, { props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } }, global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': SliderStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } } })
+  const state = (wrapper.vm.$ as any).setupState
+  state.retrievalConfigModalVisible = true
+  state.retrievalConfigForm.k = 6
+  const save = state.handleSubmitRetrievalConfig()
+  state.handleCancelRetrievalConfigModal()
+  state.retrievalConfigModalVisible = true
+  state.retrievalConfigForm.k = 8
+  resolve()
+  await save
+  expect(state.retrievalConfigModalVisible).toBe(true)
+  expect(state.retrievalConfigForm.k).toBe(8)
+  wrapper.unmount()
+})
