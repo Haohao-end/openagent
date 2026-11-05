@@ -393,6 +393,7 @@ export const useGetDraftAppConfig = () => {
 export const useUpdateDraftAppConfig = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let activeRequests = 0
 
   // 2.定义更新草稿配置处理器
   const handleUpdateDraftAppConfig = async (
@@ -400,6 +401,7 @@ export const useUpdateDraftAppConfig = () => {
     draft_app_config: UpdateDraftAppConfigRequest,
   ) => {
     try {
+      activeRequests += 1
       loading.value = true
       const resp = await updateDraftAppConfig(app_id, draft_app_config)
       Message.success(resp.message)
@@ -408,7 +410,8 @@ export const useUpdateDraftAppConfig = () => {
       Message.error(msg)
       throw error
     } finally {
-      loading.value = false
+      activeRequests -= 1
+      loading.value = activeRequests > 0
     }
   }
 
