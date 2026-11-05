@@ -287,7 +287,7 @@ GitHub：https://github.com/Haohao-end/openagent
             )
             return ""
         except Exception as e:
-            current_app.logger.error(f"投递验证码邮件任务失败: {str(e)}")
+            current_app.logger.error("投递验证码邮件任务失败: error_type=%s", type(e).__name__)
             redis_client.delete(send_pending_key)
             redis_client.delete(send_pending_ip_key)
             raise FailException("邮件发送失败,请稍后重试")
@@ -384,7 +384,7 @@ OpenAgent AI Agent 平台
         try:
             self.mail.send(msg)
         except Exception as e:
-            current_app.logger.error(f"发送登录安全提醒邮件失败: {str(e)}")
+            current_app.logger.error("发送登录安全提醒邮件失败: error_type=%s", type(e).__name__)
             raise FailException("邮件发送失败,请稍后重试")
 
     def verify_code(self, email: str, code: str, scene: str = PASSWORD_RESET_SCENE) -> bool:
