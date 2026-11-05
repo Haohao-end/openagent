@@ -33,6 +33,24 @@ describe('useUploadImage', () => {
 })
 
 describe('useUploadFile', () => {
+  it('keeps the latest file when an earlier upload finishes later', async () => {
+    const older = deferred()
+    const newer = deferred()
+    mocks.uploadFile.mockReset().mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise)
+    const hook = useUploadFile()
+
+    const oldRequest = hook.handleUploadFile(new File(['old'], 'old.txt'))
+    const newRequest = hook.handleUploadFile(new File(['new'], 'new.txt'))
+    newer.resolve({ data: { file_id: 'new-file' } })
+    await newRequest
+    expect(hook.upload_file.value).toEqual({ file_id: 'new-file' })
+    expect(hook.loading.value).toBe(false)
+
+    older.resolve({ data: { file_id: 'old-file' } })
+    await oldRequest
+    expect(hook.upload_file.value).toEqual({ file_id: 'new-file' })
+  })
+
   it('does not log upload response data or errors', async () => {
     const response = { data: { file_id: 'private-file-id', name: 'private.txt' } }
     mocks.uploadFile.mockReset().mockResolvedValueOnce(response)

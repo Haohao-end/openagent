@@ -28,16 +28,18 @@ export const useUploadFile = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const upload_file = ref<Record<string, any>>({})
+  let uploadRequestId = 0
 
   // 2.定义上传文件处理器
   const handleUploadFile = async (file: File, signal?: AbortSignal): Promise<UploadFileResponse | undefined> => {
+    const requestId = ++uploadRequestId
     try {
       loading.value = true
       const resp = await uploadFile(file, signal)
-      upload_file.value = resp.data
+      if (requestId === uploadRequestId) upload_file.value = resp.data
       return resp
     } finally {
-      loading.value = false
+      if (requestId === uploadRequestId) loading.value = false
     }
   }
 
