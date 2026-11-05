@@ -5,9 +5,10 @@ from uuid import uuid4
 import httpx
 import pytest
 from celery.exceptions import Retry
+from flask import Flask
 from openai import APIConnectionError
 
-from internal.task import app_task, dataset_task, document_task
+from internal.task import app_task, conversation_task, dataset_task, demo_task, document_task
 
 
 class _RecordingInjector:
@@ -315,3 +316,33 @@ def test_document_task_logs_exception_type_without_exception_text(monkeypatch, c
 
     assert "RuntimeError" in caplog.text
     assert "private document content" not in caplog.text
+
+
+def test_demo_task_does_not_log_application_config(monkeypatch, caplog):
+    caplog.set_level("INFO")
+    app = Flask("demo-task-test")
+    app.config["SECRET_KEY"] = "private-config-secret"
+    monkeypatch.setattr(demo_task.time, "sleep", lambda _seconds: None)
+
+    with app.app_context():
+        assert demo_task.demo_task.run(uuid4()) == "haohao"
+
+    assert "private-config-secret" not in caplog.text
+
+
+def test_conversation_task_logs_exception_type_without_exception_text(monkeypatch, caplog):
+    monkeypatch.setitem(sys.modules, "internal.service", SimpleNamespace(ConversationService=object))
+    monkeypatch.setattr(
+        conversation_task, "UUID", lambda _value: (_ for _ in ()).throw(ValueError("private prompt"))
+    )
+    monkeypatch.setattr(
+        conversation_task.process_conversation_message,
+        "retry",
+        lambda **kwargs: Retry(exc=kwargs["exc"]),
+    )
+
+    with pytest.raises(Retry):
+        conversation_task.process_conversation_message.run("conversation", "message", "user")
+
+    assert "ValueError" in caplog.text
+    assert "private prompt" not in caplog.text

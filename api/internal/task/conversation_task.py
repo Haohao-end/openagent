@@ -37,7 +37,7 @@ def process_conversation_message(self, conversation_id: str, message_id: str, us
         emit_message_complete(user_id_uuid, conversation_id_uuid, message_id_uuid)
 
     except Exception as exc:
-        logger.error(f"处理会话消息失败: {str(exc)}")
+        logger.error("处理会话消息失败: error_type=%s", type(exc).__name__)
         # 重试
         raise self.retry(exc=exc, countdown=60)
 
@@ -63,7 +63,7 @@ def generate_conversation_summary(self, conversation_id: str, user_id: str):
         # conversation_service.generate_summary(conversation_id_uuid, user_id_uuid)
 
     except Exception as exc:
-        logger.error(f"生成会话总结失败: {str(exc)}")
+        logger.error("生成会话总结失败: error_type=%s", type(exc).__name__)
         raise self.retry(exc=exc, countdown=60)
 
 
@@ -88,7 +88,7 @@ def index_conversation_to_vector_db(self, conversation_id: str, user_id: str):
         # conversation_service.index_to_vector_db(conversation_id_uuid, user_id_uuid)
 
     except Exception as exc:
-        logger.error(f"索引会话到向量数据库失败: {str(exc)}")
+        logger.error("索引会话到向量数据库失败: error_type=%s", type(exc).__name__)
         raise self.retry(exc=exc, countdown=60)
 
 
@@ -109,7 +109,7 @@ def cleanup_old_conversations(self, days: int = 30):
         # conversation_service.cleanup_old_conversations(days)
 
     except Exception as exc:
-        logger.error(f"清理旧会话失败: {str(exc)}")
+        logger.error("清理旧会话失败: error_type=%s", type(exc).__name__)
         raise self.retry(exc=exc, countdown=60)
 
 
@@ -135,7 +135,7 @@ def save_agent_thoughts_async(self, conversation_id: str, message_id: str, thoug
         # conversation_service.save_agent_thoughts(conversation_id_uuid, message_id_uuid, thoughts)
 
     except Exception as exc:
-        logger.error(f"保存 Agent 思考过程失败: {str(exc)}")
+        logger.error("保存 Agent 思考过程失败: error_type=%s", type(exc).__name__)
         raise self.retry(exc=exc, countdown=60)
 
 
@@ -161,5 +161,5 @@ def update_message_error_async(self, conversation_id: str, message_id: str, erro
         # conversation_service.update_message_error(conversation_id_uuid, message_id_uuid, error)
 
     except Exception as exc:
-        logger.error(f"更新消息错误状态失败: {str(exc)}")
+        logger.error("更新消息错误状态失败: error_type=%s", type(exc).__name__)
         raise self.retry(exc=exc, countdown=60)
