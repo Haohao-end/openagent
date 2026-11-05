@@ -82,7 +82,7 @@ describe('DetailView', () => {
   })
 
   it('reloads draft config when the selected model changes', async () => {
-    shallowMount(DetailView, {
+    const wrapper = shallowMount(DetailView, {
       props: {
         app: {
           id: 'app-1',
@@ -111,6 +111,34 @@ describe('DetailView', () => {
     await flushPromises()
 
     expect(mocks.loadDraftAppConfig).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('queues a draft refresh for a second model change during an existing refresh', async () => {
+    let finishRefresh!: () => void
+    const pendingRefresh = new Promise<void>((resolve) => { finishRefresh = resolve })
+    mocks.loadDraftAppConfig
+      .mockReset()
+      .mockResolvedValueOnce(undefined)
+      .mockReturnValueOnce(pendingRefresh)
+      .mockResolvedValueOnce(undefined)
+    const wrapper = shallowMount(DetailView, {
+      props: { app: { id: 'app-1' } },
+      global: { stubs: { 'agent-app-ability': true, 'model-config': true, 'preset-prompt-textarea': true, 'preview-debug-chat': true, 'preview-debug-header': true } },
+    })
+    await flushPromises()
+
+    mocks.draftAppConfigForm!.value.model_config = { provider: 'first', model: 'first-model', parameters: {} }
+    await flushPromises()
+    expect(mocks.loadDraftAppConfig).toHaveBeenCalledTimes(2)
+
+    mocks.draftAppConfigForm!.value.model_config = { provider: 'second', model: 'second-model', parameters: {} }
+    await flushPromises()
+    finishRefresh()
+    await flushPromises()
+
+    expect(mocks.loadDraftAppConfig).toHaveBeenCalledTimes(3)
+    wrapper.unmount()
   })
 
   it('uses flex-based layout instead of viewport height constants', () => {

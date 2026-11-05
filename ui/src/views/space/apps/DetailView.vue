@@ -23,16 +23,25 @@ const props = defineProps({
 const { t } = useI18n()
 const { draftAppConfigForm, loadDraftAppConfig } = useGetDraftAppConfig()
 const isDraftAppConfigRefreshing = ref(false)
+let draftAppConfigRefreshQueued = false
 
 const refreshDraftAppConfig = async () => {
   const appId = String(route.params?.app_id ?? '')
   if (!appId) return
+  if (isDraftAppConfigRefreshing.value) {
+    draftAppConfigRefreshQueued = true
+    return
+  }
 
   try {
     isDraftAppConfigRefreshing.value = true
     await loadDraftAppConfig(appId)
   } finally {
     isDraftAppConfigRefreshing.value = false
+    if (draftAppConfigRefreshQueued) {
+      draftAppConfigRefreshQueued = false
+      await refreshDraftAppConfig()
+    }
   }
 }
 
@@ -44,7 +53,6 @@ onMounted(async () => {
 watch(
   () => [draftAppConfigForm.value.model_config?.provider, draftAppConfigForm.value.model_config?.model],
   async (newValue, oldValue) => {
-    if (isDraftAppConfigRefreshing.value) return
     if (newValue[0] === oldValue?.[0] && newValue[1] === oldValue?.[1]) return
     await refreshDraftAppConfig()
   },
