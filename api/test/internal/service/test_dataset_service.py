@@ -614,3 +614,26 @@ class TestDatasetService:
 
         with pytest.raises(FailException):
             service.generate_icon_preview("dataset-preview", "desc")
+
+    @pytest.mark.parametrize("operation", ["regenerate", "preview"])
+    def test_icon_generation_failures_should_redact_provider_error(self, monkeypatch, caplog, operation):
+        marker = "SYNTHETIC_PROVIDER_SECRET"
+        dataset = SimpleNamespace(id=uuid4(), name="private-name", description="private-description")
+        service = _new_dataset_service(
+            db=SimpleNamespace(session=SimpleNamespace()),
+            retrieval_service=SimpleNamespace(),
+            icon_generator_service=SimpleNamespace(
+                generate_icon=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError(marker))
+            ),
+        )
+        monkeypatch.setattr(service, "get_dataset", lambda *_args: dataset)
+
+        with caplog.at_level("ERROR"):
+            with pytest.raises(FailException):
+                if operation == "regenerate":
+                    service.regenerate_icon(dataset.id, SimpleNamespace(id=uuid4()))
+                else:
+                    service.generate_icon_preview(dataset.name, dataset.description)
+
+        assert marker not in caplog.text
+        assert "error_type=RuntimeError" in caplog.text
