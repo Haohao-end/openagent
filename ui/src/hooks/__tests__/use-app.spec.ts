@@ -65,6 +65,24 @@ describe('useGetVersions', () => {
     expect(loading.value).toBe(false)
   })
 
+  it('keeps the latest app versions when requests resolve out of order', async () => {
+    let resolveOlder!: (value: { data: { list: Array<{ id: string }> } }) => void
+    let resolveNewer!: (value: { data: { list: Array<{ id: string }> } }) => void
+    const older = new Promise<{ data: { list: Array<{ id: string }> } }>((resolve) => { resolveOlder = resolve })
+    const newer = new Promise<{ data: { list: Array<{ id: string }> } }>((resolve) => { resolveNewer = resolve })
+    vi.mocked(appService.getVersions).mockReturnValueOnce(older as never).mockReturnValueOnce(newer as never)
+    const { versions, loadVersions } = useGetVersions()
+
+    const oldRequest = loadVersions('app-old')
+    const newRequest = loadVersions('app-new')
+    resolveNewer({ data: { list: [{ id: 'new-version' }] } })
+    await newRequest
+    resolveOlder({ data: { list: [{ id: 'old-version' }] } })
+    await oldRequest
+
+    expect(versions.value.map((version) => version.id)).toEqual(['new-version'])
+  })
+
   it('loads draft capabilities with the draft app config', async () => {
     vi.mocked(appService.getDraftAppConfig).mockResolvedValue({
       data: {
