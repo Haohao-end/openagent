@@ -30,10 +30,14 @@ const { handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
           @select="
             async (value: string | number | boolean) => {
               if (Boolean(value) !== props.suggested_after_answer?.enable) {
+                try {
+                  await handleUpdateDraftAppConfig(props.app_id, {
+                    suggested_after_answer: { enable: Boolean(value) },
+                  })
+                } catch {
+                  return
+                }
                 emits('update:suggested_after_answer', { enable: Boolean(value) })
-                await handleUpdateDraftAppConfig(props.app_id, {
-                  suggested_after_answer: { enable: Boolean(value) },
-                })
               }
             }
           "
