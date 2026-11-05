@@ -14,11 +14,7 @@ import {
 } from '@/services/api-key'
 import { Message, Modal } from '@arco-design/web-vue'
 import { useCredentialStore } from '@/stores/credential'
-const parsePositiveIntegerQuery = (value: unknown, fallbackValue: number): number => {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed) || parsed < 1) return fallbackValue
-  return Math.floor(parsed)
-}
+import { parsePositiveIntegerQuery } from '@/utils/query'
 
 export const useGetApiKeysWithPage = () => {
   // 1.定义hooks所需数据
