@@ -251,21 +251,26 @@ class TestWorkflowService:
         assert icon_url.startswith("https://icon/")
         assert updates == [(workflow, {"icon": icon_url})]
 
-    def test_regenerate_icon_should_raise_fail_exception_when_generator_failed(self, monkeypatch):
+    def test_regenerate_icon_should_redact_generator_error(self, monkeypatch, caplog):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
         workflow = SimpleNamespace(id=uuid4(), name="工作流", description="desc")
         monkeypatch.setattr(service, "get_workflow", lambda *_args, **_kwargs: workflow)
+        marker = "SYNTHETIC_PROVIDER_SECRET"
 
         def _raise_icon_error(**_kwargs):
-            raise RuntimeError("icon-failed")
+            raise RuntimeError(marker)
 
         service.icon_generator_service = SimpleNamespace(
             generate_icon=_raise_icon_error
         )
 
-        with pytest.raises(FailException):
-            service.regenerate_icon(workflow.id, account)
+        with caplog.at_level("ERROR"):
+            with pytest.raises(FailException):
+                service.regenerate_icon(workflow.id, account)
+
+        assert marker not in caplog.text
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_generate_icon_preview_should_return_icon_url(self):
         service = _build_service()
@@ -277,18 +282,23 @@ class TestWorkflowService:
 
         assert icon_url == "https://preview/workflow-preview/empty"
 
-    def test_generate_icon_preview_should_raise_fail_exception_when_generator_failed(self):
+    def test_generate_icon_preview_should_redact_generator_error(self, caplog):
         service = _build_service()
+        marker = "SYNTHETIC_PROVIDER_SECRET"
 
         def _raise_preview_error(**_kwargs):
-            raise RuntimeError("preview-failed")
+            raise RuntimeError(marker)
 
         service.icon_generator_service = SimpleNamespace(
             generate_icon=_raise_preview_error
         )
 
-        with pytest.raises(FailException):
-            service.generate_icon_preview("workflow-preview", "desc")
+        with caplog.at_level("ERROR"):
+            with pytest.raises(FailException):
+                service.generate_icon_preview("workflow-preview", "desc")
+
+        assert marker not in caplog.text
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_get_draft_graph_should_enrich_builtin_tool_meta_and_reset_invalid_params(self, monkeypatch):
         service = _build_service()
