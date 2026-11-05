@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useGetDebugConversationSummary, useUpdateDebugConversationSummary } from '@/hooks/use-app'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 // 1.定义自定义组件所需数据
@@ -19,6 +19,11 @@ const { debug_conversation_summary, loadDebugConversationSummary } =
   useGetDebugConversationSummary()
 const { loading, handleUpdateDebugConversationSummary } = useUpdateDebugConversationSummary()
 const summaryModalVisible = ref(false)
+let saveSession = 0
+
+watch(summaryModalVisible, (visible) => {
+  if (!visible) saveSession += 1
+}, { flush: 'sync' })
 
 // 2.模态窗打开处理器
 const openSummaryModal = async () => {
@@ -27,6 +32,12 @@ const openSummaryModal = async () => {
 
   // 2.2 开启模态窗
   summaryModalVisible.value = true
+}
+
+const saveSummary = async () => {
+  const requestSession = ++saveSession
+  await handleUpdateDebugConversationSummary(props.app_id, debug_conversation_summary.value)
+  if (requestSession === saveSession) summaryModalVisible.value = false
 }
 </script>
 
@@ -92,15 +103,7 @@ const openSummaryModal = async () => {
               :loading="loading"
               type="primary"
               class="rounded-lg"
-              @click="
-                async () => {
-                  await handleUpdateDebugConversationSummary(
-                    props.app_id,
-                    debug_conversation_summary,
-                  )
-                  summaryModalVisible = false
-                }
-              "
+              @click="saveSummary"
             >
               {{ t('common.actions.save') }}
             </a-button>
