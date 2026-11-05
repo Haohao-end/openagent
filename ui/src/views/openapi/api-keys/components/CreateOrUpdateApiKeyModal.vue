@@ -38,15 +38,19 @@ const hideModal = () => {
   emits('update:visible', false)
 }
 
+let modalSession = 0
+
 // 3.定义表单提交函数
 const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断表单是否出错
   if (errors) return
+  const session = modalSession
+  const apiKeyId = props.api_key_id
 
   // 3.2 检测是新增还是更新，执行不同的操作
-  if (props.api_key_id) {
+  if (apiKeyId) {
     // 3.3 执行更新操作
-    await handleUpdateApiKey(props.api_key_id, {
+    await handleUpdateApiKey(apiKeyId, {
       is_active: Boolean(form.value?.is_active),
       remark: String(form.value?.remark),
     })
@@ -56,7 +60,7 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
       is_active: Boolean(form.value?.is_active),
       remark: String(form.value?.remark),
     })
-    if (createdApiKey) {
+    if (createdApiKey && session === modalSession && props.visible) {
       Modal.info({
         title: t('openapi.apiKeys.showOnceTitle'),
         width: 860,
@@ -99,6 +103,8 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
     }
   }
 
+  if (session !== modalSession || !props.visible) return
+
   // 3.5 隐藏模态窗
   hideModal()
   props.callback && props.callback()
@@ -106,8 +112,9 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
 
 // 4.监听模态窗的显示or隐藏状态
 watch(
-  () => props.visible,
-  (newValue) => {
+  () => [props.visible, props.api_key_id] as const,
+  ([newValue]) => {
+    modalSession += 1
     if (newValue) {
       // 4.1 显示模态窗的时候，将对应的值赋值给表单
       form.value = {
