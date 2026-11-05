@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, type PropType } from 'vue'
+import { computed, nextTick, ref, watch, type PropType } from 'vue'
 import { useUpdateDraftAppConfig } from '@/hooks/use-app'
 import { useI18n } from 'vue-i18n'
 
@@ -12,6 +12,8 @@ const props = defineProps({
 })
 const emits = defineEmits(['update:opening_statement', 'update:opening_questions'])
 const { handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
+const openingStatement = ref(props.opening_statement)
+watch(() => props.opening_statement, (value) => { openingStatement.value = value })
 const computed_opening_questions = computed({
   get(): string[] {
     // 1.检测传递的opening_questions长度是否等于3，如果小于3并且最后一个元素不是空数据则新增一个
@@ -33,6 +35,16 @@ const handleUpdateOpeningQuestions = async () => {
     opening_questions: computed_opening_questions.value.filter((item) => item.trim() !== ''),
   })
 }
+
+const handleUpdateOpeningStatement = async () => {
+  const statement = openingStatement.value
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, { opening_statement: statement })
+    emits('update:opening_statement', statement)
+  } catch {
+    openingStatement.value = props.opening_statement
+  }
+}
 </script>
 
 <template>
@@ -51,18 +63,12 @@ const handleUpdateOpeningQuestions = async () => {
             </a-tooltip>
           </div>
           <a-textarea
-            :model-value="props.opening_statement"
-            @update:model-value="(value) => emits('update:opening_statement', value)"
+            :model-value="openingStatement"
+            @update:model-value="(value) => (openingStatement = String(value ?? ''))"
             :placeholder="t('appStudio.abilities.opening.statementPlaceholder')"
             class="bg-white text-gray-700 rounded-lg border border-gray-200"
             :auto-size="{ minRows: 4, maxRows: 4 }"
-            @blur="
-              async () => {
-                await handleUpdateDraftAppConfig(props.app_id, {
-                  opening_statement: props.opening_statement,
-                })
-              }
-            "
+            @blur="handleUpdateOpeningStatement"
           />
         </div>
         <!-- 开场白建议问题 -->
