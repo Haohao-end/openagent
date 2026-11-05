@@ -35,3 +35,13 @@ it('keeps reopened review settings open after an earlier save completes', async 
   expect(state.reviewConfigForm.keywords).toBe('new session')
   wrapper.unmount()
 })
+
+it('syncs the review quick toggle when its save starts outside the dialog', async () => {
+  mocks.update.mockResolvedValueOnce(undefined)
+  const wrapper = shallowMount(ReviewConfigAbilityItem, { props: { app_id: 'app-1', review_config: { enable: false, keywords: [], inputs_config: { enable: false, preset_response: '' }, outputs_config: { enable: false } } } })
+  const state = (wrapper.vm.$ as any).setupState
+  state.reviewConfigForm.enable = true
+  await state.handleSubmitReviewConfig()
+  expect(state.originReviewConfigForm.enable).toBe(true)
+  wrapper.unmount()
+})
