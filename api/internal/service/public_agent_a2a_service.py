@@ -784,8 +784,10 @@ class PublicAgentA2AService(BaseService):
                 generated_name = self.conversation_service.generate_conversation_name(query)
                 self.update(conversation, name=generated_name)
             except Exception as exc:
-                logging.exception(
-                    f"生成公开会话名称失败: conversation_id={conversation.id}, error={exc}"
+                logging.error(
+                    "生成公开会话名称失败: conversation_id=%s error_type=%s",
+                    conversation.id,
+                    type(exc).__name__,
                 )
         yield self._format_a2a_stream_response({"statusUpdate": {
             "taskId": task_id,

@@ -785,3 +785,31 @@ class TestPublicAgentA2AService:
         monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: conversation)
 
         assert service._resolve_public_conversation(SimpleNamespace(id=uuid4(), account_id=uuid4()), "") is conversation
+
+    def test_stream_public_agent_should_redact_conversation_title_errors(self, monkeypatch, caplog):
+        secret = "SYNTHETIC_PROVIDER_SECRET"
+        conversation = SimpleNamespace(id=uuid4(), summary="", name="New Conversation")
+        message = SimpleNamespace(id=uuid4())
+        llm = SimpleNamespace(convert_to_human_message=lambda query, _images: query)
+        runtime_agent = SimpleNamespace(stream=lambda _state: iter(()))
+        memory = lambda **_kwargs: SimpleNamespace(get_history_prompt_messages=lambda: [])
+        monkeypatch.setattr("internal.service.public_agent_a2a_service.TokenBufferMemory", memory)
+        service = _build_service(
+            app_service=SimpleNamespace(
+                _build_runtime_tools=lambda *_args, **_kwargs: [],
+                _create_runtime_agent=lambda *_args, **_kwargs: runtime_agent,
+            ),
+            app_config_service=SimpleNamespace(get_app_config=lambda _app: {}),
+            language_model_service=SimpleNamespace(load_language_model=lambda _config: llm),
+            conversation_service=SimpleNamespace(
+                generate_conversation_name=lambda _query: (_ for _ in ()).throw(RuntimeError(secret)),
+            ),
+        )
+        monkeypatch.setattr(service, "_resolve_public_conversation", lambda *_args: conversation)
+        monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: message)
+        monkeypatch.setattr(service, "_save_public_agent_thoughts", lambda **_kwargs: None)
+        monkeypatch.setattr(service, "update", lambda *_args, **_kwargs: None)
+
+        list(service._stream_public_agent_events(SimpleNamespace(id=uuid4(), account_id=uuid4()), "private query", "", {}))
+
+        assert secret not in caplog.text
