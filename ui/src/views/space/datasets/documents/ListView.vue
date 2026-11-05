@@ -11,6 +11,7 @@ import {
 import UpdateDocumentNameModal from '@/views/space/datasets/documents/components/UpdateDocumentNameModal.vue'
 import HitTestingModal from '@/views/space/datasets/documents/components/HitTestingModal.vue'
 import { formatTimestampLong } from '@/utils/time-formatter'
+import { parsePositiveIntegerQuery } from '@/utils/query'
 
 type DocumentRecord = Record<string, any>
 
@@ -31,8 +32,8 @@ const datasetId = computed(() => String(route.params?.dataset_id ?? ''))
 const searchWord = computed(() => String(route.query?.search_word ?? ''))
 const req = computed(() => {
  return {
- current_page: Number(route.query?.current_page ??1),
- page_size: Number(route.query?.page_size ??20),
+ current_page: parsePositiveIntegerQuery(route.query?.current_page, 1),
+ page_size: parsePositiveIntegerQuery(route.query?.page_size, 20),
  search_word: searchWord.value,
  }
 })
