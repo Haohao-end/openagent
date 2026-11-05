@@ -20,6 +20,7 @@ const { t, locale } = useI18n()
 const loading = ref(false)
 const apps = ref<PublicApp[]>([])
 const tags = ref<AppTag[]>([])
+const pendingForkIds = ref(new Set<string>())
 const selectedTags = ref<string[]>([])
 const searchWord = ref('')
 const page = ref(1)
@@ -75,6 +76,8 @@ const loadTags = async () => {
 }
 
 const handleFork = async (app: PublicApp) => {
+  if (pendingForkIds.value.has(app.id)) return
+  pendingForkIds.value.add(app.id)
   try {
     const res = await forkPublicApp(app.id)
     if (isUnmounted) return
@@ -83,6 +86,8 @@ const handleFork = async (app: PublicApp) => {
     if (!isUnmounted) router.push({ name: 'space-apps-detail', params: { app_id: res.data.id } })
   } catch (error: unknown) {
     if (!isUnmounted) Message.error(getErrorMessage(error, t('publicApps.list.actionFailed')))
+  } finally {
+    pendingForkIds.value.delete(app.id)
   }
 }
 
@@ -232,7 +237,7 @@ onMounted(() => {
                     type="button"
                     class="flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 hover:scale-105"
                     :class="app.is_forked ? 'bg-gray-100 cursor-not-allowed opacity-50' : 'bg-blue-50 hover:bg-blue-100'"
-                    :disabled="app.is_forked"
+                    :disabled="app.is_forked || pendingForkIds.has(app.id)"
                     @click.stop="handleFork(app)"
                   >
                     <icon-branch
