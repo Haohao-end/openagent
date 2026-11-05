@@ -115,6 +115,22 @@ class TestIntentRecognitionService:
 
         assert result is None
 
+    @pytest.mark.parametrize("operation", ["get", "setex", "delete"])
+    def test_cache_operation_failures_should_redact_backend_errors(
+        self, service, mock_redis, caplog, operation
+    ):
+        secret = "SYNTHETIC_REDIS_CREDENTIAL"
+        getattr(mock_redis, operation).side_effect = RuntimeError(secret)
+
+        if operation == "get":
+            assert service.get_cached_intent("user-1") is None
+        elif operation == "setex":
+            service.cache_intent("user-1", {"intent": "private"})
+        else:
+            service.clear_cache("user-1")
+
+        assert secret not in caplog.text
+
     def test_should_cache_intent_with_ttl_and_timestamps(self, service, mock_redis):
         intent_result = {
             "intent": "用户想创建应用",
