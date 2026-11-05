@@ -38,6 +38,7 @@ it('does not close a reopened workflow modal when an earlier save finishes', asy
   await wrapper.get('[data-testid="cancel"]').trigger('click')
   await wrapper.setProps({ visible: false })
   await wrapper.setProps({ visible: true })
+  expect(mocks.save.mock.calls[0]?.[1]?.()).toBe(false)
   finish()
   await flushPromises()
   expect(wrapper.emitted('update:visible')).toEqual([[false]])

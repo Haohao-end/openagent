@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRequestError } from '@/utils/error'
-import { useGetWorkflowsWithPage, useUpdateDraftGraph } from '@/hooks/use-workflow'
+import { useCreateWorkflow, useGetWorkflowsWithPage, useUpdateDraftGraph } from '@/hooks/use-workflow'
 
 const mocks = vi.hoisted(() => ({
   cancelPublishWorkflow: vi.fn(),
@@ -16,10 +16,13 @@ const mocks = vi.hoisted(() => ({
   shareWorkflow: vi.fn(),
   updateDraftGraph: vi.fn(),
   updateWorkflow: vi.fn(),
+  routerPush: vi.fn(),
 }))
 
 const messageSuccessMock = vi.fn()
 const messageErrorMock = vi.fn()
+
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: mocks.routerPush }) }))
 
 type WorkflowPageResponse = {
   data: {
@@ -102,6 +105,22 @@ describe('use-workflow draft save feedback', () => {
     expect(result).toBe(false)
     expect(messageErrorMock).toHaveBeenCalledWith('URL解析到不允许的地址: 169.254.169.254')
     expect(messageSuccessMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('useCreateWorkflow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('skips navigation when the modal session was dismissed before creation finished', async () => {
+    mocks.createWorkflow.mockResolvedValue({ data: { id: 'workflow-1' } })
+
+    const { handleCreateWorkflow } = useCreateWorkflow()
+    await handleCreateWorkflow({ tool_call_name: 'workflow' } as any, () => false)
+
+    expect(mocks.createWorkflow).toHaveBeenCalledOnce()
+    expect(mocks.routerPush).not.toHaveBeenCalled()
   })
 })
 

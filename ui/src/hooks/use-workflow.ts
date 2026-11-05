@@ -92,7 +92,10 @@ export const useCreateWorkflow = () => {
   const router = useRouter()
 
   // 2.定义创建工作流处理器
-  const handleCreateWorkflow = async (req: CreateWorkflowRequest) => {
+  const handleCreateWorkflow = async (
+    req: CreateWorkflowRequest,
+    shouldNavigate: () => boolean = () => true,
+  ) => {
     if (!isValidWorkflowToolCallName(req.tool_call_name)) {
       throw new Error('英文名称仅支持字母、数字和下划线，且以字母/下划线为开头')
     }
@@ -104,12 +107,14 @@ export const useCreateWorkflow = () => {
 
       // 4.创建成功提示并跳转页面
       Message.success('创建工作流成功')
-      await router.push({
-        name: 'space-workflows-detail',
-        params: {
-          workflow_id: resp.data.id,
-        },
-      })
+      if (shouldNavigate()) {
+        await router.push({
+          name: 'space-workflows-detail',
+          params: {
+            workflow_id: resp.data.id,
+          },
+        })
+      }
     } finally {
       loading.value = false
     }
