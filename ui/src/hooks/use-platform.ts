@@ -6,15 +6,19 @@ export const useGetWechatConfig = () => {
   // 1.定义自定义hooks所需数据
   const loading = ref(false)
   const wechat_config = ref<Record<string, any>>({})
+  let latestRequest = 0
 
   // 2.定义加载数据处理器
   const loadWechatConfig = async (app_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getWechatConfig(app_id)
-      wechat_config.value = resp.data
+      if (requestId === latestRequest) wechat_config.value = resp.data
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
