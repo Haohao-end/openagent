@@ -235,8 +235,12 @@ class SegmentService(BaseService):
                 )
                 self.update(segment, hash=new_hash)
         except Exception as e:
-            logging.exception(f"更新文档片段记录失败, segment_id: {segment}, 错误信息: {str(e)}")
-            raise FailException("更新文档片段记录失败，请稍后尝试")
+            logging.error(
+                "更新文档片段记录失败, segment_id: %s, error_type: %s",
+                segment.id,
+                type(e).__name__,
+            )
+            raise FailException("更新文档片段记录失败，请稍后尝试") from None
 
         return segment
 
