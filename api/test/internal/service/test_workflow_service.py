@@ -536,7 +536,9 @@ class TestWorkflowService:
         assert updates[0][1]["status"] == WorkflowResultStatus.FAILED.value
         assert updates[0][1]["state"] == []
         assert f"event: {event_name}" in body
-        assert str(failure) in body
+        expected_observation = "流式响应执行超时" if event_name == "timeout" else "流式响应执行失败"
+        assert expected_observation in body
+        assert str(failure) not in body
         assert type(failure).__name__ in caplog.text
         assert str(failure) not in caplog.text
 
