@@ -159,12 +159,12 @@ class CosService:
                     raise
 
                 logging.warning(
-                    "COS upload attempt failed: attempt=%s/%s bucket=%s key=%s error=%s",
+                    "COS upload attempt failed: attempt=%s/%s bucket=%s key=%s error_type=%s",
                     attempt,
                     max_attempts,
                     bucket,
                     upload_filename,
-                    e,
+                    type(e).__name__,
                 )
 
                 # 轻量线性退避，降低瞬时网络抖动导致的失败概率。
