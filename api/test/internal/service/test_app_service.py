@@ -3257,8 +3257,9 @@ class TestAppServiceDraftConfigValidation:
             description="应用描述"
         )
 
-    def test_create_app_with_icon_generation_failure_uses_default(self, monkeypatch):
+    def test_create_app_with_icon_generation_failure_uses_default(self, monkeypatch, caplog):
         """测试图标生成失败时使用默认图标"""
+        secret = "SYNTHETIC_ICON_PROVIDER_SECRET"
         class _CreateSession:
             def __init__(self):
                 self.added = []
@@ -3282,7 +3283,7 @@ class TestAppServiceDraftConfigValidation:
 
         # Mock icon generator service that fails
         mock_icon_generator = SimpleNamespace(
-            generate_icon=Mock(side_effect=Exception("生成失败"))
+            generate_icon=Mock(side_effect=Exception(secret))
         )
 
         create_db = _CreateDB()
@@ -3313,6 +3314,7 @@ class TestAppServiceDraftConfigValidation:
         # 使用默认兜底图标 - SVG数据URI
         assert app.icon.startswith("data:image/svg+xml;base64,")
         assert "测" in app.icon or "A" in app.icon  # 应该包含应用名称的首字母或默认字母
+        assert secret not in caplog.text
 
     def test_regenerate_icon_success(self):
         """测试重新生成图标成功"""

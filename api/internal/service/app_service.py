@@ -355,7 +355,7 @@ class AppService(BaseService):
                 )
                 logging.info(f"自动生成图标成功: {icon_url}")
             except Exception as e:
-                logging.error(f"自动生成图标失败: {str(e)}")
+                logging.error("自动生成图标失败: error_type=%s", type(e).__name__)
                 # 如果生成失败，使用默认图标 - 使用一个彩色的SVG图标
                 icon_url = self._generate_default_icon(req.name.data)
 
