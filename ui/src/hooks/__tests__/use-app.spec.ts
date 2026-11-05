@@ -157,6 +157,31 @@ describe('useGetVersions', () => {
   })
 })
 
+describe('useGetDraftAppConfig', () => {
+  it('keeps the latest draft config when requests resolve out of order', async () => {
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise })
+      return { promise, resolve }
+    }
+    const older = deferred<{ data: { preset_prompt: string } }>()
+    const newer = deferred<{ data: { preset_prompt: string } }>()
+    vi.mocked(appService.getDraftAppConfig)
+      .mockReturnValueOnce(older.promise as never)
+      .mockReturnValueOnce(newer.promise as never)
+    const { draftAppConfigForm, loadDraftAppConfig } = useGetDraftAppConfig()
+
+    const olderRequest = loadDraftAppConfig('app-old')
+    const newerRequest = loadDraftAppConfig('app-new')
+    newer.resolve({ data: { preset_prompt: 'new prompt' } })
+    await newerRequest
+    older.resolve({ data: { preset_prompt: 'old prompt' } })
+    await olderRequest
+
+    expect(draftAppConfigForm.value.preset_prompt).toBe('new prompt')
+  })
+})
+
 describe('useGetPublishedConfig', () => {
   it('ignores an older route response after the selected app changes', async () => {
     const deferred = <T,>() => {

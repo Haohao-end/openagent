@@ -351,13 +351,16 @@ export const useGetDraftAppConfig = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const draftAppConfigForm = ref<Record<string, any>>({})
+  let latestRequest = 0
 
   // 2.定义加载数据函数
   const loadDraftAppConfig = async (app_id: string) => {
+    const requestId = ++latestRequest
     try {
       // 2.1 修改loading状态并获取数据
       loading.value = true
       const resp = await getDraftAppConfig(app_id)
+      if (requestId !== latestRequest) return
       const data = resp.data
 
       // 2.2 将数据同步到表单中
@@ -382,8 +385,10 @@ export const useGetDraftAppConfig = () => {
         speech_to_text: data.speech_to_text,
         text_to_speech: data.text_to_speech,
       }
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
