@@ -94,7 +94,8 @@ class TestEmailService:
             "client_ip": "unknown",
         }
 
-    def test_send_verification_code_should_raise_when_enqueue_mail_task_failed(self, monkeypatch):
+    def test_send_verification_code_should_raise_when_enqueue_mail_task_failed(self, monkeypatch, caplog):
+        secret = "SYNTHETIC_EMAIL_TRANSPORT_SECRET"
         setex_calls = []
         delete_calls = []
 
@@ -116,7 +117,7 @@ class TestEmailService:
         monkeypatch.setattr("internal.service.email_service.redis_client", redis_stub)
         monkeypatch.setattr(
             "internal.service.email_service.send_verification_email_task",
-            SimpleNamespace(apply_async=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("queue down"))),
+            SimpleNamespace(apply_async=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError(secret))),
         )
 
         app = Flask(__name__)
@@ -127,6 +128,7 @@ class TestEmailService:
         assert len(setex_calls) == 2
         assert "password_reset:send_pending:demo@example.com" in delete_calls
         assert "password_reset:send_pending_ip:unknown" in delete_calls
+        assert secret not in caplog.text
 
     def test_send_change_email_code_should_use_change_email_scene(self, monkeypatch):
         setex_calls = []
@@ -182,6 +184,24 @@ class TestEmailService:
         assert sent_messages[0].recipients == ["demo@example.com"]
         assert sent_messages[0].subject == "【OpenAgent】检测到新 IP 登录"
         assert "10.0.0.5" in sent_messages[0].body
+
+    def test_send_login_alert_email_should_redact_mailer_error_details(self, monkeypatch, caplog):
+        secret = "SYNTHETIC_SMTP_PASSWORD"
+        service = EmailService(mail=SimpleNamespace(
+            send=lambda _msg: (_ for _ in ()).throw(RuntimeError(secret))
+        ))
+        monkeypatch.setattr(
+            "internal.service.email_service.Message",
+            lambda **kwargs: SimpleNamespace(**kwargs),
+        )
+
+        with Flask(__name__).app_context(), pytest.raises(FailException, match="邮件发送失败"):
+            service.send_login_alert_email(
+                "demo@example.com", account_name="tester", client_ip="10.0.0.5",
+                user_agent="browser", login_at=datetime(2024, 1, 2, 3, 4, 5),
+            )
+
+        assert secret not in caplog.text
 
     def test_verify_change_email_code_should_delegate_to_change_email_scene(self, monkeypatch):
         service = EmailService(mail=SimpleNamespace(send=lambda _msg: None))
