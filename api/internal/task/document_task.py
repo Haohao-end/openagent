@@ -76,10 +76,14 @@ def build_documents(document_ids: list[UUID]) -> None:
 
                     logging.info(f"Created and emitted error notification for document {document_id}")
             except Exception as e:
-                logging.error(f"Failed to create notification for document {document_id}: {e}")
+                logging.error(
+                    "Failed to create notification for document %s: error_type=%s",
+                    document_id,
+                    type(e).__name__,
+                )
 
     except Exception as e:
-        logging.error(f"Error in build_documents task: {e}")
+        logging.error("Error in build_documents task: error_type=%s", type(e).__name__)
         raise
 
 

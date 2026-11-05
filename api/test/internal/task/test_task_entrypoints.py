@@ -301,3 +301,17 @@ def test_app_task_prewarm_mcp_tool_snapshots_should_retry_on_pending_snapshot(mo
     assert len(retry_calls) == 1
     assert isinstance(retry_calls[0][0], RuntimeError)
     assert retry_calls[0][1] == 20
+
+
+def test_document_task_logs_exception_type_without_exception_text(monkeypatch, caplog):
+    def _fail(_document_ids):
+        raise RuntimeError("private document content")
+
+    service = SimpleNamespace(build_documents=_fail)
+    monkeypatch.setattr("app.http.app.injector", _RecordingInjector(service))
+
+    with pytest.raises(RuntimeError):
+        document_task.build_documents.run([uuid4()])
+
+    assert "RuntimeError" in caplog.text
+    assert "private document content" not in caplog.text
