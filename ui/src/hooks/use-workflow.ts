@@ -144,17 +144,21 @@ export const useUpdateWorkflow = () => {
 export const useGetWorkflow = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const workflow = ref<Record<string, any>>({})
 
   // 2.定义或区间数据函数
   const loadWorkflow = async (workflow_id: string) => {
+    const requestId = ++latestRequest
     try {
       // 3.调用API接口获取工作流基础信息
       loading.value = true
       const resp = await getWorkflow(workflow_id)
-      workflow.value = resp.data
+      if (requestId === latestRequest) workflow.value = resp.data
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
