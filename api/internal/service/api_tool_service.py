@@ -214,7 +214,7 @@ class ApiToolService(BaseService):
             )
             logging.info(f"重新生成图标成功: {icon_url}")
         except Exception as e:
-            logging.exception("重新生成图标失败: provider_id=%s", provider_id, exc_info=e)
+            logging.error("重新生成图标失败: provider_id=%s error_type=%s", provider_id, type(e).__name__)
             raise FailException("重新生成图标失败，请稍后重试")
 
         # 3.更新插件提供者图标
@@ -233,7 +233,7 @@ class ApiToolService(BaseService):
             logging.info(f"生成图标预览成功: {icon_url}")
             return icon_url
         except Exception as e:
-            logging.exception("生成图标预览失败: name=%s", name, exc_info=e)
+            logging.error("生成图标预览失败: name=%s error_type=%s", name, type(e).__name__)
             raise FailException("生成图标预览失败，请稍后重试")
 
     @classmethod

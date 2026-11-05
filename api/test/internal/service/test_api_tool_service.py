@@ -586,12 +586,13 @@ class TestApiToolService:
         assert result.startswith("https://icon/weather-api/")
         assert updates == [(provider, {"icon": result})]
 
-    def test_regenerate_icon_should_raise_fail_exception_when_generator_failed(self, monkeypatch):
+    def test_regenerate_icon_should_redact_generator_error(self, monkeypatch, caplog):
         account_uuid = uuid4()
         provider = SimpleNamespace(id=uuid4(), account_id=account_uuid, name="api", description="desc")
+        marker = "SYNTHETIC_PROVIDER_SECRET"
 
         def _raise_icon_error(**_kwargs):
-            raise RuntimeError("icon failed")
+            raise RuntimeError(marker)
 
         service = _new_api_tool_service(
             db=SimpleNamespace(session=SimpleNamespace()),
@@ -602,8 +603,12 @@ class TestApiToolService:
         )
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: provider)
 
-        with pytest.raises(FailException):
-            service.regenerate_icon(provider.id, SimpleNamespace(id=str(account_uuid)))
+        with caplog.at_level("ERROR"):
+            with pytest.raises(FailException):
+                service.regenerate_icon(provider.id, SimpleNamespace(id=str(account_uuid)))
+
+        assert marker not in caplog.text
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_generate_icon_preview_should_return_generated_icon(self):
         service = _new_api_tool_service(
@@ -618,10 +623,11 @@ class TestApiToolService:
 
         assert icon_url == "https://preview/weather-api/desc"
 
-    def test_generate_icon_preview_should_raise_fail_exception_when_generator_failed(self):
+    def test_generate_icon_preview_should_redact_generator_error(self, caplog):
+        marker = "SYNTHETIC_PROVIDER_SECRET"
 
         def _raise_preview_error(**_kwargs):
-            raise RuntimeError("preview failed")
+            raise RuntimeError(marker)
 
         service = _new_api_tool_service(
             db=SimpleNamespace(session=SimpleNamespace()),
@@ -631,5 +637,9 @@ class TestApiToolService:
             ),
         )
 
-        with pytest.raises(FailException):
-            service.generate_icon_preview("weather-api", "desc")
+        with caplog.at_level("ERROR"):
+            with pytest.raises(FailException):
+                service.generate_icon_preview("weather-api", "desc")
+
+        assert marker not in caplog.text
+        assert "error_type=RuntimeError" in caplog.text
