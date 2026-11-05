@@ -29,10 +29,14 @@ const { handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
                 <a-dropdown @select="
                     async (value: string | number | boolean) => {
                         if (Boolean(value) !== props.speech_to_text?.enable) {
+                            try {
+                                await handleUpdateDraftAppConfig(props.app_id, {
+                                    speech_to_text: { enable: Boolean(value) },
+                                })
+                            } catch {
+                                return
+                            }
                             emits('update:speech_to_text', { enable: Boolean(value) })
-                            await handleUpdateDraftAppConfig(props.app_id, {
-                                speech_to_text: { enable: Boolean(value) },
-                            })
                         }
                     }
                 ">
