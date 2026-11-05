@@ -91,7 +91,7 @@ const handleSubmitReviewConfig = async () => {
       outputs_config: reviewConfigForm.value.outputs_config,
     },
   })
-  if (session !== reviewModalSession || !reviewConfigModalVisible.value) return
+  if (session !== reviewModalSession) return
 
   // 4.2 接口更新更新成功，同步表单信息
   originReviewConfigForm.value = cloneDeep(reviewConfigForm.value)
