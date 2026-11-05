@@ -43,6 +43,7 @@ const props = defineProps({
 const { loading, handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
 const isInit = ref(false)
 const reviewConfigModalVisible = ref(false)
+let reviewModalSession = 0
 const reviewConfigForm = ref<ReviewConfigForm>({
   enable: Boolean(props.review_config?.enable),
   keywords: String(props.review_config?.keywords?.join('\n') || ''),
@@ -63,6 +64,7 @@ const isFormModified = () => {
 
 // 3.隐藏审核配置模态窗处理器
 const handleCancelReviewConfigModal = () => {
+  reviewModalSession += 1
   // 3.1 隐藏模态窗
   reviewConfigModalVisible.value = false
 
@@ -70,8 +72,14 @@ const handleCancelReviewConfigModal = () => {
   reviewConfigForm.value = cloneDeep(originReviewConfigForm.value)
 }
 
+const openReviewConfigModal = () => {
+  reviewModalSession += 1
+  reviewConfigModalVisible.value = true
+}
+
 // 4.提交审核配置模态窗存储的内容
 const handleSubmitReviewConfig = async () => {
+  const session = reviewModalSession
   // 4.1 处理数据并完成API接口提交
   await handleUpdateDraftAppConfig(props.app_id, {
     review_config: {
@@ -83,6 +91,7 @@ const handleSubmitReviewConfig = async () => {
       outputs_config: reviewConfigForm.value.outputs_config,
     },
   })
+  if (session !== reviewModalSession || !reviewConfigModalVisible.value) return
 
   // 4.2 接口更新更新成功，同步表单信息
   originReviewConfigForm.value = cloneDeep(reviewConfigForm.value)
@@ -171,7 +180,7 @@ watch(
           size="small"
           long
           class="hidden group-hover:block rounded-lg transition-all"
-          @click="reviewConfigModalVisible = true"
+          @click="openReviewConfigModal"
         >
           <template #icon>
             <icon-settings />
