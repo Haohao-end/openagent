@@ -5,6 +5,7 @@ import {
   useGetApp,
   useGetAppsWithPage,
   useGetDraftAppConfig,
+  useGetPublishedConfig,
   useGetVersions,
 } from '@/hooks/use-app'
 import * as appService from '@/services/app'
@@ -16,6 +17,7 @@ vi.mock('@/services/app', async () => {
     getApp: vi.fn(),
     getAppsWithPage: vi.fn(),
     getDraftAppConfig: vi.fn(),
+    getPublishedConfig: vi.fn(),
     getVersions: vi.fn(),
     fallbackHistoryToDraft: vi.fn(),
   }
@@ -152,6 +154,31 @@ describe('useGetVersions', () => {
 
     await expect(loadVersions('app-1')).rejects.toThrow('network error')
     expect(loading.value).toBe(false)
+  })
+})
+
+describe('useGetPublishedConfig', () => {
+  it('ignores an older route response after the selected app changes', async () => {
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise })
+      return { promise, resolve }
+    }
+    const oldResponse = deferred<{ data: { app_id: string } }>()
+    const currentResponse = deferred<{ data: { app_id: string } }>()
+    vi.mocked(appService.getPublishedConfig)
+      .mockReturnValueOnce(oldResponse.promise as never)
+      .mockReturnValueOnce(currentResponse.promise as never)
+    const { published_config, loadPublishedConfig } = useGetPublishedConfig()
+
+    const oldRequest = loadPublishedConfig('app-old')
+    const currentRequest = loadPublishedConfig('app-current')
+    currentResponse.resolve({ data: { app_id: 'app-current' } })
+    await currentRequest
+    oldResponse.resolve({ data: { app_id: 'app-old' } })
+    await oldRequest
+
+    expect(published_config.value).toEqual({ app_id: 'app-current' })
   })
 })
 
