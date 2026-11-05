@@ -1784,7 +1784,7 @@ class AppService(BaseService):
             )
             logging.info(f"重新生成图标成功: {icon_url}")
         except Exception as e:
-            logging.error(f"重新生成图标失败: {str(e)}")
+            logging.error("重新生成图标失败: error_type=%s", type(e).__name__)
             # 直接抛出原始异常，保留错误信息
             raise
 
@@ -1804,7 +1804,7 @@ class AppService(BaseService):
             logging.info(f"生成图标预览成功: {icon_url}")
             return icon_url
         except Exception as e:
-            logging.error(f"生成图标预览失败: {str(e)}")
+            logging.error("生成图标预览失败: error_type=%s", type(e).__name__)
             # 直接抛出原始异常，保留错误信息
             raise
 
