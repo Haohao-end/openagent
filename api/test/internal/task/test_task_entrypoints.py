@@ -7,7 +7,7 @@ import pytest
 from celery.exceptions import Retry
 from openai import APIConnectionError
 
-from internal.task import app_task, dataset_task, document_task
+from internal.task import app_task, conversation_task, dataset_task, document_task
 
 
 class _RecordingInjector:
@@ -301,3 +301,21 @@ def test_app_task_prewarm_mcp_tool_snapshots_should_retry_on_pending_snapshot(mo
     assert len(retry_calls) == 1
     assert isinstance(retry_calls[0][0], RuntimeError)
     assert retry_calls[0][1] == 20
+
+
+def test_conversation_task_logs_exception_type_without_exception_text(monkeypatch, caplog):
+    monkeypatch.setitem(sys.modules, "internal.service", SimpleNamespace(ConversationService=object))
+    monkeypatch.setattr(
+        conversation_task, "UUID", lambda _value: (_ for _ in ()).throw(ValueError("private prompt"))
+    )
+    monkeypatch.setattr(
+        conversation_task.process_conversation_message,
+        "retry",
+        lambda **kwargs: Retry(exc=kwargs["exc"]),
+    )
+
+    with pytest.raises(Retry):
+        conversation_task.process_conversation_message.run("conversation", "message", "user")
+
+    assert "ValueError" in caplog.text
+    assert "private prompt" not in caplog.text
