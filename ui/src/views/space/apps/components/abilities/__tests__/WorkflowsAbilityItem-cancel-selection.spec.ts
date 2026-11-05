@@ -24,7 +24,7 @@ vi.mock('@/hooks/use-workflow', async () => {
 vi.mock('@arco-design/web-vue', () => ({ Message: { warning: vi.fn() } }))
 
 const WrapperStub = { template: '<div><slot /><slot name="header" /><slot name="extra" /></div>' }
-const ButtonStub = defineComponent({ props: ['disabled'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>' })
+const ButtonStub = defineComponent({ props: ['disabled', 'loading'], emits: ['click'], template: '<button :disabled="disabled || loading" @click="$emit(\'click\', $event)"><slot /></button>' })
 const ModalStub = defineComponent({ props: ['visible'], template: '<div v-if="visible"><slot /></div>' })
 
 it('does not retain an unsaved workflow after cancelling a later selection', async () => {
@@ -94,5 +94,27 @@ it('keeps the workflow picker open while a submitted selection is saving', async
   expect(wrapper.emitted('update:workflows')?.[0][0]).toEqual([
     { id: 'wf-1', name: 'Available workflow', icon: '', description: '' },
   ])
+  wrapper.unmount()
+})
+
+it('prevents another workflow removal while a save is pending', async () => {
+  let resolveUpdate!: () => void
+  mocks.update.mockReset().mockReturnValue(new Promise<void>((resolve) => { resolveUpdate = resolve }))
+  const wrapper = mount(WorkflowsAbilityItem, {
+    props: { app_id: 'app-1', workflows: [
+      { id: 'wf-1', name: 'First', icon: '', description: '' },
+      { id: 'wf-2', name: 'Second', icon: '', description: '' },
+    ] },
+    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true } },
+  })
+  await flushPromises()
+  const removeButtons = wrapper.findAll('button').filter(button => button.classes().includes('!text-red-700'))
+
+  await removeButtons[0].trigger('click')
+  await nextTick()
+  expect((removeButtons[1].element as HTMLButtonElement).disabled).toBe(true)
+  expect(mocks.update).toHaveBeenCalledTimes(1)
+  resolveUpdate()
+  await flushPromises()
   wrapper.unmount()
 })
