@@ -5,9 +5,10 @@ from uuid import uuid4
 import httpx
 import pytest
 from celery.exceptions import Retry
+from flask import Flask
 from openai import APIConnectionError
 
-from internal.task import app_task, dataset_task, document_task
+from internal.task import app_task, dataset_task, demo_task, document_task
 
 
 class _RecordingInjector:
@@ -301,3 +302,15 @@ def test_app_task_prewarm_mcp_tool_snapshots_should_retry_on_pending_snapshot(mo
     assert len(retry_calls) == 1
     assert isinstance(retry_calls[0][0], RuntimeError)
     assert retry_calls[0][1] == 20
+
+
+def test_demo_task_does_not_log_application_config(monkeypatch, caplog):
+    caplog.set_level("INFO")
+    app = Flask("demo-task-test")
+    app.config["SECRET_KEY"] = "private-config-secret"
+    monkeypatch.setattr(demo_task.time, "sleep", lambda _seconds: None)
+
+    with app.app_context():
+        assert demo_task.demo_task.run(uuid4()) == "haohao"
+
+    assert "private-config-secret" not in caplog.text
