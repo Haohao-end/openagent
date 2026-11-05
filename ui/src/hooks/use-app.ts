@@ -786,15 +786,18 @@ export const useGetVersions = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const versions = ref<AppVersion[]>([])
+  let latestRequest = 0
 
   // 2.定义加载版本数据函数
   const loadVersions = async (app_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getVersions(app_id)
+      if (requestId !== latestRequest) return
       versions.value = resp.data.list
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
