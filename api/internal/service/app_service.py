@@ -1212,8 +1212,8 @@ class AppService(BaseService):
                         runtime_context=normalized_runtime_context,
                     )
                 except Exception as exc:
-                    logging.exception("调用子 Agent 工具失败: tool_name=%s, error=%s", _tool_name, str(exc))
-                    return f"调用子应用失败: {str(exc)}"
+                    logging.error("调用子 Agent 工具失败: tool_name=%s error_type=%s", _tool_name, type(exc).__name__)
+                    return "调用子应用失败，请稍后重试"
 
             delegate_tool = tool(tool_name, args_schema=AgentBindingQuery)(_invoke_agent_binding)
             delegate_tool.description = (

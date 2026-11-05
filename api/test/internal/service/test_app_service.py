@@ -758,6 +758,23 @@ class TestAppService:
         assert agent_binding_calls[0]["agent_bindings"] == [{"app_id": "agent-1"}]
         assert agent_binding_calls[0]["kwargs"]["app_id"] == app_id
 
+    def test_child_agent_tool_should_redact_provider_failure_details(self, monkeypatch, caplog):
+        secret = "SYNTHETIC_CHILD_PROVIDER_SECRET"
+        service = _build_service()
+        monkeypatch.setattr(
+            service,
+            "_invoke_agent_binding_target",
+            lambda **_kwargs: (_ for _ in ()).throw(RuntimeError(secret)),
+        )
+        tools = service.get_langchain_tools_by_agent_bindings(
+            [{"app_id": str(uuid4())}], account=SimpleNamespace(id=uuid4()), app_id=uuid4()
+        )
+
+        result = tools[0].invoke({"query": "private query"})
+
+        assert secret not in caplog.text
+        assert secret not in str(result)
+
     def test_create_runtime_agent_should_select_deep_thinking_agent_and_forward_runtime_context(
         self, monkeypatch
     ):
