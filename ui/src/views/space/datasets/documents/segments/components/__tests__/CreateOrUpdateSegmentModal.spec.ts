@@ -2,12 +2,12 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CreateOrUpdateSegmentModal from '../CreateOrUpdateSegmentModal.vue'
 
-const mocks = vi.hoisted(() => ({ loadSegment: vi.fn() }))
+const mocks = vi.hoisted(() => ({ loadSegment: vi.fn(), updateSegment: vi.fn() }))
 
 vi.mock('@/hooks/use-dataset', () => ({
   useCreateSegment: () => ({ loading: false, handleCreateSegment: vi.fn() }),
   useGetSegment: () => ({ loadSegment: (...args: unknown[]) => mocks.loadSegment(...args) }),
-  useUpdateSegment: () => ({ loading: false, handleUpdateSegment: vi.fn() }),
+  useUpdateSegment: () => ({ loading: false, handleUpdateSegment: mocks.updateSegment }),
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -37,5 +37,24 @@ describe('CreateOrUpdateSegmentModal', () => {
     await flushPromises()
 
     expect(wrapper.get('textarea').element.value).toBe('')
+  })
+
+  it('keeps a reopened segment editor open after an earlier save completes', async () => {
+    let resolve!: () => void
+    mocks.updateSegment.mockReturnValueOnce(new Promise<void>((done) => { resolve = done }))
+    const wrapper = mount(CreateOrUpdateSegmentModal, {
+      props: { dataset_id: 'dataset-1', document_id: 'document-1', segment_id: 'segment-1', visible: true },
+      global: { stubs: { 'a-modal': modalStub, 'a-form': formStub, 'a-textarea': textareaStub } },
+    })
+    const { saveSegment } = (wrapper.vm.$ as unknown as {
+      setupState: { saveSegment: (payload: { errors: undefined }) => Promise<void> }
+    }).setupState
+    const save = saveSegment({ errors: undefined })
+    await wrapper.setProps({ visible: false })
+    await wrapper.setProps({ visible: true, segment_id: 'segment-2' })
+    resolve()
+    await save
+    expect(wrapper.emitted('update:visible')).toBeUndefined()
+    wrapper.unmount()
   })
 })
