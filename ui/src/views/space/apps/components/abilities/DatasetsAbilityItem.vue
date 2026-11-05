@@ -43,6 +43,7 @@ const { loading: updateDraftAppConfigLoading, handleUpdateDraftAppConfig } =
 const { loading, paginator, datasets: apiDatasets, loadDatasets } = useGetDatasetsWithPage()
 const datasetsModalVisible = ref(false)
 const retrievalConfigModalVisible = ref(false)
+let retrievalConfigModalSession = 0
 const isDatasetsInit = ref(false)
 const activateDatasets = ref<DatasetSelection[]>([])
 const originDatasets = ref<DatasetSelection[]>([])
@@ -100,12 +101,18 @@ const handleCancelDatasetsModal = () => {
 
 // 6.定义取消检索设置模态窗处理器
 const handleCancelRetrievalConfigModal = () => {
+  retrievalConfigModalSession += 1
   // 6.1 隐藏模态窗
   retrievalConfigModalVisible.value = false
 
   // 6.2 还原初始值
   retrievalConfigForm.value = cloneDeep(originRetrievalConfigForm.value)
   isRetrievalConfigInit.value = false
+}
+
+const openRetrievalConfigModal = () => {
+  retrievalConfigModalSession += 1
+  retrievalConfigModalVisible.value = true
 }
 
 // 7.知识库选择处理器
@@ -154,6 +161,7 @@ const handleSubmitDatasets = async () => {
 
 // 9.提交更新检索配置
 const handleSubmitRetrievalConfig = async () => {
+  const session = retrievalConfigModalSession
   const retrievalConfig = {
     retrieval_strategy: String(retrievalConfigForm.value.retrieval_strategy || 'semantic'),
     k: Number(retrievalConfigForm.value.k ?? 4),
@@ -164,6 +172,7 @@ const handleSubmitRetrievalConfig = async () => {
   await handleUpdateDraftAppConfig(props.app_id, {
     retrieval_config: retrievalConfig,
   })
+  if (session !== retrievalConfigModalSession) return
 
   // 9.2 接口更新更新成功，同步表单信息
   originRetrievalConfigForm.value = retrievalConfig
@@ -252,7 +261,7 @@ onMounted(() => {
           <a-button
             size="mini"
             class="rounded-lg px-2"
-            @click.stop="retrievalConfigModalVisible = true"
+            @click.stop="openRetrievalConfigModal"
           >
             <template #icon>
               <icon-language />
