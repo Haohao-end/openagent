@@ -367,8 +367,12 @@ class SegmentService(BaseService):
         try:
             self.vector_database_service.collection.data.delete_by_id(str(segment.node_id))
         except Exception as e:
-            logging.exception(f"删除文档片段记录失败, segment_id: {segment_id}, 错误信息: {str(e)}")
-            raise FailException("删除文档片段失败，请稍后重试") from e
+            logging.error(
+                "删除文档片段记录失败, segment_id: %s, error_type: %s",
+                segment_id,
+                type(e).__name__,
+            )
+            raise FailException("删除文档片段失败，请稍后重试") from None
 
         # 5.删除文档片段和关键词
         self.keyword_table_service.delete_keyword_table_from_ids(dataset_id, [segment_id])

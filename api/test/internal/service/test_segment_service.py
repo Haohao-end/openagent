@@ -1117,7 +1117,10 @@ class TestSegmentService:
         with pytest.raises(NotFoundException):
             service.delete_segment(uuid4(), uuid4(), uuid4(), SimpleNamespace(id=uuid4()))
 
-    def test_delete_segment_should_preserve_segment_when_cleanup_failed(self, monkeypatch):
+    def test_delete_segment_should_preserve_segment_when_cleanup_failed(
+        self, monkeypatch, caplog
+    ):
+        secret = "SYNTHETIC_VECTOR_DATABASE_SECRET"
         document = SimpleNamespace(id=uuid4())
         segment = SimpleNamespace(
             id=uuid4(),
@@ -1154,7 +1157,7 @@ class TestSegmentService:
             vector_database_service=SimpleNamespace(
                 collection=SimpleNamespace(
                     data=SimpleNamespace(
-                        delete_by_id=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("vector-delete-error"))
+                        delete_by_id=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError(secret))
                     )
                 )
             ),
@@ -1171,6 +1174,8 @@ class TestSegmentService:
 
         with pytest.raises(FailException):
             service.delete_segment(segment.dataset_id, segment.document_id, segment.id, account)
+
+        assert secret not in caplog.text
 
         assert segment_deletes == []
         assert keyword_deletes == []
