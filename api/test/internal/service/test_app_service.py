@@ -3359,8 +3359,9 @@ class TestAppServiceDraftConfigValidation:
         )
         service.update.assert_called_once_with(app, icon="https://cos.com/new-icon.png")
 
-    def test_regenerate_icon_failure(self):
+    def test_regenerate_icon_failure(self, caplog):
         """测试重新生成图标失败"""
+        secret = "SYNTHETIC_ICON_PROVIDER_SECRET"
         app_id = uuid4()
         account_id = uuid4()
         app = SimpleNamespace(
@@ -3373,7 +3374,7 @@ class TestAppServiceDraftConfigValidation:
 
         # Mock icon generator service that fails
         mock_icon_generator = SimpleNamespace(
-            generate_icon=Mock(side_effect=Exception("生成失败"))
+            generate_icon=Mock(side_effect=Exception(secret))
         )
 
         service = _new_app_service(
@@ -3398,7 +3399,8 @@ class TestAppServiceDraftConfigValidation:
         with pytest.raises(Exception) as exc_info:
             service.regenerate_icon(app_id, account)
 
-        assert "生成失败" in str(exc_info.value)
+        assert secret in str(exc_info.value)
+        assert secret not in caplog.text
 
     def test_resolve_debug_conversation_should_raise_when_conversation_invalid(self, monkeypatch):
         service = _build_service()
@@ -3506,9 +3508,10 @@ class TestAppServiceDraftConfigValidation:
             description="应用描述",
         )
 
-    def test_generate_icon_preview_should_raise_when_generator_failed(self):
+    def test_generate_icon_preview_should_raise_when_generator_failed(self, caplog):
+        secret = "SYNTHETIC_ICON_PROVIDER_SECRET"
         mock_icon_generator = SimpleNamespace(
-            generate_icon=Mock(side_effect=RuntimeError("preview failed")),
+            generate_icon=Mock(side_effect=RuntimeError(secret)),
         )
         service = _new_app_service(
             db=_DummyDB(),
@@ -3524,8 +3527,9 @@ class TestAppServiceDraftConfigValidation:
             icon_generator_service=mock_icon_generator,
         )
 
-        with pytest.raises(RuntimeError, match="preview failed"):
+        with pytest.raises(RuntimeError, match=secret):
             service.generate_icon_preview(name="预览应用", description="应用描述")
+        assert secret not in caplog.text
 
     def test_publish_draft_app_config_should_not_force_public_when_share_to_square_disabled(self, monkeypatch):
         class _DeleteQuery:
