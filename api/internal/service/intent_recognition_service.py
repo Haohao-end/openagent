@@ -185,7 +185,7 @@ class IntentRecognitionService(BaseService):
 
             return json.loads(cached_data)
         except Exception as e:
-            logging.error(f"Failed to get cached intent: {str(e)}")
+            logging.error("Failed to get cached intent: error_type=%s", type(e).__name__)
             return None
 
     def cache_intent(self, user_id: str, intent_result: dict[str, Any]) -> None:
@@ -201,7 +201,7 @@ class IntentRecognitionService(BaseService):
                 json.dumps(intent_result, ensure_ascii=False)
             )
         except Exception as e:
-            logging.error(f"Failed to cache intent: {str(e)}")
+            logging.error("Failed to cache intent: error_type=%s", type(e).__name__)
 
     def clear_cache(self, user_id: str) -> None:
         """清除缓存"""
@@ -209,4 +209,4 @@ class IntentRecognitionService(BaseService):
             cache_key = self._get_cache_key(user_id)
             self.redis_client.delete(cache_key)
         except Exception as e:
-            logging.error(f"Failed to clear cache: {str(e)}")
+            logging.error("Failed to clear cache: error_type=%s", type(e).__name__)
