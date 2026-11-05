@@ -25,6 +25,7 @@ const props = defineProps({
 const { loading, handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
 const isInit = ref(false)
 const textToSpeechModalVisible = ref(false)
+let textToSpeechModalSession = 0
 const textToSpeechForm = ref<TextToSpeechConfig>({
     enable: Boolean(props.text_to_speech?.enable),
     voice: String(props.text_to_speech?.voice || ''),
@@ -39,6 +40,7 @@ const isFormModified = () => {
 
 // 3.隐藏文本转语音配置模态窗
 const handleCancelTextToSpeechModal = () => {
+    textToSpeechModalSession += 1
     // 3.1 隐藏模态窗
     textToSpeechModalVisible.value = false
 
@@ -46,8 +48,14 @@ const handleCancelTextToSpeechModal = () => {
     textToSpeechForm.value = cloneDeep(originTextToSpeechForm.value)
 }
 
+const openTextToSpeechModal = () => {
+    textToSpeechModalSession += 1
+    textToSpeechModalVisible.value = true
+}
+
 // 4.提交模态窗存储的内容
 const handleSubmitTextToSpeech = async () => {
+    const session = textToSpeechModalSession
     // 4.1 处理数据并完成API接口提交
     await handleUpdateDraftAppConfig(props.app_id, {
         text_to_speech: {
@@ -56,6 +64,7 @@ const handleSubmitTextToSpeech = async () => {
             auto_play: textToSpeechForm.value.auto_play,
         },
     })
+    if (session !== textToSpeechModalSession) return
 
     // 4.2 接口更新更新成功，同步表单信息
     originTextToSpeechForm.value = cloneDeep(textToSpeechForm.value)
@@ -133,7 +142,7 @@ watch(
                     {{ t('appStudio.abilities.textToSpeech.description') }}
                 </div>
                 <a-button size="small" long class="hidden group-hover:block rounded-lg transition-all"
-                    @click="textToSpeechModalVisible = true">
+                    @click="openTextToSpeechModal">
                     <template #icon>
                         <icon-settings />
                     </template>
