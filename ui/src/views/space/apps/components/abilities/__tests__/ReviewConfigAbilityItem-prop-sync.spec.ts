@@ -18,3 +18,20 @@ it('preserves unsaved review settings when refreshed props arrive', async () => 
   expect(state.reviewConfigForm.keywords).toBe('unsaved keyword')
   wrapper.unmount()
 })
+
+it('keeps reopened review settings open after an earlier save completes', async () => {
+  let resolve!: () => void
+  mocks.update.mockReturnValueOnce(new Promise<void>((done) => { resolve = done }))
+  const wrapper = shallowMount(ReviewConfigAbilityItem, { props: { app_id: 'app-1', review_config: { enable: false, keywords: [], inputs_config: { enable: false, preset_response: '' }, outputs_config: { enable: false } } } })
+  const state = (wrapper.vm.$ as any).setupState
+  state.reviewConfigModalVisible = true
+  const save = state.handleSubmitReviewConfig()
+  state.handleCancelReviewConfigModal()
+  state.reviewConfigModalVisible = true
+  state.reviewConfigForm.keywords = 'new session'
+  resolve()
+  await save
+  expect(state.reviewConfigModalVisible).toBe(true)
+  expect(state.reviewConfigForm.keywords).toBe('new session')
+  wrapper.unmount()
+})
