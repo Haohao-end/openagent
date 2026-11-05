@@ -273,18 +273,21 @@ class TestCosService:
         with pytest.raises(FailException):
             service.upload_file(file=file, only_image=False, account=account)
 
-    def test_upload_file_should_retry_transient_errors_then_succeed(self, monkeypatch):
+    def test_upload_file_should_retry_transient_errors_then_succeed(
+        self, monkeypatch, caplog
+    ):
         account = SimpleNamespace(id=uuid4())
         call_state = {"count": 0}
         sleeps = []
         captured = {}
+        secret = "SYNTHETIC_COS_SECRET"
 
         class _Client:
             @staticmethod
             def put_object(bucket, file_content, upload_filename):
                 call_state["count"] += 1
                 if call_state["count"] < 3:
-                    raise RuntimeError("temporary network error")
+                    raise RuntimeError(secret)
                 captured["bucket"] = bucket
                 captured["file_content"] = file_content
                 captured["upload_filename"] = upload_filename
@@ -309,6 +312,7 @@ class TestCosService:
         assert captured["file_content"] == b"hello"
         assert captured["upload_payload"]["account_id"] == account.id
         assert result.name == "demo.txt"
+        assert secret not in caplog.text
 
     def test_upload_file_should_treat_already_exists_error_as_idempotent_success(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
