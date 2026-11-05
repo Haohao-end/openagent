@@ -19,6 +19,7 @@ const { t, locale } = useI18n()
 const loading = ref(false)
 const workflows = ref<PublicWorkflow[]>([])
 const tags = ref<AppTag[]>([])
+const pendingForkIds = ref(new Set<string>())
 const selectedTags = ref<string[]>([])
 const searchWord = ref('')
 const page = ref(1)
@@ -75,6 +76,8 @@ const loadTags = async () => {
 }
 
 const handleFork = async (workflow: PublicWorkflow) => {
+  if (pendingForkIds.value.has(workflow.id)) return
+  pendingForkIds.value.add(workflow.id)
   try {
     const res = await forkPublicWorkflow(workflow.id)
     if (isUnmounted) return
@@ -84,6 +87,8 @@ const handleFork = async (workflow: PublicWorkflow) => {
     router.push({ name: 'space-workflows-detail', params: { workflow_id: res.data.id } })
   } catch (error: unknown) {
     if (!isUnmounted) Message.error(getErrorMessage(error, t('store.workflows.actionFailed')))
+  } finally {
+    pendingForkIds.value.delete(workflow.id)
   }
 }
 
@@ -233,7 +238,7 @@ onMounted(() => {
                     type="button"
                     class="flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 hover:scale-105"
                     :class="workflow.is_forked ? 'bg-gray-100 cursor-not-allowed opacity-50' : 'bg-blue-50 hover:bg-blue-100'"
-                    :disabled="workflow.is_forked"
+                    :disabled="workflow.is_forked || pendingForkIds.has(workflow.id)"
                     @click.stop="handleFork(workflow)"
                   >
                     <icon-branch
