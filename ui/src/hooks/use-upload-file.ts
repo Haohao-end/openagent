@@ -31,11 +31,11 @@ export const useUploadFile = () => {
   let uploadRequestId = 0
 
   // 2.定义上传文件处理器
-  const handleUploadFile = async (file: File): Promise<UploadFileResponse | undefined> => {
+  const handleUploadFile = async (file: File, signal?: AbortSignal): Promise<UploadFileResponse | undefined> => {
     const requestId = ++uploadRequestId
     try {
       loading.value = true
-      const resp = await uploadFile(file)
+      const resp = await uploadFile(file, signal)
       if (requestId === uploadRequestId) upload_file.value = resp.data
       return resp
     } finally {

@@ -133,7 +133,7 @@ describe('request utils', () => {
     expect(onData).toHaveBeenCalledWith({ event: 'message', data: { content: 'message' } })
   })
 
-  it('rejects uploads that stall instead of leaving the promise pending', async () => {
+  it('aborts uploads and rejects ones that stall instead of remaining pending', async () => {
     let xhrInstance!: XMLHttpRequest
     class FakeXMLHttpRequest {
       readyState = 0
@@ -146,6 +146,8 @@ describe('request utils', () => {
       upload = { onprogress: null as ((event: ProgressEvent) => void) | null }
       onreadystatechange: (() => void) | null = null
       onerror: (() => void) | null = null
+      onabort: (() => void) | null = null
+      abort = vi.fn(() => this.onabort?.())
       open = vi.fn()
       setRequestHeader = vi.fn()
       send = vi.fn()
@@ -154,6 +156,12 @@ describe('request utils', () => {
       }
     }
     vi.stubGlobal('XMLHttpRequest', FakeXMLHttpRequest)
+
+    const controller = new AbortController()
+    const cancelled = upload('/files/upload', { signal: controller.signal })
+    const cancelledXhr = xhrInstance
+    controller.abort(); expect(cancelledXhr.abort).toHaveBeenCalledOnce()
+    await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
 
     const request = upload('/files/upload')
     expect(xhrInstance.timeout).toBe(100000)

@@ -94,6 +94,20 @@ describe('document creation status', () => {
     }
   })
 
+  it('aborts a cancelled file upload without reporting completion', async () => {
+    let signal: AbortSignal | undefined, resolveUpload!: (value: { data: { id: string } }) => void
+    handleUploadFile.mockImplementationOnce((_file, nextSignal) => { signal = nextSignal; return new Promise((resolve) => { resolveUpload = resolve }) })
+    const { default: CreateView } = await import('../CreateView.vue')
+    const wrapper = mount(CreateView, { global: { stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub } } })
+    const customRequest = wrapper.findComponent(UploadStub).props('customRequest') as (option: any) => { abort: () => void }
+    const onSuccess = vi.fn(), onError = vi.fn()
+    const request = customRequest({ fileItem: { file: new File(['content'], 'doc.txt') }, onSuccess, onError })
+    request.abort(); resolveUpload({ data: { id: 'file-1' } })
+    await flushPromises()
+    expect([signal?.aborted, onSuccess.mock.calls, onError.mock.calls]).toEqual([true, [], []])
+    wrapper.unmount()
+  })
+
   it('does not submit document creation again when the first status lookup fails', async () => {
     loadDocumentsStatus.mockRejectedValueOnce(new Error('status unavailable'))
     const { default: CreateView } = await import('../CreateView.vue')

@@ -74,6 +74,8 @@ const getUploadFileId = (fileItem: FileItem): string => {
   return id ? String(id) : ''
 }
 
+const createUploadController = () => new AbortController()
+
 // 2.定义下一步处理函数
 const nextStep = async () => {
   // 2.1 判断下当前所处的步骤并执行不同的操作
@@ -253,6 +255,7 @@ onUnmounted(() => {
           :tip="t('space.datasets.documents.create.uploadTip')"
           :custom-request="
             (option: UploadCustomRequestOption) => {
+              const uploadController = createUploadController()
               // 1.提取选项中的文件选项以及成功回调
               const { fileItem, onSuccess, onError } = option
 
@@ -262,7 +265,8 @@ onUnmounted(() => {
                     onError(new Error(t('space.datasets.documents.create.invalidFile')))
                     return
                   }
-                  const response = await handleUploadFile(fileItem.file as File)
+                  const response = await handleUploadFile(fileItem.file as File, uploadController.signal)
+                  if (uploadController.signal.aborted) return
 
                   // 从响应的 data 字段中获取文件ID
                   const fileId = response?.data?.id
@@ -272,6 +276,7 @@ onUnmounted(() => {
                   }
                   onSuccess({ id: fileId })
                 } catch (error: unknown) {
+                  if (uploadController.signal.aborted) return
                   onError(error instanceof Error ? error : new Error(t('space.datasets.documents.create.uploadFailed')))
                 }
               }
@@ -279,7 +284,7 @@ onUnmounted(() => {
               // 2.调用api接口上传文件并添加数据
               uploadTask()
 
-              return { abort: () => {} }
+              return { abort: () => uploadController.abort() }
             }
           "
         />
