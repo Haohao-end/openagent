@@ -745,6 +745,7 @@ onMounted(() => {
                   </div>
                   <!-- 添加按钮 -->
                   <a-button
+                    :loading="updateDraftAppConfigLoading"
                     size="mini"
                     class="hidden group-hover:block rounded px-1.5 flex-shrink-0"
                     @click="async () => await handleSelectTool(builtin_tool_idx, tool_idx)"
@@ -800,6 +801,7 @@ onMounted(() => {
                     </div>
                     <!-- 添加按钮 -->
                     <a-button
+                      :loading="updateDraftAppConfigLoading"
                       size="mini"
                       class="hidden group-hover:block rounded px-1.5 flex-shrink-0"
                       @click="

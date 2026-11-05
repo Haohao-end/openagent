@@ -13,11 +13,12 @@ const mocks = vi.hoisted(() => ({
   loadCategories: vi.fn().mockResolvedValue(undefined),
   builtinTools: [] as Array<Record<string, unknown>>,
   builtinTool: null as any,
+  updateLoading: null as any,
 }))
 
 vi.mock('@/hooks/use-app', () => ({
   useUpdateDraftAppConfig: () => ({
-    loading: ref(false),
+    loading: mocks.updateLoading || ref(false),
     handleUpdateDraftAppConfig: mocks.updateDraftAppConfig,
   }),
 }))
@@ -325,6 +326,33 @@ describe('ToolsAbilityItem', () => {
     expect(mocks.updateDraftAppConfig).toHaveBeenCalledWith('app-1', {
       tools: [expect.objectContaining({ tool_id: 'flag', params: { enabled: true } })],
     })
+    resolveUpdate()
+    await flushPromises()
+  })
+
+  it('prevents overlapping tool selection saves', async () => {
+    let resolveUpdate!: () => void
+    const pendingUpdate = new Promise<void>((resolve) => { resolveUpdate = resolve })
+    mocks.builtinTools = [{ name: 'provider', label: 'Provider', category: 'all', tools: [
+      { name: 'first', label: 'First', params: [] },
+      { name: 'second', label: 'Second', params: [] },
+    ] }]
+    mocks.updateLoading = ref(false)
+    mocks.updateDraftAppConfig.mockImplementation(() => {
+      mocks.updateLoading.value = true
+      return pendingUpdate.finally(() => { mocks.updateLoading.value = false })
+    })
+    const wrapper = mountToolsAbilityItem()
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('.cursor-pointer').find(item => item.text().includes('内置插件'))!.trigger('click')
+    const addButtons = wrapper.findAll('button').filter(button => button.text() === '添加')
+    await addButtons[0].trigger('click')
+    await nextTick()
+
+    expect((addButtons[1].element as HTMLButtonElement).disabled).toBe(true)
+    expect(mocks.updateDraftAppConfig).toHaveBeenCalledTimes(1)
     resolveUpdate()
     await flushPromises()
   })
