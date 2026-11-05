@@ -30,10 +30,14 @@ const { handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
           @select="
             async (value: string | number | boolean) => {
               if (Boolean(value) !== props.long_term_memory?.enable) {
+                try {
+                  await handleUpdateDraftAppConfig(props.app_id, {
+                    long_term_memory: { enable: Boolean(value) },
+                  })
+                } catch {
+                  return
+                }
                 emits('update:long_term_memory', { enable: Boolean(value) })
-                await handleUpdateDraftAppConfig(props.app_id, {
-                  long_term_memory: { enable: Boolean(value) },
-                })
               }
             }
           "
