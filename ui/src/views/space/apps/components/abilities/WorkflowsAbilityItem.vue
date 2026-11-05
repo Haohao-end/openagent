@@ -193,6 +193,7 @@ watch(
           </div>
           <!-- 右侧删除按钮 -->
           <a-button
+            :loading="updateDraftAppConfigLoading"
             size="mini"
             type="text"
             class="hidden group-hover:block flex-shrink-0 ml-2 !text-red-700 rounded"
