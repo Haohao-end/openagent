@@ -126,12 +126,12 @@ class SkillToolFactory:
                 )
                 result = self.scf_client.execute_skill(execution_payload)
             except Exception as exc:
-                logger.warning("技能工具 SCF 执行失败，尝试沙箱回退: execution_id=%s error=%s", execution_id, exc)
+                logger.warning("技能工具 SCF 失败: id=%s type=%s", execution_id, type(exc).__name__)
                 try:
                     result = self.sandbox_executor.execute_skill(execution_payload)
                 except Exception as fallback_exc:
-                    logger.exception("技能工具沙箱回退失败: execution_id=%s error=%s", execution_id, fallback_exc)
-                    return f"技能执行失败: {fallback_exc}"
+                    logger.error("技能工具沙箱回退失败: id=%s type=%s", execution_id, type(fallback_exc).__name__)
+                    return "技能执行失败"
 
             if isinstance(result, (dict, list)):
                 return json.dumps(result, ensure_ascii=False, default=str)

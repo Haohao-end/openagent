@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from internal.core.skills.skill_tool_factory import SkillToolFactory
 from internal.exception import FailException
 
@@ -55,6 +57,33 @@ def test_skill_tool_factory_should_fallback_to_sandbox_when_scf_fails():
     assert sandbox_calls[0]["bundle"]["skill.py"].startswith("def demo")
     assert sandbox_calls[0]["runtime_context"]["app_id"] == "app-1"
     assert "sandbox" in result
+
+
+def test_skill_tool_factory_should_redact_scf_and_sandbox_errors(caplog):
+    secret = "SYNTHETIC_SKILL_PROVIDER_SECRET"
+
+    class _FailingExecutor:
+        def execute_skill(self, _payload):
+            raise RuntimeError(secret)
+
+    executor = _FailingExecutor()
+    factory = SkillToolFactory(executor, executor)
+    tools = factory.build_tools(
+        package_payload={
+            "skill_id": "skill-1",
+            "source_key": "demo_skill",
+            "name": "演示技能",
+            "label": "演示技能",
+            "executor_type": "scf",
+        },
+        tool_definitions=[{"name": "demo", "input_schema": {"type": "object", "properties": {}}}],
+    )
+
+    with caplog.at_level(logging.WARNING, logger="internal.core.skills.skill_tool_factory"):
+        result = tools[0].invoke({})
+
+    assert secret not in caplog.text + result
+    assert result == "技能执行失败" and "type=RuntimeError" in caplog.text
 
 
 def test_skill_tool_factory_should_skip_prompt_only_packages():
