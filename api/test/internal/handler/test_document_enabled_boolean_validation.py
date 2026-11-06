@@ -32,6 +32,33 @@ def test_update_document_enabled_rejects_missing_form_value(app, monkeypatch):
     assert response.json["code"] == HttpCode.VALIDATE_ERROR
 
 
+@pytest.mark.parametrize("value", ["garbage", "falsee"])
+@pytest.mark.parametrize(
+    ("url", "service_path"),
+    [
+        (
+            f"/datasets/{UUID(int=1)}/documents/{UUID(int=2)}/enabled",
+            "internal.service.document_service.DocumentService.update_document_enabled",
+        ),
+        (
+            f"/datasets/{UUID(int=1)}/documents/{UUID(int=2)}/segments/{UUID(int=3)}/enabled",
+            "internal.service.segment_service.SegmentService.update_segment_enabled",
+        ),
+    ],
+)
+def test_enabled_handler_rejects_invalid_form_value(
+    app, monkeypatch, url, service_path, value
+):
+    calls = []
+    monkeypatch.setattr(service_path, lambda *_args, **_kwargs: calls.append(True))
+
+    with app.test_client() as client:
+        response = client.post(url, data={"enabled": value})
+
+    assert response.json["code"] == HttpCode.VALIDATE_ERROR
+    assert calls == []
+
+
 @pytest.mark.parametrize("enabled", [True, False])
 def test_update_document_enabled_accepts_boolean_json(app, monkeypatch, enabled):
     received = {}
