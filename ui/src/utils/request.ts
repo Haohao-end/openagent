@@ -383,6 +383,11 @@ const handleStream = <TData>(
       data = ''
     }
 
+    const rejectAndCancel = (error: unknown) => {
+      void reader.cancel(error).catch(() => {})
+      reject(normalizeUnknownError(error, '解析流式数据失败'))
+    }
+
     const read = () => {
       reader
         .read()
@@ -395,7 +400,7 @@ const handleStream = <TData>(
               emitEvent()
               resolve()
             } catch (error: unknown) {
-              reject(normalizeUnknownError(error, '解析流式数据失败'))
+              rejectAndCancel(error)
             }
             return
           }
@@ -426,7 +431,7 @@ const handleStream = <TData>(
               }
             })
           } catch (error: unknown) {
-            reject(normalizeUnknownError(error, '解析流式数据失败'))
+            rejectAndCancel(error)
             return
           }
 

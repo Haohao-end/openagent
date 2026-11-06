@@ -133,6 +133,24 @@ describe('request utils', () => {
     expect(onData).toHaveBeenCalledWith({ event: 'message', data: { content: 'message' } })
   })
 
+  it('cancels the response stream when an SSE event cannot be parsed', async () => {
+    const cancel = vi.fn()
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: invalid-json\n\n'))
+      },
+      cancel,
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    })))
+
+    await expect(ssePost('/stream', {}, vi.fn())).rejects.toThrow()
+
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
   it('aborts uploads and rejects ones that stall instead of remaining pending', async () => {
     let xhrInstance!: XMLHttpRequest
     class FakeXMLHttpRequest {
