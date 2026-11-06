@@ -17,16 +17,24 @@ const {
 } = useUpdateConversationName()
 const formRef = ref<InstanceType<typeof Form>>()
 const form = ref({ name: '' })
+let saveSession = 0
 
 // 2.定义关闭弹窗函数
-const hideModal = () => emits('update:visible', false)
+const hideModal = () => {
+  saveSession += 1
+  emits('update:visible', false)
+}
 
 // 3.定义保存会话名称函数
 const saveName = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   if (errors) return
 
-  await handleUpdateConversationName(props.conversation_id, form.value.name)
-  emits('saved', props.conversation_id, form.value.name)
+  const requestSession = ++saveSession
+  const conversationId = props.conversation_id
+  const name = form.value.name
+  await handleUpdateConversationName(conversationId, name)
+  if (requestSession !== saveSession || !props.visible) return
+  emits('saved', conversationId, name)
   emits('update:visible', false)
 }
 
@@ -34,6 +42,7 @@ const saveName = async ({ errors }: { errors: Record<string, ValidatedError> | u
 watch(
   () => props.visible,
   (visible) => {
+    saveSession += 1
     formRef.value?.resetFields()
     if (!visible) {
       form.value.name = ''
@@ -41,7 +50,9 @@ watch(
     }
     form.value.name = props.conversation_name
   },
+  { flush: 'sync' },
 )
+
 </script>
 
 <template>
