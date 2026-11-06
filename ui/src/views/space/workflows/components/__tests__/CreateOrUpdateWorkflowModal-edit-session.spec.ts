@@ -3,9 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import CreateOrUpdateWorkflowModal from '../CreateOrUpdateWorkflowModal.vue'
 
-const mocks = vi.hoisted(() => ({ update: vi.fn() }))
+const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn() }))
 vi.mock('@/hooks/use-workflow', () => ({
-  useCreateWorkflow: () => ({ loading: false, handleCreateWorkflow: vi.fn() }),
+  useCreateWorkflow: () => ({ loading: false, handleCreateWorkflow: mocks.create }),
   useGetWorkflow: () => ({ workflow: ref({}), loadWorkflow: vi.fn() }),
   useRegenerateIcon: () => ({ loading: false, handleRegenerateIcon: vi.fn() }),
   useGenerateIconPreview: () => ({ loading: false, handleGenerateIconPreview: vi.fn() }),
@@ -42,5 +42,26 @@ it('does not close an edited modal after an earlier save finishes', async () => 
 
   expect(mocks.update).toHaveBeenCalledOnce()
   expect(wrapper.emitted('update:visible')).toEqual([[false]])
+  wrapper.unmount()
+})
+
+it('passes a stale session check to an earlier workflow creation', async () => {
+  let finish!: () => void
+  mocks.create.mockReset().mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
+  const wrapper = mount(CreateOrUpdateWorkflowModal, {
+    props: { workflow_id: '', visible: false },
+    global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-button': true, 'a-input': true, 'a-textarea': true, 'a-space': true, 'icon-close': true, IconUploadGenerator: true } },
+  })
+
+  await wrapper.setProps({ visible: true })
+  await wrapper.get('form').trigger('submit')
+  const shouldContinue = mocks.create.mock.calls[0]?.[1]
+  await wrapper.get('[data-testid="cancel"]').trigger('click')
+  await wrapper.setProps({ visible: false })
+  await wrapper.setProps({ visible: true })
+
+  expect(shouldContinue?.()).toBe(false)
+  finish()
+  await flushPromises()
   wrapper.unmount()
 })

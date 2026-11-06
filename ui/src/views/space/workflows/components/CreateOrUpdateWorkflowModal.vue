@@ -99,7 +99,7 @@ const saveWorkflow = async ({ errors }: { errors: Record<string, ValidatedError>
     if (props.workflow_id) {
       await handleUpdateWorkflow(props.workflow_id, form.value)
     } else {
-      await handleCreateWorkflow(form.value)
+      await handleCreateWorkflow(form.value, () => requestId === detailRequest)
     }
 
     // 3.3 完成保存操作，隐藏模态窗并调用回调函数
