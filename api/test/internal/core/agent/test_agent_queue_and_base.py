@@ -162,6 +162,30 @@ def test_agent_queue_manager_publish_failure_should_classify_timeout(monkeypatch
     assert manager.queue(task_id).get_nowait() is None
 
 
+def test_terminal_publish_can_retry_after_queue_registration_fails(monkeypatch):
+    class _FailOnceRedis(_FakeRedis):
+        failed_once = False
+
+        def setex(self, key, ttl, value):
+            if not self.failed_once:
+                self.failed_once = True
+                raise ConnectionError("temporary Redis outage")
+            super().setex(key, ttl, value)
+
+    redis_client = _FailOnceRedis()
+    monkeypatch.setattr("app.http.module.injector", _FakeInjector(redis_client))
+    manager = AgentQueueManager(user_id=uuid4(), invoke_from=InvokeFrom.WEB_APP)
+    task_id = uuid4()
+
+    with pytest.raises(ConnectionError, match="temporary Redis outage"):
+        manager.publish_failure(task_id, RuntimeError("boom"))
+
+    manager.publish_failure(task_id, RuntimeError("boom"))
+
+    assert manager.queue(task_id).get_nowait().event == QueueEvent.ERROR
+    assert manager.queue(task_id).get_nowait() is None
+
+
 def test_agent_queue_manager_listen_should_yield_items_and_emit_ping(monkeypatch):
     redis_client = _FakeRedis()
     monkeypatch.setattr("app.http.module.injector", _FakeInjector(redis_client))
