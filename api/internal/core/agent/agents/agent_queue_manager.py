@@ -33,6 +33,7 @@ class AgentQueueManager:
         self._queues = {}
         self._terminal_events = {}
         self._queue_lock = threading.Lock()
+        self._publish_lock = threading.Lock()
 
         # 2.内部初始化redis_client
         from app.http.module import injector
@@ -137,6 +138,10 @@ class AgentQueueManager:
 
     def publish(self, task_id: UUID, agent_thought: AgentThought) -> None:
         """发布事件信息到队列"""
+        with self._publish_lock:
+            self._publish_locked(task_id, agent_thought)
+
+    def _publish_locked(self, task_id: UUID, agent_thought: AgentThought) -> None:
         event_value = str(getattr(agent_thought.event, "value", agent_thought.event) or "")
         terminal_events = {
             QueueEvent.STOP.value,

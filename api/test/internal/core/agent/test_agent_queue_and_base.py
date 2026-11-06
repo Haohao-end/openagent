@@ -112,6 +112,38 @@ def test_agent_queue_manager_publish_and_publish_error_should_enqueue_and_stop(m
     assert stop_calls == [task_id]
 
 
+def test_agent_queue_manager_should_publish_only_one_terminal_event_when_calls_race(
+    monkeypatch,
+):
+    redis_client = _FakeRedis()
+    monkeypatch.setattr("app.http.module.injector", _FakeInjector(redis_client))
+    manager = AgentQueueManager(user_id=uuid4(), invoke_from=InvokeFrom.WEB_APP)
+    task_id = uuid4()
+    task_queue = manager.queue(task_id)
+    barrier = threading.Barrier(2)
+
+    class _RacingSet(set):
+        def __contains__(self, value):
+            present = super().__contains__(value)
+            try:
+                barrier.wait(timeout=0.5)
+            except threading.BrokenBarrierError:
+                pass
+            return present
+
+    manager._terminal_events[str(task_id)] = _RacingSet()
+    thoughts = [
+        AgentThought(id=uuid4(), task_id=task_id, event=event)
+        for event in (QueueEvent.AGENT_END, QueueEvent.TIMEOUT)
+    ]
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        list(executor.map(lambda thought: manager.publish(task_id, thought), thoughts))
+
+    published = [task_queue.get_nowait() for _ in range(task_queue.qsize())]
+    assert sum(item is None for item in published) == 1
+    assert sum(item is not None for item in published) == 1
+
+
 def test_agent_queue_manager_publish_failure_should_classify_timeout(monkeypatch):
     redis_client = _FakeRedis()
     monkeypatch.setattr("app.http.module.injector", _FakeInjector(redis_client))
