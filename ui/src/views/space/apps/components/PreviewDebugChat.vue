@@ -654,7 +654,6 @@ const handleStopRecord = async () => {
       const currentContext = { query: query.value, conversationId: selectedConversationId.value }
       await handleAudioToText(audioBlob.value)
       if (query.value !== currentContext.query || selectedConversationId.value !== currentContext.conversationId) return
-      Message.success(t('appStudio.debug.audioToTextSuccess'))
       query.value = text.value
     } catch (error: unknown) {
       Message.error(getErrorMessage(error, t('appStudio.debug.recordingFailed')))

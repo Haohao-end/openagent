@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   stopDebugChatLoading: { value: false },
   audioToTextLoading: { value: false },
   audioText: { value: '' },
+  audioSuccess: vi.fn(),
   isRecording: { value: false },
   uploadFileLoading: { value: false },
   handleDebugChat: vi.fn().mockResolvedValue(undefined),
@@ -176,7 +177,7 @@ vi.mock('@/services/upload-file', () => ({
 vi.mock('@arco-design/web-vue', () => ({
   Message: {
     error: vi.fn(),
-    success: vi.fn(),
+    success: mocks.audioSuccess,
     warning: vi.fn(),
   },
 }))
@@ -723,6 +724,29 @@ describe('PreviewDebugChat', () => {
     await transcriptionPromise
 
     expect(mocks.query.value).toBe('user edit')
+    wrapper.unmount()
+  })
+
+  it('shows one success toast when voice transcription completes', async () => {
+    mocks.handleAudioToText.mockImplementationOnce(async () => {
+      mocks.audioText.value = 'voice transcription'
+      mocks.audioSuccess('hook success')
+    })
+    const wrapper = shallowMount(PreviewDebugChat, {
+      props: {
+        app: { id: 'app-1' },
+        suggested_after_answer: { enable: false },
+        opening_statement: '',
+        opening_questions: [],
+      },
+    })
+    await flushPromises()
+
+    const state = (wrapper.vm.$ as any).setupState
+    state.recorder = { stop: vi.fn(), getWAVBlob: () => new Blob(['voice']) }
+    await state.handleStopRecord()
+
+    expect(mocks.audioSuccess).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 
