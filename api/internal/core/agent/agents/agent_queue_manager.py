@@ -150,19 +150,14 @@ class AgentQueueManager:
             QueueEvent.AGENT_END.value,
         }
         if self._terminal_events.get(str(task_id)):
-            if event_value not in self._terminal_events.get(str(task_id), set()):
-                return
-        if event_value in terminal_events:
-            task_terminal_events = self._terminal_events.setdefault(str(task_id), set())
-            if event_value in task_terminal_events:
-                return
-            task_terminal_events.add(event_value)
+            return
 
         # 1.将事件添加到队列中
         self.queue(task_id).put(agent_thought)
 
         # 2.检测事件类型是否为需要停止的类型，涵盖STOP、ERROR、TIMEOUT、AGENT_END
         if event_value in terminal_events:
+            self._terminal_events.setdefault(str(task_id), set()).add(event_value)
             self.stop_listen(task_id)
 
     def queue(self, task_id: UUID) -> Queue:
