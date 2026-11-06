@@ -73,6 +73,7 @@ const changeModel = (value: string) => {
 }
 
 const handleApply = () => {
+  if (getLanguageModelLoading.value) return
   const [provider_name, model_name] = form.value.selectValue.split('/')
   if (!provider_name || !model_name) return
 
@@ -226,7 +227,7 @@ onMounted(() => {
           <a-button class="rounded-lg" @click="popupVisible = false">
             {{ t('common.actions.cancel') }}
           </a-button>
-          <a-button type="primary" class="rounded-lg" @click="handleApply">
+          <a-button type="primary" class="rounded-lg" :disabled="getLanguageModelLoading" @click="handleApply">
             {{ t('appStudio.promptCompareModel.applyModel') }}
           </a-button>
         </div>
