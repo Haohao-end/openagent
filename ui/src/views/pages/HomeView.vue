@@ -202,6 +202,7 @@ const {
   loading: getConversationNameLoading,
   name: currentConversationName,
   loadConversationName,
+  clearConversationName,
 } = useGetConversationName()
 const {
   loading: deleteAssistantAgentConversationLoading,
@@ -237,14 +238,14 @@ const normalizeConversationId = (value: unknown) => String(value || '').trim()
 const loadSelectedConversationName = async (conversation_id: string = selectedConversationId.value) => {
   const normalizedConversationId = normalizeConversationId(conversation_id)
   if (!normalizedConversationId) {
-    currentConversationName.value = ''
+    clearConversationName()
     return
   }
 
   try {
     await loadConversationName(normalizedConversationId)
   } catch {
-    if (selectedConversationId.value === normalizedConversationId) currentConversationName.value = ''
+    if (selectedConversationId.value === normalizedConversationId) clearConversationName()
   }
 }
 
@@ -513,7 +514,7 @@ watch(isAuthenticated, (loggedIn) => {
   messages.value = []
   task_id.value = ''
   message_id.value = ''
-  currentConversationName.value = ''
+  clearConversationName()
   shouldAutoScrollToBottom.value = true
 })
 
@@ -727,7 +728,7 @@ const startNewAssistantConversation = async (
     })
 
     selectedConversationId.value = ''
-    currentConversationName.value = ''
+    clearConversationName()
     message_id.value = ''
     task_id.value = ''
     clearSuggestedQuestions()
@@ -1325,7 +1326,7 @@ onActivated(async () => {
     messages.value = []
     task_id.value = ''
     message_id.value = ''
-    currentConversationName.value = ''
+    clearConversationName()
     resetAssistantIntroduction()
     resetOpeningQuestions()
   }
