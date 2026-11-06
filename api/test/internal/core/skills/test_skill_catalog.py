@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from internal.core.skills.skill_catalog import SkillCatalogManager
 
 
@@ -31,6 +32,7 @@ def test_skill_catalog_manager_should_load_skill_md_as_readme(tmp_path):
 
     assert len(packages) == 1
     assert packages[0].source_key == "demo_skill"
+    assert packages[0].enabled is True
     assert packages[0].readme == "# 演示技能\n\n这是技能正文。"
     assert packages[0].bundle["skill.md"] == "# 演示技能\n\n这是技能正文。"
 
@@ -69,3 +71,30 @@ def test_skill_catalog_manager_should_strip_tools_from_prompt_only_packages(tmp_
     assert len(packages) == 1
     assert packages[0].source_key == "prompt_skill"
     assert packages[0].tools == []
+
+
+@pytest.mark.parametrize(
+    ("enabled_value", "expected"),
+    [
+        ("false", False),
+        ('"false"', False),
+        ('"true"', True),
+        ("null", False),
+        ("1", False),
+        ("[]", False),
+        ("{}", False),
+    ],
+)
+def test_skill_catalog_manager_should_parse_enabled_strings_and_fail_closed_on_invalid_types(
+    tmp_path, enabled_value, expected
+):
+    package_dir = tmp_path / "catalog" / "demo_skill"
+    package_dir.mkdir(parents=True)
+    (package_dir / "manifest.yaml").write_text(
+        f"source_key: demo_skill\nenabled: {enabled_value}\n", encoding="utf-8"
+    )
+
+    packages = SkillCatalogManager(catalog_root=str(package_dir.parent)).list_packages()
+
+    assert len(packages) == 1
+    assert packages[0].enabled is expected

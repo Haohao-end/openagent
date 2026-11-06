@@ -30,12 +30,16 @@ def _normalize_text(value: Any) -> str:
     return str(value or "").strip()
 
 
-def _normalize_bool(value: Any, default: bool = True) -> bool:
+def _normalize_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
-    if value is None:
-        return default
-    return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+    return False
 
 
 def _normalize_int(value: Any, default: int = 1) -> int:
@@ -174,7 +178,7 @@ class SkillCatalogManager:
             return None
 
         version = _normalize_int(manifest.get("version", 1), 1)
-        enabled = _normalize_bool(manifest.get("enabled", True), True)
+        enabled = _normalize_bool(manifest.get("enabled", True))
         name = _normalize_text(manifest.get("name") or source_key)
         label = _normalize_text(manifest.get("label") or name)
         description = _normalize_text(manifest.get("description"))
