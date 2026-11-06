@@ -92,6 +92,8 @@ const saveWorkflow = async ({ errors }: { errors: Record<string, ValidatedError>
   // 3.1 判断表单是否出错
   if (errors) return
 
+  const requestId = detailRequest
+
   try {
     // 3.2 检测是保存还是新增，调用不同的API接口
     if (props.workflow_id) {
@@ -101,7 +103,7 @@ const saveWorkflow = async ({ errors }: { errors: Record<string, ValidatedError>
     }
 
     // 3.3 完成保存操作，隐藏模态窗并调用回调函数
-    emits('update:visible', false)
+    if (requestId === detailRequest) emits('update:visible', false)
     props.callback && props.callback()
   } catch (error: unknown) {
     Message.error(getErrorMessage(error, t('workflowEditor.workflowModal.saveFailed')))
