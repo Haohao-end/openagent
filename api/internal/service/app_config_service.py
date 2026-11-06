@@ -926,7 +926,7 @@ class AppConfigService(BaseService):
         """根据传递的模型配置处理并校验，随后返回校验后的信息"""
         # 1.判断model_config是否为字典，如果不是则直接返回默认值
         if not isinstance(origin_model_config, dict):
-            return DEFAULT_APP_CONFIG["model_config"]
+            return deepcopy(DEFAULT_APP_CONFIG["model_config"])
 
         # 2.提取origin_model_config中provider、model、parameters对应的信息
         model_config = {
@@ -937,17 +937,17 @@ class AppConfigService(BaseService):
 
         # 3.判断provider是否存在、类型是否正确，如果不符合规则则返回默认值
         if not model_config["provider"] or not isinstance(model_config["provider"], str):
-            return DEFAULT_APP_CONFIG["model_config"]
+            return deepcopy(DEFAULT_APP_CONFIG["model_config"])
         provider = self.language_model_manager.get_provider(model_config["provider"])
         if not provider:
-            return DEFAULT_APP_CONFIG["model_config"]
+            return deepcopy(DEFAULT_APP_CONFIG["model_config"])
 
         # 4.判断model是否存在、类型是否正确，如果不符合则返回默认值
         if not model_config["model"] or not isinstance(model_config["model"], str):
-            return DEFAULT_APP_CONFIG["model_config"]
+            return deepcopy(DEFAULT_APP_CONFIG["model_config"])
         model_entity = provider.get_model_entity(model_config["model"])
         if not model_entity:
-            return DEFAULT_APP_CONFIG["model_config"]
+            return deepcopy(DEFAULT_APP_CONFIG["model_config"])
 
         # 5.判断parameters信息类型是否错误，如果错误则设置为默认值
         if not isinstance(model_config["parameters"], dict):
