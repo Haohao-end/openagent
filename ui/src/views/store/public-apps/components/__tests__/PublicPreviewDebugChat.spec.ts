@@ -167,6 +167,19 @@ describe('PublicPreviewDebugChat', () => {
     expect(composer.props('showVoiceButton')).toBe(false)
   })
 
+  it('restores the submitted question when sending fails before a stream event', async () => {
+    const wrapper = mountPreview()
+    await flushPromises()
+    mocks.sendPublicAppA2aMessage.mockRejectedValueOnce(new Error('network failure'))
+    mocks.queryRef!.value = 'question to retry'
+
+    wrapper.getComponent(chatComposerStub).vm.$emit('submit')
+    await flushPromises()
+
+    expect((wrapper.vm.$ as any).setupState.messages).toHaveLength(0)
+    expect(mocks.queryRef!.value).toBe('question to retry')
+  })
+
   it('ignores stale history and stream responses after switching conversations', async () => {
     mocks.routeProxy!.query = { conversation_id: 'conversation-a' }
     let finishHistoryA!: (value: { data: Array<Record<string, unknown>> }) => void

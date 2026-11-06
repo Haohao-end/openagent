@@ -252,6 +252,11 @@ const handleSubmit = async () => {
     )
   } catch (error: unknown) {
     if (streamGeneration !== contextGeneration) return
+    const failedMessage = messages.value.find((message) => message.render_id === currentMessage.render_id)
+    if (failedMessage && !failedMessage.id && !failedMessage.answer) {
+      messages.value = messages.value.filter((message) => message.render_id !== currentMessage.render_id)
+      if (!query.value.trim()) query.value = currentQuery
+    }
     Message.error(error instanceof Error ? error.message : t('publicApps.debug.sendFailed'))
   } finally {
     if (streamAbortController === abortController) streamAbortController = null
