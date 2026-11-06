@@ -99,10 +99,9 @@ def test_api_provider_manager_should_create_dynamic_model_from_parameters():
 
     assert set(fields.keys()) == {"keyword", "page", "fallback"}
     assert fields["keyword"].is_required() is True
-    # 当前实现只设置了 Optional[T]，但没有给 default=None，
-    # 因此字段仍会被 pydantic 视为 required。这里按现有行为断言，避免误报。
-    assert fields["page"].is_required() is True
+    assert fields["page"].is_required() is False
     assert "Optional" in str(fields["page"].annotation)
+    assert model_cls(keyword="search", fallback="text").page is None
     assert fields["fallback"].annotation is str
 
 
