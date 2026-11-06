@@ -1278,7 +1278,10 @@ const handleStopRecord = async () => {
       audioBlob.value = recorder.getWAVBlob()
 
       // 11.2 调用语音转文本处理器并将文本填充到query中
+      const currentQuery = query.value
+      const currentConversationId = selectedConversationId.value
       await handleAudioToText(audioBlob.value)
+      if (query.value !== currentQuery || selectedConversationId.value !== currentConversationId) return
       query.value = text.value
     } catch {
       Message.error(t('home.messages.recordingFailed'))
