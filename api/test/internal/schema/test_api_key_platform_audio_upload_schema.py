@@ -15,6 +15,8 @@ from internal.schema.platform_schema import GetWechatConfigResp, UpdateWechatCon
 from internal.schema.upload_file_schema import UploadFileReq, UploadFileResp, UploadImageReq
 from test.internal.schema.utils import ns, upload, utc_dt
 
+API_KEY_FORMS = (CreateApiKeyReq, UpdateApiKeyReq, UpdateApiKeyIsActiveReq)
+
 
 def _validate_form(form_request, form_cls, *, data=None, json=None, content_type=None):
     with form_request(data=data, json=json, content_type=content_type):
@@ -50,6 +52,21 @@ def test_update_api_key_is_active_req_should_accept_boolean_field(form_request):
     ok, form = _validate_form(form_request, UpdateApiKeyIsActiveReq, data={"is_active": "y"})
     assert ok, form.errors
     assert form.is_active.data is True
+
+
+@pytest.mark.parametrize("form_cls", API_KEY_FORMS)
+def test_api_key_form_boolean_should_reject_unrecognized_values(form_request, form_cls):
+    ok, form = _validate_form(form_request, form_cls, data={"is_active": "invalid"})
+    assert not ok
+    assert "is_active" in form.errors
+
+
+@pytest.mark.parametrize("form_cls", API_KEY_FORMS)
+@pytest.mark.parametrize(("value", "expected"), [("y", True), ("False", False)])
+def test_api_key_form_boolean_parses_values(form_request, form_cls, value, expected):
+    ok, form = _validate_form(form_request, form_cls, data={"is_active": value})
+    assert ok, form.errors
+    assert form.is_active.data is expected
 
 
 @pytest.mark.parametrize("form_cls", [CreateApiKeyReq, UpdateApiKeyReq])
