@@ -14,10 +14,12 @@ const emits = defineEmits(['update:opening_statement', 'update:opening_questions
 const { handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
 const openingStatement = ref(props.opening_statement)
 watch(() => props.opening_statement, (value) => { openingStatement.value = value })
+const openingQuestions = ref([...props.opening_questions])
+watch(() => props.opening_questions, (value) => { openingQuestions.value = [...value] })
 const computed_opening_questions = computed({
   get(): string[] {
     // 1.检测传递的opening_questions长度是否等于3，如果小于3并且最后一个元素不是空数据则新增一个
-    const newValue = [...props.opening_questions]
+    const newValue = [...openingQuestions.value]
     if (newValue.length < 3 && newValue[newValue.length - 1] !== '') {
       newValue.push('')
     }
@@ -25,15 +27,19 @@ const computed_opening_questions = computed({
     return newValue
   },
   set(newValue: string[]) {
-    emits('update:opening_questions', newValue)
+    openingQuestions.value = newValue
   },
 })
 
 // 2.定义提交开场建议问题列表处理器
 const handleUpdateOpeningQuestions = async () => {
-  await handleUpdateDraftAppConfig(props.app_id, {
-    opening_questions: computed_opening_questions.value.filter((item) => item.trim() !== ''),
-  })
+  const questions = computed_opening_questions.value.filter((item) => item.trim() !== '')
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, { opening_questions: questions })
+    emits('update:opening_questions', questions)
+  } catch {
+    openingQuestions.value = [...props.opening_questions]
+  }
 }
 
 const handleUpdateOpeningStatement = async () => {
