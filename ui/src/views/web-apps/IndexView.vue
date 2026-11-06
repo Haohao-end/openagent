@@ -567,7 +567,10 @@ const handleStopRecord = async () => {
       audioBlob.value = recorder.getWAVBlob()
 
       // 11.2 调用语音转文本处理器并将文本填充到query中
+      const currentQuery = query.value
+      const currentConversationId = selectedConversation.value
       await handleAudioToText(audioBlob.value)
+      if (query.value !== currentQuery || selectedConversation.value !== currentConversationId) return
       Message.success('语音转文本成功')
       query.value = text.value
     } catch {

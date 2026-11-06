@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   stopAudioStream: vi.fn(),
   startAudioStream: vi.fn(),
   handleAudioToText: vi.fn().mockResolvedValue(undefined),
+  audioText: { value: '' },
 }))
 
 vi.mock('vue-router', async (importOriginal) => {
@@ -154,7 +155,7 @@ vi.mock('@/hooks/use-audio', async () => {
     }),
     useAudioToText: () => ({
       loading: ref(false),
-      text: ref(''),
+      text: mocks.audioText,
       handleAudioToText: mocks.handleAudioToText,
     }),
   }
@@ -207,6 +208,7 @@ describe('web-app chat submit failure', () => {
     if (mocks.state.unpinnedConversations) {
       mocks.state.unpinnedConversations.value = []
     }
+    mocks.audioText.value = ''
     mocks.handleWebAppChat.mockRejectedValue(new Error('网络异常'))
   })
 
@@ -327,6 +329,29 @@ describe('web-app chat submit failure', () => {
       }),
       expect.any(Function),
     )
+  })
+
+  it('preserves composer edits made while voice transcription is pending', async () => {
+    let finishTranscription!: () => void
+    mocks.handleAudioToText.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      finishTranscription = () => {
+        mocks.audioText.value = 'voice transcription'
+        resolve()
+      }
+    }))
+    const wrapper = shallowMount(WebAppsIndexView)
+    await flushPromises()
+
+    const state = (wrapper.vm.$ as any).setupState
+    state.recorder = { stop: vi.fn(), getWAVBlob: () => new Blob(['voice']) }
+    const transcriptionPromise = state.handleStopRecord()
+    await flushPromises()
+    mocks.state.query!.value = 'user edit'
+    finishTranscription()
+    await transcriptionPromise
+
+    expect(mocks.state.query!.value).toBe('user edit')
+    wrapper.unmount()
   })
 
   it('ignores an old stream event after switching conversations before the first event', async () => {
