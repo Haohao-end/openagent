@@ -345,6 +345,19 @@ describe('historical chat pagination', () => {
     expect(name.value).toBe('new conversation')
   })
 
+  it('keeps a cleared conversation name empty after an earlier request finishes', async () => {
+    const pendingResponse = createDeferred<{ data: { name: string } }>()
+    vi.mocked(conversationService.getConversationName).mockReturnValueOnce(pendingResponse.promise as never)
+    const { name, loadConversationName, clearConversationName } = useGetConversationName()
+
+    const pendingRequest = loadConversationName('conversation-before-clear')
+    clearConversationName()
+    pendingResponse.resolve({ data: { name: 'old conversation' } })
+    await pendingRequest
+
+    expect(name.value).toBe('')
+  })
+
   it('keeps the assistant agent cursor fixed after the first page', async () => {
     vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage)
       .mockResolvedValueOnce(

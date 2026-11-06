@@ -139,7 +139,13 @@ export const useGetConversationName = () => {
     }
   }
 
-  return { loading, name, loadConversationName }
+  const clearConversationName = () => {
+    latestRequest += 1
+    loading.value = false
+    name.value = ''
+  }
+
+  return { loading, name, loadConversationName, clearConversationName }
 }
 
 export const useUpdateConversationName = () => {
