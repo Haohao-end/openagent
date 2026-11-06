@@ -1110,6 +1110,21 @@ class TestAppConfigService:
         assert validate_mcp_bindings[0]["args"] == ["--flag"]
         assert validate_mcp_bindings[0]["env"] == {"API_KEY": "secret"}
 
+    def test_process_and_validate_mcp_bindings_should_disable_non_boolean_enabled(self):
+        service = self._build_service()
+        payload = [
+            {
+                "name": "Weather",
+                "transport": "streamable_http",
+                "url": "https://mcp.example.com",
+                "enabled": "false",
+            }
+        ]
+
+        _, validate_mcp_bindings = service._process_and_validate_mcp_bindings(payload)
+
+        assert validate_mcp_bindings[0]["enabled"] is False
+
     def test_get_langchain_tools_by_tools_config_should_skip_missing_tools(self, monkeypatch):
         service = self._build_service(
             builtin_provider_manager=SimpleNamespace(get_tool=lambda _pid, _name: None),

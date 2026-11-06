@@ -745,7 +745,9 @@ class AppConfigService(BaseService):
             name = str(binding.get("name", "")).strip()
             transport = str(binding.get("transport", "streamable_http")).strip().lower() or "streamable_http"
             description = str(binding.get("description", "")).strip()
-            enabled = bool(binding.get("enabled", True))
+            enabled = binding.get("enabled", True)
+            if not isinstance(enabled, bool):
+                enabled = False
             headers = binding.get("headers", [])
             tool_names = binding.get("tool_names", [])
             timeout_seconds = binding.get("timeout_seconds", 30)
