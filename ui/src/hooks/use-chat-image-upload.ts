@@ -1,4 +1,4 @@
-import { type Ref } from 'vue'
+import { getCurrentInstance, onUnmounted, type Ref } from 'vue'
 import { i18n } from '@/i18n'
 import { getErrorMessage } from '@/utils/error'
 
@@ -30,6 +30,9 @@ export const canUploadMoreImages = (
 }
 
 export const useChatImageUpload = (options: UseChatImageUploadOptions) => {
+  let isUnmounted = false
+  if (getCurrentInstance()) onUnmounted(() => { isUnmounted = true })
+
   const imageLimit = options.limit ?? CHAT_IMAGE_UPLOAD_LIMIT
   const limitMessage =
     options.limitMessage ?? (i18n.global.t('chat.composer.imageLimit', { count: imageLimit }) as string)
@@ -56,6 +59,7 @@ export const useChatImageUpload = (options: UseChatImageUploadOptions) => {
     try {
       options.uploadFileLoading.value = true
       const resp = await options.uploadImage(selectedFile)
+      if (isUnmounted) return
       const imageUrl = String(resp?.data?.image_url || '')
       if (!imageUrl) {
         options.onError(i18n.global.t('chat.composer.uploadFailed') as string)
@@ -65,10 +69,12 @@ export const useChatImageUpload = (options: UseChatImageUploadOptions) => {
       options.imageUrls.value.push(imageUrl)
       options.onSuccess(successMessage)
     } catch (error: unknown) {
-      options.onError(getErrorMessage(error, i18n.global.t('chat.composer.uploadFailed') as string))
+      if (!isUnmounted) options.onError(getErrorMessage(error, i18n.global.t('chat.composer.uploadFailed') as string))
     } finally {
-      options.uploadFileLoading.value = false
-      input.value = ''
+      if (!isUnmounted) {
+        options.uploadFileLoading.value = false
+        input.value = ''
+      }
     }
   }
 
