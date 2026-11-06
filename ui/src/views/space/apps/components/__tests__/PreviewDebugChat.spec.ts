@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   getDebugConversationMessagesWithPageLoading: { value: false },
   stopDebugChatLoading: { value: false },
   audioToTextLoading: { value: false },
+  audioText: { value: '' },
   isRecording: { value: false },
   uploadFileLoading: { value: false },
   handleDebugChat: vi.fn().mockResolvedValue(undefined),
@@ -114,7 +115,7 @@ vi.mock('@/hooks/use-chat-image-upload', () => ({
 vi.mock('@/hooks/use-audio', () => ({
   useAudioToText: () => ({
     loading: mocks.audioToTextLoading,
-    text: ref(''),
+    text: mocks.audioText,
     handleAudioToText: mocks.handleAudioToText,
   }),
   useAudioPlayer: () => ({
@@ -209,6 +210,7 @@ describe('PreviewDebugChat', () => {
     mocks.getDebugConversationMessagesWithPageLoading.value = false
     mocks.stopDebugChatLoading.value = false
     mocks.audioToTextLoading.value = false
+    mocks.audioText.value = ''
     mocks.isRecording.value = false
     mocks.uploadFileLoading.value = false
   })
@@ -693,6 +695,35 @@ describe('PreviewDebugChat', () => {
     await flushPromises()
 
     expect(errors).toEqual([])
+  })
+
+  it('preserves composer edits made while voice transcription is pending', async () => {
+    let finishTranscription!: () => void
+    mocks.handleAudioToText.mockImplementationOnce(
+      () => new Promise<void>((resolve) => { finishTranscription = resolve }),
+    )
+    const wrapper = shallowMount(PreviewDebugChat, {
+      props: {
+        app: { id: 'app-1' },
+        suggested_after_answer: { enable: false },
+        opening_statement: '',
+        opening_questions: [],
+      },
+    })
+    await flushPromises()
+
+    const state = (wrapper.vm.$ as any).setupState
+    state.recorder = { stop: vi.fn(), getWAVBlob: () => new Blob(['voice']) }
+    const transcriptionPromise = state.handleStopRecord()
+    await flushPromises()
+    expect(mocks.handleAudioToText).toHaveBeenCalledTimes(1)
+    mocks.query.value = 'user edit'
+    mocks.audioText.value = 'voice transcription'
+    finishTranscription()
+    await transcriptionPromise
+
+    expect(mocks.query.value).toBe('user edit')
+    wrapper.unmount()
   })
 
   it('aborts the active response and resets message state when the conversation route changes', async () => {

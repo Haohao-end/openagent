@@ -651,7 +651,9 @@ const handleStopRecord = async () => {
       audioBlob.value = currentRecorder.getWAVBlob()
 
       // 11.2 调用语音转文本处理器并将文本填充到query中
+      const currentContext = { query: query.value, conversationId: selectedConversationId.value }
       await handleAudioToText(audioBlob.value)
+      if (query.value !== currentContext.query || selectedConversationId.value !== currentContext.conversationId) return
       Message.success(t('appStudio.debug.audioToTextSuccess'))
       query.value = text.value
     } catch (error: unknown) {
