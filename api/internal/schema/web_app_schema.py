@@ -5,7 +5,7 @@ from wtforms import StringField, BooleanField, IntegerField
 from wtforms.validators import DataRequired, Optional, UUID, ValidationError, NumberRange
 from internal.lib.helper import datetime_to_timestamp
 from internal.model import App, Conversation
-from .schema import ListField
+from .schema import ListField, validate_json_list_payload
 
 
 class GetWebAppResp(Schema):
@@ -46,6 +46,7 @@ class WebAppChatReq(FlaskForm):
 
     def validate_image_urls(self, field: ListField) -> None:
         """校验传递的图片URL链接列表"""
+        validate_json_list_payload(field)
         # 1.校验数据类型如果为None则设置默认值空列表
         if not isinstance(field.data, list):
             return []

@@ -1,5 +1,5 @@
 import uuid
-from .schema import ListField
+from .schema import ListField, validate_json_list_payload
 from flask_wtf import FlaskForm
 from urllib.parse import urlparse
 from wtforms import StringField, BooleanField
@@ -37,6 +37,7 @@ class OpenAPIChatReq(FlaskForm):
 
     def validate_image_urls(self, field: ListField) -> None:
         """校验传递的图片URL链接列表"""
+        validate_json_list_payload(field)
         # 1.校验数据类型如果为None则设置默认值空列表
         if not isinstance(field.data, list):
             return []
