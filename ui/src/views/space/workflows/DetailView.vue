@@ -47,6 +47,7 @@ import { loadWorkflowDetailByMode } from '@/views/space/workflows/use-workflow-d
 import { useWorkflowHeader } from '@/views/space/workflows/use-workflow-header'
 import { useWorkflowNodeSidebar } from '@/views/space/workflows/use-workflow-node-sidebar'
 import { useWorkflowPublishActions } from '@/views/space/workflows/use-workflow-publish-actions'
+import { useWorkflowRefreshTimer } from '@/views/space/workflows/use-workflow-refresh-timer'
 
 const CodeNodeInfo = defineAsyncComponent(
   () => import('@/views/space/workflows/components/infos/CodeNodeInfo.vue'),
@@ -247,11 +248,10 @@ const {
 })
 
 // 定义调试成功后的处理函数
-const handleDebugSuccess = async () => {
+const scheduleWorkflowRefresh = useWorkflowRefreshTimer()
+const handleDebugSuccess = () => {
   // 延迟重新加载 workflow 数据，确保后端已更新 is_debug_passed 状态
-  setTimeout(async () => {
-    await loadWorkflow(workflowId.value)
-  }, 500)
+  scheduleWorkflowRefresh(() => loadWorkflow(workflowId.value))
 }
 
 const NODE_DEFAULT_TEXTS: Record<
