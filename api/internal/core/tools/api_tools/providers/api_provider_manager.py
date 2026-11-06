@@ -64,7 +64,10 @@ class ApiProviderManager(BaseModel):
 
             fields[field_name] = (
                 field_type if field_required else Optional[field_type],
-                Field(description=field_description)
+                Field(
+                    default=... if field_required else None,
+                    description=field_description,
+                ),
             )
         return create_model("DynamicModel", **fields)
 
