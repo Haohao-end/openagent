@@ -44,6 +44,8 @@ class CreateApiToolReq(FlaskForm):
             if set(header.keys()) != {"key", "value"}:
                 # header = {"key": "Content-Type", "value": "application/json"}
                 raise ValidationError("headers里的每一格元素都必须包含key和value两个属性 不允许有其他属性")
+            if any(not isinstance(header[name], str) for name in ("key", "value")):
+                raise ValidationError("headers里的key和value必须是字符串")
 
 class UpdateApiToolProviderReq(FlaskForm):
     """更新API工具提供者请求"""
@@ -71,6 +73,8 @@ class UpdateApiToolProviderReq(FlaskForm):
             if set(header.keys()) != {"key", "value"}:
                 # header = {"key": "Content-Type", "value": "application/json"}
                 raise ValidationError("headers里的每一格元素都必须包含key和value两个属性 不允许有其他属性")
+            if any(not isinstance(header[name], str) for name in ("key", "value")):
+                raise ValidationError("headers里的key和value必须是字符串")
 class GetApiToolProviderResp(Schema):
     """获取API工具提供者响应信息"""
     id = fields.UUID()

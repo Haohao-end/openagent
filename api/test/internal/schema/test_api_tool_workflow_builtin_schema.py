@@ -98,6 +98,20 @@ def test_api_tool_header_validator_should_enforce_dict_and_exact_keys(form_reque
             UpdateApiToolProviderReq.validate_headers(update_form, update_form.headers)
 
 
+@pytest.mark.parametrize("form_cls", [CreateApiToolReq, UpdateApiToolProviderReq])
+@pytest.mark.parametrize(
+    "header", [{"key": "X-Token", "value": 123}, {"key": 123, "value": "secret"}]
+)
+def test_api_tool_header_validator_should_reject_non_string_keys_and_values(
+    form_request, form_cls, header
+):
+    with form_request():
+        form = form_cls(meta={"csrf": False})
+        form.headers.data = [header]
+        with pytest.raises(ValidationError, match="headers里的key和value必须是字符串"):
+            form_cls.validate_headers(form, form.headers)
+
+
 def test_api_tool_response_schemas_should_strip_internal_parameter_fields():
     provider = ns(
         id=uuid4(),
