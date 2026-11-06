@@ -1,4 +1,5 @@
-import { ref } from 'vue'
+import { mount } from '@vue/test-utils'
+import { h, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import {
   CHAT_IMAGE_UPLOAD_LIMIT,
@@ -108,5 +109,26 @@ describe('useChatImageUpload', () => {
     expect(onSuccess).not.toHaveBeenCalled()
     expect(onError).toHaveBeenCalledWith('网络异常')
     expect(uploadFileLoading.value).toBe(false)
+  })
+
+  it('ignores an upload that finishes after its component unmounts', async () => {
+    let resolveUpload!: (value: { data: { image_url: string } }) => void
+    const request = new Promise<{ data: { image_url: string } }>(resolve => { resolveUpload = resolve })
+    const onError = vi.fn(), onSuccess = vi.fn()
+    const imageUrls = ref<string[]>([]), uploadFileLoading = ref(false), fileInput = ref<HTMLInputElement | null>(null)
+    let handleFileChange!: (event: Event) => Promise<void>
+    const options = { imageUrls, uploadFileLoading, fileInput, uploadImage: () => request, onError, onSuccess }
+    const wrapper = mount({ setup() { handleFileChange = useChatImageUpload(options).handleFileChange; return () => h('div') } })
+    const input = document.createElement('input')
+    Object.defineProperty(input, 'files', { value: [new File(['image-bytes'], 'test.png', { type: 'image/png' })] })
+
+    const upload = handleFileChange({ target: input } as unknown as Event)
+    wrapper.unmount()
+    resolveUpload({ data: { image_url: 'https://example.com/late.png' } })
+    await upload
+
+    expect(imageUrls.value).toEqual([])
+    expect(onSuccess).not.toHaveBeenCalled()
+    expect(onError).not.toHaveBeenCalled()
   })
 })
