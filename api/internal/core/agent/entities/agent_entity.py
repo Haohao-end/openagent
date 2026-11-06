@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any
 from uuid import UUID
 from langchain_core.messages import AnyMessage
@@ -156,7 +157,7 @@ class AgentConfig(BaseModel):
     tool_policy: ToolPolicy = Field(default_factory=ToolPolicy)
 
     # 审核配置
-    review_config: dict = Field(default_factory=lambda: DEFAULT_APP_CONFIG["review_config"])
+    review_config: dict = Field(default_factory=lambda: deepcopy(DEFAULT_APP_CONFIG["review_config"]))
 
 
 class AgentState(MessagesState):
