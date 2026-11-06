@@ -91,6 +91,7 @@ const chatComposerStub = defineComponent({
     showUploadButton: { type: Boolean, default: false },
     showImagePreviews: { type: Boolean, default: false },
     uploadDisabled: { type: Boolean, default: false },
+    showVoiceButton: { type: Boolean, default: true },
     submitLoading: { type: Boolean, default: false },
   },
   emits: ['update:modelValue', 'submit', 'clear'],
@@ -163,6 +164,7 @@ describe('PublicPreviewDebugChat', () => {
     expect(composer.props('showUploadButton')).toBe(true)
     expect(composer.props('showImagePreviews')).toBe(true)
     expect(composer.props('uploadDisabled')).toBe(true)
+    expect(composer.props('showVoiceButton')).toBe(false)
   })
 
   it('ignores stale history and stream responses after switching conversations', async () => {

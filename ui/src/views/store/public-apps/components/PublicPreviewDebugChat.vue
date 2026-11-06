@@ -350,6 +350,7 @@ watch(
             :image-urls="image_urls"
             :show-image-previews="true"
             :show-upload-button="true"
+            :show-voice-button="false"
             :upload-disabled="true"
             :upload-disabled-title="t('publicApps.debug.uploadDisabled')"
             :show-clear-button="true"
