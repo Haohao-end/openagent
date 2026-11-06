@@ -1142,6 +1142,7 @@ const handleSubmit = async () => {
   isStreamingResponse.value = true
   const humanQuery = query.value
   const humanImageUrls = image_urls.value
+  let failedPlaceholder: StreamMessage | undefined
   const abortController = new AbortController()
   assistantAgentChatAbortController.value = abortController
   query.value = ''
@@ -1182,7 +1183,16 @@ const handleSubmit = async () => {
       abortController.signal,
     )
   } catch (error) {
-    if (!abortController.signal.aborted) throw error
+    const firstMessage = !abortController.signal.aborted && streamGeneration === assistantAgentStreamGeneration
+      ? messages.value[0] as (StreamMessage & { query: string }) | undefined
+      : undefined
+    if (firstMessage && firstMessage.id === '' && firstMessage.answer === '' && firstMessage.query === humanQuery) {
+      failedPlaceholder = firstMessage
+      if (query.value === '' && selectedConversationId.value === requestConversationId) {
+        query.value = humanQuery
+        image_urls.value = humanImageUrls
+      }
+    } else if (!abortController.signal.aborted) throw error
   } finally {
     if (assistantAgentChatAbortController.value === abortController) {
       assistantAgentChatAbortController.value = null
@@ -1196,6 +1206,10 @@ const handleSubmit = async () => {
     }
   }
   if (streamGeneration !== assistantAgentStreamGeneration) return
+  if (failedPlaceholder && messages.value[0] === failedPlaceholder) {
+    messages.value.shift()
+    return
+  }
 
   // 聊天响应完成后，重新加载消息以确保数据同步
   // 注意：这个操作应该在 finally 块外执行，避免错误被吞掉

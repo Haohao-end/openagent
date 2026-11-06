@@ -169,6 +169,7 @@ vi.mock('@/hooks/use-conversation', async () => {
       loading: ref(false),
       name: ref(''),
       loadConversationName: vi.fn(),
+      clearConversationName: vi.fn(),
     }),
   }
 })
@@ -229,6 +230,20 @@ describe('HomeView sidebar new conversation request', () => {
     mocks.loadAssistantAgentCapabilities.mockResolvedValue(undefined)
     mocks.loadAssistantAgentMessages.mockResolvedValue(undefined)
     mocks.handleDeleteAssistantAgentConversation.mockResolvedValue(undefined)
+  })
+
+  it('restores the draft and removes the empty assistant message when chat fails before streaming', async () => {
+    mocks.handleAssistantAgentChat.mockRejectedValueOnce(new Error('network failure'))
+    const wrapper = shallowMount(HomeView, { global: { stubs: ['a-button', 'icon-down', 'icon-poweroff'] } })
+    await flushPromises()
+
+    const state = (wrapper.vm.$ as any).setupState
+    state.query = 'please retry this question'
+    await state.handleSubmit().catch(() => {})
+
+    expect(state.query).toBe('please retry this question')
+    expect(mocks.assistantMessages.value).toHaveLength(0)
+    wrapper.unmount()
   })
 
   it('does not reload intent or clear backend conversation when empty home is already loaded', async () => {
