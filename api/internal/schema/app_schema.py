@@ -232,6 +232,8 @@ class DebugChatReq(FlaskForm):
 
         # 3.循环校验image_url是否为URL
         for image_url in field.data:
+            if not isinstance(image_url, str):
+                raise ValidationError("上传的图片URL必须为字符串")
             result = urlparse(image_url)
             if not all([result.scheme, result.netloc]):
                 raise ValidationError("上传的图片URL地址格式错误，请核实后重试")
