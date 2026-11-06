@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any
 from pydantic import Field, field_validator
 from internal.core.workflow.entities.node_entity import BaseNodeData
@@ -10,7 +11,7 @@ class LLMNodeData(BaseNodeData):
     prompt: str  # 大语言模型节点提示词
     language_model_config: dict[str, Any] = Field(
         alias="model_config",
-        default_factory=lambda: DEFAULT_APP_CONFIG["model_config"],
+        default_factory=lambda: deepcopy(DEFAULT_APP_CONFIG["model_config"]),
     )  # 大语言模型配置信息
     inputs: list[VariableEntity] = Field(default_factory=list)  # 输入列表信息
     outputs: list[VariableEntity] = Field(
