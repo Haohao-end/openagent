@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   loadAssistantAgentMessages: vi.fn(),
   loadAssistantAgentConversations: vi.fn(),
   handleAudioToText: vi.fn(),
+  audioText: { value: '' },
   queryRef: undefined as any,
   messagesRef: undefined as any,
   conversationNameRef: undefined as any,
@@ -184,7 +185,7 @@ vi.mock('@/hooks/use-audio', async () => {
   return {
     useAudioToText: () => ({
       loading: ref(false),
-      text: ref(''),
+      text: mocks.audioText,
       handleAudioToText: mocks.handleAudioToText,
     }),
     useAudioPlayer: () => ({
@@ -274,6 +275,7 @@ describe('HomeView deep thinking submit', () => {
     if (mocks.conversationNameRef) {
       mocks.conversationNameRef.value = ''
     }
+    mocks.audioText.value = ''
   })
 
   it('passes enable_deep_thinking to assistant agent chat when toggle is enabled', async () => {
@@ -313,6 +315,31 @@ describe('HomeView deep thinking submit', () => {
       true,
       expect.any(AbortSignal),
     )
+  })
+
+  it('preserves composer edits made while voice transcription is pending', async () => {
+    let finishTranscription!: () => void
+    mocks.handleAudioToText.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      finishTranscription = () => {
+        mocks.audioText.value = 'voice transcription'
+        resolve()
+      }
+    }))
+    const wrapper = shallowMount(HomeView, {
+      global: { stubs: ['a-button', 'icon-down', 'icon-poweroff'] },
+    })
+    await flushPromises()
+
+    const state = (wrapper.vm.$ as any).setupState
+    state.recorder = { stop: vi.fn(), getWAVBlob: () => new Blob(['voice']) }
+    const transcriptionPromise = state.handleStopRecord()
+    await flushPromises()
+    mocks.queryRef.value = 'user edit'
+    finishTranscription()
+    await transcriptionPromise
+
+    expect(mocks.queryRef.value).toBe('user edit')
+    wrapper.unmount()
   })
 
   it('does not log private details when post-chat history synchronization fails', async () => {
