@@ -304,6 +304,31 @@ def test_debug_chat_req_validate_image_urls_should_ignore_non_list_input(form_re
         assert form.validate_image_urls(form.image_urls) == []
 
 
+@pytest.mark.parametrize(
+    ("form_cls", "payload"),
+    [
+        (DebugChatReq, {"query": "hello", "image_urls": [7]}),
+        (AssistantAgentChat, {"query": "hello", "image_urls": [7]}),
+        (
+            OpenAPIChatReq,
+            {
+                "app_id": "00000000-0000-0000-0000-000000000001",
+                "query": "hello",
+                "image_urls": [7],
+            },
+        ),
+        (WebAppChatReq, {"query": "hello", "image_urls": [7]}),
+    ],
+)
+def test_chat_requests_should_reject_non_string_image_urls(
+    form_request, form_cls, payload
+):
+    ok, form = _validate_form(form_request, form_cls, json=payload)
+
+    assert not ok
+    assert "image_urls" in form.errors
+
+
 def test_get_debug_conversation_messages_with_page_req_should_validate_cursor(form_request):
     ok, form = _validate_form(form_request, GetDebugConversationMessagesWithPageReq, data={"created_at": "0"})
     assert ok, form.errors
