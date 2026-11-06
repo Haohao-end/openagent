@@ -41,6 +41,18 @@ def test_update_api_key_is_active_accepts_boolean_json(app, monkeypatch, is_acti
     assert received["is_active"] is is_active
 
 
+def test_update_api_key_is_active_rejects_form_without_status(app, monkeypatch):
+    monkeypatch.setattr(
+        "internal.service.api_key_service.ApiKeyService.update_api_key",
+        lambda *_args, **_kwargs: pytest.fail("missing status reached service"),
+    )
+
+    with app.test_client() as client:
+        response = client.post(f"/openapi/api-keys/{UUID(int=1)}/is-active", data={})
+
+    assert response.json["code"] == HttpCode.VALIDATE_ERROR
+
+
 def test_update_api_key_remark_only_does_not_change_active_status():
     received = {}
     service = type("Service", (), {
