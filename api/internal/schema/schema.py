@@ -1,4 +1,6 @@
+from flask import request
 from wtforms import Field, StringField
+from wtforms.validators import ValidationError
 
 
 class StrictStringField(StringField):
@@ -19,6 +21,16 @@ class ListField(Field):
 
     def _value(self):
         return self.data if self.data else []
+
+
+def validate_json_list_payload(field) -> None:
+    payload = request.get_json(silent=True) if request.is_json else None
+    if (
+        isinstance(payload, dict)
+        and field.name in payload
+        and not isinstance(payload[field.name], list)
+    ):
+        raise ValidationError("图片URL必须为列表")
 
 
 class DictField(Field):

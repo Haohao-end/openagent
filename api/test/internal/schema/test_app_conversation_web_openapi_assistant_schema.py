@@ -329,6 +329,22 @@ def test_chat_requests_should_reject_non_string_image_urls(
     assert "image_urls" in form.errors
 
 
+@pytest.mark.parametrize(
+    "form_cls",
+    [DebugChatReq, AssistantAgentChat, OpenAPIChatReq, WebAppChatReq],
+)
+def test_chat_requests_should_reject_scalar_image_urls(form_request, form_cls):
+    payload = {
+        "app_id": "00000000-0000-0000-0000-000000000001",
+        "query": "hello",
+        "image_urls": "https://img.example.com/1.png",
+    }
+    ok, form = _validate_form(form_request, form_cls, json=payload)
+
+    assert not ok
+    assert "image_urls" in form.errors
+
+
 def test_get_debug_conversation_messages_with_page_req_should_validate_cursor(form_request):
     ok, form = _validate_form(form_request, GetDebugConversationMessagesWithPageReq, data={"created_at": "0"})
     assert ok, form.errors

@@ -7,7 +7,7 @@ from wtforms.validators import DataRequired, Optional, NumberRange, ValidationEr
 from internal.lib.helper import datetime_to_timestamp, build_input_parts, build_output_payload
 from internal.model import Conversation, Message
 from pkg.paginator import PaginatorReq
-from .schema import ListField
+from .schema import ListField, validate_json_list_payload
 
 
 class AssistantAgentChat(FlaskForm):
@@ -31,6 +31,7 @@ class AssistantAgentChat(FlaskForm):
 
     def validate_image_urls(self, field: ListField) -> None:
         """校验传递的图片URL链接列表"""
+        validate_json_list_payload(field)
         # 1.校验数据类型如果为None则设置默认值空列表
         if not isinstance(field.data, list):
             return []
