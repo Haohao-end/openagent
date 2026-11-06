@@ -590,7 +590,8 @@ class McpToolFactory:
         return tool_definitions
 
     def _is_binding_enabled(self, binding: dict[str, Any]) -> bool:
-        if "enabled" in binding and not bool(binding.get("enabled")):
+        enabled = binding.get("enabled", True)
+        if not isinstance(enabled, bool) or not enabled:
             return False
         name = bool(_normalize_text(binding.get("name")))
         transport = self._normalize_transport(binding.get("transport"))

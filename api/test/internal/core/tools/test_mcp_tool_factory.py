@@ -16,6 +16,42 @@ class _FakeResponse:
         return None
 
 
+@pytest.mark.parametrize(
+    ("enabled_override", "should_load"),
+    [
+        ({"enabled": True}, True),
+        ({"enabled": False}, False),
+        ({"enabled": "false"}, False),
+        ({"enabled": "true"}, False),
+        ({"enabled": 0}, False),
+        ({"enabled": 1}, False),
+        ({"enabled": None}, False),
+        ({"enabled": []}, False),
+        ({"enabled": {}}, False),
+        ({}, True),
+    ],
+)
+def test_mcp_tool_factory_should_only_load_boolean_enabled_bindings(
+    monkeypatch, enabled_override, should_load
+):
+    factory = McpToolFactory()
+    attempted_loads = []
+    monkeypatch.setattr(
+        factory, "_list_remote_tools", lambda binding: attempted_loads.append(binding) or []
+    )
+    factory.get_tools(
+        [
+            {
+                "name": "global-provider",
+                "transport": "streamable_http",
+                "url": "https://mcp.example.com",
+                **enabled_override,
+            }
+        ]
+    )
+    assert bool(attempted_loads) is should_load
+
+
 def test_mcp_tool_factory_should_list_remote_tools_and_call_selected_tool(monkeypatch):
     calls = []
 
