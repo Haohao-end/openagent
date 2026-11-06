@@ -571,7 +571,6 @@ const handleStopRecord = async () => {
       const currentConversationId = selectedConversation.value
       await handleAudioToText(audioBlob.value)
       if (query.value !== currentQuery || selectedConversation.value !== currentConversationId) return
-      Message.success('语音转文本成功')
       query.value = text.value
     } catch {
       Message.error('录音失败，请检查麦克风权限后重试')

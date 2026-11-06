@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   stopAudioStream: vi.fn(),
   startAudioStream: vi.fn(),
   handleAudioToText: vi.fn().mockResolvedValue(undefined),
+  audioSuccess: vi.fn(),
   audioText: { value: '' },
 }))
 
@@ -160,6 +161,10 @@ vi.mock('@/hooks/use-audio', async () => {
     }),
   }
 })
+
+vi.mock('@arco-design/web-vue', () => ({
+  Message: { error: vi.fn(), success: mocks.audioSuccess, warning: vi.fn() },
+}))
 
 const buttonStub = {
   template: '<button v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>',
@@ -351,6 +356,22 @@ describe('web-app chat submit failure', () => {
     await transcriptionPromise
 
     expect(mocks.state.query!.value).toBe('user edit')
+    wrapper.unmount()
+  })
+
+  it('shows one success toast when voice transcription completes', async () => {
+    mocks.handleAudioToText.mockImplementationOnce(async () => {
+      mocks.audioText.value = 'voice transcription'
+      mocks.audioSuccess('hook success')
+    })
+    const wrapper = shallowMount(WebAppsIndexView)
+    await flushPromises()
+
+    const state = (wrapper.vm.$ as any).setupState
+    state.recorder = { stop: vi.fn(), getWAVBlob: () => new Blob(['voice']) }
+    await state.handleStopRecord()
+
+    expect(mocks.audioSuccess).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 
