@@ -7,6 +7,7 @@ import {
   useGetDraftAppConfig,
   useGetPublishedConfig,
   useGetVersions,
+  useUpdateDraftAppConfig,
 } from '@/hooks/use-app'
 import * as appService from '@/services/app'
 
@@ -17,6 +18,7 @@ vi.mock('@/services/app', async () => {
     getApp: vi.fn(),
     getAppsWithPage: vi.fn(),
     getDraftAppConfig: vi.fn(),
+    updateDraftAppConfig: vi.fn(),
     getPublishedConfig: vi.fn(),
     getVersions: vi.fn(),
     fallbackHistoryToDraft: vi.fn(),
@@ -204,6 +206,32 @@ describe('useGetPublishedConfig', () => {
     await oldRequest
 
     expect(published_config.value).toEqual({ app_id: 'app-current' })
+  })
+})
+
+describe('useUpdateDraftAppConfig', () => {
+  it('stays loading until every overlapping draft save finishes', async () => {
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise })
+      return { promise, resolve }
+    }
+    const first = deferred<{ message: string }>()
+    const second = deferred<{ message: string }>()
+    vi.mocked(appService.updateDraftAppConfig)
+      .mockReturnValueOnce(first.promise as never)
+      .mockReturnValueOnce(second.promise as never)
+    const { loading, handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
+
+    const firstSave = handleUpdateDraftAppConfig('app-1', { preset_prompt: 'first' } as never)
+    const secondSave = handleUpdateDraftAppConfig('app-1', { opening_statement: 'second' } as never)
+    first.resolve({ message: 'saved' })
+    await firstSave
+
+    expect(loading.value).toBe(true)
+    second.resolve({ message: 'saved' })
+    await secondSave
+    expect(loading.value).toBe(false)
   })
 })
 
