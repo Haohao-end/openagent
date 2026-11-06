@@ -60,15 +60,17 @@ const modelOptions = computed(() => {
   })
 })
 let modelDetailLoad: Promise<void> = Promise.resolve()
+let modelSelectionRequest = 0
 
 // 2.定义选择模型处理器
 const changeModel = (value: string) => {
+  const requestId = ++modelSelectionRequest
   // 2.1 使用/拆分出提供商+模型名字
   const [provider_name, model_name] = value.split('/')
 
   // 2.2 发起请求获取模型详情
   modelDetailLoad = loadLanguageModel(provider_name, model_name).then((isLatest) => {
-    if (!isLatest) return
+    if (!isLatest || requestId !== modelSelectionRequest) return
     // 2.3 重新赋值parameters
     form.value.parameters = language_model.value.parameters.reduce(
       (acc: Record<string, unknown>, parameter: { name: string; default?: unknown }) => {
@@ -82,7 +84,9 @@ const changeModel = (value: string) => {
 
 // 3.触发器隐藏处理器，提交数据进行更新
 const hideModelTrigger = async () => {
+  const requestId = modelSelectionRequest
   await modelDetailLoad
+  if (requestId !== modelSelectionRequest) return
 
   // 3.1 处理表单数据
   const [provider_name, model_name] = form.value.selectValue.split('/')
@@ -95,10 +99,15 @@ const hideModelTrigger = async () => {
   }
 
   // 3.3 提交应用草稿配置更新
-  handleUpdateDraftAppConfig(props.app_id, {
-    model_config: model_config,
-    dialog_round: form.value.dialog_round,
-  }).then(() => emits('update:model_config', model_config))
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, {
+      model_config: model_config,
+      dialog_round: form.value.dialog_round,
+    })
+    if (requestId === modelSelectionRequest) emits('update:model_config', model_config)
+  } catch {
+    // The update hook already reports save failures.
+  }
 }
 
 watch(

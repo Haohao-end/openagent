@@ -58,4 +58,34 @@ describe('ModelConfig', () => {
     }))
     wrapper.unmount()
   })
+
+  it('ignores a prior save after a newer model selection completes', async () => {
+    const firstSave = deferred()
+    mocks.updateDraft.mockReturnValueOnce(firstSave.promise).mockResolvedValueOnce(undefined)
+    const wrapper = mount(ModelConfig, {
+      props: { app_id: 'app-1', model_config: { provider: 'old', model: 'old-model', parameters: { temperature: 0.9 } }, dialog_round: 3 },
+      global: { stubs: { 'a-trigger': TriggerStub, 'a-select': SelectStub } },
+    })
+    await flushPromises()
+    const select = wrapper.findComponent(SelectStub)
+    const trigger = wrapper.findComponent(TriggerStub)
+
+    select.vm.$emit('update:modelValue', 'first/first-model')
+    select.vm.$emit('change', 'first/first-model')
+    trigger.vm.$emit('hide')
+    await flushPromises()
+    select.vm.$emit('update:modelValue', 'second/second-model')
+    select.vm.$emit('change', 'second/second-model')
+    trigger.vm.$emit('hide')
+    await flushPromises()
+    firstSave.resolve()
+    await flushPromises()
+
+    expect(wrapper.emitted('update:model_config')).toEqual([[{
+      provider: 'second',
+      model: 'second-model',
+      parameters: { temperature: 0.2 },
+    }]])
+    wrapper.unmount()
+  })
 })
