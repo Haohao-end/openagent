@@ -65,13 +65,12 @@ class ApiKeyHandler:
             not isinstance(payload, dict) or not isinstance(payload.get("is_active"), bool)
         ):
             return validate_error_json({"is_active": ["激活状态必须为布尔值"]})
-        if not request.is_json and "is_active" not in request.form:
-            return validate_error_json({"is_active": ["激活状态不能为空"]})
-
         # 1.提取请求并校验
         req = UpdateApiKeyIsActiveReq()
         if not req.validate():
             return validate_error_json(req.errors)
+        if not request.is_json and "is_active" not in request.form:
+            return validate_error_json({"is_active": ["激活状态不能为空"]})
 
         # 2.调用服务更新密钥是否激活
         self.api_key_service.update_api_key(api_key_id, current_user, **req.data)
