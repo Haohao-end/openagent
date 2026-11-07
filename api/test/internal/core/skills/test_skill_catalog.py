@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from internal.core.skills.skill_catalog import SkillCatalogManager
 
 
@@ -10,7 +11,7 @@ def test_skill_catalog_manager_should_load_skill_md_as_readme(tmp_path):
     package_dir.mkdir(parents=True)
 
     (package_dir / "manifest.yaml").write_text(
-        "\n".join(
+        "\n".join(  # noqa: FLY002
             [
                 "source_key: demo_skill",
                 "name: 演示技能",
@@ -24,8 +25,12 @@ def test_skill_catalog_manager_should_load_skill_md_as_readme(tmp_path):
         ),
         encoding="utf-8",
     )
-    (package_dir / "skill.py").write_text("def run(params):\n    return params\n", encoding="utf-8")
-    (package_dir / "skill.md").write_text("# 演示技能\n\n这是技能正文。", encoding="utf-8")
+    (package_dir / "skill.py").write_text(
+        "def run(params):\n    return params\n", encoding="utf-8"
+    )
+    (package_dir / "skill.md").write_text(
+        "# 演示技能\n\n这是技能正文。", encoding="utf-8"
+    )
 
     manager = SkillCatalogManager(catalog_root=str(catalog_root))
     packages = manager.list_packages()
@@ -43,7 +48,7 @@ def test_skill_catalog_manager_should_strip_tools_from_prompt_only_packages(tmp_
     package_dir.mkdir(parents=True)
 
     (package_dir / "manifest.yaml").write_text(
-        "\n".join(
+        "\n".join(  # noqa: FLY002
             [
                 "source_key: prompt_skill",
                 "name: 提示词技能",
@@ -63,7 +68,9 @@ def test_skill_catalog_manager_should_strip_tools_from_prompt_only_packages(tmp_
         ),
         encoding="utf-8",
     )
-    (package_dir / "skill.md").write_text("# 提示词技能\n\n这是提示词正文。", encoding="utf-8")
+    (package_dir / "skill.md").write_text(
+        "# 提示词技能\n\n这是提示词正文。", encoding="utf-8"
+    )
 
     manager = SkillCatalogManager(catalog_root=str(catalog_root))
     packages = manager.list_packages()
@@ -76,13 +83,16 @@ def test_skill_catalog_manager_should_strip_tools_from_prompt_only_packages(tmp_
 @pytest.mark.parametrize(
     ("enabled_value", "expected"),
     [
+        ("true", True),
         ("false", False),
-        ('"false"', False),
         ('"true"', True),
+        ('"false"', False),
         ("null", False),
+        ("0", False),
         ("1", False),
         ("[]", False),
         ("{}", False),
+        ('"invalid"', False),
     ],
 )
 def test_skill_catalog_manager_should_parse_enabled_strings_and_fail_closed_on_invalid_types(
