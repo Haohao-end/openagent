@@ -18,6 +18,8 @@ export const useAudioToText = () => {
       if (isUnmounted) return
       Message.success(i18n.global.t('appStudio.debug.audioToTextSuccess') as string)
       text.value = resp.data.text
+    } catch (error) {
+      if (!isUnmounted) throw error
     } finally {
       if (!isUnmounted) loading.value = false
     }
