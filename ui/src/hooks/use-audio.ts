@@ -1,22 +1,25 @@
 import { audioToText, messageToAudio, textToAudio } from '@/services/audio'
 import { Message } from '@arco-design/web-vue'
-import { computed, ref } from 'vue'
+import { computed, getCurrentInstance, onUnmounted, ref } from 'vue'
 import { i18n } from '@/i18n'
 
 export const useAudioToText = () => {
   // 1.定义自定义hooks所需数据
   const loading = ref(false)
   const text = ref('')
+  let isUnmounted = false
+  if (getCurrentInstance()) onUnmounted(() => { isUnmounted = true })
 
   // 2.定义语音转文本处理器
   const handleAudioToText = async (file: Blob) => {
     try {
       loading.value = true
       const resp = await audioToText(file)
+      if (isUnmounted) return
       Message.success(i18n.global.t('appStudio.debug.audioToTextSuccess') as string)
       text.value = resp.data.text
     } finally {
-      loading.value = false
+      if (!isUnmounted) loading.value = false
     }
   }
 
