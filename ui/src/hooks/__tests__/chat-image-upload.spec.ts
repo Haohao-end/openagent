@@ -39,6 +39,18 @@ describe('useChatImageUpload', () => {
     expect(click).not.toHaveBeenCalled()
   })
 
+  it.each([CHAT_IMAGE_UPLOAD_LIMIT, CHAT_IMAGE_UPLOAD_LIMIT + 1])('rejects dropped images at count %i', async count => {
+    const onError = vi.fn(), uploadImage = vi.fn()
+    const imageUrls = ref(Array.from({ length: count }, (_, idx) => `url-${idx}`))
+    const input = { files: [new File(['image'], 'extra.png', { type: 'image/png' })], value: 'selected' }
+    const { handleFileChange } = useChatImageUpload({ imageUrls, uploadFileLoading: ref(false), fileInput: ref<HTMLInputElement | null>(null), uploadImage, onError, onSuccess: vi.fn() })
+    await handleFileChange({ target: input } as unknown as Event)
+    expect(uploadImage).not.toHaveBeenCalled()
+    expect(imageUrls.value).toHaveLength(count)
+    expect(onError).toHaveBeenCalledWith('对话上传图片数量不能超过 5 张')
+    expect(input.value).toBe('')
+  })
+
   it('uploads selected file and appends image url', async () => {
     const onError = vi.fn()
     const onSuccess = vi.fn()

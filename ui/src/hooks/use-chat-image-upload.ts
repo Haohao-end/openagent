@@ -55,6 +55,11 @@ export const useChatImageUpload = (options: UseChatImageUploadOptions) => {
     const input = event.target as HTMLInputElement
     const selectedFile = input.files?.[0]
     if (!selectedFile) return
+    if (!canUploadMoreImages(options.imageUrls.value.length, imageLimit)) {
+      options.onError(limitMessage)
+      input.value = ''
+      return
+    }
 
     try {
       options.uploadFileLoading.value = true
