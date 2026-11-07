@@ -25,3 +25,18 @@ it('ignores late success and leaves a remounted instance clean', async () => {
   expect(mocks.success).not.toHaveBeenCalled()
   nextWrapper.unmount()
 })
+
+it('only propagates transcription errors while mounted', async () => {
+  const error = new Error('transcription failed')
+  mocks.audioToText.mockReset().mockRejectedValueOnce(error)
+  const mountedWrapper = mountHook(), mounted = mocks.state!
+  await expect(mounted.handleAudioToText(new Blob(['voice']))).rejects.toBe(error)
+  mountedWrapper.unmount()
+
+  mocks.audioToText.mockRejectedValueOnce(error)
+  const removedWrapper = mountHook(), removed = mocks.state!
+  const pending = removed.handleAudioToText(new Blob(['voice']))
+  removedWrapper.unmount()
+  await expect(pending).resolves.toBeUndefined()
+  expect(removed.loading.value).toBe(true)
+})
