@@ -160,6 +160,39 @@ def test_get_langchain_tools_by_skill_bindings_should_expand_skill_tools_without
     assert build_calls[0]["runtime_context"]["app_id"] == "app-1"
 
 
+def test_get_langchain_tools_by_skill_bindings_should_skip_disabled_packages(
+    monkeypatch,
+):
+    service = _build_service()
+    package_id = uuid4()
+    package = _build_skill_package(package_id)
+    package.enabled = False
+    version_record = _build_version_record(package_id)
+    build_calls = []
+
+    monkeypatch.setattr(service, "_has_skill_package_table", lambda: True)
+    monkeypatch.setattr(
+        service,
+        "_get_skill_package_record",
+        lambda skill_id: package if skill_id == package_id else None,
+    )
+    monkeypatch.setattr(
+        service,
+        "_get_skill_package_version_record",
+        lambda *_args: version_record,
+    )
+    service.tool_factory = SimpleNamespace(
+        build_tools=lambda **_kwargs: build_calls.append(True) or ["tool"]
+    )
+
+    tools = service.get_langchain_tools_by_skill_bindings(
+        [{"skill_id": str(package_id)}]
+    )
+
+    assert tools == []
+    assert build_calls == []
+
+
 def test_get_langchain_tools_by_skill_bindings_should_skip_prompt_only_skill_tools(monkeypatch):
     service = _build_service()
     package_id = uuid4()
