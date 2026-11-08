@@ -155,6 +155,33 @@ describe('DebugModal node outputs', () => {
     wrapper.unmount()
   })
 
+  it.each([[true, 0], [false, 1]] as const)(
+    'marks only the selected conditional edge when its outcome is %s',
+    async (result, selectedEdge) => {
+      mocks.canvas.edges = [
+        { source: 'condition-1', target: 'tool-1', sourceHandle: 'true' },
+        { source: 'condition-1', target: 'tool-1', sourceHandle: 'false' },
+      ]
+      mocks.handleDebugWorkflow.mockImplementationOnce(async (_id, _inputs, onData) => {
+        ;[
+          { node_data: { id: 'condition-1', node_type: 'if_else' }, status: 'succeeded', outputs: { result }, latency: 0.1 },
+          { node_data: { id: 'tool-1', node_type: 'tool' }, status: 'succeeded', outputs: {}, latency: 0.1 },
+        ].forEach((data) => onData({ data }))
+      })
+      const wrapper = mount(DebugModal, {
+        props: { visible: true, workflow_id: 'workflow-1' },
+      })
+
+      await wrapper.find('a-form').trigger('submit')
+      await flushPromises()
+
+      expect(mocks.canvas.edges.map(({ class: className }) => Boolean(className))).toEqual(
+        [0, 1].map((index) => index === selectedEdge),
+      )
+      wrapper.unmount()
+    },
+  )
+
   it('renders outputs for every node received from the workflow debug stream', async () => {
     const wrapper = mount(DebugModal, {
       props: { visible: true, workflow_id: 'workflow-1' },
