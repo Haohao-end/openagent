@@ -503,6 +503,7 @@ export default {
         createButton: '创建插件',
         empty: '没有可用的 API 插件',
         loading: '加载中',
+        loadFailed: '加载 API 插件失败',
         loadedAll: '数据已加载完成',
         providerSummary: '提供商 {name} · {count} 插件',
         recentEdited: '最近编辑',

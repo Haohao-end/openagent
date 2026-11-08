@@ -3,13 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive } from 'vue'
 import ToolListView from '../ListView.vue'
 
-const mocks = vi.hoisted(() => ({ route: null as any, imageUrl: null as any, upload: vi.fn(), providers: [] as any[], loadProvider: vi.fn(), loadProviders: vi.fn(), openapiSchemaAssistantChat: vi.fn(), validateOpenapi: vi.fn(), success: vi.fn(), generatePreview: vi.fn() }))
+const mocks = vi.hoisted(() => ({ route: null as any, imageUrl: null as any, upload: vi.fn(), providers: [] as any[], loadProvider: vi.fn(), loadProviders: vi.fn(), openapiSchemaAssistantChat: vi.fn(), validateOpenapi: vi.fn(), success: vi.fn(), error: vi.fn(), generatePreview: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ replace: (target: any) => Object.assign(mocks.route, target) }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/account', () => ({ useAccountStore: () => ({ account: { avatar: '', name: 'Owner' } }) }))
 vi.mock('@/utils/helper', () => ({ getUserAvatarUrl: () => '' }))
 vi.mock('@/services/ai', () => ({ openapiSchemaAssistantChat: mocks.openapiSchemaAssistantChat }))
-vi.mock('@arco-design/web-vue', () => ({ Message: { success: mocks.success, error: vi.fn(), warning: vi.fn() } }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { success: mocks.success, error: mocks.error, warning: vi.fn() } }))
 vi.mock('@/components/IconUploadGenerator.vue', async () => {
   const { defineComponent } = await import('vue')
   return { default: defineComponent({ props: ['icon', 'onUpload', 'onGenerate'], emits: ['update:icon'], template: '<div />' }) }
@@ -37,6 +37,24 @@ const FormStub = { template: '<div><slot /></div>', methods: { resetFields() {} 
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }
 
 describe('space tools icon upload lifecycle', () => {
+  it('reports provider list failures and ignores late scroll errors after unmount', async () => {
+    let rejectLateLoad!: (error: Error) => void
+    const lateLoad = new Promise<void>((_, reject) => { rejectLateLoad = reject })
+    mocks.route = reactive({ path: '/space/tools', query: {} })
+    mocks.loadProviders.mockReset().mockRejectedValueOnce(new Error('network unavailable')).mockReturnValueOnce(lateLoad)
+    mocks.error.mockReset()
+    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    await flushPromises()
+
+    expect(mocks.error).toHaveBeenCalledWith('network unavailable')
+    const state = (wrapper.vm.$ as any).setupState
+    state.handleScroll({ target: { scrollTop: 90, scrollHeight: 100, clientHeight: 20 } })
+    wrapper.unmount()
+    rejectLateLoad(new Error('late failure'))
+    await flushPromises()
+    expect(mocks.error).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores OpenAPI assistant chunks and results after canceling the form', async () => {
     let resolve!: (value: Record<string, never>) => void
     let onData!: (event: Record<string, any>) => void

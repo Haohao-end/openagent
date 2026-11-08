@@ -20,6 +20,7 @@ import { typeMap } from '@/config'
 import { type FileItem, Form, type ValidatedError, Message } from '@arco-design/web-vue'
 import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
 import { getUserAvatarUrl } from '@/utils/helper'
+import { getErrorMessage } from '@/utils/error'
 import { useI18n } from 'vue-i18n'
 
 type HeaderItem = {
@@ -96,7 +97,20 @@ const openapiAssistantLoading = ref<boolean>(false)
 let iconUploadRequestId = 0
 let providerEditRequestId = 0
 let openapiAssistantRequestId = 0
+let providerListRequestId = 0
+let isUnmounted = false
 let openapiAssistantAbortController: AbortController | undefined
+
+const handleLoadApiToolProviders = async (init: boolean, searchWord: string = '') => {
+  const requestId = ++providerListRequestId
+  try {
+    await loadApiToolProviders(init, searchWord)
+  } catch (error) {
+    if (!isUnmounted && requestId === providerListRequestId) {
+      Message.error(getErrorMessage(error, t('space.tools.loadFailed')))
+    }
+  }
+}
 
 const cancelOpenapiSchemaAssistant = () => {
   openapiAssistantRequestId += 1
@@ -106,6 +120,7 @@ const cancelOpenapiSchemaAssistant = () => {
 }
 
 onBeforeUnmount(() => {
+  isUnmounted = true
   iconUploadRequestId += 1
   providerEditRequestId += 1
   cancelOpenapiSchemaAssistant()
@@ -350,7 +365,7 @@ const handleScroll = (event: UIEvent) => {
   // 2.2 判断是否滑动到底部
   if (scrollTop + clientHeight >= scrollHeight - 10) {
     if (getApiToolProvidersLoading.value) return
-    loadApiToolProviders(false, String(route.query?.search_word ?? ''))
+    void handleLoadApiToolProviders(false, String(route.query?.search_word ?? ''))
   }
 }
 
@@ -393,7 +408,7 @@ const handleDelete = () => {
     showIdx.value = -1
 
     // 4.4 重新加载数据
-    loadApiToolProviders(true, String(route.query?.search_word ?? ''))
+    void handleLoadApiToolProviders(true, String(route.query?.search_word ?? ''))
   })
 }
 
@@ -428,7 +443,7 @@ const handleSubmit = async ({
   showIdx.value = -1
 
   // 6.重新加载数据
-  await loadApiToolProviders(true, String(route.query?.search_word ?? ''))
+  await handleLoadApiToolProviders(true, String(route.query?.search_word ?? ''))
 }
 
 // 取消显示模态窗处理器
@@ -448,13 +463,13 @@ const handleCancel = () => {
 }
 
 // 页面DOM加载完毕初始化数据
-onMounted(() => loadApiToolProviders(true, String(route.query?.search_word ?? '')))
+onMounted(() => handleLoadApiToolProviders(true, String(route.query?.search_word ?? '')))
 
 // 监听路由query变化
 watch(
   () => route.query?.search_word,
   (newValue) => {
-    loadApiToolProviders(true, String(newValue ?? ''))
+    void handleLoadApiToolProviders(true, String(newValue ?? ''))
   },
 )
 
