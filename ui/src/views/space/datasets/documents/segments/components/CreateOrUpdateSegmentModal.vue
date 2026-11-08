@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { type Form, type ValidatedError } from '@arco-design/web-vue'
+import { Message, type Form, type ValidatedError } from '@arco-design/web-vue'
 import { useCreateSegment, useGetSegment, useUpdateSegment } from '@/hooks/use-dataset'
 import type { CreateSegmentRequest, UpdateSegmentRequest } from '@/models/dataset'
+import { getErrorMessage } from '@/utils/error'
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
@@ -33,21 +34,28 @@ const saveSegment = async ({ errors }: { errors: Record<string, ValidatedError> 
   const session = modalSession
 
   // 3.2 检测是保存还是新增，调用不同的API接口
-  if (isUpdateOperation.value) {
-    // 3.3 更新文档片段信息
-    await handleUpdateSegment(
-      props.dataset_id as string,
-      props.document_id as string,
-      props.segment_id as string,
-      form.value as UpdateSegmentRequest,
-    )
-  } else {
-    // 3.4 新增文档片段信息
-    await handleCreateSegment(
-      props.dataset_id as string,
-      props.document_id as string,
-      form.value as CreateSegmentRequest,
-    )
+  try {
+    if (isUpdateOperation.value) {
+      // 3.3 更新文档片段信息
+      await handleUpdateSegment(
+        props.dataset_id as string,
+        props.document_id as string,
+        props.segment_id as string,
+        form.value as UpdateSegmentRequest,
+      )
+    } else {
+      // 3.4 新增文档片段信息
+      await handleCreateSegment(
+        props.dataset_id as string,
+        props.document_id as string,
+        form.value as CreateSegmentRequest,
+      )
+    }
+  } catch (error) {
+    if (!isUnmounted && session === modalSession && props.visible) {
+      Message.error(getErrorMessage(error, t('space.datasets.documents.segmentsModal.saveFailed')))
+    }
+    return
   }
 
   if (session !== modalSession || !props.visible) return
@@ -60,6 +68,10 @@ const saveSegment = async ({ errors }: { errors: Record<string, ValidatedError> 
 // 4.监听模态窗显示状态变化
 let latestLoadRequest = 0
 let modalSession = 0
+let isUnmounted = false
+onBeforeUnmount(() => {
+  isUnmounted = true
+})
 watch(
   () => [props.visible, props.dataset_id, props.document_id, props.segment_id] as const,
   async ([newValue]) => {
