@@ -484,6 +484,7 @@ export default {
           addSegment: '添加片段',
           empty: '没有可用的文档片段',
           loading: '加载中',
+          loadFailed: '加载文档片段失败',
           loadedAll: '数据已加载完成',
         },
         segmentsModal: {

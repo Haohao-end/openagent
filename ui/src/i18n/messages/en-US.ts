@@ -495,6 +495,7 @@ export default {
           addSegment: 'Add segment',
           empty: 'No segments available',
           loading: 'Loading',
+          loadFailed: 'Failed to load document segments',
           loadedAll: 'All data loaded',
         },
         segmentsModal: {
