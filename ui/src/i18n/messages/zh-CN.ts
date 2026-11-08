@@ -1811,6 +1811,7 @@ export default {
         maxReached: '关联知识库已超过 5 个，无法继续关联',
         selectTitle: '选择引用知识库',
         noAvailable: '没有可用的知识库',
+        loadFailed: '加载知识库失败',
         selectedCount: '{count} 个知识库被选中',
         retrievalTitle: '检索设置',
         retrievalStrategy: '检索策略',

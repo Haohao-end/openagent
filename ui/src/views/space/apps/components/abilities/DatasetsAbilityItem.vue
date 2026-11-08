@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { nextTick, onMounted, type PropType, ref, watch } from 'vue'
+import { nextTick, onMounted, onUnmounted, type PropType, ref, watch } from 'vue'
 import { useUpdateDraftAppConfig } from '@/hooks/use-app'
 import { useGetDatasetsWithPage } from '@/hooks/use-dataset'
 import { cloneDeep, isEqual } from 'lodash'
 import { Message } from '@arco-design/web-vue'
 import { useI18n } from 'vue-i18n'
+import { getErrorMessage } from '@/utils/error'
 type DatasetSelection = {
   id: string
   name: string
@@ -42,6 +43,15 @@ const { loading: updateDraftAppConfigLoading, handleUpdateDraftAppConfig } =
   useUpdateDraftAppConfig()
 const { loading, paginator, datasets: apiDatasets, loadDatasets } = useGetDatasetsWithPage()
 const datasetsModalVisible = ref(false)
+let isUnmounted = false
+onUnmounted(() => { isUnmounted = true })
+const handleLoadDatasets = async (init: boolean) => {
+  try {
+    await loadDatasets(init)
+  } catch (error: unknown) {
+    if (!isUnmounted) Message.error(getErrorMessage(error, t('appStudio.abilities.datasets.loadFailed')))
+  }
+}
 const retrievalConfigModalVisible = ref(false)
 let retrievalConfigModalSession = 0
 const isDatasetsInit = ref(false)
@@ -73,7 +83,7 @@ const handleScroll = async (event: UIEvent) => {
   // 2.2 判断是否滑动到底部
   if (scrollTop + clientHeight >= scrollHeight - 10) {
     if (loading.value) return
-    await loadDatasets()
+    await handleLoadDatasets(false)
   }
 }
 
@@ -237,7 +247,7 @@ watch(
   async (newValue) => {
     // 12.1 显示状态，重新加载数据，获取最新的知识库列表
     if (newValue) {
-      await loadDatasets(true)
+      await handleLoadDatasets(true)
     } else {
       // 12.2 隐藏状态，清空数据
       apiDatasets.value.splice(0, apiDatasets.value.length)
@@ -246,7 +256,7 @@ watch(
 )
 
 onMounted(() => {
-  loadDatasets(true)
+  void handleLoadDatasets(true)
 })
 </script>
 

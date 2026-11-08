@@ -1831,6 +1831,7 @@ export default {
         maxReached: 'At most 5 datasets can be linked',
         selectTitle: 'Select Referenced Datasets',
         noAvailable: 'No datasets available',
+        loadFailed: 'Failed to load datasets',
         selectedCount: '{count} datasets selected',
         retrievalTitle: 'Retrieval Settings',
         retrievalStrategy: 'Retrieval Strategy',

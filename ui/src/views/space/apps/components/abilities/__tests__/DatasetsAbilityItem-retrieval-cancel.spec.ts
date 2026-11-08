@@ -3,19 +3,40 @@ import { defineComponent, ref } from 'vue'
 import { expect, it, vi } from 'vitest'
 import DatasetsAbilityItem from '../DatasetsAbilityItem.vue'
 
-const mocks = vi.hoisted(() => ({ load: vi.fn(), update: vi.fn() }))
+const mocks = vi.hoisted(() => ({ load: vi.fn(), update: vi.fn(), error: vi.fn() }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/hooks/use-app', () => ({ useUpdateDraftAppConfig: () => ({ loading: ref(false), handleUpdateDraftAppConfig: mocks.update }) }))
 vi.mock('@/hooks/use-dataset', async () => {
   const { ref } = await import('vue')
   return { useGetDatasetsWithPage: () => ({ loading: ref(false), paginator: ref({ current_page: 1, total_page: 0 }), datasets: ref([]), loadDatasets: mocks.load }) }
 })
-vi.mock('@arco-design/web-vue', () => ({ Message: { warning: vi.fn() } }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { warning: vi.fn(), error: mocks.error } }))
 
 const WrapperStub = { template: '<div><slot /><slot name="header" /><slot name="extra" /></div>' }
 const ButtonStub = defineComponent({ emits: ['click'], template: '<button @click="$emit(\'click\', $event)"><slot /></button>' })
 const ModalStub = defineComponent({ props: ['visible'], template: '<div v-if="visible"><slot /></div>' })
 const SliderStub = defineComponent({ props: ['modelValue'], emits: ['update:modelValue'], template: '<input :value="modelValue" />' })
+
+it('reports dataset load failures and ignores late failures after unmount', async () => {
+  let rejectLateLoad!: (error: Error) => void
+  const lateLoad = new Promise<void>((_, reject) => { rejectLateLoad = reject })
+  mocks.load.mockReset().mockRejectedValueOnce(new Error('network unavailable')).mockReturnValueOnce(lateLoad)
+  mocks.error.mockReset()
+  const wrapper = mount(DatasetsAbilityItem, {
+    props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
+    global: { config: { errorHandler: vi.fn() }, stubs: { 'a-collapse-item': WrapperStub } },
+  })
+  await flushPromises()
+
+  expect(mocks.error).toHaveBeenCalledWith('network unavailable')
+  const state = (wrapper.vm.$ as any).setupState
+  state.datasetsModalVisible = true
+  await flushPromises()
+  wrapper.unmount()
+  rejectLateLoad(new Error('late failure'))
+  await flushPromises()
+  expect(mocks.error).toHaveBeenCalledTimes(1)
+})
 
 it('restores the saved retrieval settings after a later cancelled edit', async () => {
   const wrapper = mount(DatasetsAbilityItem, {
