@@ -377,7 +377,14 @@ const handleUpdate = async () => {
   const provider_id = api_tool_providers.value[showIdx.value]['id']
 
   // 3.2 根据拿到的id获取该工具提供商的详情信息
-  await loadApiToolProvider(provider_id)
+  try {
+    await loadApiToolProvider(provider_id)
+  } catch (error) {
+    if (requestId === providerEditRequestId && !isUnmounted) {
+      Message.error(getErrorMessage(error, t('space.tools.loadFailed')))
+    }
+    return
+  }
   if (requestId !== providerEditRequestId || showIdx.value < 0) return
 
   // 3.3 更新form表单数据

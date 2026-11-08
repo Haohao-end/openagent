@@ -35,8 +35,54 @@ const ModalStub = defineComponent({ props: ['visible'], emits: ['cancel'], templ
 const DrawerStub = defineComponent({ props: ['visible'], emits: ['cancel'], template: '<div v-if="visible"><slot /><button data-drawer-cancel @click="$emit(\'cancel\')">close</button></div>' })
 const FormStub = { template: '<div><slot /></div>', methods: { resetFields() {} } }
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }
+const setupProviderListMocks = () => {
+  mocks.route = reactive({ path: '/space/tools', query: {} })
+  mocks.providers = [{ id: 'provider-1', name: 'Provider', description: '', icon: '', tools: [], created_at: 0 }]
+  mocks.loadProviders.mockReset().mockResolvedValue(undefined)
+  mocks.error.mockReset()
+}
 
 describe('space tools icon upload lifecycle', () => {
+  it('reports provider detail failures without opening the editor', async () => {
+    setupProviderListMocks()
+    mocks.loadProvider.mockReset().mockRejectedValueOnce(new Error('details unavailable'))
+    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    await flushPromises()
+    const state = (wrapper.vm.$ as any).setupState
+    state.showIdx = 0
+    await nextTick()
+
+    let rejected = false
+    try { await state.handleUpdate() } catch (_error) { rejected = true }
+
+    expect(rejected).toBe(false)
+    expect(mocks.error).toHaveBeenCalledWith('details unavailable')
+    expect(state.showUpdateModal).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('ignores provider detail failures after the drawer is canceled', async () => {
+    let rejectDetails!: (error: Error) => void
+    const pending = new Promise<void>((_, reject) => { rejectDetails = reject })
+    setupProviderListMocks()
+    mocks.loadProvider.mockReset().mockReturnValueOnce(pending)
+    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    await flushPromises()
+    const state = (wrapper.vm.$ as any).setupState
+    state.showIdx = 0
+    await nextTick()
+    const edit = state.handleUpdate()
+
+    await wrapper.find('[data-drawer-cancel]').trigger('click')
+    rejectDetails(new Error('late details failure'))
+    let rejected = false
+    try { await edit } catch (_error) { rejected = true }
+
+    expect(rejected).toBe(false)
+    expect(mocks.error).not.toHaveBeenCalled()
+    expect(state.showUpdateModal).toBe(false)
+    wrapper.unmount()
+  })
   it('reports provider list failures and ignores late scroll errors after unmount', async () => {
     let rejectLateLoad!: (error: Error) => void
     const lateLoad = new Promise<void>((_, reject) => { rejectLateLoad = reject })
