@@ -804,6 +804,7 @@ export default {
       chooseDatasetTitle: '选择引用知识库',
       chooseDatasetButton: '确定',
       noAvailable: '没有可用的知识库',
+      loadFailed: '加载知识库失败',
       loading: '加载中',
       loaded: '数据已加载完成',
       emptyTip: '引用文本类型的数据，实现知识问答，工作流最多支持关联 5 个知识库。',
