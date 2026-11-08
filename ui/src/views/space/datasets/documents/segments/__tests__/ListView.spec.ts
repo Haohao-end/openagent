@@ -9,9 +9,12 @@ const mocks = vi.hoisted(() => ({
   updateEnabled: vi.fn(),
   loadDocument: vi.fn().mockResolvedValue(undefined),
   loadSegments: vi.fn().mockResolvedValue(undefined),
+  error: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error } }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/hooks/use-dataset', async () => {
   const { ref } = await import('vue')
@@ -49,6 +52,35 @@ beforeEach(() => {
   mocks.updateEnabled.mockReset().mockRejectedValue(new Error('offline'))
   mocks.loadDocument.mockClear()
   mocks.loadSegments.mockClear()
+})
+
+it('reports segment list load failures', async () => {
+  mocks.loadSegments.mockRejectedValueOnce(new Error('segment service unavailable'))
+  mocks.error.mockReset()
+  const wrapper = mountView()
+  await flushPromises()
+
+  expect(mocks.error).toHaveBeenCalledWith('segment service unavailable')
+  wrapper.unmount()
+})
+
+it('reports active segment failures and ignores them after unmount', async () => {
+  let rejectLate!: (error: Error) => void
+  const lateLoad = new Promise<void>((_, reject) => { rejectLate = reject })
+  mocks.loadSegments.mockReset().mockRejectedValueOnce(new Error('segment service unavailable')).mockReturnValueOnce(lateLoad)
+  mocks.error.mockReset()
+  const wrapper = mountView()
+  await flushPromises()
+
+  expect(mocks.error).toHaveBeenCalledWith('segment service unavailable')
+  mocks.route.query.search_word = 'late'
+  await nextTick()
+  await flushPromises()
+  wrapper.unmount()
+  rejectLate(new Error('late segment failure'))
+  await flushPromises()
+
+  expect(mocks.error).toHaveBeenCalledTimes(1)
 })
 
 it('syncs the search input when the route query changes', async () => {

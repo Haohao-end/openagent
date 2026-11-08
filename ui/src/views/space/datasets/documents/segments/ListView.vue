@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { Message } from '@arco-design/web-vue'
 import {
   useDeleteSegment,
   useGetDocument,
@@ -10,6 +11,7 @@ import {
 } from '@/hooks/use-dataset'
 import CreateOrUpdateSegmentModal from './components/CreateOrUpdateSegmentModal.vue'
 import { formatTimestampShort } from '@/utils/time-formatter'
+import { getErrorMessage } from '@/utils/error'
 
 // 1.定义页面所需的基础数据
 const route = useRoute()
@@ -21,6 +23,26 @@ const { document, loadDocument } = useGetDocument()
 const { loading, segments, paginator, loadSegments } = useGetSegmentsWithPage()
 const { handleDelete } = useDeleteSegment()
 const { handleUpdate: handleUpdateSegmentEnabled } = useUpdateSegmentEnabled()
+let isUnmounted = false
+
+const handleLoadSegments = async (
+  datasetId: string,
+  documentId: string,
+  init: boolean,
+  searchWord: string = '',
+) => {
+  try {
+    await loadSegments(datasetId, documentId, init, searchWord)
+  } catch (error) {
+    if (!isUnmounted) {
+      Message.error(getErrorMessage(error, t('space.datasets.documents.segments.loadFailed')))
+    }
+  }
+}
+
+onBeforeUnmount(() => {
+  isUnmounted = true
+})
 
 // 2.滚动数据分页处理器
 const handleScroll = async (event: UIEvent) => {
@@ -32,7 +54,7 @@ const handleScroll = async (event: UIEvent) => {
     if (loading.value) {
       return
     }
-    await loadSegments(
+    await handleLoadSegments(
       String(route.params?.dataset_id),
       String(route.params?.document_id),
       false,
@@ -45,7 +67,7 @@ const loadRouteData = () => {
   const datasetId = String(route.params?.dataset_id)
   const documentId = String(route.params?.document_id)
   loadDocument(datasetId, documentId)
-  loadSegments(datasetId, documentId, true, String(route.query?.search_word ?? ''))
+  void handleLoadSegments(datasetId, documentId, true, String(route.query?.search_word ?? ''))
 }
 
 watch(
@@ -53,7 +75,7 @@ watch(
   ([datasetId, documentId, searchWord], previous) => {
     if (datasetId !== previous[0] || documentId !== previous[1])
       loadDocument(String(datasetId), String(documentId))
-    loadSegments(String(datasetId), String(documentId), true, String(searchWord ?? ''))
+    void handleLoadSegments(String(datasetId), String(documentId), true, String(searchWord ?? ''))
   },
 )
 onMounted(loadRouteData)
@@ -244,7 +266,7 @@ onMounted(loadRouteData)
                       route.params?.document_id as string,
                       segment.id,
                       () =>
-                        loadSegments(
+                        handleLoadSegments(
                           String(route.params?.dataset_id),
                           String(route.params?.document_id),
                           true,
@@ -291,7 +313,7 @@ onMounted(loadRouteData)
       :segment_id="updateSegmentID"
       :callback="
         () =>
-          loadSegments(
+          handleLoadSegments(
             String(route.params?.dataset_id),
             String(route.params?.document_id),
             true,
