@@ -78,6 +78,17 @@ const toolLatency = computed(() => {
   return sumWorkflowToolLatency(nodeResults.value)
 })
 
+const shouldMarkDebugEdge = (edge: { source: string; sourceHandle?: string | null }) => {
+  const sourceResult = [...nodeResults.value].reverse().find((item) => item.node_data?.id === edge.source)
+  if (!sourceResult || (sourceResult.node_data?.node_type ?? sourceResult.node_data?.type) !== 'if_else') return true
+
+  const outputs = sourceResult.outputs
+  const result = outputs && typeof outputs === 'object'
+    ? (outputs as Record<string, unknown>).result
+    : undefined
+  return typeof result !== 'boolean' || (edge.sourceHandle ?? 'true') === String(result)
+}
+
 // 6.定义表单提交函数
 const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 6.1 运行前先将历史运行清空
@@ -126,10 +137,11 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
             markDebugNode(nodes.value, nodeId)
             edges.value
               .filter((edge) =>
-                (edge.target === nodeId && succeededNodeIds.value.has(edge.source)) ||
-                (edge.source === nodeId && succeededNodeIds.value.has(edge.target)),
+                ((edge.target === nodeId && succeededNodeIds.value.has(edge.source)) ||
+                  (edge.source === nodeId && succeededNodeIds.value.has(edge.target))) &&
+                shouldMarkDebugEdge(edge),
               )
-              .forEach((edge) => markDebugEdge(edges.value, edge.source, edge.target))
+              .forEach((edge) => markDebugEdge(edges.value, edge.source, edge.target, edge.sourceHandle))
             succeededNodeIds.value.add(nodeId)
           }
         }

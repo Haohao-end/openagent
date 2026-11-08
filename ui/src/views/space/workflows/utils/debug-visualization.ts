@@ -6,6 +6,7 @@ type DebugCanvasElement = {
   id?: string
   source?: string
   target?: string
+  sourceHandle?: string | null
   class?: unknown
 }
 
@@ -80,8 +81,12 @@ export const markWorkflowDebugEdgeSucceeded = (
   edges: DebugCanvasElement[],
   source: string,
   target: string,
+  sourceHandle?: string | null,
 ) => {
-  const edge = edges.find((item) => item.source === source && item.target === target)
+  const edge = edges.find((item) =>
+    item.source === source && item.target === target &&
+    (sourceHandle === undefined || item.sourceHandle === sourceHandle),
+  )
   if (!edge) return
 
   setClasses(edge, [...new Set([...getClassNames(edge.class), DEBUG_EDGE_CLASS])])
