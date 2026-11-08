@@ -514,6 +514,7 @@ export default {
         createButton: 'Create Plugin',
         empty: 'No API plugins available',
         loading: 'Loading',
+        loadFailed: 'Failed to load API plugins',
         loadedAll: 'All data loaded',
         providerSummary: 'Provider {name} · {count} plugins',
         recentEdited: 'Recently edited',
