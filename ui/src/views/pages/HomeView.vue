@@ -1191,7 +1191,9 @@ const handleSubmit = async () => {
       failedPlaceholder = firstMessage
       if (query.value === '' && selectedConversationId.value === requestConversationId) {
         query.value = humanQuery
-        image_urls.value = humanImageUrls
+        if (image_urls.value.length === 0 && !uploadFileLoading.value) {
+          image_urls.value = humanImageUrls
+        }
       }
     } else if (!abortController.signal.aborted) throw error
   } finally {

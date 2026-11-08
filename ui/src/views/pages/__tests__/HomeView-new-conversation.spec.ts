@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   isLoggedIn: undefined as any,
   loadAssistantAgentConversations: vi.fn(),
   handleAudioToText: vi.fn(),
+  imageInputEnabled: false,
 }))
 
 vi.mock('vue-router', () => ({
@@ -132,7 +133,7 @@ vi.mock('@/hooks/use-assistant-agent', async () => {
     useGetAssistantAgentCapabilities: () => ({
       loading: ref(false),
       capabilities: ref({
-        image_input: { enabled: false },
+        image_input: { enabled: mocks.imageInputEnabled },
       }),
       loadAssistantAgentCapabilities: mocks.loadAssistantAgentCapabilities,
     }),
@@ -212,6 +213,7 @@ describe('HomeView sidebar new conversation request', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.isLoggedIn = ref(true)
+    mocks.imageInputEnabled = false
     mocks.assistantMessages = ref([])
     mocks.route = reactive({
       path: '/home',
@@ -242,6 +244,26 @@ describe('HomeView sidebar new conversation request', () => {
     await state.handleSubmit().catch(() => {})
 
     expect(state.query).toBe('please retry this question')
+    expect(mocks.assistantMessages.value).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  it('preserves a newer image draft when a previous image chat request fails', async () => {
+    mocks.imageInputEnabled = true
+    let failRequest!: (error: Error) => void
+    mocks.handleAssistantAgentChat.mockReturnValueOnce(new Promise((_resolve, reject) => { failRequest = reject }))
+    const wrapper = shallowMount(HomeView, { global: { stubs: ['a-button', 'icon-down', 'icon-poweroff'] } })
+    await flushPromises()
+    const state = (wrapper.vm.$ as any).setupState
+    state.query = 'retry this image question'
+    state.image_urls = ['failed-image']
+    const pendingRequest = state.handleSubmit()
+    await flushPromises()
+    state.image_urls = ['new-draft-image']
+    failRequest(new Error('network failure'))
+    await pendingRequest
+    expect(state.query).toBe('retry this image question')
+    expect(state.image_urls).toEqual(['new-draft-image'])
     expect(mocks.assistantMessages.value).toHaveLength(0)
     wrapper.unmount()
   })
