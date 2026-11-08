@@ -17,12 +17,14 @@ See [Vite Configuration Reference](https://vitejs.dev/config/).
 ## Project Setup
 Setup:
 
-bash
+```bash
 cd ui
 npm install
+```
+
 Development:
 
-bash
+```bash
 # Start dev server (default port 5173)
 npm run serve
 
@@ -34,16 +36,21 @@ npm run lint
 
 # Format code
 npm run format
+```
+
 Build:
 
-bash
+```bash
 # Production build
 npm run build
 
 # Preview production build
 npm run preview
+```
+
 Testing:
 
-bash
+```bash
 # Run unit tests
 npm run test:unit
+```
