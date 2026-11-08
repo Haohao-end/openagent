@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import { useI18n } from 'vue-i18n'
@@ -26,6 +26,7 @@ const { t, locale } = useI18n()
 
 const loading = ref(false)
 let latestProvidersRequest = 0
+let isUnmounted = false
 const providers = ref<McpProvider[]>([])
 const hasMore = ref(true)
 const page = ref(1)
@@ -121,10 +122,11 @@ const handleDelete = (provider: McpProvider) => {
     onOk: async () => {
       try {
         const resp = await deleteMcpProvider(provider.id)
+        if (isUnmounted) return
         Message.success(resp.message)
         await loadProviders(true)
       } catch (error: unknown) {
-        Message.error(getErrorMessage(error, t('space.mcp.deleteFailed')))
+        if (!isUnmounted) Message.error(getErrorMessage(error, t('space.mcp.deleteFailed')))
       }
     },
   })
@@ -135,9 +137,11 @@ const handleTogglePublish = async (provider: McpProvider) => {
     const resp = provider.is_public
       ? await unpublishMcpProvider(provider.id)
       : await publishMcpProvider(provider.id)
+    if (isUnmounted) return
     Message.success(resp.message)
     await loadProviders(true)
   } catch (error: unknown) {
+    if (isUnmounted) return
     Message.error(
       getErrorMessage(
         error,
@@ -166,6 +170,11 @@ watch(
 
 onMounted(async () => {
   await loadProviders(true)
+})
+
+onUnmounted(() => {
+  isUnmounted = true
+  latestProvidersRequest += 1
 })
 </script>
 

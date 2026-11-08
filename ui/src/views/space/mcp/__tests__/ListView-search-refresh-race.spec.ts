@@ -81,6 +81,28 @@ describe('space MCP provider list search ordering', () => {
     mocks.route = route
   })
 
+  it('does not reload the list when publishing finishes after unmount', async () => {
+    mocks.getMcpProvidersWithPage.mockResolvedValue(providerResponse('Provider'))
+    const publishing = deferred<{ message: string }>()
+    mocks.publishMcpProvider.mockReturnValue(publishing.promise)
+    const wrapper = mount(ListView, {
+      global: { stubs: {
+        'a-spin': passthrough, 'a-row': passthrough, 'a-col': passthrough,
+        'a-card': passthrough, 'a-avatar': passthrough, 'a-tag': passthrough,
+        'a-dropdown': passthrough, 'a-button': passthrough, 'a-doption': passthrough,
+        'a-empty': passthrough, 'create-or-update-mcp-modal': passthrough, 'icon-more': true,
+      } },
+    })
+    await flushPromises()
+    const state = (wrapper.vm.$ as any).setupState
+    const request = state.handleTogglePublish(state.providers[0])
+    wrapper.unmount()
+    publishing.resolve({ message: 'published' })
+    await request
+
+    expect(mocks.getMcpProvidersWithPage).toHaveBeenCalledTimes(1)
+  })
+
   it('runs a search started during loading and ignores the prior response', async () => {
     const oldRequest = deferred<ReturnType<typeof providerResponse>>()
     const newRequest = deferred<ReturnType<typeof providerResponse>>()
