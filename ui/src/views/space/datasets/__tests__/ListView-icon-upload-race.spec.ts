@@ -4,12 +4,12 @@ import { describe, expect, it, vi } from 'vitest'
 import DatasetListView from '@/views/space/datasets/ListView.vue'
 import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
 
-const mocks = vi.hoisted(() => ({ route: null as any, form: null as any, imageUrl: null as any, loadDataset: vi.fn(), loadDatasets: vi.fn(), saveDataset: vi.fn(), uploadImage: vi.fn(), generateIconPreview: vi.fn(), success: vi.fn() }))
+const mocks = vi.hoisted(() => ({ route: null as any, form: null as any, imageUrl: null as any, loadDataset: vi.fn(), loadDatasets: vi.fn(), saveDataset: vi.fn(), uploadImage: vi.fn(), generateIconPreview: vi.fn(), success: vi.fn(), error: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ push: vi.fn(), replace: (target: any) => Object.assign(mocks.route, target) }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/account', () => ({ useAccountStore: () => ({ account: { avatar: '', name: 'Owner' } }) }))
 vi.mock('@/utils/helper', () => ({ getUserAvatarUrl: () => '' }))
-vi.mock('@arco-design/web-vue', () => ({ Message: { success: mocks.success, warning: vi.fn() } }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { success: mocks.success, error: mocks.error, warning: vi.fn() } }))
 vi.mock('@/components/IconUploadGenerator.vue', async () => {
   const { defineComponent } = await import('vue')
   return { default: defineComponent({ name: 'IconUploadGenerator', props: ['icon', 'onUpload', 'fileList', 'name', 'description', 'loading', 'placeholder'], emits: ['update:icon'], template: '<div />' }) }
@@ -37,6 +37,34 @@ const deferred = () => { let resolve!: () => void; const promise = new Promise<v
 const deferredValue = () => { let resolve!: (value: string) => void; const promise = new Promise<string>(done => { resolve = done }); return { promise, resolve } }
 
 describe('dataset icon upload lifecycle', () => {
+  it('reports an initial list failure instead of treating it as an empty dataset list', async () => {
+    mocks.route = reactive({ path: '/space/datasets', query: {} })
+    let rejectLateRequest!: (error: Error) => void
+    const lateRequest = new Promise<void>((_, reject) => { rejectLateRequest = reject })
+    mocks.loadDatasets.mockReset()
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockReturnValueOnce(lateRequest)
+    mocks.error.mockReset()
+    const unhandledErrors: unknown[] = []
+    const wrapper = mount(DatasetListView, {
+      global: {
+        config: { errorHandler: error => unhandledErrors.push(error) },
+        stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub },
+      },
+    })
+    await flushPromises()
+
+    expect(mocks.error).toHaveBeenCalledWith('network unavailable')
+    expect(unhandledErrors).toHaveLength(0)
+    mocks.route.query = { search_word: 'late' }
+    await flushPromises()
+    wrapper.unmount()
+    rejectLateRequest(new Error('late failure'))
+    await flushPromises()
+    expect(mocks.error).toHaveBeenCalledTimes(1)
+    expect(unhandledErrors).toHaveLength(0)
+  })
+
   it('uses an empty search when browser navigation removes the route query', async () => {
     mocks.route = reactive({ path: '/space/datasets', query: { search_word: 'northwind' } })
     mocks.loadDatasets.mockReset()

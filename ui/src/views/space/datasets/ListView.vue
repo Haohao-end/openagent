@@ -17,6 +17,7 @@ import { useAccountStore } from '@/stores/account'
 import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
 import { Message } from '@arco-design/web-vue'
 import { getUserAvatarUrl } from '@/utils/helper'
+import { getErrorMessage } from '@/utils/error'
 
 // 1.定义页面所需数据
 const route = useRoute()
@@ -26,7 +27,9 @@ const accountStore = useAccountStore()
 let updateDatasetID = ''
 let iconUploadRequestId = 0
 let datasetEditRequestId = 0
+let isUnmounted = false
 onBeforeUnmount(() => {
+  isUnmounted = true
   iconUploadRequestId += 1
   datasetEditRequestId += 1
 })
@@ -48,6 +51,14 @@ const { loading: generateIconPreviewLoading, handleGenerateIconPreview } = useGe
 const search_word = computed(() => {
   return String(route.query?.search_word ?? '')
 })
+
+const handleLoadDatasets = async (init: boolean, searchWord: string = '') => {
+  try {
+    await loadDatasets(init, searchWord)
+  } catch (error: unknown) {
+    if (!isUnmounted) Message.error(getErrorMessage(error, t('space.datasets.loadFailed')))
+  }
+}
 
 const clearCreateTypeQuery = async () => {
   const nextQuery = { ...route.query }
@@ -117,7 +128,7 @@ const handleScroll = async (event: UIEvent) => {
   // 2.2 判断是否滑动到底部
   if (scrollTop + clientHeight >= scrollHeight - 10) {
     if (loading.value) return
-    await loadDatasets(false, search_word.value)
+    await handleLoadDatasets(false, search_word.value)
   }
 }
 
@@ -170,13 +181,13 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
 
   // 3.关闭模态窗并且刷新数据
   handleCancel()
-  await loadDatasets(true)
+  await handleLoadDatasets(true)
 }
 
 // 8.监听路由query的变化
 watch(
   () => route.query?.search_word,
-  (newValue) => loadDatasets(true, String(newValue ?? '')),
+  (newValue) => handleLoadDatasets(true, String(newValue ?? '')),
 )
 
 watch(
@@ -191,7 +202,7 @@ watch(
 
 // 9.页面DOM加载后加载数据
 onMounted(() => {
-  loadDatasets(true, search_word.value)
+  void handleLoadDatasets(true, search_word.value)
 })
 
 // 10.定义卡片点击处理器
@@ -251,7 +262,7 @@ const handleCardClick = (datasetId: string) => {
                   <a-doption @click="() => handleUpdate(dataset.id)">{{ t('space.datasets.settings') }}</a-doption>
                   <a-doption
                     class="!text-red-500"
-                    @click="() => handleDelete(dataset.id, () => loadDatasets(true))"
+                    @click="() => handleDelete(dataset.id, () => handleLoadDatasets(true))"
                   >
                     {{ t('space.datasets.delete') }}
                   </a-doption>
