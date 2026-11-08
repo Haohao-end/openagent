@@ -86,11 +86,19 @@ watch(
       if (isUpdateOperation.value) {
         // 4.4 调用接口获取文档片段详情
         const segmentId = props.segment_id as string
-        const loadedSegment = await loadSegment(
-          props.dataset_id as string,
-          props.document_id as string,
-          segmentId,
-        )
+        let loadedSegment
+        try {
+          loadedSegment = await loadSegment(
+            props.dataset_id as string,
+            props.document_id as string,
+            segmentId,
+          )
+        } catch (error) {
+          if (!isUnmounted && requestId === latestLoadRequest && props.visible && props.segment_id === segmentId) {
+            Message.error(getErrorMessage(error, t('space.datasets.documents.segmentsModal.detailLoadFailed')))
+          }
+          return
+        }
         if (
           requestId !== latestLoadRequest ||
           !props.visible ||

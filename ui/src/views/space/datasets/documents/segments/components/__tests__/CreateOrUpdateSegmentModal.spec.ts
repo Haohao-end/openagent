@@ -16,8 +16,8 @@ vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 const formStub = { template: '<form><slot/></form>', methods: { resetFields: vi.fn() } }
 const modalStub = { props: ['visible'], template: '<div v-if="visible"><slot/></div>' }
 const textareaStub = { props: ['modelValue'], template: '<textarea :value="modelValue" />' }
-const mountEditor = (segment_id = 'segment-1') => mount(CreateOrUpdateSegmentModal, {
-  props: { dataset_id: 'dataset-1', document_id: 'document-1', segment_id, visible: true },
+const mountEditor = (segment_id = 'segment-1', visible = true) => mount(CreateOrUpdateSegmentModal, {
+  props: { dataset_id: 'dataset-1', document_id: 'document-1', segment_id, visible },
   global: { stubs: { 'a-modal': modalStub, 'a-form': formStub, 'a-textarea': textareaStub } },
 })
 const getSaveSegment = (wrapper: ReturnType<typeof mount>) =>
@@ -50,7 +50,8 @@ describe('CreateOrUpdateSegmentModal', () => {
     const closedRequest = new Promise<void>((_, reject) => { rejectClosed = reject })
     const unmountedRequest = new Promise<void>((_, reject) => { rejectUnmounted = reject })
     mocks.updateSegment.mockReturnValueOnce(closedRequest).mockReturnValueOnce(unmountedRequest)
-    const wrapper = mountEditor()
+    const wrapper = mountEditor('segment-1', false)
+    await wrapper.setProps({ visible: true })
     const saveSegment = getSaveSegment(wrapper)
     const closedSave = saveSegment({ errors: undefined })
     await wrapper.setProps({ visible: false })
@@ -65,6 +66,33 @@ describe('CreateOrUpdateSegmentModal', () => {
     rejectUnmounted(new Error('unmounted save failed'))
     await unmountedSave
     expect(mocks.error).not.toHaveBeenCalled()
+  })
+
+  it('reports segment detail load failures when editing', async () => {
+    mocks.loadSegment.mockRejectedValueOnce(new Error('segment detail unavailable'))
+    const wrapper = mountEditor('segment-1', false)
+    await wrapper.setProps({ visible: true })
+    await flushPromises()
+
+    expect(mocks.error).toHaveBeenCalledWith('segment detail unavailable')
+    wrapper.unmount()
+  })
+
+  it('ignores segment detail failures after a newer edit request', async () => {
+    let rejectOldDetails!: (error: Error) => void
+    const oldRequest = new Promise<Record<string, unknown>>((_, reject) => { rejectOldDetails = reject })
+    mocks.loadSegment.mockReturnValueOnce(oldRequest).mockResolvedValueOnce({ content: 'new segment', keywords: [] })
+    const wrapper = mountEditor('segment-1', false)
+
+    await wrapper.setProps({ visible: true })
+    await wrapper.setProps({ segment_id: 'segment-2' })
+    await flushPromises()
+    rejectOldDetails(new Error('stale detail failure'))
+    await flushPromises()
+
+    expect(mocks.error).not.toHaveBeenCalled()
+    expect(wrapper.get('textarea').element.value).toBe('new segment')
+    wrapper.unmount()
   })
 
   it('clears edited values before opening a new segment form', async () => {
