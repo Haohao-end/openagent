@@ -39,7 +39,11 @@ const deferredValue = () => { let resolve!: (value: string) => void; const promi
 describe('dataset icon upload lifecycle', () => {
   it('reports an initial list failure instead of treating it as an empty dataset list', async () => {
     mocks.route = reactive({ path: '/space/datasets', query: {} })
-    mocks.loadDatasets.mockReset().mockRejectedValueOnce(new Error('network unavailable'))
+    let rejectLateRequest!: (error: Error) => void
+    const lateRequest = new Promise<void>((_, reject) => { rejectLateRequest = reject })
+    mocks.loadDatasets.mockReset()
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockReturnValueOnce(lateRequest)
     mocks.error.mockReset()
     const unhandledErrors: unknown[] = []
     const wrapper = mount(DatasetListView, {
@@ -52,7 +56,13 @@ describe('dataset icon upload lifecycle', () => {
 
     expect(mocks.error).toHaveBeenCalledWith('network unavailable')
     expect(unhandledErrors).toHaveLength(0)
+    mocks.route.query = { search_word: 'late' }
+    await flushPromises()
     wrapper.unmount()
+    rejectLateRequest(new Error('late failure'))
+    await flushPromises()
+    expect(mocks.error).toHaveBeenCalledTimes(1)
+    expect(unhandledErrors).toHaveLength(0)
   })
 
   it('uses an empty search when browser navigation removes the route query', async () => {
