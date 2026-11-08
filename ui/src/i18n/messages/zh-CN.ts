@@ -629,6 +629,7 @@ export default {
   conversationSearch: {
     title: '会话搜索',
     placeholder: '搜索对话、消息、应用或智能体',
+    searchFailed: '搜索会话失败，请重试。',
     loading: '搜索中',
     empty: '暂无搜索结果',
     keywordMatch: '匹配来源：{labels}',

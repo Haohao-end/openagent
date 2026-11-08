@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { Message } from '@arco-design/web-vue'
 import AiDynamicBackground from '@/components/AiDynamicBackground.vue'
 import { AI_SURFACE_BACKGROUND_GRADIENT } from '@/config'
 import { OPEN_AGENT_NAME } from '@/config/openagent'
@@ -93,7 +94,10 @@ const handleSearch = async () => {
     const response = await searchConversations(searchQuery.value, 100)
     if (requestId === latestSearchRequest) conversations.value = response.data || []
   } catch (error) {
-    if (requestId === latestSearchRequest) console.error('Search failed:', error instanceof Error ? error.name : 'unknown_error')
+    if (requestId === latestSearchRequest) {
+      console.error('Search failed:', error instanceof Error ? error.name : 'unknown_error')
+      Message.error(t('conversationSearch.searchFailed'))
+    }
   } finally {
     if (requestId === latestSearchRequest) loading.value = false
   }
