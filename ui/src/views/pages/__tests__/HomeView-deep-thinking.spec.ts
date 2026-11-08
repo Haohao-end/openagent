@@ -1,6 +1,6 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, nextTick, reactive } from 'vue'
 
 import HomeView from '@/views/pages/HomeView.vue'
 
@@ -320,6 +320,26 @@ describe('HomeView deep thinking submit', () => {
       true,
       expect.any(AbortSignal),
     )
+  })
+
+  it('keeps streaming after syncing a newly created conversation into the route', async () => {
+    mocks.routerReplace.mockImplementation(async ({ query }) => {
+      mocks.route.query = query
+    })
+    mocks.handleAssistantAgentChat.mockImplementationOnce(async (_query, _images, _conversation, onEvent) => {
+      onEvent({ event: 'agent_message', data: { message_id: 'reply-1', task_id: 'task-1', conversation_id: 'conversation-new', thought: 'first' } })
+      await nextTick()
+      onEvent({ event: 'agent_message', data: { message_id: 'reply-1', task_id: 'task-1', conversation_id: 'conversation-new', thought: 'second' } })
+    })
+    const wrapper = shallowMount(HomeView, { global: { stubs: ['a-button', 'icon-down', 'icon-poweroff'] } })
+    await flushPromises()
+
+    mocks.queryRef.value = 'new conversation question'
+    await (wrapper.vm.$ as any).setupState.handleSubmit()
+
+    expect(mocks.route.query.conversation_id).toBe('conversation-new')
+    expect(mocks.messagesRef.value[0].answer).toBe('firstsecond')
+    wrapper.unmount()
   })
 
   it('preserves composer edits made while voice transcription is pending', async () => {

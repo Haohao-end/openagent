@@ -524,6 +524,7 @@ watch(
     const normalizedConversationId = normalizeConversationId(newValue)
     const oldConversationId = normalizeConversationId(oldValue)
     if (normalizedConversationId === oldConversationId) return
+    if (isStreamingResponse.value && normalizedConversationId && normalizedConversationId === selectedConversationId.value) return
 
     assistantAgentStreamGeneration += 1
     isStreamingResponse.value = false
