@@ -373,7 +373,10 @@ class SkillService(BaseService):
                 "skill_id": str(package.id),
             }
             validate_skills.append(normalized_binding)
-            display_skills.append(self._build_skill_binding_display(package, version_record))
+            display_binding = self._build_skill_binding_display(package, version_record)
+            if not package.enabled:
+                display_binding["enabled"] = False
+            display_skills.append(display_binding)
             seen_skill_ids.add(skill_id)
 
         return display_skills, validate_skills

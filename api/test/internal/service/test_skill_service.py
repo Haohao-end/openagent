@@ -4,7 +4,10 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
 from internal.exception import ValidateErrorException
+from internal.service.app_service import AppService
 from internal.service.skill_service import SkillService
 
 
@@ -83,11 +86,16 @@ def _build_version_record(package_id):
     )
 
 
-def test_process_and_validate_skill_bindings_should_keep_only_skill_id(monkeypatch):
+@pytest.mark.parametrize("package_enabled", [True, False])
+def test_process_and_validate_skill_bindings_should_keep_only_skill_id(
+    monkeypatch, package_enabled
+):
     service = _build_service()
     package_id = uuid4()
     package = _build_skill_package(package_id)
+    package.enabled = package_enabled
     version_record = _build_version_record(package_id)
+    version_record.bundle = {"skill.md": "Private skill instructions"}
 
     monkeypatch.setattr(service, "_has_skill_package_table", lambda: True)
     monkeypatch.setattr(service, "ensure_local_catalog_synced", lambda force=False: None)
@@ -114,7 +122,9 @@ def test_process_and_validate_skill_bindings_should_keep_only_skill_id(monkeypat
     assert display_skills[0]["skill_id"] == str(package_id)
     assert display_skills[0]["tool_count"] == 1
     assert "version" not in display_skills[0]
-    assert "enabled" not in display_skills[0]
+    assert display_skills[0].get("enabled", True) is package_enabled
+    prompt = AppService._build_skill_prompt_appendix(display_skills)
+    assert ("Private skill instructions" in prompt) is package_enabled
 
 
 def test_get_langchain_tools_by_skill_bindings_should_expand_skill_tools_without_version(monkeypatch):
