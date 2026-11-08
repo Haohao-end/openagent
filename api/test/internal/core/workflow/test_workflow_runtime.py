@@ -264,7 +264,7 @@ def test_workflow_conditional_branches_should_rejoin_after_selected_branch_once(
             calls.append(self.node_data.id)
             if self.node_data.id == if_else_id:
                 return {"node_results": [SimpleNamespace(
-                    node_data=SimpleNamespace(node_type=NodeType.IF_ELSE.value, id=if_else_id),
+                    node_data=SimpleNamespace(node_type=NodeType.IF_ELSE, id=if_else_id),
                     outputs={"result": condition_result},
                 )]}
             return {}
@@ -315,7 +315,7 @@ def test_workflow_conditional_terminal_join_runs_end_once(monkeypatch, condition
             calls.append(self.node_data.id)
             if self.node_data.id == if_else_id:
                 return {"node_results": [SimpleNamespace(
-                    node_data=SimpleNamespace(node_type=NodeType.IF_ELSE.value, id=if_else_id),
+                    node_data=SimpleNamespace(node_type=NodeType.IF_ELSE, id=if_else_id),
                     outputs={"result": condition_result},
                 )]}
             return {}

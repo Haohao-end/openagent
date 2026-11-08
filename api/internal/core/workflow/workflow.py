@@ -262,7 +262,10 @@ class Workflow(BaseTool):
                 def condition_func(state: WorkflowState):
                     # 从最新的节点结果中获取条件判断结果
                     for node_result in reversed(state.get("node_results", [])):
-                        if f"{node_result.node_data.node_type}_{node_result.node_data.id}" == node_id:
+                        node_type = node_result.node_data.node_type
+                        if isinstance(node_type, NodeType):
+                            node_type = node_type.value
+                        if f"{node_type}_{node_result.node_data.id}" == node_id:
                             result = node_result.outputs.get("result", True)
                             return "true" if result else "false"
                     return "true"
