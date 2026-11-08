@@ -61,8 +61,9 @@ export const debugWorkflow = (
   workflow_id: string,
   inputs: Record<string, any>,
   onData: (event_response: Record<string, any>) => void,
+  signal?: AbortSignal,
 ) => {
-  return ssePost(`/workflows/${workflow_id}/debug`, { body: inputs }, onData)
+  return ssePost(`/workflows/${workflow_id}/debug`, { body: inputs, signal }, onData)
 }
 
 // 重新生成工作流图标

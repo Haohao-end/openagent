@@ -345,6 +345,7 @@ export const useDebugWorkflow = () => {
   const loading = ref(false)
   const error = ref('')
   let latestRequest = 0
+  let activeRequestController: AbortController | undefined
 
   // 2.定义调试会话处理器
   const handleDebugWorkflow = async (
@@ -353,9 +354,12 @@ export const useDebugWorkflow = () => {
     onData: (event_response: Record<string, unknown>) => void,
   ) => {
     const requestId = ++latestRequest
+    activeRequestController?.abort()
+    const controller = new AbortController()
+    activeRequestController = controller
     try {
       loading.value = true
-      const resp = await debugWorkflow(workflow_id, inputs, onData)
+      const resp = await debugWorkflow(workflow_id, inputs, onData, controller.signal)
 
       // 2.1 判断响应内容是否存在，如果存在则表示该接口为非流式输出，意味着接口出错
       if (typeof resp === 'object' && resp !== null && 'message' in resp) {
@@ -363,11 +367,21 @@ export const useDebugWorkflow = () => {
         if (requestId === latestRequest) error.value = typeof message === 'string' ? message : '工作流调试失败'
       }
     } finally {
-      if (requestId === latestRequest) loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+        if (activeRequestController === controller) activeRequestController = undefined
+      }
     }
   }
 
-  return { loading, error, handleDebugWorkflow }
+  const cancelDebugWorkflow = () => {
+    latestRequest += 1
+    activeRequestController?.abort()
+    activeRequestController = undefined
+    loading.value = false
+  }
+
+  return { loading, error, handleDebugWorkflow, cancelDebugWorkflow }
 }
 
 export const useRegenerateIcon = () => {

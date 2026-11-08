@@ -51,6 +51,7 @@ const {
   error: debugWorkflowError,
   loading: debugWorkflowLoading,
   handleDebugWorkflow,
+  cancelDebugWorkflow,
 } = useDebugWorkflow()
 
 // 2.输入变量列表动态计算函数
@@ -175,11 +176,15 @@ watch(
       form.value = {}
     } else {
       debugRunGeneration += 1
+      cancelDebugWorkflow()
     }
   },
 )
 
-onUnmounted(() => { debugRunGeneration += 1 })
+onUnmounted(() => {
+  debugRunGeneration += 1
+  cancelDebugWorkflow()
+})
 </script>
 
 <template>
