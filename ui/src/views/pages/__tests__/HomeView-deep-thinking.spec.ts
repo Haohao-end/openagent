@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   queryRef: undefined as any,
   messagesRef: undefined as any,
   conversationNameRef: undefined as any,
+  clearConversationName: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -169,8 +170,12 @@ vi.mock('@/hooks/use-conversation', async () => {
     useGetConversationName: () => ({
       loading: ref(false),
       name: mocks.conversationNameRef,
+      clearConversationName: () => {
+        mocks.clearConversationName()
+        mocks.conversationNameRef.value = ''
+      },
       loadConversationName: vi.fn(async (conversationId: string) => {
-        if (conversationId === 'conversation-1') {
+        if (conversationId === 'conversation-1' || conversationId === 'conversation-a') {
           mocks.conversationNameRef.value = '历史会话 A'
         } else {
           mocks.conversationNameRef.value = '历史会话 B'
@@ -509,6 +514,9 @@ describe('HomeView deep thinking submit', () => {
       },
     })
     await flushPromises()
+    expect(mocks.conversationNameRef.value).toBe('历史会话 A')
+    let resolveConversationB!: () => void
+    mocks.loadAssistantAgentMessages.mockImplementationOnce(() => new Promise<void>(resolve => { resolveConversationB = resolve }))
 
     mocks.queryRef.value = 'question from A'
     const submitPromise = (wrapper.vm.$ as any).setupState.handleSubmit()
@@ -520,6 +528,8 @@ describe('HomeView deep thinking submit', () => {
     mocks.route.fullPath = '/home?conversation_id=conversation-b'
     await flushPromises()
 
+    expect(mocks.conversationNameRef.value).toBe('')
+    expect(mocks.clearConversationName).toHaveBeenCalledOnce()
     emitStreamEvent!({ event: 'agent_message', data: { message_id: 'late-a', task_id: 'task-a', conversation_id: 'conversation-a', thought: 'stale A' } })
 
     expect(mocks.messagesRef.value[0].id).toBe('history-b')
@@ -528,6 +538,9 @@ describe('HomeView deep thinking submit', () => {
 
     resolveStream?.()
     await submitPromise
+    resolveConversationB()
+    await flushPromises()
+    expect(mocks.conversationNameRef.value).toBe('历史会话 B')
     wrapper.unmount()
   })
 })

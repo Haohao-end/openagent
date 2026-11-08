@@ -530,6 +530,7 @@ watch(
     stopAutoScrollObserver()
     stopAutoScrollTicker()
     selectedConversationId.value = normalizedConversationId
+    clearConversationName()
     if (hasHomeNewConversationQuery(route.query)) return
     if (!isAuthenticated.value || !isHomeRoute.value) return
 
