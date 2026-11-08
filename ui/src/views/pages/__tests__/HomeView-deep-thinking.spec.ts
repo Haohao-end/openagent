@@ -342,6 +342,32 @@ describe('HomeView deep thinking submit', () => {
     wrapper.unmount()
   })
 
+  it('aborts the active stream when the Home conversation route changes', async () => {
+    mocks.route.query = { conversation_id: 'conversation-a' }
+    mocks.route.fullPath = '/home?conversation_id=conversation-a'
+    mocks.messagesRef.value = [{ id: 'history-a', conversation_id: 'conversation-a', query: 'A', answer: 'history A', agent_thoughts: [] }] as any
+    let resolveStream!: () => void
+    let signal: AbortSignal | undefined
+    mocks.handleAssistantAgentChat.mockImplementationOnce((...args: unknown[]) => {
+      signal = args[5] as AbortSignal
+      return new Promise<void>(resolve => { resolveStream = resolve })
+    })
+    const wrapper = shallowMount(HomeView, { global: { stubs: ['a-button', 'icon-down', 'icon-poweroff'] } })
+    await flushPromises()
+    mocks.queryRef.value = 'question from A'
+    const submit = (wrapper.vm.$ as any).setupState.handleSubmit()
+    await flushPromises()
+
+    mocks.route.query = { conversation_id: 'conversation-b' }
+    mocks.route.fullPath = '/home?conversation_id=conversation-b'
+    await flushPromises()
+
+    expect(signal?.aborted).toBe(true)
+    resolveStream()
+    await submit
+    wrapper.unmount()
+  })
+
   it('preserves composer edits made while voice transcription is pending', async () => {
     let finishTranscription!: () => void
     mocks.handleAudioToText.mockImplementationOnce(() => new Promise<void>((resolve) => {

@@ -526,6 +526,8 @@ watch(
     if (normalizedConversationId === oldConversationId) return
     if (isStreamingResponse.value && normalizedConversationId && normalizedConversationId === selectedConversationId.value) return
 
+    assistantAgentChatAbortController.value?.abort()
+    assistantAgentChatAbortController.value = null
     assistantAgentStreamGeneration += 1
     isStreamingResponse.value = false
     stopAutoScrollObserver()
