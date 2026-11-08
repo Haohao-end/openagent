@@ -868,7 +868,7 @@ class AppService(BaseService):
 
         sections: list[str] = []
         for binding in skill_bindings:
-            if not isinstance(binding, dict):
+            if not isinstance(binding, dict) or binding.get("enabled") is False:
                 continue
 
             title = str(binding.get("label") or binding.get("name") or binding.get("source_key") or "Skill").strip()
