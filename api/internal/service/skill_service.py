@@ -408,7 +408,7 @@ class SkillService(BaseService):
                 continue
 
             package = self._get_skill_package_record(skill_uuid)
-            if not package:
+            if not package or not package.enabled:
                 continue
 
             version_record = self._get_skill_package_version_record(package.id, package.current_version)
