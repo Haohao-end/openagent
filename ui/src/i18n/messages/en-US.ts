@@ -509,6 +509,7 @@ export default {
           keywordsPlaceholder: 'Enter keywords for this segment, up to 10, press Enter to add',
           cancel: 'Cancel',
           save: 'Save',
+          detailLoadFailed: 'Failed to load the segment',
           saveFailed: 'Failed to save the segment',
         },
       },

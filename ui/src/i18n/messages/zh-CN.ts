@@ -498,6 +498,7 @@ export default {
           keywordsPlaceholder: '请输入该文档片段关键词，最多不超过 10 个，按 Enter 输入',
           cancel: '取消',
           save: '保存',
+          detailLoadFailed: '加载文档片段详情失败',
           saveFailed: '保存文档片段失败',
         },
       },
