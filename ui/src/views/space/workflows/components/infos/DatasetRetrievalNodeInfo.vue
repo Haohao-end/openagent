@@ -6,6 +6,7 @@ import { getReferencedVariables } from '@/utils/helper'
 import { useGetDatasetsWithPage } from '@/hooks/use-dataset'
 import { type ValidatedError, Message } from '@arco-design/web-vue'
 import { useI18n } from 'vue-i18n'
+import { getErrorMessage } from '@/utils/error'
 type DatasetItem = {
   id: string
   name: string
@@ -98,6 +99,14 @@ const {
   datasets,
   loadDatasets,
 } = useGetDatasetsWithPage()
+let isUnmounted = false
+const handleLoadDatasets = async (init: boolean) => {
+  try {
+    await loadDatasets(init)
+  } catch (error: unknown) {
+    if (!isUnmounted) Message.error(getErrorMessage(error, t('workflowEditor.datasetRetrieval.loadFailed')))
+  }
+}
 
 // 2.定义节点可引用的变量选项
 const inputRefOptions = computed(() => {
@@ -112,7 +121,7 @@ const handleScroll = async (event: UIEvent) => {
   // 3.2 判断是否滑动到底部
   if (scrollTop + clientHeight >= scrollHeight - 10) {
     if (getDatasetsWithPageLoading.value) return
-    await loadDatasets()
+    await handleLoadDatasets(false)
   }
 }
 
@@ -257,12 +266,13 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  isUnmounted = true
   debounceAutoSave.flush()
   debounceAutoSave.cancel()
 })
 
 onMounted(() => {
-  loadDatasets(true)
+  void handleLoadDatasets(true)
 })
 </script>
 

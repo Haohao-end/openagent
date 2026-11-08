@@ -818,6 +818,7 @@ export default {
       chooseDatasetTitle: 'Choose Knowledge Bases',
       chooseDatasetButton: 'Confirm',
       noAvailable: 'No knowledge bases available',
+      loadFailed: 'Failed to load knowledge bases',
       loading: 'Loading',
       loaded: 'All data loaded',
       emptyTip:
