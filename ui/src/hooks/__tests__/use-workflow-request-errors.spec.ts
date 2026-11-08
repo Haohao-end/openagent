@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRequestError } from '@/utils/error'
-import { useGetWorkflowsWithPage, useUpdateDraftGraph } from '@/hooks/use-workflow'
+import { useDebugWorkflow, useGetWorkflowsWithPage, useUpdateDraftGraph } from '@/hooks/use-workflow'
 
 const mocks = vi.hoisted(() => ({
   cancelPublishWorkflow: vi.fn(),
@@ -62,7 +62,7 @@ vi.mock('@arco-design/web-vue', () => ({
   },
 }))
 
-describe('use-workflow draft save feedback', () => {
+describe('use-workflow request hooks', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -102,6 +102,22 @@ describe('use-workflow draft save feedback', () => {
     expect(result).toBe(false)
     expect(messageErrorMock).toHaveBeenCalledWith('URL解析到不允许的地址: 169.254.169.254')
     expect(messageSuccessMock).not.toHaveBeenCalled()
+  })
+
+  it('aborts the active debug request and clears loading when canceled', async () => {
+    let signal: AbortSignal
+    mocks.debugWorkflow.mockImplementationOnce((_id, _inputs, _onData, requestSignal) =>
+      new Promise<void>((_resolve, reject) => {
+        signal = requestSignal
+        requestSignal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true })
+      }))
+    const { loading, handleDebugWorkflow, cancelDebugWorkflow } = useDebugWorkflow()
+    const pending = handleDebugWorkflow('workflow-1', {}, () => {})
+    cancelDebugWorkflow()
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(signal!.aborted).toBe(true)
+    expect(loading.value).toBe(false)
   })
 })
 

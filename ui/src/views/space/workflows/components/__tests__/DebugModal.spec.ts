@@ -9,6 +9,7 @@ vi.mock('@/utils/clipboard', () => ({
 
 const mocks = vi.hoisted(() => ({
   handleDebugWorkflow: vi.fn(),
+  cancelDebugWorkflow: vi.fn(),
   canvas: {
     nodes: [] as { id: string; class?: string | string[] }[],
     edges: [] as { source: string; target: string; sourceHandle?: string; class?: string | string[] }[],
@@ -30,6 +31,7 @@ vi.mock('@/hooks/use-workflow', async () => {
       error: ref(''),
       loading: ref(false),
       handleDebugWorkflow: mocks.handleDebugWorkflow,
+      cancelDebugWorkflow: mocks.cancelDebugWorkflow,
     }),
   }
 })
@@ -64,6 +66,7 @@ const nodeResults = [
 describe('DebugModal node outputs', () => {
   beforeEach(() => {
     mocks.handleDebugWorkflow.mockReset()
+    mocks.cancelDebugWorkflow.mockReset()
     mocks.canvas.nodes = [
       { id: 'start-1', class: 'custom-node' },
       { id: 'condition-1' },
@@ -402,6 +405,7 @@ describe('DebugModal node outputs', () => {
     await flushPromises()
 
     await wrapper.setProps({ visible: false })
+    expect(mocks.cancelDebugWorkflow).toHaveBeenCalledOnce()
     await wrapper.setProps({ visible: true })
     emitResult?.({ event: 'workflow', data: { node_data: { id: 'stale-end', node_type: 'end', title: 'Stale' }, status: 'succeeded', outputs: { answer: 'stale' }, latency: 0.1 } })
     await flushPromises()
