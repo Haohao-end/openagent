@@ -7,6 +7,7 @@ import * as conversationHooks from '@/hooks/use-conversation'
 import * as conversationSearchService from '@/services/conversation-search'
 
 const routerPush = vi.fn()
+const mocks = vi.hoisted(() => ({ messageError: vi.fn() }))
 
 vi.mock('@/services/conversation-search', () => ({
  searchConversations: vi.fn(),
@@ -31,6 +32,8 @@ vi.mock('vue-router', () => ({
  push: routerPush,
  }),
 }))
+
+vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError, success: vi.fn(), warning: vi.fn() } }))
 
 const dropdownStub = {
  props: ['popupVisible'],
@@ -205,6 +208,8 @@ describe('ConversationSearchView', () => {
    await searchFor(wrapper, 'private query')
    expect(errorSpy.mock.calls.flat().join(' ')).not.toContain('private search response')
    expect(errorSpy).toHaveBeenCalledWith('Search failed:', 'Error')
+   expect(mocks.messageError).toHaveBeenCalledTimes(1)
+   expect(mocks.messageError.mock.calls.flat().join(' ')).not.toContain('private search response')
   } finally {
    wrapper.unmount()
    errorSpy.mockRestore()

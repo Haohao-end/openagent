@@ -640,6 +640,7 @@ export default {
   conversationSearch: {
     title: 'Conversation Search',
     placeholder: 'Search conversations, messages, apps, or agents',
+    searchFailed: 'Could not search conversations. Please try again.',
     loading: 'Searching',
     empty: 'No results found',
     keywordMatch: 'Matched in: {labels}',
