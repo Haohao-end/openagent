@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error } }))
-vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/hooks/use-dataset', async () => {
   const { ref } = await import('vue')
@@ -52,6 +51,34 @@ beforeEach(() => {
   mocks.updateEnabled.mockReset().mockRejectedValue(new Error('offline'))
   mocks.loadDocument.mockClear()
   mocks.loadSegments.mockClear()
+})
+
+it('reports document detail load failures', async () => {
+  mocks.loadDocument.mockReset().mockRejectedValueOnce(new Error('document service unavailable'))
+  mocks.error.mockReset()
+  const wrapper = mountView()
+  await flushPromises()
+
+  expect(mocks.error).toHaveBeenCalledWith('document service unavailable')
+  wrapper.unmount()
+})
+
+it('ignores document failures from a superseded route', async () => {
+  let rejectOldDocument!: (error: Error) => void
+  const oldLoad = new Promise<void>((_, reject) => { rejectOldDocument = reject })
+  mocks.loadDocument.mockReset().mockReturnValueOnce(oldLoad).mockResolvedValueOnce(undefined)
+  mocks.error.mockReset()
+  const wrapper = mountView()
+  await flushPromises()
+
+  mocks.route.params.document_id = 'document-next'
+  await nextTick()
+  await flushPromises()
+  rejectOldDocument(new Error('stale document failure'))
+  await flushPromises()
+
+  expect(mocks.error).not.toHaveBeenCalled()
+  wrapper.unmount()
 })
 
 it('reports segment list load failures', async () => {

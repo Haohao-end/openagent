@@ -373,6 +373,7 @@ export default {
       },
       documents: {
         title: '知识库文档',
+        loadFailed: '加载文档详情失败',
         recallTest: '召回测试',
         addFile: '添加文件',
         searchPlaceholder: '搜索文档',
