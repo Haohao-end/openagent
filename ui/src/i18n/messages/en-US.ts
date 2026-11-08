@@ -384,6 +384,7 @@ export default {
       },
       documents: {
         title: 'Knowledge Base Documents',
+        loadFailed: 'Failed to load document details',
         recallTest: 'Recall Test',
         addFile: 'Add File',
         searchPlaceholder: 'Search documents',

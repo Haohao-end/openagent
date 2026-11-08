@@ -24,6 +24,18 @@ const { loading, segments, paginator, loadSegments } = useGetSegmentsWithPage()
 const { handleDelete } = useDeleteSegment()
 const { handleUpdate: handleUpdateSegmentEnabled } = useUpdateSegmentEnabled()
 let isUnmounted = false
+let documentRequestId = 0
+
+const handleLoadDocument = async (datasetId: string, documentId: string) => {
+  const requestId = ++documentRequestId
+  try {
+    await loadDocument(datasetId, documentId)
+  } catch (error) {
+    if (!isUnmounted && requestId === documentRequestId) {
+      Message.error(getErrorMessage(error, t('space.datasets.documents.loadFailed')))
+    }
+  }
+}
 
 const handleLoadSegments = async (
   datasetId: string,
@@ -66,7 +78,7 @@ const handleScroll = async (event: UIEvent) => {
 const loadRouteData = () => {
   const datasetId = String(route.params?.dataset_id)
   const documentId = String(route.params?.document_id)
-  loadDocument(datasetId, documentId)
+  void handleLoadDocument(datasetId, documentId)
   void handleLoadSegments(datasetId, documentId, true, String(route.query?.search_word ?? ''))
 }
 
@@ -74,7 +86,7 @@ watch(
   () => [route.params?.dataset_id, route.params?.document_id, route.query?.search_word],
   ([datasetId, documentId, searchWord], previous) => {
     if (datasetId !== previous[0] || documentId !== previous[1])
-      loadDocument(String(datasetId), String(documentId))
+      void handleLoadDocument(String(datasetId), String(documentId))
     void handleLoadSegments(String(datasetId), String(documentId), true, String(searchWord ?? ''))
   },
 )
