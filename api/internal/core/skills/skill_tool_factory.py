@@ -7,7 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from langchain_core.tools import BaseTool, StructuredTool
-from pydantic import Field, create_model
+from pydantic import Field, StrictFloat, StrictInt, create_model
 
 from .skill_executor import SkillSandboxExecutor, SkillScfClient
 
@@ -23,9 +23,9 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
     if schema_type == "string":
         return str
     if schema_type == "integer":
-        return int
+        return StrictInt
     if schema_type == "number":
-        return float
+        return StrictFloat
     if schema_type == "boolean":
         return bool
     if schema_type == "array":
