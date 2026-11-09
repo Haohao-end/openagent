@@ -459,6 +459,7 @@ export default {
           queryPlaceholder: '请输入文本，建议使用简短的陈述句',
           recall: '召回测试',
           recentQueries: '最近查询',
+          loadFailed: '加载最近查询失败，请重试',
           noQuery: '检索源文本不能为空',
           maxRecall: '最大召回数量',
           minScore: '最小匹配度',
