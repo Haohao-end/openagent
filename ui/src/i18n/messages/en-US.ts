@@ -1594,6 +1594,7 @@ export default {
       enterNameFirst: 'Enter an app name first',
       generateIconSuccess: 'Icon generated',
       createSuccess: 'Agent app created',
+      saveFailed: 'Failed to save the app. Please try again later.',
       regenerateIconFailed: 'Failed to regenerate the icon. Please try again later.',
       generateIconFailed: 'Failed to generate the icon. Please try again later.',
       iconServiceUnavailable: 'The icon generation service is unavailable. Ask an administrator to configure an API key.',
