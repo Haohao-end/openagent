@@ -1089,6 +1089,15 @@ class TestAssistantAgentService:
         assert merged_message_thought.thought == "AB"
         assert merged_message_thought.answer == "AB"
 
+        save_payload.clear()
+        with app.app_context():
+            events = service.chat(req, account)
+            next(events)
+            next(events)
+            events.close()
+
+        assert save_payload["agent_thoughts"][0].answer == "A"
+
     def test_chat_should_use_runtime_language_model_resolution_when_available(
         self, monkeypatch, app
     ):
