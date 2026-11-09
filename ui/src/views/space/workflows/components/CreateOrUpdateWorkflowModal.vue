@@ -39,6 +39,7 @@ const createDefaultForm = () => ({
 const form = ref(createDefaultForm())
 const formRef = ref<InstanceType<typeof Form>>()
 let detailRequest = 0
+let isUnmounted = false
 
 // 2.定义上传图标处理器
 const handleUploadIcon = async (file: File) => {
@@ -103,10 +104,11 @@ const saveWorkflow = async ({ errors }: { errors: Record<string, ValidatedError>
     }
 
     // 3.3 完成保存操作，隐藏模态窗并调用回调函数
+    if (isUnmounted) return
     if (requestId === detailRequest) emits('update:visible', false)
     props.callback && props.callback()
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('workflowEditor.workflowModal.saveFailed')))
+    if (!isUnmounted) Message.error(getErrorMessage(error, t('workflowEditor.workflowModal.saveFailed')))
   }
 }
 
@@ -145,6 +147,7 @@ watch(
 )
 
 onUnmounted(() => {
+  isUnmounted = true
   detailRequest += 1
 })
 </script>

@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import CreateOrUpdateWorkflowModal from '../CreateOrUpdateWorkflowModal.vue'
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn() }))
+const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), error: vi.fn() }))
 vi.mock('@/hooks/use-workflow', () => ({
   useCreateWorkflow: () => ({ loading: false, handleCreateWorkflow: mocks.create }),
   useGetWorkflow: () => ({ workflow: ref({}), loadWorkflow: vi.fn() }),
@@ -12,6 +12,7 @@ vi.mock('@/hooks/use-workflow', () => ({
   useUpdateWorkflow: () => ({ loading: false, handleUpdateWorkflow: mocks.update }),
 }))
 vi.mock('@/hooks/use-upload-file', () => ({ useUploadImage: () => ({ image_url: ref(''), handleUploadImage: vi.fn() }) }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 const FormStub = defineComponent({
@@ -43,6 +44,32 @@ it('does not close an edited modal after an earlier save finishes', async () => 
   expect(mocks.update).toHaveBeenCalledOnce()
   expect(wrapper.emitted('update:visible')).toEqual([[false]])
   wrapper.unmount()
+})
+
+it('does not run save side effects after the workflow modal unmounts', async () => {
+  let finish!: () => void
+  const callback = vi.fn()
+  mocks.update.mockReset().mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve }))
+  const success = mount(CreateOrUpdateWorkflowModal, {
+    props: { workflow_id: 'workflow-1', visible: true, callback },
+    global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-button': true, 'a-input': true, 'a-textarea': true, 'a-space': true, 'icon-close': true, IconUploadGenerator: true } },
+  })
+  await success.get('form').trigger('submit')
+  success.unmount()
+  finish()
+  await flushPromises()
+  let fail!: (error: Error) => void
+  mocks.error.mockReset()
+  mocks.update.mockReturnValueOnce(new Promise<void>((_, reject) => { fail = reject }))
+  const failure = mount(CreateOrUpdateWorkflowModal, {
+    props: { workflow_id: 'workflow-1', visible: true },
+    global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-button': true, 'a-input': true, 'a-textarea': true, 'a-space': true, 'icon-close': true, IconUploadGenerator: true } },
+  })
+  await failure.get('form').trigger('submit')
+  failure.unmount()
+  fail(new Error('stale workflow failure'))
+  await flushPromises()
+  expect({ callbackCalls: callback.mock.calls.length, errorCalls: mocks.error.mock.calls.length }).toEqual({ callbackCalls: 0, errorCalls: 0 })
 })
 
 it('passes a stale session check to an earlier workflow creation', async () => {
