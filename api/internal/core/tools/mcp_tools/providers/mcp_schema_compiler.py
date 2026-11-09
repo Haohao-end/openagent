@@ -256,7 +256,7 @@ class McpSchemaCompiler:
                 )
 
                 is_required = prop_name in required_fields
-                default_value = prop_schema.get("default", ...)
+                default_value = ... if is_required else prop_schema.get("default", ...)
                 if not is_required and default_value is ...:
                     annotation = annotation | None
                     default_value = None
