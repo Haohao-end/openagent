@@ -3,12 +3,12 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import CreateOrUpdateWorkflowModal from '../CreateOrUpdateWorkflowModal.vue'
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), load: vi.fn(), error: vi.fn() }))
+const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), load: vi.fn(), generate: vi.fn(), error: vi.fn() }))
 vi.mock('@/hooks/use-workflow', () => ({
   useCreateWorkflow: () => ({ loading: false, handleCreateWorkflow: mocks.create }),
   useGetWorkflow: () => ({ workflow: ref({}), loading: ref(false), loadWorkflow: mocks.load }),
   useRegenerateIcon: () => ({ loading: false, handleRegenerateIcon: vi.fn() }),
-  useGenerateIconPreview: () => ({ loading: false, handleGenerateIconPreview: vi.fn() }),
+  useGenerateIconPreview: () => ({ loading: false, handleGenerateIconPreview: mocks.generate }),
   useUpdateWorkflow: () => ({ loading: false, handleUpdateWorkflow: mocks.update }),
 }))
 vi.mock('@/hooks/use-upload-file', () => ({ useUploadImage: () => ({ image_url: ref(''), handleUploadImage: vi.fn() }) }))
@@ -108,5 +108,26 @@ it('passes a stale session check to an earlier workflow creation', async () => {
   expect(shouldContinue?.()).toBe(false)
   finish()
   await flushPromises()
+  wrapper.unmount()
+})
+
+it('does not report an icon generation failure from a previous modal session', async () => {
+  let fail!: (error: Error) => void
+  mocks.generate.mockReset().mockReturnValueOnce(new Promise<string>((_, reject) => { fail = reject }))
+  mocks.error.mockReset()
+  const wrapper = mount(CreateOrUpdateWorkflowModal, {
+    props: { workflow_id: '', visible: false },
+    global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-button': true, 'a-input': true, 'a-textarea': true, 'a-space': true, 'icon-close': true, IconUploadGenerator: true } },
+  })
+  const vm = (wrapper.vm as any).$.setupState
+  vm.form.name = 'New workflow'
+  await wrapper.setProps({ visible: true })
+  const generation = vm.handleGenerateIcon()
+  await wrapper.setProps({ visible: false })
+  await wrapper.setProps({ visible: true })
+  fail(new Error('stale generation failed'))
+  await generation
+
+  expect(mocks.error).not.toHaveBeenCalled()
   wrapper.unmount()
 })
