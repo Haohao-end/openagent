@@ -168,3 +168,12 @@ def test_skill_tool_factory_should_keep_required_fields_required_when_default_de
 
     with pytest.raises(ValidationError):
         schema.model_validate({})
+
+
+def test_skill_tool_factory_should_validate_array_item_types():
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"values": {"type": "array", "items": {"type": "integer"}}}}
+    )
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"values": ["not an integer"]})
