@@ -24,7 +24,8 @@ const emits = defineEmits(['update:visible', 'update:workflow_id'])
 const { t } = useI18n()
 const { loading: createWorkflowLoading, handleCreateWorkflow } = useCreateWorkflow()
 const { loading: updateWorkflowLoading, handleUpdateWorkflow } = useUpdateWorkflow()
-const { workflow, loadWorkflow } = useGetWorkflow()
+const { loading: workflowDetailLoading, workflow, loadWorkflow } = useGetWorkflow()
+const workflowDetailLoadFailed = ref(false)
 const { image_url, handleUploadImage } = useUploadImage()
 const { loading: regenerateIconLoading, handleRegenerateIcon } = useRegenerateIcon()
 const { loading: generateIconPreviewLoading, handleGenerateIconPreview } = useGenerateIconPreview()
@@ -91,7 +92,7 @@ const hideModal = () => emits('update:visible', false)
 // 5.定义表单提交函数
 const saveWorkflow = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断表单是否出错
-  if (errors) return
+  if (errors || workflowDetailLoading.value || workflowDetailLoadFailed.value) return
 
   const requestId = detailRequest
 
@@ -125,7 +126,15 @@ watch(
       // 4.3 开启弹窗，需要检测下是更新还是创建操作
       if (workflowId) {
         // 4.4 调用接口获取工作流详情
-        await loadWorkflow(workflowId)
+        try {
+          await loadWorkflow(workflowId)
+        } catch (error: unknown) {
+          if (requestId === detailRequest && props.visible && props.workflow_id === workflowId) {
+            workflowDetailLoadFailed.value = true
+            Message.error(getErrorMessage(error, t('workflowEditor.workflowModal.detailLoadFailed')))
+          }
+          return
+        }
         if (requestId !== detailRequest) return
 
         // 4.5 更新表单数据
@@ -139,6 +148,7 @@ watch(
       }
     } else {
       // 4.6 关闭弹窗，需要清空表单数据
+      workflowDetailLoadFailed.value = false
       form.value = createDefaultForm()
       formRef.value?.resetFields()
       emits('update:workflow_id', '')
@@ -248,6 +258,7 @@ onUnmounted(() => {
             <a-button class="rounded-lg" @click="hideModal">{{ t('common.actions.cancel') }}</a-button>
             <a-button
               :loading="createWorkflowLoading || updateWorkflowLoading"
+              :disabled="workflowDetailLoading || workflowDetailLoadFailed"
               type="primary"
               html-type="submit"
               class="rounded-lg"

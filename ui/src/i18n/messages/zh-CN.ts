@@ -849,6 +849,7 @@ export default {
       iconGenerateSuccess: '图标生成成功',
       iconGenerateFailed: '图标生成失败',
       saveFailed: '保存工作流失败，请稍后重试',
+      detailLoadFailed: '加载工作流详情失败，请重试',
       enterNameFirst: '请先输入工作流名称',
       iconRequired: '工作流图标不能为空',
       nameLabel: '工作流名称',

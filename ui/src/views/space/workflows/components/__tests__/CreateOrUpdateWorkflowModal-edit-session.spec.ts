@@ -3,10 +3,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import CreateOrUpdateWorkflowModal from '../CreateOrUpdateWorkflowModal.vue'
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), error: vi.fn() }))
+const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), load: vi.fn(), error: vi.fn() }))
 vi.mock('@/hooks/use-workflow', () => ({
   useCreateWorkflow: () => ({ loading: false, handleCreateWorkflow: mocks.create }),
-  useGetWorkflow: () => ({ workflow: ref({}), loadWorkflow: vi.fn() }),
+  useGetWorkflow: () => ({ workflow: ref({}), loading: ref(false), loadWorkflow: mocks.load }),
   useRegenerateIcon: () => ({ loading: false, handleRegenerateIcon: vi.fn() }),
   useGenerateIconPreview: () => ({ loading: false, handleGenerateIconPreview: vi.fn() }),
   useUpdateWorkflow: () => ({ loading: false, handleUpdateWorkflow: mocks.update }),
@@ -70,6 +70,24 @@ it('does not run save side effects after the workflow modal unmounts', async () 
   fail(new Error('stale workflow failure'))
   await flushPromises()
   expect({ callbackCalls: callback.mock.calls.length, errorCalls: mocks.error.mock.calls.length }).toEqual({ callbackCalls: 0, errorCalls: 0 })
+})
+
+it('reports workflow detail failures and prevents saving an empty edit', async () => {
+  mocks.load.mockReset().mockRejectedValueOnce(new Error('workflow details unavailable'))
+  mocks.error.mockReset()
+  mocks.update.mockReset()
+  const wrapper = mount(CreateOrUpdateWorkflowModal, {
+    props: { workflow_id: 'workflow-1', visible: false },
+    global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-button': true, 'a-input': true, 'a-textarea': true, 'a-space': true, 'icon-close': true, IconUploadGenerator: true } },
+  })
+
+  await wrapper.setProps({ visible: true })
+  await flushPromises()
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+
+  expect({ errors: mocks.error.mock.calls.length, saves: mocks.update.mock.calls.length }).toEqual({ errors: 1, saves: 0 })
+  wrapper.unmount()
 })
 
 it('passes a stale session check to an earlier workflow creation', async () => {

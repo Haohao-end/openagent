@@ -866,6 +866,7 @@ export default {
       iconGenerateSuccess: 'Icon generated successfully',
       iconGenerateFailed: 'Failed to generate icon',
       saveFailed: 'Failed to save the workflow. Please try again later.',
+      detailLoadFailed: 'Failed to load the workflow details. Please try again.',
       enterNameFirst: 'Please enter a workflow name first',
       iconRequired: 'Workflow icon is required',
       nameLabel: 'Workflow Name',
