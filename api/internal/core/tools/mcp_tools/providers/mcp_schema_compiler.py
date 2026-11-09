@@ -212,6 +212,8 @@ class McpSchemaCompiler:
             return self._build_object_model(schema, model_name_hint, depth)
 
         if _normalize_text(schema_type).lower() == "array":
+            if "items" not in schema or schema["items"] is True or schema["items"] == {}:
+                return list[Any]
             item_schema = schema.get("items") or {}
             item_type = self._compile_schema(
                 _normalize_schema(item_schema),
