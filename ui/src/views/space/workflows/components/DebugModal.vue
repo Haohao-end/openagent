@@ -92,14 +92,14 @@ const shouldMarkDebugEdge = (edge: { source: string; sourceHandle?: string | nul
 
 // 6.定义表单提交函数
 const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
+  if (errors) return
+
   // 6.1 运行前先将历史运行清空
   nodeResults.value = []
   debugWorkflowError.value = ''
   succeededNodeIds.value = new Set()
   clearDebugCanvas(nodes.value, edges.value)
 
-  // 6.2 检查表单是否出错，如果出错则直接结束
-  if (errors) return
   const requestId = ++debugRunGeneration
 
   // 6.3 将tab选项切换到输出选项卡

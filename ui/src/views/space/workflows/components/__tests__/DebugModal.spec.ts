@@ -222,6 +222,24 @@ describe('DebugModal node outputs', () => {
     ])
   })
 
+  it('keeps the last run results when a new submission fails validation', async () => {
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+    const state = (wrapper.vm as any).$.setupState
+    await state.onSubmit({ errors: undefined })
+    const previousNodeClasses = mocks.canvas.nodes.map(({ class: className }) => className)
+
+    await state.onSubmit({ errors: { query: {
+      label: 'Query', field: 'query', value: '', type: 'required', isRequiredError: true, message: 'Required',
+    } } })
+
+    expect(state.nodeResults).toHaveLength(nodeResults.length)
+    expect(mocks.canvas.nodes.map(({ class: className }) => className)).toEqual(previousNodeClasses)
+    expect(mocks.handleDebugWorkflow).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
+
   it.each([
     ['empty text', ''],
     ['zero', 0],
