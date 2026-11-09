@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRequestError } from '@/utils/error'
-import { useDebugWorkflow, useGetWorkflowsWithPage, useUpdateDraftGraph } from '@/hooks/use-workflow'
+import {
+  useDebugWorkflow,
+  useGenerateIconPreview,
+  useGetWorkflowsWithPage,
+  useRegenerateIcon,
+  useUpdateDraftGraph,
+} from '@/hooks/use-workflow'
 
 const mocks = vi.hoisted(() => ({
   cancelPublishWorkflow: vi.fn(),
@@ -102,6 +108,18 @@ describe('use-workflow request hooks', () => {
     expect(result).toBe(false)
     expect(messageErrorMock).toHaveBeenCalledWith('URL解析到不允许的地址: 169.254.169.254')
     expect(messageSuccessMock).not.toHaveBeenCalled()
+  })
+
+  it('suppresses stale workflow icon error notifications when the caller owns feedback', async () => {
+    mocks.generateIconPreview.mockRejectedValueOnce(new Error('generation failed'))
+    mocks.regenerateIcon.mockRejectedValueOnce(new Error('regeneration failed'))
+    const { handleGenerateIconPreview } = useGenerateIconPreview()
+    const { handleRegenerateIcon } = useRegenerateIcon()
+
+    await expect(handleGenerateIconPreview('workflow', '', () => false)).rejects.toThrow('generation failed')
+    await expect(handleRegenerateIcon('workflow-1', () => false)).rejects.toThrow('regeneration failed')
+
+    expect(messageErrorMock).not.toHaveBeenCalled()
   })
 
   it('aborts the active debug request and clears loading when canceled', async () => {

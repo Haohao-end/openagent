@@ -3,12 +3,23 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import CreateOrUpdateWorkflowModal from '../CreateOrUpdateWorkflowModal.vue'
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), load: vi.fn(), generate: vi.fn(), error: vi.fn() }))
+const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), load: vi.fn(), generate: vi.fn(), notify: vi.fn(), error: vi.fn() }))
 vi.mock('@/hooks/use-workflow', () => ({
   useCreateWorkflow: () => ({ loading: false, handleCreateWorkflow: mocks.create }),
   useGetWorkflow: () => ({ workflow: ref({}), loading: ref(false), loadWorkflow: mocks.load }),
   useRegenerateIcon: () => ({ loading: false, handleRegenerateIcon: vi.fn() }),
-  useGenerateIconPreview: () => ({ loading: false, handleGenerateIconPreview: mocks.generate }),
+  useGenerateIconPreview: () => ({
+    loading: false,
+    handleGenerateIconPreview: async (name: string, description: string, shouldNotifyError = () => true) => {
+      mocks.notify(shouldNotifyError)
+      try {
+        return await mocks.generate(name, description)
+      } catch (error) {
+        if (shouldNotifyError()) mocks.error(error)
+        throw error
+      }
+    },
+  }),
   useUpdateWorkflow: () => ({ loading: false, handleUpdateWorkflow: mocks.update }),
 }))
 vi.mock('@/hooks/use-upload-file', () => ({ useUploadImage: () => ({ image_url: ref(''), handleUploadImage: vi.fn() }) }))
@@ -115,6 +126,7 @@ it('does not report an icon generation failure from a previous modal session', a
   let fail!: (error: Error) => void
   mocks.generate.mockReset().mockReturnValueOnce(new Promise<string>((_, reject) => { fail = reject }))
   mocks.error.mockReset()
+  mocks.notify.mockReset()
   const wrapper = mount(CreateOrUpdateWorkflowModal, {
     props: { workflow_id: '', visible: false },
     global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-button': true, 'a-input': true, 'a-textarea': true, 'a-space': true, 'icon-close': true, IconUploadGenerator: true } },
@@ -128,6 +140,7 @@ it('does not report an icon generation failure from a previous modal session', a
   fail(new Error('stale generation failed'))
   await generation
 
+  expect(mocks.notify.mock.calls[0]?.[0]()).toBe(false)
   expect(mocks.error).not.toHaveBeenCalled()
   wrapper.unmount()
 })
