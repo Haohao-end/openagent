@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import PreviewDebugHeader from '../PreviewDebugHeader.vue'
 
-const mocks = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), summary: { value: '' } as { value: string } }))
+const mocks = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), error: vi.fn(), summary: { value: '' } as { value: string } }))
 vi.mock('@/hooks/use-app', async () => {
   const { ref } = await import('vue')
   const summary = ref('summary')
@@ -14,6 +14,7 @@ vi.mock('@/hooks/use-app', async () => {
   }
 })
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error } }))
 
 const ModalStub = defineComponent({ props: ['visible'], template: '<div v-if="visible"><slot /></div>' })
 const ButtonStub = defineComponent({ emits: ['click'], template: '<button @click="$emit(\'click\')"><slot /></button>' })
@@ -73,4 +74,22 @@ it.each(['reopen', 'unmount'] as const)('ignores an old summary save after the m
   expect(mocks.save).toHaveBeenCalledWith('app-1', 'summary')
   await saving
   if (action === 'reopen') wrapper.unmount()
+})
+
+it('reports a summary save failure and leaves the modal open', async () => {
+  mocks.error.mockReset()
+  mocks.load.mockReset().mockResolvedValue(undefined)
+  mocks.save.mockReset().mockRejectedValueOnce(new Error(''))
+  const wrapper = mount(PreviewDebugHeader, {
+    props: { app_id: 'app-1', long_term_memory: { enable: true } },
+    global: { stubs: { 'a-modal': ModalStub, 'a-button': ButtonStub, 'a-space': SpaceStub, 'a-textarea': true, 'icon-save': true, 'icon-close': true } },
+  })
+  const state = (wrapper.vm as any).$.setupState
+  await state.openSummaryModal()
+
+  await state.saveSummary().catch(() => undefined)
+
+  expect(mocks.error).toHaveBeenCalledWith('appStudio.debug.summarySaveFailed')
+  expect(state.summaryModalVisible).toBe(true)
+  wrapper.unmount()
 })

@@ -1317,6 +1317,7 @@ export default {
       title: '预览与调试',
       longTermMemory: '长期记忆',
       longTermMemoryPlaceholder: '请输入当前调试会话长期记忆',
+      summarySaveFailed: '保存长期记忆失败，请稍后重试',
       clearSession: '清空调试会话',
       placeholder: '发送调试消息',
       emptyQuery: '用户提问不能为空',
