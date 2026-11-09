@@ -963,6 +963,29 @@ class TestAccountService:
         }
         assert email_calls == ["demo@example.com"]
 
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"account_id": "not-a-uuid", "email": "demo@example.com"},
+            {"account_id": str(uuid4()), "email": ["demo@example.com"]},
+        ],
+    )
+    def test_load_login_challenge_should_reject_invalid_field_types(self, monkeypatch, payload):
+        redis_stub = _RedisStub()
+        monkeypatch.setattr("internal.service.account_service.redis_client", redis_stub)
+        service = _new_account_service(
+            db=SimpleNamespace(session=SimpleNamespace()),
+            jwt_service=SimpleNamespace(),
+        )
+        challenge_id = "challenge-invalid"
+        key = service._login_challenge_key(challenge_id)
+        redis_stub.setex(key, timedelta(minutes=10), json.dumps(payload))
+
+        with pytest.raises(FailException, match="登录验证已失效"):
+            service._load_login_challenge(challenge_id)
+
+        assert key in redis_stub.delete_calls
+
     def test_verify_login_challenge_should_issue_credential_and_clear_pending_challenge(self, monkeypatch):
         redis_stub = _RedisStub()
         monkeypatch.setattr("internal.service.account_service.redis_client", redis_stub)
