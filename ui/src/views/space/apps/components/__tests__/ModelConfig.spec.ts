@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   languageModel: null as any,
   loadLanguageModel: vi.fn(),
   updateDraft: vi.fn().mockResolvedValue(undefined),
+  messageError: vi.fn(),
 }))
 
 vi.mock('@/hooks/use-language-model', () => ({
@@ -15,6 +16,7 @@ vi.mock('@/hooks/use-language-model', () => ({
 }))
 vi.mock('@/hooks/use-app', () => ({ useUpdateDraftAppConfig: () => ({ handleUpdateDraftAppConfig: mocks.updateDraft }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError } }))
 
 const TriggerStub = defineComponent({ emits: ['hide'], template: '<div><slot /><slot name="content" /></div>' })
 const SelectStub = defineComponent({ props: ['modelValue'], emits: ['update:modelValue', 'change'], template: '<div />' })
@@ -86,6 +88,27 @@ describe('ModelConfig', () => {
       model: 'second-model',
       parameters: { temperature: 0.2 },
     }]])
+    wrapper.unmount()
+  })
+
+  it('keeps the previous model when selected defaults fail to load', async () => {
+    const wrapper = mount(ModelConfig, {
+      props: { app_id: 'app-1', model_config: { provider: 'old', model: 'old-model', parameters: { temperature: 0.9 } }, dialog_round: 3 },
+      global: { stubs: { 'a-trigger': TriggerStub, 'a-select': SelectStub } },
+    })
+    await flushPromises()
+    mocks.loadLanguageModel.mockRejectedValueOnce(new Error('model details unavailable'))
+    mocks.messageError.mockReset()
+    const select = wrapper.findComponent(SelectStub)
+    select.vm.$emit('update:modelValue', 'broken/broken-model')
+    select.vm.$emit('change', 'broken/broken-model')
+    wrapper.findComponent(TriggerStub).vm.$emit('hide')
+    await flushPromises()
+
+    const state = (wrapper.vm.$ as any).setupState
+    expect(state.form.selectValue).toBe('old/old-model')
+    expect(mocks.updateDraft).not.toHaveBeenCalled()
+    expect(mocks.messageError).toHaveBeenCalledWith('model details unavailable')
     wrapper.unmount()
   })
 })

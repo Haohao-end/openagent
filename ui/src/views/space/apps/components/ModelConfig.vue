@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { Message } from '@arco-design/web-vue'
 import { useI18n } from 'vue-i18n'
 import { apiPrefix } from '@/config'
 import { useGetLanguageModel, useGetLanguageModels } from '@/hooks/use-language-model'
@@ -8,6 +9,7 @@ import {
   getModelParameterDisplayHelp,
   getModelParameterDisplayLabel,
 } from '@/utils/model-parameter-display'
+import { getErrorMessage } from '@/utils/error'
 
 type ModelForm = {
   selectValue: string
@@ -59,7 +61,7 @@ const modelOptions = computed(() => {
     }
   })
 })
-let modelDetailLoad: Promise<void> = Promise.resolve()
+let modelDetailLoad: Promise<boolean> = Promise.resolve(true)
 let modelSelectionRequest = 0
 
 // 2.定义选择模型处理器
@@ -70,7 +72,7 @@ const changeModel = (value: string) => {
 
   // 2.2 发起请求获取模型详情
   modelDetailLoad = loadLanguageModel(provider_name, model_name).then((isLatest) => {
-    if (!isLatest || requestId !== modelSelectionRequest) return
+    if (!isLatest || requestId !== modelSelectionRequest) return false
     // 2.3 重新赋值parameters
     form.value.parameters = language_model.value.parameters.reduce(
       (acc: Record<string, unknown>, parameter: { name: string; default?: unknown }) => {
@@ -79,14 +81,20 @@ const changeModel = (value: string) => {
       },
       {} as Record<string, unknown>,
     )
+    return true
+  }).catch((error: unknown) => {
+    if (requestId !== modelSelectionRequest) return false
+    const { provider, model } = props.model_config as Record<string, string>
+    form.value.selectValue = provider && model ? `${provider}/${model}` : ''
+    Message.error(getErrorMessage(error, t('appStudio.modelConfig.loadFailed')))
+    return false
   })
 }
 
 // 3.触发器隐藏处理器，提交数据进行更新
 const hideModelTrigger = async () => {
   const requestId = modelSelectionRequest
-  await modelDetailLoad
-  if (requestId !== modelSelectionRequest) return
+  if (!(await modelDetailLoad) || requestId !== modelSelectionRequest) return
 
   // 3.1 处理表单数据
   const [provider_name, model_name] = form.value.selectValue.split('/')
