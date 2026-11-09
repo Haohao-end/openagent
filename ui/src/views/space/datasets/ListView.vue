@@ -176,8 +176,10 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
   // 1.如果出错则直接抛出
   if (errors) return
 
+  const requestId = datasetEditRequestId
   // 2.调用保存知识库服务
   await saveDataset(updateDatasetID)
+  if (isUnmounted || requestId !== datasetEditRequestId) return
 
   // 3.关闭模态窗并且刷新数据
   handleCancel()
