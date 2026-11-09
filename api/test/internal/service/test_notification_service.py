@@ -188,3 +188,9 @@ def test_notification_redis_data_structure(notification_service, fake_redis):
     assert notification_data["app_id"] == str(app_id)
     assert notification_data["app_name"] == "Test Agent"
     assert "dataset_id" not in notification_data
+
+
+def test_get_notification_should_ignore_non_object_cache_payload(notification_service, fake_redis):
+    fake_redis.setex("notification:corrupt", 60, json.dumps([]))
+
+    assert notification_service._get_notification("corrupt") is None

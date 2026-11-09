@@ -131,6 +131,8 @@ class NotificationService:
             return None
 
         notification_data = json.loads(data)
+        if not isinstance(notification_data, dict):
+            return None
 
         # 判断通知类型：如果有 app_id 则是 Agent 通知，否则是文档索引通知
         if "app_id" in notification_data:
