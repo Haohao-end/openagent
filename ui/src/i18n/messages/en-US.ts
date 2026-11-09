@@ -1657,6 +1657,7 @@ export default {
     },
     promptCompareModel: {
       loadFailed: 'Failed to load model parameters. Please try again.',
+      loadOptionsFailed: 'Failed to load models. Please try again.',
       title: 'Compare Model',
       modelLabel: 'Model',
       modelPlaceholder: 'Choose a language model for comparison',

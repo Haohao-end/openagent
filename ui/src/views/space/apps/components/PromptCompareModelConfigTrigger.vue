@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { apiPrefix } from '@/config'
 import { useGetLanguageModel, useGetLanguageModels } from '@/hooks/use-language-model'
@@ -36,6 +36,7 @@ const {
 } = useGetLanguageModel()
 const { language_models, loadLanguageModels } = useGetLanguageModels()
 let latestModelLoad = 0
+let isUnmounted = false
 const modelOptions = computed(() => {
   return language_models.value.map((language_model) => {
     return {
@@ -113,7 +114,14 @@ watch(popupVisible, (visible) => {
 })
 
 onMounted(() => {
-  void loadLanguageModels()
+  void loadLanguageModels().catch((error: unknown) => {
+    if (isUnmounted) return
+    Message.error(getErrorMessage(error, t('appStudio.promptCompareModel.loadOptionsFailed')))
+  })
+})
+
+onUnmounted(() => {
+  isUnmounted = true
 })
 </script>
 
