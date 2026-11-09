@@ -124,4 +124,24 @@ describe('Skills list detail requests', () => {
     expect(wrapper.find('[data-testid="close-detail"]').exists()).toBe(false)
     wrapper.unmount()
   })
+
+  it('ignores a detail failure after the list view unmounts', async () => {
+    const request = deferred<{ data: ReturnType<typeof skill> }>()
+    getSkill.mockReturnValueOnce(request.promise)
+    const { Message } = await import('@arco-design/web-vue')
+    const { default: ListView } = await import('../ListView.vue')
+    const wrapper = mount(ListView, { global: { stubs: {
+      'a-card': defineComponent({ emits: ['click'], setup(_props, { emit, slots }) { return () => h('div', { onClick: () => emit('click') }, slots.default?.()) } }),
+      'a-drawer': true,
+      'resource-card-description': true,
+    } } })
+    await flushPromises()
+
+    await wrapper.findAll('[class*="cursor-pointer rounded-lg"]')[0].trigger('click')
+    wrapper.unmount()
+    request.reject(new Error('late skill detail failure'))
+    await flushPromises()
+
+    expect(Message.error).not.toHaveBeenCalled()
+  })
 })
