@@ -63,7 +63,7 @@ const handleGenerateIcon = async () => {
   try {
     // 更新模式：调用 regenerateIcon
     if (props.workflow_id) {
-      const iconUrl = await handleRegenerateIcon(props.workflow_id)
+      const iconUrl = await handleRegenerateIcon(props.workflow_id, () => false)
       if (requestId !== detailRequest) return
       if (iconUrl) {
         form.value.icon = iconUrl
@@ -73,7 +73,7 @@ const handleGenerateIcon = async () => {
     }
     // 创建模式：调用 generateIconPreview
     else {
-      const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description)
+      const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description, () => false)
       if (requestId !== detailRequest) return
       if (iconUrl) {
         form.value.icon = iconUrl
