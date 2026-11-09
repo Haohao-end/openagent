@@ -15,6 +15,29 @@ from internal.exception import FailException
 from .base_service import BaseService
 
 
+def _is_valid_intent_payload(payload: Any) -> bool:
+    if not isinstance(payload, dict) or any(
+        field not in payload for field in ("intent", "confidence", "suggested_actions")
+    ):
+        return False
+
+    confidence = payload["confidence"]
+    actions = payload["suggested_actions"]
+    return (
+        isinstance(payload["intent"], str)
+        and isinstance(confidence, (int, float))
+        and not isinstance(confidence, bool)
+        and 0 <= confidence <= 1
+        and isinstance(actions, list)
+        and all(
+            isinstance(action, dict)
+            and all(isinstance(action.get(key), str) for key in ("label", "action", "icon"))
+            for action in actions
+        )
+        and ("is_default" not in payload or isinstance(payload["is_default"], bool))
+    )
+
+
 @inject
 @dataclass
 class IntentRecognitionService(BaseService):
@@ -158,28 +181,8 @@ class IntentRecognitionService(BaseService):
             result = json.loads(json_str)
 
             # 验证响应对象与必要字段
-            if not isinstance(result, dict) or any(
-                field not in result
-                for field in ("intent", "confidence", "suggested_actions")
-            ):
+            if not _is_valid_intent_payload(result):
                 logging.warning("Invalid response format from model")
-                return self.DEFAULT_INTENT.copy()
-
-            confidence = result["confidence"]
-            actions = result["suggested_actions"]
-            if (
-                not isinstance(result["intent"], str)
-                or not isinstance(confidence, (int, float))
-                or isinstance(confidence, bool)
-                or not 0 <= confidence <= 1
-                or not isinstance(actions, list)
-                or any(
-                    not isinstance(action, dict)
-                    or any(not isinstance(action.get(key), str) for key in ("label", "action", "icon"))
-                    for action in actions
-                )
-            ):
-                logging.getLogger(__name__).warning("Invalid response field types from model")
                 return self.DEFAULT_INTENT.copy()
 
             result["is_default"] = False
@@ -204,7 +207,7 @@ class IntentRecognitionService(BaseService):
                 return None
 
             cached_intent = json.loads(cached_data)
-            return cached_intent if isinstance(cached_intent, dict) else None
+            return cached_intent if _is_valid_intent_payload(cached_intent) else None
         except Exception as e:
             logging.error("Failed to get cached intent: error_type=%s", type(e).__name__)
             return None
