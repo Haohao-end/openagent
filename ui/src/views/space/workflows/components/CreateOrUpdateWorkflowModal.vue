@@ -82,7 +82,9 @@ const handleGenerateIcon = async () => {
       }
     }
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('workflowEditor.workflowModal.iconGenerateFailed')))
+    if (requestId === detailRequest && !isUnmounted) {
+      Message.error(getErrorMessage(error, t('workflowEditor.workflowModal.iconGenerateFailed')))
+    }
   }
 }
 
