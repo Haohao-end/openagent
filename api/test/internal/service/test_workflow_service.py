@@ -488,6 +488,15 @@ class TestWorkflowService:
             "node_data": {"node_type": "llm", "prompt": "private workflow prompt"},
         }]
 
+        def fail_update(*_args, **_kwargs):
+            raise RuntimeError("synthetic workflow result failure")
+
+        monkeypatch.setattr(service, "update", fail_update)
+        events = service.debug_workflow(workflow.id, {"query": "hello"}, account)
+        next(events)
+        events.close()
+        assert "error_type=RuntimeError" in caplog.text
+
     @pytest.mark.parametrize(
         ("failure", "event_name"),
         [
