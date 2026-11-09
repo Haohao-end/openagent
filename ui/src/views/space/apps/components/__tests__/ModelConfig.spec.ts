@@ -136,4 +136,29 @@ describe('ModelConfig', () => {
     await flushPromises()
     expect(mocks.messageError).not.toHaveBeenCalled()
   })
+
+  it('reports only the current configured-model detail failure', async () => {
+    const requests: { reject: (error: Error) => void }[] = []
+    mocks.loadModels.mockReset().mockResolvedValue(undefined)
+    mocks.loadLanguageModel.mockReset().mockImplementation(() => new Promise((_resolve, reject) => requests.push({ reject })))
+    mocks.messageError.mockReset()
+    const wrapper = mount(ModelConfig, {
+      props: { app_id: 'app-1', model_config: { provider: 'old', model: 'old-model' }, dialog_round: 3 },
+      global: { stubs: { 'a-trigger': TriggerStub, 'a-select': SelectStub } },
+    })
+    await wrapper.setProps({ model_config: { provider: 'new', model: 'new-model' } })
+    requests[0].reject(new Error('stale model details unavailable'))
+    await flushPromises()
+    expect(mocks.messageError).not.toHaveBeenCalled()
+    requests[1].reject(new Error('current model details unavailable'))
+    await flushPromises()
+    expect(mocks.messageError).toHaveBeenCalledWith('current model details unavailable')
+
+    mocks.messageError.mockReset()
+    await wrapper.setProps({ model_config: { provider: 'late', model: 'late-model' } })
+    wrapper.unmount()
+    requests[2].reject(new Error('late model details unavailable'))
+    await flushPromises()
+    expect(mocks.messageError).not.toHaveBeenCalled()
+  })
 })

@@ -122,6 +122,7 @@ const hideModelTrigger = async () => {
 watch(
   () => props.model_config,
   (newValue) => {
+    const requestId = ++modelSelectionRequest
     // 1.完成表单数据初始化
     form.value.selectValue = `${newValue?.provider}/${newValue.model}`
     form.value.provider = String(newValue?.provider || '')
@@ -129,7 +130,10 @@ watch(
     form.value.parameters = (newValue?.parameters || {}) as Record<string, unknown>
 
     // 2.请求语言模型详情API接口
-    newValue?.provider && loadLanguageModel(String(newValue?.provider), String(newValue?.model))
+    newValue?.provider && void loadLanguageModel(String(newValue.provider), String(newValue.model)).catch((error: unknown) => {
+      if (requestId !== modelSelectionRequest || isUnmounted) return
+      Message.error(getErrorMessage(error, t('appStudio.modelConfig.loadFailed')))
+    })
   },
   { immediate: true },
 )
