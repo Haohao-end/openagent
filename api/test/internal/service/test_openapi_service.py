@@ -525,7 +525,7 @@ class TestOpenAPIService:
             "entrypoint": "openapi",
         }
 
-    def test_chat_should_stream_and_aggregate_agent_message_chunks(self, monkeypatch):
+    def test_chat_should_stream_and_aggregate_agent_message_chunks(self, monkeypatch, caplog):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
         app = SimpleNamespace(id=uuid4(), status=AppStatus.PUBLISHED.value)
@@ -671,3 +671,14 @@ class TestOpenAPIService:
             events.close()
 
         assert save_payload["agent_thoughts"][0].answer == "A"
+
+        def fail_save(**_kwargs):
+            raise RuntimeError("synthetic database failure")
+
+        service.conversation_service.save_agent_thoughts = fail_save
+        with Flask(__name__).app_context():
+            events = service.chat(req, account)
+            next(events)
+            next(events)
+            events.close()
+        assert "error_type=RuntimeError" in caplog.text
