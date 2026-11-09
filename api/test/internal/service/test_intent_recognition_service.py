@@ -178,3 +178,16 @@ class TestIntentRecognitionService:
     def test_cached_payload_must_be_object(self, service, mock_redis, payload):
         mock_redis.get.return_value = payload
         assert service.get_cached_intent("user-1") is None
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"intent": "创建应用", "confidence": "high", "suggested_actions": []},
+            {"intent": "创建应用", "confidence": 0.9, "suggested_actions": "not a list"},
+            {"intent": "创建应用", "confidence": 0.9, "suggested_actions": [{"label": "创建"}]},
+        ],
+    )
+    def test_cached_intent_with_invalid_field_shapes_is_a_miss(self, service, mock_redis, payload):
+        mock_redis.get.return_value = json.dumps(payload)
+
+        assert service.get_cached_intent("user-1") is None
