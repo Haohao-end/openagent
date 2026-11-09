@@ -321,7 +321,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
 
   // 7.6 数据校验通过，通过事件触发数据更新
   emits('updateNode', {
-    id: props.node.id,
+    id: form.value.id,
     title: form.value.title,
     description: form.value.description,
     tool_type: form.value.tool?.type,

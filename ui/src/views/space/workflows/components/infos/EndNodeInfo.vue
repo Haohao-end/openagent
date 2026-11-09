@@ -96,7 +96,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   const cloneOutputs = cloneDeep(form.value.outputs)
 
   emits('updateNode', {
-    id: props.node.id,
+    id: form.value.id,
     title: form.value.title,
     description: form.value.description,
     outputs: cloneOutputs.map((output: FormOutputField) => {

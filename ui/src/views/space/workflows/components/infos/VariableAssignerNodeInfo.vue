@@ -112,7 +112,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   })
 
   emits('updateNode', {
-    id: props.node.id,
+    id: form.value.id,
     title: form.value.title,
     description: form.value.description,
     inputs: normalizedInputs,
