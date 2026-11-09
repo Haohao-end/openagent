@@ -220,3 +220,12 @@ def test_get_notification_should_ignore_invalid_agent_cache_fields(notification_
     fake_redis.setex("notification:corrupt", 60, json.dumps(payload))
 
     assert notification_service._get_notification("corrupt") is None
+
+
+
+def test_collect_notification_ids_should_skip_invalid_utf8(notification_service, fake_redis):
+    user_id = uuid4()
+    key = notification_service._get_user_notification_keys(user_id)[0]
+    fake_redis.lists[key] = [b"valid-id", b"\xff"]
+
+    assert notification_service._collect_notification_ids(user_id) == ["valid-id"]

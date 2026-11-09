@@ -288,7 +288,10 @@ class NotificationService:
         for key in self._get_user_notification_keys(user_id, notification_type):
             for notification_id in redis_client.lrange(key, 0, -1):
                 if isinstance(notification_id, bytes):
-                    notification_ids.add(notification_id.decode())
+                    try:
+                        notification_ids.add(notification_id.decode())
+                    except UnicodeDecodeError:
+                        continue
                 else:
                     notification_ids.add(str(notification_id))
 
