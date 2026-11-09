@@ -111,7 +111,7 @@ const saveWorkflow = async ({ errors }: { errors: Record<string, ValidatedError>
     if (requestId === detailRequest) emits('update:visible', false)
     props.callback && props.callback()
   } catch (error: unknown) {
-    if (!isUnmounted) Message.error(getErrorMessage(error, t('workflowEditor.workflowModal.saveFailed')))
+    if (!isUnmounted && requestId === detailRequest) Message.error(getErrorMessage(error, t('workflowEditor.workflowModal.saveFailed')))
   }
 }
 

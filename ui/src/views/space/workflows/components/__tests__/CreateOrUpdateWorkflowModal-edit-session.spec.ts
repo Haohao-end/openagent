@@ -131,3 +131,25 @@ it('does not report an icon generation failure from a previous modal session', a
   expect(mocks.error).not.toHaveBeenCalled()
   wrapper.unmount()
 })
+
+it('does not report a save failure from a previous modal session', async () => {
+  let fail!: (error: Error) => void
+  mocks.load.mockReset().mockResolvedValue(undefined)
+  mocks.update.mockReset().mockReturnValueOnce(new Promise<void>((_, reject) => { fail = reject }))
+  mocks.error.mockReset()
+  const wrapper = mount(CreateOrUpdateWorkflowModal, {
+    props: { workflow_id: 'workflow-1', visible: false },
+    global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-button': true, 'a-input': true, 'a-textarea': true, 'a-space': true, 'icon-close': true, IconUploadGenerator: true } },
+  })
+
+  await wrapper.setProps({ visible: true })
+  await flushPromises()
+  await wrapper.get('form').trigger('submit')
+  await wrapper.setProps({ visible: false })
+  await wrapper.setProps({ visible: true })
+  fail(new Error('stale save failed'))
+  await flushPromises()
+
+  expect(mocks.error).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
