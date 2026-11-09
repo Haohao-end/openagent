@@ -1,11 +1,11 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import CreateOrUpdateAppModal from '@/views/space/apps/components/CreateOrUpdateAppModal.vue'
-const { save, update, error } = vi.hoisted(() => ({ save: vi.fn(), update: vi.fn(), error: vi.fn() }))
+const { save, update, error, load } = vi.hoisted(() => ({ save: vi.fn(), update: vi.fn(), error: vi.fn(), load: vi.fn() }))
 vi.mock('@/hooks/use-app', () => ({
   useCreateApp: () => ({ loading: false, handleCreateApp: save }),
   useUpdateApp: () => ({ loading: false, handleUpdateApp: update }),
-  useGetApp: () => ({ app: { value: {} }, loadApp: vi.fn() }),
+  useGetApp: () => ({ app: { value: {} }, loading: { value: false }, loadApp: load }),
   useRegenerateIcon: () => ({ loading: false, handleRegenerateIcon: vi.fn() }),
   useGenerateIconPreview: () => ({ loading: false, handleGenerateIconPreview: vi.fn() }),
 }))
@@ -55,5 +55,34 @@ it('reports an app save failure and keeps the form open', async () => {
   expect(unhandled).toHaveLength(0)
   expect(wrapper.emitted('update:visible')).toBeUndefined()
   expect(callback).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+it('reports app detail failures and blocks an empty update', async () => {
+  const unhandled: unknown[] = []
+  load.mockReset().mockRejectedValueOnce(new Error('app details unavailable'))
+  update.mockReset()
+  error.mockReset()
+  const wrapper = shallowMount(CreateOrUpdateAppModal, {
+    props: { app_id: 'app-1', visible: false },
+    global: {
+      config: { errorHandler: (error) => unhandled.push(error) },
+      stubs: {
+        IconUploadGenerator: true,
+        'a-modal': { template: '<div><slot/></div>' },
+        'a-form': { emits: ['submit'], methods: { resetFields: vi.fn() }, template: `<form @submit.prevent="$emit('submit', { errors: undefined })"><slot/></form>` },
+      },
+    },
+  })
+
+  await wrapper.setProps({ visible: true })
+  await flushPromises()
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+
+  expect(load).toHaveBeenCalledWith('app-1')
+  expect(error).toHaveBeenCalledWith('app details unavailable')
+  expect(update).not.toHaveBeenCalled()
+  expect(unhandled).toHaveLength(0)
   wrapper.unmount()
 })
