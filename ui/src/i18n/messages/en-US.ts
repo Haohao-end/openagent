@@ -483,6 +483,7 @@ export default {
           nameLabel: 'Name',
           nameRequired: 'Document name is required',
           detailLoadFailed: 'Failed to load the document details. Please try again.',
+          saveFailed: 'Failed to rename the document. Please try again.',
           namePlaceholder: 'Enter a document name',
           cancel: 'Cancel',
           save: 'Save',

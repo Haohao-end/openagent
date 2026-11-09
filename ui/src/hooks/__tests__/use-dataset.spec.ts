@@ -226,6 +226,17 @@ describe('use-dataset action callbacks', () => {
     ).rejects.toThrow('rename failed')
     expect(mocks.messageError).toHaveBeenCalledWith('rename failed')
   })
+
+  it('uses the current locale for a document rename fallback error', async () => {
+    const { handleUpdateDocumentName } = useUpdateDocumentName()
+    mocks.updateDocumentName.mockRejectedValueOnce(new Error(''))
+
+    await expect(handleUpdateDocumentName(
+      'dataset-1', 'document-1', 'new-name', 'Failed to rename document',
+    )).rejects.toThrow()
+
+    expect(mocks.messageError).toHaveBeenCalledWith('Failed to rename document')
+  })
 })
 
 describe('useGetDataset', () => {
