@@ -52,6 +52,24 @@ def test_mcp_schema_compiler_should_allow_arrays_without_item_schema():
 
 
 @pytest.mark.parametrize(
+    ("value_schema", "value"),
+    [
+        ({"type": "boolean"}, "false"),
+        ({"type": "boolean"}, 1),
+        ({"type": "array", "items": {"type": "boolean"}}, ["false"]),
+        ({"type": "array", "items": {"type": "boolean"}}, [1]),
+    ],
+)
+def test_mcp_schema_compiler_should_reject_non_boolean_values(value_schema, value):
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "properties": {"value": value_schema}}
+    )
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": value})
+
+
+@pytest.mark.parametrize(
     ("enabled_override", "should_load"),
     [
         ({"enabled": True}, True),
