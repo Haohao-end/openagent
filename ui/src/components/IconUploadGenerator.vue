@@ -49,10 +49,6 @@ watch(
 const handleCustomRequest = async (option: any) => {
   const { fileItem, onSuccess, onError } = option
   try {
-    // 上传前清空旧文件列表（确保只保留最新上传的图标）
-    localFileList.value = []
-    emits('update:fileList', [])
-
     await props.onUpload(fileItem.file)
     onSuccess()
   } catch (error: unknown) {
