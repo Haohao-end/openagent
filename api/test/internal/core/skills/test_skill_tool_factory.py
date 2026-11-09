@@ -226,3 +226,22 @@ def test_skill_tool_factory_should_reject_non_boolean_values(field, value):
 
     with pytest.raises(ValidationError):
         schema.model_validate({"value": value})
+
+
+@pytest.mark.parametrize(
+    ("field", "valid_value", "invalid_value"),
+    [
+        ({"type": "string", "minLength": 3}, "abc", "ab"),
+        ({"type": "string", "maxLength": 3}, "abc", "abcd"),
+        ({"type": "array", "items": {"type": "string", "minLength": 3}}, ["abc"], ["ab"]),
+        ({"type": "array", "items": {"type": "string", "maxLength": 3}}, ["abc"], ["abcd"]),
+    ],
+)
+def test_skill_tool_factory_should_validate_string_length_constraints(field, valid_value, invalid_value):
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": field}, "required": ["value"]}
+    )
+    assert schema.model_validate({"value": valid_value}).value == valid_value
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": invalid_value})

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -24,7 +24,15 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
         return Literal[tuple(enum_values)]
     schema_type = str(schema.get("type") or "string").strip().lower()
     if schema_type == "string":
-        return str
+        constraints = {
+            name: value
+            for name, value in (
+                ("min_length", schema.get("minLength")),
+                ("max_length", schema.get("maxLength")),
+            )
+            if type(value) is int and value >= 0
+        }
+        return Annotated[str, Field(**constraints)] if constraints else str
     if schema_type == "integer":
         return StrictInt
     if schema_type == "number":
