@@ -694,7 +694,10 @@ class AssistantAgentService(BaseService):
             cached_data = self.redis_client.get(cache_key)
             if cached_data:
                 introduction = json.loads(cached_data)
-                return introduction if isinstance(introduction, dict) else None
+                if not isinstance(introduction, dict):
+                    return None
+                content = introduction.get("introduction")
+                return introduction if isinstance(content, str) and content.strip() else None
         except Exception:
             logging.exception("获取辅助Agent介绍缓存失败")
         return None
