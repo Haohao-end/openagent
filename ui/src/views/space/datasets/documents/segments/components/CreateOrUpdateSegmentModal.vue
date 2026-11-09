@@ -58,7 +58,7 @@ const saveSegment = async ({ errors }: { errors: Record<string, ValidatedError> 
     return
   }
 
-  if (session !== modalSession || !props.visible) return
+  if (isUnmounted || session !== modalSession || !props.visible) return
 
   // 3.5 完成保存操作，隐藏模态窗并调用回调函数
   emits('update:visible', false)
