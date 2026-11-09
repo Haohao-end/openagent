@@ -1925,7 +1925,7 @@ class TestAppService:
         with pytest.raises(NotFoundException):
             service.fallback_history_to_draft(app.id, uuid4(), SimpleNamespace(id=uuid4()))
 
-    def test_debug_chat_should_stream_agent_events_and_persist_thoughts(self, monkeypatch):
+    def test_debug_chat_should_stream_agent_events_and_persist_thoughts(self, monkeypatch, caplog):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
         app_id = uuid4()
@@ -2044,6 +2044,15 @@ class TestAppService:
         events.close()
 
         assert len(save_calls[0]["agent_thoughts"]) == 1
+
+        def fail_save(**_kwargs):
+            raise RuntimeError("synthetic database failure")
+
+        service.conversation_service.save_agent_thoughts = fail_save
+        events = service.debug_chat(app_id, req, account)
+        next(events)
+        events.close()
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_debug_chat_should_attach_dataset_workflow_tools_and_merge_agent_messages(self, monkeypatch):
         service = _build_service()
