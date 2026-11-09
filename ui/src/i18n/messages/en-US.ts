@@ -1628,6 +1628,7 @@ export default {
     },
     modelConfig: {
       loadFailed: 'Failed to load model parameters. Please try again.',
+      loadOptionsFailed: 'Failed to load models. Please try again.',
       unsetModel: 'No model selected',
       title: 'Model Settings',
       modelLabel: 'Model',
