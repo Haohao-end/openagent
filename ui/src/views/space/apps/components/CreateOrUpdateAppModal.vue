@@ -16,7 +16,7 @@ const props = defineProps({
 const emits = defineEmits(['update:visible', 'update:app_id'])
 const { loading: createAppLoading, handleCreateApp } = useCreateApp()
 const { loading: updateAppLoading, handleUpdateApp } = useUpdateApp()
-const { app, loadApp } = useGetApp()
+const { app, loading: appDetailLoading, loadApp } = useGetApp()
 const { image_url, handleUploadImage } = useUploadImage()
 const { loading: regenerateIconLoading, handleRegenerateIcon } = useRegenerateIcon()
 const { loading: generateIconPreviewLoading, handleGenerateIconPreview } = useGenerateIconPreview()
@@ -35,6 +35,7 @@ const createDefaultForm = (): AppForm => ({
   description: '',
 })
 const form = ref<AppForm>(createDefaultForm())
+const appDetailLoadFailed = ref(false)
 const formRef = ref<InstanceType<typeof Form>>()
 let detailRequest = 0
 
@@ -92,7 +93,7 @@ const handleGenerateIcon = async () => {
 // 3.定义表单提交函数
 const saveApp = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断表单是否出错
-  if (errors) return
+  if (errors || appDetailLoading.value || appDetailLoadFailed.value) return
 
   const requestId = detailRequest
 
@@ -125,10 +126,18 @@ watch(
 
     // 4.2 判断弹窗是打开还是关闭
     if (newValue) {
+      appDetailLoadFailed.value = false
       // 4.3 开启弹窗，需要检测下是更新还是创建操作
       if (appId) {
         // 4.4 调用接口获取文档片段详情
-        await loadApp(appId)
+        try {
+          await loadApp(appId)
+        } catch (error: unknown) {
+          if (requestId !== detailRequest) return
+          appDetailLoadFailed.value = true
+          Message.error(getErrorMessage(error, t('appStudio.createModal.detailLoadFailed')))
+          return
+        }
         if (requestId !== detailRequest) return
 
         // 4.5 更新表单数据
@@ -140,6 +149,7 @@ watch(
         }
       }
     } else {
+      appDetailLoadFailed.value = false
       // 4.6 关闭弹窗，需要清空表单数据
       form.value = createDefaultForm()
       formRef.value?.resetFields()
