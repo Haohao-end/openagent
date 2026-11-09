@@ -36,6 +36,7 @@ export const openapiSchemaAssistantChat = (
 export const mcpSchemaAssistantChat = (
   question: string,
   onData: (event_response: Record<string, any>) => void,
+  signal?: AbortSignal,
 ) => {
-  return ssePost(`/ai/mcp-schema-chat`, { body: { question } }, onData)
+  return ssePost(`/ai/mcp-schema-chat`, { body: { question }, signal }, onData)
 }
