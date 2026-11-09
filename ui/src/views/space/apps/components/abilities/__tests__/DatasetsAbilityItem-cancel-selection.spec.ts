@@ -7,11 +7,13 @@ const mocks = vi.hoisted(() => ({ load: vi.fn(), update: vi.fn(), datasets: null
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/hooks/use-app', async () => {
   const { ref } = await import('vue')
-  const loading = ref(false)
-  return { useUpdateDraftAppConfig: () => ({ loading, handleUpdateDraftAppConfig: async (...args: any[]) => {
-    loading.value = true
-    try { return await mocks.update(...args) } finally { loading.value = false }
-  } }) }
+  return { useUpdateDraftAppConfig: () => {
+    const loading = ref(false)
+    return { loading, handleUpdateDraftAppConfig: async (...args: any[]) => {
+      loading.value = true
+      try { return await mocks.update(...args) } finally { loading.value = false }
+    } }
+  } }
 })
 vi.mock('@/hooks/use-dataset', async () => {
   const { ref } = await import('vue')
@@ -137,5 +139,34 @@ it('preserves unsaved retrieval settings when parent props change', async () => 
   await wrapper.setProps({ retrieval_config: { retrieval_strategy: 'hybrid', k: 8, score: 0.4 } })
 
   expect(state.retrievalConfigForm).toMatchObject({ retrieval_strategy: 'semantic', k: 7, score: 0 })
+  wrapper.unmount()
+})
+
+it('keeps the saved dataset selection unchanged while a save is pending', async () => {
+  let resolveUpdate!: () => void
+  mocks.update.mockReset().mockReturnValue(new Promise<void>((resolve) => { resolveUpdate = resolve }))
+  const wrapper = mount(DatasetsAbilityItem, {
+    props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
+    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
+  })
+  await flushPromises()
+  mocks.datasets.value = [
+    { id: 'ds-1', name: 'First dataset', icon: '', description: '' },
+    { id: 'ds-2', name: 'Second dataset', icon: '', description: '' },
+  ]
+  await wrapper.findAll('button')[1].trigger('click')
+  await flushPromises()
+  const options = wrapper.findAll('.cursor-pointer')
+  await options[0].trigger('click')
+  const submit = (wrapper.vm.$ as any).setupState.handleSubmitDatasets()
+  await nextTick()
+  await options[1].trigger('click')
+  resolveUpdate()
+  await submit
+
+  expect(mocks.update).toHaveBeenCalledWith('app-1', { datasets: ['ds-1'] })
+  expect(wrapper.emitted('update:datasets')?.[0][0]).toEqual([
+    { id: 'ds-1', name: 'First dataset', icon: '', description: '' },
+  ])
   wrapper.unmount()
 })

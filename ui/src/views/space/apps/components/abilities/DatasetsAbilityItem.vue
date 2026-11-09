@@ -127,6 +127,8 @@ const openRetrievalConfigModal = () => {
 
 // 7.知识库选择处理器
 const handleSelectDataset = (idx: number) => {
+  if (updateDraftAppConfigLoading.value) return
+
   // 7.1 提取对应的知识库id
   const dataset = apiDatasets.value[idx]
 
@@ -388,7 +390,11 @@ onMounted(() => {
             <div
               v-for="(dataset, idx) in apiDatasets"
               :key="dataset.id"
-              :class="`flex items-center gap-2 border px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-700 ${activateDatasets.some((activateDataset) => activateDataset.id === dataset.id) ? 'bg-blue-50 border-blue-700' : ''}`"
+              class="flex items-center gap-2 border px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-700"
+              :class="{
+                'bg-blue-50 border-blue-700': activateDatasets.some((activateDataset) => activateDataset.id === dataset.id),
+                'pointer-events-none cursor-not-allowed opacity-60': updateDraftAppConfigLoading,
+              }"
               @click="() => handleSelectDataset(idx)"
             >
               <a-avatar
