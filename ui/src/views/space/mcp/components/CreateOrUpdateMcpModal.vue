@@ -40,6 +40,7 @@ const { t, locale } = useI18n()
 const categories = ref<McpCategory[]>([])
 const formRef = ref<InstanceType<typeof Form>>()
 const loadingProvider = ref(false)
+const providerDetailLoadFailed = ref(false)
 const submitLoading = ref(false)
 const generateLoading = ref(false)
 const aiQuestion = ref('')
@@ -143,12 +144,16 @@ const loadProvider = async (providerId: string) => {
   }
 
   loadingProvider.value = true
+  providerDetailLoadFailed.value = false
   const requestId = ++latestProviderRequest
   try {
     const res = await getMcpProvider(providerId)
     if (requestId === latestProviderRequest) applyMcpPayload(res.data)
   } catch (error: unknown) {
-    if (requestId === latestProviderRequest) Message.error(getErrorMessage(error, t('space.mcp.detailLoadFailed')))
+    if (requestId === latestProviderRequest) {
+      providerDetailLoadFailed.value = true
+      Message.error(getErrorMessage(error, t('space.mcp.detailLoadFailed')))
+    }
   } finally {
     if (requestId === latestProviderRequest) loadingProvider.value = false
   }
@@ -228,7 +233,7 @@ const handleGenerateByAI = async () => {
 }
 
 const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
-  if (errors) return
+  if (errors || loadingProvider.value || (isEditMode.value && providerDetailLoadFailed.value)) return
 
   let headers: HeaderItem[] = []
   let env: Record<string, string> = {}
@@ -305,7 +310,8 @@ watch(
   async ([visible, providerId]) => {
     const requestId = ++latestProviderRequest
     latestAiRequest += 1
-    loadingProvider.value = false
+    loadingProvider.value = Boolean(visible && providerId)
+    providerDetailLoadFailed.value = false
     submitLoading.value = false
     generateLoading.value = false
     aiLoading.value = false

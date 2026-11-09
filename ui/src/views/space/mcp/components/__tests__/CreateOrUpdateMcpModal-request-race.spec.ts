@@ -178,3 +178,45 @@ describe('MCP provider request ordering', () => {
     wrapper.unmount()
   })
 })
+
+it('does not overwrite a provider when its edit details fail to load', async () => {
+  mocks.getMcpCategories.mockResolvedValue({ data: { categories: [] } })
+  mocks.getMcpProvider.mockReset().mockRejectedValueOnce(new Error('provider details unavailable'))
+  mocks.updateMcpProvider.mockReset()
+  mocks.messageError.mockReset()
+  const wrapper = mountModal()
+  await wrapper.setProps({ visible: true, mcp_provider_id: 'provider-1' })
+  await flushPromises()
+
+  const state = (wrapper.vm.$ as any).setupState
+  state.form.name = 'Edited provider'
+  state.form.url = 'https://provider.example/mcp'
+  await state.handleSubmit({ errors: undefined })
+  await flushPromises()
+
+  expect(mocks.getMcpProvider).toHaveBeenCalledWith('provider-1')
+  expect(mocks.messageError).toHaveBeenCalledWith('provider details unavailable')
+  expect(mocks.updateMcpProvider).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+it('blocks provider updates while edit details are still loading', async () => {
+  let resolveCategories!: (value: { data: { categories: never[] } }) => void
+  mocks.getMcpCategories.mockReset().mockReturnValueOnce(new Promise((resolve) => { resolveCategories = resolve }))
+  mocks.getMcpProvider.mockReset().mockResolvedValue(provider('Existing provider'))
+  mocks.updateMcpProvider.mockReset()
+  const wrapper = mountModal()
+  await wrapper.setProps({ visible: true, mcp_provider_id: 'provider-1' })
+  await flushPromises()
+
+  const state = (wrapper.vm.$ as any).setupState
+  state.form.name = 'Edited provider'
+  state.form.url = 'https://provider.example/mcp'
+  await state.handleSubmit({ errors: undefined })
+
+  expect(mocks.updateMcpProvider).not.toHaveBeenCalled()
+  resolveCategories({ data: { categories: [] } })
+  await flushPromises()
+  expect(mocks.getMcpProvider).toHaveBeenCalledWith('provider-1')
+  wrapper.unmount()
+})
