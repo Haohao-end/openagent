@@ -3,12 +3,12 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import PromptCompareModelConfigTrigger from '../PromptCompareModelConfigTrigger.vue'
 
-const mocks = vi.hoisted(() => ({ languageModel: null as any, loading: null as any, load: vi.fn(), messageError: vi.fn() }))
+const mocks = vi.hoisted(() => ({ languageModel: null as any, loading: null as any, load: vi.fn(), loadModels: vi.fn().mockResolvedValue(undefined), messageError: vi.fn() }))
 vi.mock('@/hooks/use-language-model', async () => {
   const { ref } = await import('vue')
   return {
     useGetLanguageModel: () => ({ language_model: mocks.languageModel, loading: mocks.loading, loadLanguageModel: mocks.load }),
-    useGetLanguageModels: () => ({ language_models: ref([]), loadLanguageModels: vi.fn() }),
+    useGetLanguageModels: () => ({ language_models: ref([]), loadLanguageModels: mocks.loadModels }),
   }
 })
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -16,6 +16,7 @@ vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError } 
 
 it('does not apply a model while its defaults are still loading', async () => {
   let finishLoad!: () => void
+  mocks.loadModels.mockReset().mockResolvedValue(undefined)
   mocks.loading = ref(false)
   mocks.languageModel = ref({ parameters: [{ name: 'temperature', default: 0.9 }] })
   mocks.load.mockReset().mockResolvedValueOnce(true).mockImplementationOnce(() => {
@@ -49,6 +50,7 @@ it('does not apply a model while its defaults are still loading', async () => {
 
 it('reverts a model selection when its defaults fail to load', async () => {
   const requests: { resolve: (isLatest: boolean) => void; reject: (error: Error) => void }[] = []
+  mocks.loadModels.mockReset().mockResolvedValue(undefined)
   mocks.loading = ref(false)
   mocks.languageModel = ref({ parameters: [{ name: 'temperature', default: 0.9 }] })
   mocks.load.mockReset().mockResolvedValueOnce(true).mockImplementation(() => new Promise((resolve, reject) => requests.push({ resolve, reject })))
@@ -78,4 +80,25 @@ it('reverts a model selection when its defaults fail to load', async () => {
   })
   expect(mocks.messageError).toHaveBeenCalledWith('model defaults unavailable')
   wrapper.unmount()
+})
+
+it('reports model option load failures and ignores them after unmount', async () => {
+  mocks.loading = ref(false)
+  mocks.languageModel = ref({ parameters: [] })
+  mocks.load.mockReset()
+  mocks.messageError.mockReset()
+  mocks.loadModels.mockReset().mockRejectedValueOnce(new Error('model list unavailable'))
+  const wrapper = shallowMount(PromptCompareModelConfigTrigger, { props: { model_config: {} } })
+  await flushPromises()
+  expect(mocks.messageError).toHaveBeenCalledWith('model list unavailable')
+  wrapper.unmount()
+
+  let rejectLoad!: (error: Error) => void
+  mocks.loadModels.mockReset().mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectLoad = reject }))
+  const unmountedWrapper = shallowMount(PromptCompareModelConfigTrigger, { props: { model_config: {} } })
+  unmountedWrapper.unmount()
+  mocks.messageError.mockReset()
+  rejectLoad(new Error('late model list failure'))
+  await flushPromises()
+  expect(mocks.messageError).not.toHaveBeenCalled()
 })
