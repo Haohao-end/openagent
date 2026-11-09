@@ -68,6 +68,19 @@ describe('CreateOrUpdateSegmentModal', () => {
     expect(mocks.error).not.toHaveBeenCalled()
   })
 
+  it('does not call the save callback after the editor unmounts', async () => {
+    const callback = vi.fn()
+    mocks.updateSegment.mockResolvedValueOnce(undefined)
+    const wrapper = mountEditor()
+    await wrapper.setProps({ callback })
+
+    const save = getSaveSegment(wrapper)({ errors: undefined })
+    wrapper.unmount()
+    await save
+
+    expect(callback).not.toHaveBeenCalled()
+  })
+
   it('reports segment detail load failures when editing', async () => {
     mocks.loadSegment.mockRejectedValueOnce(new Error('segment detail unavailable'))
     const wrapper = mountEditor('segment-1', false)
