@@ -68,7 +68,7 @@ const handleGenerateIcon = async () => {
   try {
     // 如果是更新模式，调用regenerate API
     if (props.app_id) {
-      const iconUrl = await handleRegenerateIcon(props.app_id)
+      const iconUrl = await handleRegenerateIcon(props.app_id, () => requestId === detailRequest)
       if (requestId !== detailRequest) return
       if (iconUrl) {
         form.value.icon = iconUrl
@@ -76,7 +76,7 @@ const handleGenerateIcon = async () => {
         Message.success(t('appStudio.createModal.generateIconSuccess'))
       }
     } else {
-      const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description)
+      const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description, () => requestId === detailRequest)
       if (requestId !== detailRequest) return
       if (iconUrl) {
         form.value.icon = iconUrl
