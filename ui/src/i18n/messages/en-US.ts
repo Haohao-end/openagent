@@ -470,6 +470,7 @@ export default {
           queryPlaceholder: 'Enter text; a short statement is recommended',
           recall: 'Recall Test',
           recentQueries: 'Recent queries',
+          loadFailed: 'Failed to load recent queries. Please try again.',
           noQuery: 'Source text cannot be empty',
           maxRecall: 'Max recall count',
           minScore: 'Minimum score',

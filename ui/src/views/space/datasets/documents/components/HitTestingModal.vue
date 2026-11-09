@@ -3,6 +3,7 @@ import { onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Message } from '@arco-design/web-vue'
 import { useGetDatasetQueries, useHit } from '@/hooks/use-dataset'
+import { getErrorMessage } from '@/utils/error'
 import type { GetDatasetQueriesResponse, HitRequest, HitResponse } from '@/models/dataset'
 import { formatTimestampShort } from '@/utils/time-formatter'
 
@@ -26,7 +27,21 @@ const hitTestingForm = ref<HitTestingForm>({ query: '', ...defaultRetrievalSetti
 const { loading: getDatasetQueriesLoading, queries, loadDatasetQueries, clearDatasetQueries } =
   useGetDatasetQueries()
 const { loading: hitLoading, hits, handleHit, invalidateHitRequests } = useHit()
-onUnmounted(invalidateHitRequests)
+let recentQueryRequestId = 0
+const loadRecentQueries = async (datasetId: string) => {
+  const requestId = ++recentQueryRequestId
+  try {
+    await loadDatasetQueries(datasetId)
+  } catch (error: unknown) {
+    if (requestId === recentQueryRequestId && props.visible && datasetId === props.dataset_id) {
+      Message.error(getErrorMessage(error, t('space.datasets.documents.hitTesting.loadFailed')))
+    }
+  }
+}
+onUnmounted(() => {
+  recentQueryRequestId += 1
+  invalidateHitRequests()
+})
 
 // 2.定义知识库检索设置相关
 const hideRetrievalSettingModal = () => {
@@ -51,6 +66,7 @@ const saveRetrievalSetting = () => {
 
 // 4.定义隐藏召回测试模态窗
 const hideHitTestingModal = () => {
+  recentQueryRequestId += 1
   invalidateHitRequests()
   emits('update:visible', false)
 }
@@ -70,19 +86,20 @@ const handleHitTesting = async () => {
   hitTestingSegments.value = hits.value as unknown as HitTestingSegment[]
 
   // 5.3 重新更新知识库最近查询
-  await loadDatasetQueries(datasetId)
+  await loadRecentQueries(datasetId)
 }
 
 // 6.监听数据变化
 watch(
   () => [props.visible, props.dataset_id] as const,
   async ([newValue]) => {
+    recentQueryRequestId += 1
     invalidateHitRequests()
     hitTestingSegments.value = []
     clearDatasetQueries()
     if (newValue) {
       // 6.1 模态窗开启，加载最近查询
-      await loadDatasetQueries(props.dataset_id)
+      await loadRecentQueries(props.dataset_id)
     } else {
       // 6.2 模态窗关闭，清空最近查询、召回记录、初始化检索配置
       hitTestingForm.value = { query: '', ...defaultRetrievalSetting }
