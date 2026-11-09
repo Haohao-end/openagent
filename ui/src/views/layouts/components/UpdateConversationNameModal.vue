@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useUpdateConversationName } from '@/hooks/use-conversation'
-import type { Form, ValidatedError } from '@arco-design/web-vue'
+import { Message, type Form, type ValidatedError } from '@arco-design/web-vue'
+import { getErrorMessage } from '@/utils/error'
 import { onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 // 1.定义组件参数
 const props = defineProps({
@@ -10,6 +12,7 @@ const props = defineProps({
   conversation_name: { type: String, default: '', required: false },
 })
 const emits = defineEmits(['update:visible', 'saved'])
+const { t } = useI18n()
 
 const {
   loading: updateConversationNameLoading,
@@ -32,7 +35,14 @@ const saveName = async ({ errors }: { errors: Record<string, ValidatedError> | u
   const requestSession = ++saveSession
   const conversationId = props.conversation_id
   const name = form.value.name
-  await handleUpdateConversationName(conversationId, name)
+  try {
+    await handleUpdateConversationName(conversationId, name)
+  } catch (error: unknown) {
+    if (requestSession === saveSession && props.visible) {
+      Message.error(getErrorMessage(error, t('common.conversation.renameFailed')))
+    }
+    return
+  }
   if (requestSession !== saveSession || !props.visible) return
   emits('saved', conversationId, name)
   emits('update:visible', false)

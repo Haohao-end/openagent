@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useUpdateConversationName } from '@/hooks/use-conversation'
-import type { Form, ValidatedError } from '@arco-design/web-vue'
+import { Message, type Form, type ValidatedError } from '@arco-design/web-vue'
+import { getErrorMessage } from '@/utils/error'
 import { onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
@@ -9,6 +11,7 @@ const props = defineProps({
   visible: { type: Boolean, required: true },
   success_callback: { type: Function, required: false },
 })
+const { t } = useI18n()
 const emits = defineEmits(['update:visible', 'update:conversation_id'])
 const {
   loading: updateConversationNameLoading,
@@ -35,7 +38,14 @@ const saveName = async ({ errors }: { errors: Record<string, ValidatedError> | u
   const conversationId = props.conversation_id
   const name = form.value.name
   const successCallback = props.success_callback
-  await handleUpdateConversationName(conversationId, name)
+  try {
+    await handleUpdateConversationName(conversationId, name)
+  } catch (error: unknown) {
+    if (requestSession === saveSession && props.visible) {
+      Message.error(getErrorMessage(error, t('common.conversation.renameFailed')))
+    }
+    return
+  }
   if (requestSession !== saveSession || !props.visible) return
 
   // 3.3 完成保存操作，隐藏模态窗并调用回调函数

@@ -622,6 +622,7 @@ export default {
       loading: 'Loading conversation info...',
       empty: 'Untitled conversation',
       idLabel: 'Conversation ID',
+      renameFailed: 'Failed to rename conversation. Please try again.',
     },
     messages: {
       imageCount: 'This message contains {count} images',
