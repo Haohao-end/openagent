@@ -290,7 +290,7 @@ class TestWebAppService:
         with pytest.raises(ForbiddenException):
             list(service.web_app_chat("public-token", req, account))
 
-    def test_web_app_chat_should_create_conversation_and_stream_events(self, monkeypatch):
+    def test_web_app_chat_should_create_conversation_and_stream_events(self, monkeypatch, caplog):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
         app = SimpleNamespace(id=uuid4(), account_id=uuid4(), status=AppStatus.PUBLISHED.value)
@@ -423,6 +423,17 @@ class TestWebAppService:
             events.close()
 
         assert save_payload["agent_thoughts"][0].answer == "A"
+
+        def fail_save(**_kwargs):
+            raise RuntimeError("synthetic database failure")
+
+        service.conversation_service.save_agent_thoughts = fail_save
+        with Flask(__name__).app_context():
+            events = service.web_app_chat("public-token", req, account)
+            next(events)
+            next(events)
+            events.close()
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_web_app_chat_should_use_existing_conversation_and_react_agent(self, monkeypatch):
         service = _build_service()
