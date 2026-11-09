@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import CreateOrUpdateApiKeyModal from '../CreateOrUpdateApiKeyModal.vue'
 
-const mocks = vi.hoisted(() => ({ update: vi.fn(), create: vi.fn(), showOnce: vi.fn() }))
+const mocks = vi.hoisted(() => ({ update: vi.fn(), create: vi.fn(), showOnce: vi.fn(), error: vi.fn() }))
 vi.mock('@/hooks/use-api-key', async () => {
   const { ref } = await import('vue')
   return {
@@ -12,7 +12,7 @@ vi.mock('@/hooks/use-api-key', async () => {
   }
 })
 vi.mock('@arco-design/web-vue', () => ({
-  Message: { success: vi.fn(), warning: vi.fn() },
+  Message: { success: vi.fn(), warning: vi.fn(), error: mocks.error },
   Modal: { info: mocks.showOnce },
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -65,5 +65,22 @@ it('does not show a stale create key after another editor opens', async () => {
   expect(mocks.showOnce).not.toHaveBeenCalled()
   expect(callback).not.toHaveBeenCalled()
   expect(wrapper.emitted('update:visible')).toBeUndefined()
+  wrapper.unmount()
+})
+
+it.each(['create', 'update'] as const)('reports an API key %s failure', async (action) => {
+  const callback = vi.fn()
+  mocks.error.mockReset()
+  mocks.create.mockReset().mockRejectedValueOnce(new Error(''))
+  mocks.update.mockReset().mockRejectedValueOnce(new Error(''))
+  const wrapper = mountEditor({ visible: false, api_key_id: action === 'update' ? 'key-1' : '' }, callback)
+  await wrapper.setProps({ visible: true })
+  const state = (wrapper.vm as any).$.setupState
+
+  await state.saveApiKey({ errors: undefined }).catch(() => undefined)
+
+  expect(mocks.error).toHaveBeenCalledWith('openapi.apiKeys.saveFailed')
+  expect(wrapper.emitted('update:visible')).toBeUndefined()
+  expect(callback).not.toHaveBeenCalled()
   wrapper.unmount()
 })

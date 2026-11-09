@@ -989,6 +989,7 @@ export default {
       deleteKey: '删除密钥',
       noRemark: '暂无备注',
       loadFailed: '加载 API 密钥失败，请稍后重试',
+      saveFailed: '保存 API 密钥失败，请稍后重试',
     },
     quickStart: {
       overviewTitle: '概览',

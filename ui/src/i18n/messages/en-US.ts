@@ -1007,6 +1007,7 @@ export default {
       deleteKey: 'Delete key',
       noRemark: 'No remark',
       loadFailed: 'Failed to load API keys. Please try again later.',
+      saveFailed: 'Failed to save the API key. Please try again later.',
     },
     quickStart: {
       overviewTitle: 'Overview',

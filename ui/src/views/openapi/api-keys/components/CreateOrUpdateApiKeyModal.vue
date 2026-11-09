@@ -3,6 +3,7 @@ import { h, onUnmounted, ref, resolveComponent, watch } from 'vue'
 import { type ValidatedError, Message, Modal } from '@arco-design/web-vue'
 import { useCreateApiKey, useUpdateApiKey } from '@/hooks/use-api-key'
 import { copyTextToClipboard } from '@/utils/clipboard'
+import { getErrorMessage } from '@/utils/error'
 import { useI18n } from 'vue-i18n'
 
 // 1.定义自定义组件所需数据
@@ -48,20 +49,36 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
   const requestSession = ++modalSession
   const apiKeyId = props.api_key_id
   const callback = props.callback
+  const reportSaveFailure = (error: unknown) => {
+    if (requestSession === modalSession && props.visible) {
+      Message.error(getErrorMessage(error, t('openapi.apiKeys.saveFailed')))
+    }
+  }
 
   // 3.2 检测是新增还是更新，执行不同的操作
   if (apiKeyId) {
     // 3.3 执行更新操作
-    await handleUpdateApiKey(apiKeyId, {
-      is_active: Boolean(form.value?.is_active),
-      remark: String(form.value?.remark),
-    })
+    try {
+      await handleUpdateApiKey(apiKeyId, {
+        is_active: Boolean(form.value?.is_active),
+        remark: String(form.value?.remark),
+      })
+    } catch (error: unknown) {
+      reportSaveFailure(error)
+      return
+    }
   } else {
     // 3.4 执行新增操作
-    const createdApiKey = await handleCreateApiKey({
-      is_active: Boolean(form.value?.is_active),
-      remark: String(form.value?.remark),
-    })
+    let createdApiKey: string | undefined
+    try {
+      createdApiKey = await handleCreateApiKey({
+        is_active: Boolean(form.value?.is_active),
+        remark: String(form.value?.remark),
+      })
+    } catch (error: unknown) {
+      reportSaveFailure(error)
+      return
+    }
     if (createdApiKey && requestSession === modalSession && props.visible) {
       Modal.info({
         title: t('openapi.apiKeys.showOnceTitle'),
