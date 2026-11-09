@@ -625,6 +625,15 @@ class PublicAgentA2AService(BaseService):
     def _format_a2a_stream_response(response: dict[str, Any]) -> str:
         return f"data: {json.dumps(response, ensure_ascii=False)}\n\n"
 
+    def _persist_public_agent_disconnect(self, app, conversation, message, agent_thoughts):
+        try:
+            self._save_public_agent_thoughts(app=app, conversation=conversation, message=message, agent_thoughts=agent_thoughts)
+            self.update(message, status=MessageStatus.STOP.value)
+        except Exception as error:  # noqa: BLE001
+            logging.getLogger(__name__).error(
+                "A2A disconnect persistence failed: error_type=%s", type(error).__name__
+            )
+
     def _stream_public_agent_events(
         self,
         app: App,
@@ -696,13 +705,7 @@ class PublicAgentA2AService(BaseService):
                 "status": {"state": "TASK_STATE_WORKING"},
             }})
         except GeneratorExit:
-            self._save_public_agent_thoughts(
-                app=app,
-                conversation=conversation,
-                message=message,
-                agent_thoughts=[],
-            )
-            self.update(message, status=MessageStatus.STOP.value)
+            self._persist_public_agent_disconnect(app, conversation, message, [])
             raise
 
         def stream_agent_thoughts():
@@ -762,13 +765,7 @@ class PublicAgentA2AService(BaseService):
                     "append": has_answer,
                 }})
             except GeneratorExit:
-                self._save_public_agent_thoughts(
-                    app=app,
-                    conversation=conversation,
-                    message=message,
-                    agent_thoughts=list(agent_thoughts.values()),
-                )
-                self.update(message, status=MessageStatus.STOP.value)
+                self._persist_public_agent_disconnect(app, conversation, message, list(agent_thoughts.values()))
                 raise
             has_answer = True
 
