@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import CreateOrUpdateWorkflowModal from '../CreateOrUpdateWorkflowModal.vue'
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), load: vi.fn(), generate: vi.fn(), notify: vi.fn(), error: vi.fn() }))
+const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), load: vi.fn(), generate: vi.fn(), upload: vi.fn(), notify: vi.fn(), error: vi.fn() }))
 vi.mock('@/hooks/use-workflow', () => ({
   useCreateWorkflow: () => ({ loading: false, handleCreateWorkflow: mocks.create }),
   useGetWorkflow: () => ({ workflow: ref({}), loading: ref(false), loadWorkflow: mocks.load }),
@@ -22,7 +22,7 @@ vi.mock('@/hooks/use-workflow', () => ({
   }),
   useUpdateWorkflow: () => ({ loading: false, handleUpdateWorkflow: mocks.update }),
 }))
-vi.mock('@/hooks/use-upload-file', () => ({ useUploadImage: () => ({ image_url: ref(''), handleUploadImage: vi.fn() }) }))
+vi.mock('@/hooks/use-upload-file', () => ({ useUploadImage: () => ({ image_url: ref(''), handleUploadImage: mocks.upload }) }))
 vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
@@ -164,5 +164,20 @@ it('does not report a save failure from a previous modal session', async () => {
   await flushPromises()
 
   expect(mocks.error).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+it('reports an icon upload failure in the active workflow modal', async () => {
+  mocks.error.mockReset()
+  mocks.upload.mockReset().mockRejectedValueOnce(new Error(''))
+  const wrapper = mount(CreateOrUpdateWorkflowModal, {
+    props: { workflow_id: '', visible: false },
+    global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-button': true, 'a-input': true, 'a-textarea': true, 'a-space': true, 'icon-close': true, IconUploadGenerator: true } },
+  })
+  const state = (wrapper.vm as any).$.setupState
+
+  await expect(state.handleUploadIcon(new File(['icon'], 'icon.png'))).rejects.toThrow()
+
+  expect(mocks.error).toHaveBeenCalledWith('workflowEditor.workflowModal.iconUploadFailed')
   wrapper.unmount()
 })

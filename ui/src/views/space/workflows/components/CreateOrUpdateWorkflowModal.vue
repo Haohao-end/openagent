@@ -45,11 +45,18 @@ let isUnmounted = false
 // 2.定义上传图标处理器
 const handleUploadIcon = async (file: File) => {
   const requestId = detailRequest
-  await handleUploadImage(file)
-  if (requestId !== detailRequest) return
-  form.value.icon = image_url.value
-  form.value.fileList = [{ uid: '1', name: t('workflowEditor.workflowModal.iconName'), url: image_url.value }]
-  Message.success(t('workflowEditor.workflowModal.iconUploadSuccess'))
+  try {
+    await handleUploadImage(file)
+    if (requestId !== detailRequest) return
+    form.value.icon = image_url.value
+    form.value.fileList = [{ uid: '1', name: t('workflowEditor.workflowModal.iconName'), url: image_url.value }]
+    Message.success(t('workflowEditor.workflowModal.iconUploadSuccess'))
+  } catch (error: unknown) {
+    if (!isUnmounted && requestId === detailRequest) {
+      Message.error(getErrorMessage(error, t('workflowEditor.workflowModal.iconUploadFailed')))
+    }
+    throw error
+  }
 }
 
 // 3.定义生成图标处理器
