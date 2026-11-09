@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { type Form, type ValidatedError } from '@arco-design/web-vue'
+import { type Form, type ValidatedError, Message } from '@arco-design/web-vue'
 import { useGetDocument, useUpdateDocumentName } from '@/hooks/use-dataset'
+import { getErrorMessage } from '@/utils/error'
 
 // 1.定义组件所需要使用的数据
 const props = defineProps({
@@ -18,9 +19,10 @@ const props = defineProps({
   },
 })
 const emits = defineEmits(['update:visible'])
-const { document, loadDocument } = useGetDocument()
+const { document, loading: documentLoading, loadDocument } = useGetDocument()
 const { loading: updateDocumentNameLoading, handleUpdateDocumentName } = useUpdateDocumentName()
 const form = ref({ name: '' })
+const detailLoadFailed = ref(false)
 const formRef = ref<InstanceType<typeof Form>>()
 const { t } = useI18n()
 let modalGeneration = 0
@@ -35,7 +37,7 @@ const hideModal = () => {
 // 3.定义表单提交函数
 const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断数据校验是否成功
-  if (errors) return
+  if (errors || documentLoading.value || detailLoadFailed.value) return
 
   // 3.3 调用处理器发起请求
   const generation = modalGeneration
@@ -55,7 +57,15 @@ watch(
   async (newValue: boolean) => {
     const generation = ++modalGeneration
     if (newValue) {
-      await loadDocument(props.dataset_id, props.document_id)
+      detailLoadFailed.value = false
+      try {
+        await loadDocument(props.dataset_id, props.document_id)
+      } catch (error: unknown) {
+        if (generation !== modalGeneration || !props.visible) return
+        detailLoadFailed.value = true
+        Message.error(getErrorMessage(error, t('space.datasets.documents.renameModal.detailLoadFailed')))
+        return
+      }
       if (generation !== modalGeneration) return
 
       formRef.value?.resetFields()
@@ -63,6 +73,9 @@ watch(
     }
   },
 )
+onBeforeUnmount(() => {
+  modalGeneration += 1
+})
 </script>
 
 <template>

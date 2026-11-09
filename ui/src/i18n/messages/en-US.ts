@@ -480,6 +480,7 @@ export default {
           title: 'Rename',
           nameLabel: 'Name',
           nameRequired: 'Document name is required',
+          detailLoadFailed: 'Failed to load the document details. Please try again.',
           namePlaceholder: 'Enter a document name',
           cancel: 'Cancel',
           save: 'Save',
