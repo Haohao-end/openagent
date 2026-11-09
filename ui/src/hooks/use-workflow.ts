@@ -390,7 +390,7 @@ export const useRegenerateIcon = () => {
   const icon = ref<string>('')
 
   // 2.定义重新生成图标函数
-  const handleRegenerateIcon = async (workflow_id: string) => {
+  const handleRegenerateIcon = async (workflow_id: string, shouldNotifyError = () => true) => {
     try {
       loading.value = true
       const resp = await regenerateIcon(workflow_id)
@@ -402,7 +402,7 @@ export const useRegenerateIcon = () => {
       if (normalizedMessage.includes('API_KEY')) {
         errorMessage = '图标生成服务暂时不可用，请联系管理员配置 API Key'
       }
-      Message.error(errorMessage)
+      if (shouldNotifyError()) Message.error(errorMessage)
       throw error
     } finally {
       loading.value = false
@@ -418,14 +418,14 @@ export const useGenerateIconPreview = () => {
   const icon = ref<string>('')
 
   // 2.定义生成图标预览函数
-  const handleGenerateIconPreview = async (name: string, description: string) => {
+  const handleGenerateIconPreview = async (name: string, description: string, shouldNotifyError = () => true) => {
     try {
       loading.value = true
       const resp = await generateIconPreview(name, description)
       icon.value = resp.data.icon
       return resp.data.icon
     } catch (error: unknown) {
-      Message.error(getErrorMessage(error, '生成图标失败，请稍后重试或手动上传图标'))
+      if (shouldNotifyError()) Message.error(getErrorMessage(error, '生成图标失败，请稍后重试或手动上传图标'))
       throw error
     } finally {
       loading.value = false
