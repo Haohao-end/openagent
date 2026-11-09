@@ -157,8 +157,11 @@ class IntentRecognitionService(BaseService):
 
             result = json.loads(json_str)
 
-            # 验证必要字段
-            if "intent" not in result or "confidence" not in result or "suggested_actions" not in result:
+            # 验证响应对象与必要字段
+            if not isinstance(result, dict) or any(
+                field not in result
+                for field in ("intent", "confidence", "suggested_actions")
+            ):
                 logging.warning("Invalid response format from model")
                 return self.DEFAULT_INTENT.copy()
 
