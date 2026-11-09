@@ -1821,3 +1821,14 @@ class TestAssistantAgentService:
 
         # 验证结果 - 应该返回空列表
         assert len(messages) == 0
+
+    @pytest.mark.parametrize("payload", [b"[]", b'"stale"', b"42", b"true"])
+    def test_get_cached_introduction_should_ignore_non_object_json(self, payload):
+        service = AssistantAgentService(
+            db=SimpleNamespace(),
+            faiss_service=SimpleNamespace(),
+            conversation_service=SimpleNamespace(),
+            redis_client=SimpleNamespace(get=lambda _key: payload),
+        )
+
+        assert service._get_cached_introduction(uuid4(), "fingerprint") is None
