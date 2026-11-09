@@ -102,3 +102,31 @@ it('reports model option load failures and ignores them after unmount', async ()
   await flushPromises()
   expect(mocks.messageError).not.toHaveBeenCalled()
 })
+
+it('reports a failure to load the configured model details', async () => {
+  const requests: { reject: (error: Error) => void }[] = []
+  mocks.loadModels.mockReset().mockResolvedValue(undefined)
+  mocks.loading = ref(false)
+  mocks.languageModel = ref({ parameters: [] })
+  mocks.load.mockReset().mockImplementation(() => new Promise((_resolve, reject) => requests.push({ reject })))
+  mocks.messageError.mockReset()
+  const wrapper = shallowMount(PromptCompareModelConfigTrigger, {
+    props: { model_config: { provider: 'current', model: 'current-model', parameters: {} } },
+  })
+  await wrapper.setProps({ model_config: { provider: 'next', model: 'next-model', parameters: {} } })
+  requests[0].reject(new Error('stale configured model unavailable'))
+  await flushPromises()
+  expect(mocks.messageError).not.toHaveBeenCalled()
+  requests[1].reject(new Error('configured model unavailable'))
+  await flushPromises()
+
+  expect(mocks.messageError).toHaveBeenCalledWith('configured model unavailable')
+  mocks.messageError.mockReset()
+  const state = (wrapper.vm.$ as any).setupState
+  state.form.selectValue = 'later/later-model'
+  state.changeModel('later/later-model')
+  wrapper.unmount()
+  requests[2].reject(new Error('late configured model unavailable'))
+  await flushPromises()
+  expect(mocks.messageError).not.toHaveBeenCalled()
+})

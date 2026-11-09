@@ -53,10 +53,23 @@ const modelOptions = computed(() => {
 })
 
 const syncFormFromProps = (value: Record<string, any>) => {
+  latestModelLoad++
   form.value.selectValue = value?.provider && value?.model ? `${value.provider}/${value.model}` : ''
   form.value.provider = String(value?.provider || '')
   form.value.model = String(value?.model || '')
   form.value.parameters = (value?.parameters || {}) as Record<string, unknown>
+}
+
+const notifyModelLoadFailure = (error: unknown) => {
+  Message.error(getErrorMessage(error, t('appStudio.promptCompareModel.loadFailed')))
+}
+
+const loadConfiguredModel = (provider: string, model: string) => {
+  const requestId = ++latestModelLoad
+  void loadLanguageModel(provider, model).catch((error: unknown) => {
+    if (requestId !== latestModelLoad || isUnmounted) return
+    notifyModelLoadFailure(error)
+  })
 }
 
 const changeModel = (value: string) => {
@@ -64,7 +77,7 @@ const changeModel = (value: string) => {
   const [provider_name, model_name] = value.split('/')
 
   void loadLanguageModel(provider_name, model_name).then((isLatest) => {
-    if (!isLatest) return
+    if (!isLatest || requestId !== latestModelLoad) return
     form.value.provider = provider_name
     form.value.model = model_name
     form.value.parameters = language_model.value.parameters.reduce(
@@ -75,9 +88,9 @@ const changeModel = (value: string) => {
       {} as Record<string, unknown>,
     )
   }).catch((error: unknown) => {
-    if (requestId !== latestModelLoad || form.value.selectValue !== value) return
+    if (requestId !== latestModelLoad || form.value.selectValue !== value || isUnmounted) return
     form.value.selectValue = form.value.provider && form.value.model ? `${form.value.provider}/${form.value.model}` : ''
-    Message.error(getErrorMessage(error, t('appStudio.promptCompareModel.loadFailed')))
+    notifyModelLoadFailure(error)
   })
 }
 
@@ -99,7 +112,7 @@ watch(
   (newValue) => {
     syncFormFromProps((newValue || {}) as Record<string, any>)
     if (newValue?.provider && newValue?.model) {
-      void loadLanguageModel(String(newValue.provider), String(newValue.model))
+      loadConfiguredModel(String(newValue.provider), String(newValue.model))
     }
   },
   { immediate: true },
@@ -109,7 +122,7 @@ watch(popupVisible, (visible) => {
   if (!visible) return
   syncFormFromProps((props.model_config || {}) as Record<string, any>)
   if (props.model_config?.provider && props.model_config?.model) {
-    void loadLanguageModel(String(props.model_config.provider), String(props.model_config.model))
+    loadConfiguredModel(String(props.model_config.provider), String(props.model_config.model))
   }
 })
 
@@ -122,6 +135,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   isUnmounted = true
+  latestModelLoad++
 })
 </script>
 
