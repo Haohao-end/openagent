@@ -46,7 +46,7 @@ onUnmounted(() => {
 // 2.定义知识库检索设置相关
 const hideRetrievalSettingModal = () => {
   // 2.1 复原检索策略
-  retrievalSettingForm.value = hitTestingForm.value
+  retrievalSettingForm.value = { ...hitTestingForm.value }
 
   // 2.2 隐藏模态窗
   retrievalSettingModalVisible.value = false
@@ -103,7 +103,7 @@ watch(
     } else {
       // 6.2 模态窗关闭，清空最近查询、召回记录、初始化检索配置
       hitTestingForm.value = { query: '', ...defaultRetrievalSetting }
-      retrievalSettingForm.value = defaultRetrievalSetting
+      retrievalSettingForm.value = { ...defaultRetrievalSetting }
     }
   },
 )

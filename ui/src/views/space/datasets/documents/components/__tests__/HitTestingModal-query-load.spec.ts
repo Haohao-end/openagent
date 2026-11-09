@@ -45,3 +45,42 @@ it('reports recent-query failures on open and after a successful hit', async () 
   expect(unhandled).toHaveLength(0)
   wrapper.unmount()
 })
+
+it('resets retrieval settings after the modal is reopened', async () => {
+  mocks.loadQueries.mockReset().mockResolvedValue({ data: [] })
+  const wrapper = shallowMount(HitTestingModal, {
+    props: { visible: false, dataset_id: 'dataset-1' },
+  })
+  await wrapper.setProps({ visible: true })
+  await flushPromises()
+  await wrapper.setProps({ visible: false })
+  await flushPromises()
+  await wrapper.setProps({ visible: true })
+  await flushPromises()
+
+  const state = (wrapper.vm.$ as any).setupState
+  state.retrievalSettingForm.k = 8
+  await wrapper.setProps({ visible: false })
+  await flushPromises()
+  await wrapper.setProps({ visible: true })
+  await flushPromises()
+
+  expect(state.hitTestingForm.k).toBe(5)
+  expect(state.retrievalSettingForm.k).toBe(5)
+  wrapper.unmount()
+})
+
+it('keeps cancelled settings edits separate from the active retrieval settings', async () => {
+  const wrapper = shallowMount(HitTestingModal, {
+    props: { visible: true, dataset_id: 'dataset-1' },
+  })
+  const state = (wrapper.vm.$ as any).setupState
+  state.retrievalSettingForm.k = 8
+  state.hideRetrievalSettingModal()
+  state.retrievalSettingForm.k = 9
+  state.hideRetrievalSettingModal()
+
+  expect(state.retrievalSettingForm.k).toBe(5)
+  expect(state.hitTestingForm.k).toBe(5)
+  wrapper.unmount()
+})
