@@ -938,6 +938,15 @@ class TestAssistantAgentService:
 
         assert service._get_cached_introduction(uuid4(), "fingerprint") is None
 
+    @pytest.mark.parametrize("message_id", [42, ["stale"], {"id": "stale"}])
+    def test_get_cached_introduction_should_ignore_invalid_message_id(self, message_id):
+        service = self._build_service()
+        service.redis_client = SimpleNamespace(
+            get=lambda _key: json.dumps({"introduction": "cached text", "suggested_questions_message_id": message_id})
+        )
+
+        assert service._get_cached_introduction(uuid4(), "fingerprint") is None
+
     def test_chat_should_stream_events_and_save_aggregated_agent_thoughts(
         self, monkeypatch, app, caplog
     ):

@@ -702,7 +702,10 @@ class AssistantAgentService(BaseService):
                 if not isinstance(introduction, dict):
                     return None
                 content = introduction.get("introduction")
-                return introduction if isinstance(content, str) and content.strip() else None
+                message_id = introduction.get("suggested_questions_message_id", "")
+                if not isinstance(content, str) or not content.strip() or not isinstance(message_id, str):
+                    return None
+                return introduction
         except Exception:
             logging.exception("获取辅助Agent介绍缓存失败")
         return None
