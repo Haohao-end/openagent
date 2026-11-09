@@ -113,11 +113,18 @@ const persistAgentBindings = async (newBindings: AgentBindingForm[]) => {
   emits('update:agent_bindings', cloneDeep(newBindings))
 }
 
-const handleDeleteBinding = async (idx: number) => {
-  const newBindings = [...activateAgentBindings.value]
-  newBindings.splice(idx, 1)
-  await persistAgentBindings(newBindings)
+let agentBindingSaveQueue: Promise<void> = Promise.resolve()
+const queueAgentBindingSave = (save: () => Promise<void>) => {
+  const queuedSave = agentBindingSaveQueue.then(save)
+  agentBindingSaveQueue = queuedSave.catch(() => {})
+  return queuedSave
 }
+
+const handleDeleteBinding = (appId: string) => queueAgentBindingSave(async () => {
+  const newBindings = activateAgentBindings.value.filter((binding) => binding.app_id !== appId)
+  if (newBindings.length === activateAgentBindings.value.length) return
+  await persistAgentBindings(newBindings)
+})
 
 const saveMarketplaceAgentBinding = async (binding: AgentBindingTarget) => {
   const appId = String(binding.app_id || '').trim()
@@ -144,11 +151,8 @@ const saveMarketplaceAgentBinding = async (binding: AgentBindingTarget) => {
   Message.success(t('appStudio.abilities.agents.addedSuccess'))
 }
 
-let marketplaceAgentSaveQueue: Promise<void> = Promise.resolve()
 const handleSelectMarketplaceBinding = (binding: AgentBindingTarget) => {
-  const queuedSave = marketplaceAgentSaveQueue.then(() => saveMarketplaceAgentBinding(binding))
-  marketplaceAgentSaveQueue = queuedSave.catch(() => {})
-  return queuedSave
+  return queueAgentBindingSave(() => saveMarketplaceAgentBinding(binding))
 }
 
 watch(
@@ -217,7 +221,7 @@ watch(
           size="mini"
           type="text"
           class="hidden group-hover:block flex-shrink-0 ml-2 !text-red-700 rounded"
-          @click.stop="handleDeleteBinding(idx)"
+          @click.stop="handleDeleteBinding(binding.app_id)"
         >
           <template #icon>
             <icon-delete />

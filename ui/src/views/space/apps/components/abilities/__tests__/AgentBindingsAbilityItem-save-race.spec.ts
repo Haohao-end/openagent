@@ -1,4 +1,4 @@
-import { shallowMount } from '@vue/test-utils'
+import { flushPromises, shallowMount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import AgentBindingsAbilityItem from '../AgentBindingsAbilityItem.vue'
 
@@ -28,5 +28,31 @@ it('includes an earlier agent selection when a second save overlaps', async () =
   expect(requestsWhileFirstSavePending).toBe(1)
   expect(secondRequest).toEqual(['agent-1', 'agent-2'])
   expect(state.activateAgentBindings.map((item: any) => item.app_id)).toEqual(['agent-1', 'agent-2'])
+  wrapper.unmount()
+})
+
+it('serializes agent binding removals against the latest selection', async () => {
+  const resolveUpdates: Array<() => void> = []
+  mocks.update.mockReset().mockImplementation(() => new Promise<void>((resolve) => { resolveUpdates.push(resolve) }))
+  const wrapper = shallowMount(AgentBindingsAbilityItem, {
+    props: { app_id: 'app-1', agent_bindings: [
+      { app_id: 'agent-1', invoke_mode: 'tool', name: 'First', source_scope: 'own' },
+      { app_id: 'agent-2', invoke_mode: 'tool', name: 'Second', source_scope: 'own' },
+    ] },
+  })
+  const state = (wrapper.vm.$ as any).setupState
+  const firstDelete = state.handleDeleteBinding('agent-1')
+  const secondDelete = state.handleDeleteBinding('agent-2')
+  await Promise.resolve()
+
+  expect(mocks.update).toHaveBeenCalledTimes(1)
+  resolveUpdates[0]()
+  await flushPromises()
+  expect(mocks.update).toHaveBeenCalledTimes(2)
+  expect(mocks.update.mock.calls[1][1].agent_bindings).toEqual([])
+  resolveUpdates[1]()
+  await Promise.all([firstDelete, secondDelete])
+
+  expect(state.activateAgentBindings).toEqual([])
   wrapper.unmount()
 })
