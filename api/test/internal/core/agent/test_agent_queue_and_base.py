@@ -622,3 +622,10 @@ def test_base_agent_invoke_should_handle_non_string_non_list_content(monkeypatch
 
     assert result.query == ""
     assert result.image_urls == []
+
+
+def test_agent_thought_message_defaults_to_an_empty_list():
+    thought = AgentThought(id=uuid4(), task_id=uuid4(), event=QueueEvent.AGENT_END)
+
+    assert thought.message == []
+    assert isinstance(thought.message, list)
