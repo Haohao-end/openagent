@@ -1,5 +1,6 @@
 import json
 from types import SimpleNamespace
+from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
@@ -716,6 +717,29 @@ class TestPublicAgentA2AService:
                 next(events)
             events.close()
         assert caplog.text.count("error_type=RuntimeError") == 2
+
+    @pytest.mark.parametrize(("save_fails", "stop_fails"), [(True, False), (False, True), (True, True)])
+    def test_disconnect_persistence_attempts_stop_and_preserves_generator_exit(
+        self, monkeypatch, caplog, save_fails, stop_fails
+    ):
+        service = _build_service()
+        save = Mock(side_effect=RuntimeError("synthetic save failure") if save_fails else None)
+        stop = Mock(side_effect=RuntimeError("synthetic STOP update failure") if stop_fails else None)
+        monkeypatch.setattr(service, "_save_public_agent_thoughts", save)
+        monkeypatch.setattr(service, "update", stop)
+        cancellation = GeneratorExit()
+        with pytest.raises(GeneratorExit) as raised:
+            try:
+                raise cancellation
+            except GeneratorExit:
+                service._persist_public_agent_disconnect(None, None, None, [])
+                raise
+
+        assert raised.value is cancellation
+        save.assert_called_once()
+        stop.assert_called_once_with(None, status=MessageStatus.STOP.value)
+        assert ("A2A disconnect thoughts persistence failed" in caplog.text) is save_fails
+        assert ("A2A disconnect STOP status update failed" in caplog.text) is stop_fails
 
     def test_stream_public_agent_should_persist_partial_history_when_agent_stream_raises(self, monkeypatch):
         thought = AgentThought(

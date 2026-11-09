@@ -628,10 +628,15 @@ class PublicAgentA2AService(BaseService):
     def _persist_public_agent_disconnect(self, app, conversation, message, agent_thoughts):
         try:
             self._save_public_agent_thoughts(app=app, conversation=conversation, message=message, agent_thoughts=agent_thoughts)
+        except Exception as error:  # noqa: BLE001
+            logging.getLogger(__name__).error(
+                "A2A disconnect thoughts persistence failed: error_type=%s", type(error).__name__
+            )
+        try:
             self.update(message, status=MessageStatus.STOP.value)
         except Exception as error:  # noqa: BLE001
             logging.getLogger(__name__).error(
-                "A2A disconnect persistence failed: error_type=%s", type(error).__name__
+                "A2A disconnect STOP status update failed: error_type=%s", type(error).__name__
             )
 
     def _stream_public_agent_events(
