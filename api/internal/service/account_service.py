@@ -394,7 +394,15 @@ class AccountService(BaseService):
             redis_client.delete(self._login_challenge_key(challenge_id))
             raise FailException("登录验证已失效，请重新登录")
 
-        if not isinstance(payload, dict) or not payload.get("account_id") or not payload.get("email"):
+        account_id = payload.get("account_id") if isinstance(payload, dict) else None
+        email = payload.get("email") if isinstance(payload, dict) else None
+        try:
+            UUID(str(account_id))
+            valid_account_id = True
+        except (TypeError, ValueError):
+            valid_account_id = False
+
+        if not valid_account_id or not isinstance(email, str) or not email.strip():
             redis_client.delete(self._login_challenge_key(challenge_id))
             raise FailException("登录验证已失效，请重新登录")
 
