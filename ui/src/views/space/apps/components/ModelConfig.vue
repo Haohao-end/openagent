@@ -155,6 +155,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   isUnmounted = true
+  modelSelectionRequest += 1
 })
 </script>
 

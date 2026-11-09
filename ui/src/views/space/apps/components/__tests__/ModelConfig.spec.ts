@@ -161,4 +161,48 @@ describe('ModelConfig', () => {
     await flushPromises()
     expect(mocks.messageError).not.toHaveBeenCalled()
   })
+
+  it('ignores a selected model response after the editor unmounts', async () => {
+    const pending = deferred()
+    const wrapper = mount(ModelConfig, {
+      props: { app_id: 'app-1', model_config: { provider: 'old', model: 'old-model', parameters: { temperature: 0.9 } }, dialog_round: 3 },
+      global: { stubs: { 'a-trigger': TriggerStub, 'a-select': SelectStub } },
+    })
+    await flushPromises()
+    mocks.loadLanguageModel.mockReset().mockImplementationOnce(async () => {
+      await pending.promise
+      mocks.languageModel.value = { parameters: [{ name: 'late', default: 0.1 }] }
+      return true
+    })
+    const state = (wrapper.vm as any).$.setupState
+    const select = wrapper.findComponent(SelectStub)
+    select.vm.$emit('update:modelValue', 'new/new-model')
+    select.vm.$emit('change', 'new/new-model')
+    wrapper.unmount()
+
+    pending.resolve()
+    await flushPromises()
+
+    expect(state.form.parameters).toEqual({ temperature: 0.9 })
+  })
+
+  it('does not report a selected model failure after the editor unmounts', async () => {
+    let reject!: (error: Error) => void
+    const wrapper = mount(ModelConfig, {
+      props: { app_id: 'app-1', model_config: { provider: 'old', model: 'old-model' }, dialog_round: 3 },
+      global: { stubs: { 'a-trigger': TriggerStub, 'a-select': SelectStub } },
+    })
+    await flushPromises()
+    mocks.loadLanguageModel.mockReset().mockReturnValueOnce(new Promise((_resolve, rejectLoad) => { reject = rejectLoad }))
+    mocks.messageError.mockReset()
+    const select = wrapper.findComponent(SelectStub)
+    select.vm.$emit('update:modelValue', 'new/new-model')
+    select.vm.$emit('change', 'new/new-model')
+    wrapper.unmount()
+
+    reject(new Error('late model detail failure'))
+    await flushPromises()
+
+    expect(mocks.messageError).not.toHaveBeenCalled()
+  })
 })
