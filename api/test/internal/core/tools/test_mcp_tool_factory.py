@@ -32,6 +32,17 @@ def test_mcp_schema_compiler_should_keep_required_fields_required_with_default()
         schema.model_validate({})
 
 
+@pytest.mark.parametrize("schema_type,is_array", [("integer", False), ("number", False), ("integer", True), ("number", True)])
+def test_mcp_schema_compiler_should_reject_booleans_for_numeric_types(schema_type, is_array):
+    value_schema = {"type": schema_type}
+    if is_array:
+        value_schema = {"type": "array", "items": value_schema}
+    schema = McpSchemaCompiler().build_args_schema({"type": "object", "properties": {"value": value_schema}})
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": [True] if is_array else True})
+
+
 @pytest.mark.parametrize(
     ("enabled_override", "should_load"),
     [
