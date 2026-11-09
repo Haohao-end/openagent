@@ -429,11 +429,12 @@ export const useGetDebugConversationSummary = () => {
   const debug_conversation_summary = ref('')
 
   // 2.定义数据加载函数
-  const loadDebugConversationSummary = async (app_id: string) => {
+  const loadDebugConversationSummary = async (app_id: string, isCurrent: () => boolean = () => true) => {
     try {
       // 2.1 调用API获取记忆
       loading.value = true
       const resp = await getDebugConversationSummary(app_id)
+      if (!isCurrent()) return
       const data = resp.data
 
       debug_conversation_summary.value = data.summary

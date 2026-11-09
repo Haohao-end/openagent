@@ -20,15 +20,25 @@ const { debug_conversation_summary, loadDebugConversationSummary } =
 const { loading, handleUpdateDebugConversationSummary } = useUpdateDebugConversationSummary()
 const summaryModalVisible = ref(false)
 let saveSession = 0
+let loadSession = 0
 
-watch([summaryModalVisible, () => props.app_id], () => {
+watch(summaryModalVisible, () => {
   saveSession += 1
+}, { flush: 'sync' })
+watch(() => props.app_id, () => {
+  saveSession += 1
+  loadSession += 1
+  summaryModalVisible.value = false
+  debug_conversation_summary.value = ''
 }, { flush: 'sync' })
 
 // 2.模态窗打开处理器
 const openSummaryModal = async () => {
+  const requestId = ++loadSession
+  const appId = props.app_id
   // 2.1 调用API获取长期记忆
-  await loadDebugConversationSummary(props.app_id)
+  await loadDebugConversationSummary(appId, () => requestId === loadSession && props.app_id === appId)
+  if (requestId !== loadSession || props.app_id !== appId) return
 
   // 2.2 开启模态窗
   summaryModalVisible.value = true
@@ -46,6 +56,7 @@ const saveSummary = async () => {
 
 onUnmounted(() => {
   saveSession += 1
+  loadSession += 1
 })
 </script>
 
