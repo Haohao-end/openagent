@@ -121,13 +121,15 @@ describe('create/update modal detail request races', () => {
     expect(icon.props('name')).toBe('app-a')
     const generation = (icon.props('onGenerate') as () => Promise<void>)()
     const upload = (icon.props('onUpload') as (file: File) => Promise<void>)(new File(['icon'], 'app-icon.png'))
-    expect(mocks.appRegenerateIcon).toHaveBeenCalledWith('app-a')
+    expect(mocks.appRegenerateIcon).toHaveBeenCalledWith('app-a', expect.any(Function))
+    const shouldNotifyError = mocks.appRegenerateIcon.mock.calls[0]?.[1] as () => boolean
     expect(mocks.uploadImage).toHaveBeenCalledTimes(1)
 
     await wrapper.setProps({ app_id: '', visible: false })
     await wrapper.setProps({ app_id: 'app-b', visible: true })
     await flushPromises()
     expect(wrapper.findComponent(IconStub).props('icon')).toBe('icon-app-b')
+    expect(shouldNotifyError()).toBe(false)
 
     pendingGeneration.resolve('done')
     await generation
