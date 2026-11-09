@@ -164,7 +164,7 @@ class SkillToolFactory:
                 else:
                     fields[prop_name] = (
                         python_type,
-                        Field(default=default, description=description),
+                        Field(default=... if prop_name in required_fields else default, description=description),
                     )
 
         if not fields:

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 
+import pytest
 from internal.core.skills.skill_tool_factory import SkillToolFactory
 from internal.exception import FailException
+from pydantic import ValidationError
 
 
 def test_skill_tool_factory_should_fallback_to_sandbox_when_scf_fails():
@@ -154,3 +156,15 @@ def test_skill_tool_factory_should_not_require_version_in_package_payload():
     assert tools
     assert tools[0].invoke({})
     assert "version" not in scf_calls[0]
+
+
+def test_skill_tool_factory_should_keep_required_fields_required_when_default_declared():
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {
+            "properties": {"query": {"type": "string", "default": "fallback"}},
+            "required": ["query"],
+        }
+    )
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({})
