@@ -850,6 +850,7 @@ export default {
       iconName: '工作流图标',
       appIconName: '应用图标',
       iconUploadSuccess: '图标上传成功',
+      iconUploadFailed: '图标上传失败',
       iconGenerateSuccess: '图标生成成功',
       iconGenerateFailed: '图标生成失败',
       saveFailed: '保存工作流失败，请稍后重试',

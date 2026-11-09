@@ -867,6 +867,7 @@ export default {
       iconName: 'Workflow Icon',
       appIconName: 'App Icon',
       iconUploadSuccess: 'Icon uploaded successfully',
+      iconUploadFailed: 'Failed to upload icon',
       iconGenerateSuccess: 'Icon generated successfully',
       iconGenerateFailed: 'Failed to generate icon',
       saveFailed: 'Failed to save the workflow. Please try again later.',
