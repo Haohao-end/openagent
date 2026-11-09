@@ -667,7 +667,7 @@ class TestPublicAgentA2AService:
         assert captured["history"] == history
         assert captured["memory_conversation"] is conversation
 
-    def test_stream_public_agent_should_save_partial_history_when_client_disconnects(self, monkeypatch):
+    def test_stream_public_agent_should_save_partial_history_when_client_disconnects(self, monkeypatch, caplog):
         thought = AgentThought(
             id=uuid4(), task_id=uuid4(), event=QueueEvent.AGENT_MESSAGE, answer="partial answer"
         )
@@ -704,6 +704,18 @@ class TestPublicAgentA2AService:
 
         assert len(saved) == 1 and saved[0]["agent_thoughts"] == [thought]
         assert updates == [(message, {"status": MessageStatus.STOP.value})]
+
+        def fail_save(**_kwargs):
+            raise RuntimeError("synthetic persistence failure")
+
+        monkeypatch.setattr(service, "_save_public_agent_thoughts", fail_save)
+        app = SimpleNamespace(id=uuid4(), account_id=uuid4())
+        for emitted in (1, 2):
+            events = service._stream_public_agent_events(app, "question", "ctx", {})
+            for _ in range(emitted):
+                next(events)
+            events.close()
+        assert caplog.text.count("error_type=RuntimeError") == 2
 
     def test_stream_public_agent_should_persist_partial_history_when_agent_stream_raises(self, monkeypatch):
         thought = AgentThought(
