@@ -208,3 +208,21 @@ def test_skill_tool_factory_should_validate_enum_values(field, valid_value, inva
 
     with pytest.raises(ValidationError):
         schema.model_validate({"mode": invalid_value})
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ({"type": "boolean"}, "false"),
+        ({"type": "boolean"}, 1),
+        ({"type": "array", "items": {"type": "boolean"}}, ["false"]),
+        ({"type": "array", "items": {"type": "boolean"}}, [1]),
+    ],
+)
+def test_skill_tool_factory_should_reject_non_boolean_values(field, value):
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": field}, "required": ["value"]}
+    )
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": value})

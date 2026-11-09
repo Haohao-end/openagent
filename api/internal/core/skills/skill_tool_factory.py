@@ -7,7 +7,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from langchain_core.tools import BaseTool, StructuredTool
-from pydantic import Field, StrictFloat, StrictInt, create_model
+from pydantic import Field, StrictBool, StrictFloat, StrictInt, create_model
 
 from .skill_executor import SkillSandboxExecutor, SkillScfClient
 
@@ -30,7 +30,7 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
     if schema_type == "number":
         return StrictFloat
     if schema_type == "boolean":
-        return bool
+        return StrictBool
     if schema_type == "array":
         items = schema.get("items")
         return list[_json_schema_type_to_python(items)] if isinstance(items, dict) else list[Any]
