@@ -200,3 +200,10 @@ def test_get_notification_should_ignore_invalid_json_cache_payload(notification_
     fake_redis.setex("notification:corrupt", 60, "not-json")
 
     assert notification_service._get_notification("corrupt") is None
+
+
+@pytest.mark.parametrize("payload", [{"id": "corrupt", "user_id": "not-a-uuid"}, {"id": "corrupt"}])
+def test_get_notification_should_ignore_invalid_document_cache_fields(notification_service, fake_redis, payload):
+    fake_redis.setex("notification:corrupt", 60, json.dumps(payload))
+
+    assert notification_service._get_notification("corrupt") is None

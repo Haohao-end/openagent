@@ -141,15 +141,25 @@ class NotificationService:
         if "app_id" in notification_data:
             return self._get_agent_notification(notification_id)
         else:
+            if not {"id", "document_name", "segment_count", "index_duration", "is_read"} <= notification_data.keys():
+                return None
+            try:
+                user_id = UUID(notification_data["user_id"])
+                dataset_id = UUID(notification_data["dataset_id"])
+                document_id = UUID(notification_data["document_id"])
+                created_at = datetime.fromisoformat(notification_data["created_at"])
+            except (KeyError, TypeError, ValueError):
+                return None
+
             return DocumentIndexNotificationEntity(
                 id=notification_data["id"],
-                user_id=UUID(notification_data["user_id"]),
-                dataset_id=UUID(notification_data["dataset_id"]),
-                document_id=UUID(notification_data["document_id"]),
+                user_id=user_id,
+                dataset_id=dataset_id,
+                document_id=document_id,
                 document_name=notification_data["document_name"],
                 segment_count=notification_data["segment_count"],
                 index_duration=notification_data["index_duration"],
-                created_at=datetime.fromisoformat(notification_data["created_at"]),
+                created_at=created_at,
                 status=notification_data.get("status", "success"),
                 error_message=notification_data.get("error_message", ""),
                 is_read=notification_data["is_read"],
