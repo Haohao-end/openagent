@@ -94,6 +94,19 @@ class TestIntentRecognitionService:
         assert result == service.DEFAULT_INTENT
 
     @pytest.mark.parametrize(
+        "payload",
+        [
+            {"intent": "创建应用", "confidence": "high", "suggested_actions": []},
+            {"intent": "创建应用", "confidence": 0.9, "suggested_actions": "not a list"},
+            {"intent": "创建应用", "confidence": 0.9, "suggested_actions": [{"label": "创建"}]},
+            {"intent": "创建应用", "confidence": True, "suggested_actions": []},
+            {"intent": "创建应用", "confidence": 1.2, "suggested_actions": []},
+        ],
+    )
+    def test_malformed_response_fields_should_use_default_intent(self, service, payload):
+        assert service._parse_response(json.dumps(payload)) == service.DEFAULT_INTENT
+
+    @pytest.mark.parametrize(
         "response",
         [json.dumps({"intent": "缺少字段"}), "not valid json"],
     )
