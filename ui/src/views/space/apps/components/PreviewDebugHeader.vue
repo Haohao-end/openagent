@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { Message } from '@arco-design/web-vue'
 import { useGetDebugConversationSummary, useUpdateDebugConversationSummary } from '@/hooks/use-app'
+import { getErrorMessage } from '@/utils/error'
 import { onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -48,7 +50,14 @@ const saveSummary = async () => {
   const requestSession = ++saveSession
   const appId = props.app_id
   const summary = debug_conversation_summary.value
-  await handleUpdateDebugConversationSummary(appId, summary)
+  try {
+    await handleUpdateDebugConversationSummary(appId, summary)
+  } catch (error: unknown) {
+    if (requestSession === saveSession && summaryModalVisible.value && props.app_id === appId) {
+      Message.error(getErrorMessage(error, t('appStudio.debug.summarySaveFailed')))
+    }
+    return
+  }
   if (requestSession === saveSession && summaryModalVisible.value && props.app_id === appId) {
     summaryModalVisible.value = false
   }

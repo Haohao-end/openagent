@@ -1336,6 +1336,7 @@ export default {
       title: 'Preview & Debug',
       longTermMemory: 'Long-Term Memory',
       longTermMemoryPlaceholder: 'Enter the long-term memory for this debug session',
+      summarySaveFailed: 'Failed to save long-term memory. Please try again.',
       clearSession: 'Clear debug session',
       placeholder: 'Send a debug message',
       emptyQuery: 'Please enter a question',
