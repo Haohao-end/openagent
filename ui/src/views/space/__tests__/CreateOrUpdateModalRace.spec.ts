@@ -164,7 +164,7 @@ describe('create/update modal detail request races', () => {
     expect(wrapper.findComponent(IconStub).props('name')).toBe('workflow-a')
     const generateIcon = wrapper.findComponent(IconStub).props('onGenerate') as () => Promise<void>
     const generation = generateIcon()
-    expect(mocks.workflowRegenerateIcon).toHaveBeenCalledWith('workflow-a')
+    expect(mocks.workflowRegenerateIcon).toHaveBeenCalledWith('workflow-a', expect.any(Function))
     const uploadIcon = wrapper.findComponent(IconStub).props('onUpload') as (file: File) => Promise<void>
     const upload = uploadIcon(new File(['icon'], 'workflow-icon.png'))
     expect(mocks.uploadImage).toHaveBeenCalledTimes(1)
