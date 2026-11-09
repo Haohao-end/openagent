@@ -2,11 +2,12 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import UpdateDocumentNameModal from '../UpdateDocumentNameModal.vue'
 
-const mocks = vi.hoisted(() => ({ loadDocument: vi.fn(), saveName: vi.fn() }))
+const mocks = vi.hoisted(() => ({ loadDocument: vi.fn(), saveName: vi.fn(), messageError: vi.fn() }))
 vi.mock('@/hooks/use-dataset', async () => {
   const { ref } = await import('vue')
-  return { useGetDocument: () => ({ document: ref({ name: '' }), loadDocument: mocks.loadDocument }), useUpdateDocumentName: () => ({ loading: ref(false), handleUpdateDocumentName: mocks.saveName }) }
+  return { useGetDocument: () => ({ document: ref({ name: '' }), loading: ref(false), loadDocument: mocks.loadDocument }), useUpdateDocumentName: () => ({ loading: ref(false), handleUpdateDocumentName: mocks.saveName }) }
 })
+vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError, success: vi.fn() } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 describe('UpdateDocumentNameModal', () => {
@@ -26,4 +27,53 @@ describe('UpdateDocumentNameModal', () => {
     await pendingSave
     expect(wrapper.emitted('update:visible')).toBeUndefined()
   })
+})
+
+it('reports a document detail failure without saving a blank name', async () => {
+  const unhandled: unknown[] = []
+  mocks.loadDocument.mockReset().mockRejectedValueOnce(new Error('document details unavailable'))
+  mocks.saveName.mockReset()
+  mocks.messageError.mockReset()
+  const wrapper = shallowMount(UpdateDocumentNameModal, {
+    global: {
+      config: { errorHandler: (error) => unhandled.push(error) },
+      stubs: { 'a-form': { methods: { resetFields: vi.fn() }, template: '<div><slot /></div>' } },
+    },
+    props: { visible: false, dataset_id: 'dataset', document_id: 'document' },
+  })
+
+  await wrapper.setProps({ visible: true })
+  await flushPromises()
+  await (wrapper.vm.$ as any).setupState.handleSubmit({ errors: undefined })
+  await flushPromises()
+
+  expect(mocks.loadDocument).toHaveBeenCalledWith('dataset', 'document')
+  expect(mocks.saveName).not.toHaveBeenCalled()
+  expect(mocks.messageError).toHaveBeenCalledWith('document details unavailable')
+  expect(unhandled).toHaveLength(0)
+  wrapper.unmount()
+})
+
+
+it('ignores a detail load failure after the modal unmounts', async () => {
+  let rejectLoad!: (error: Error) => void
+  const unhandled: unknown[] = []
+  mocks.loadDocument.mockReset().mockReturnValueOnce(new Promise((_, reject) => { rejectLoad = reject }))
+  mocks.messageError.mockReset()
+  const wrapper = shallowMount(UpdateDocumentNameModal, {
+    global: {
+      config: { errorHandler: (error) => unhandled.push(error) },
+      stubs: { 'a-form': { methods: { resetFields: vi.fn() }, template: '<div><slot /></div>' } },
+    },
+    props: { visible: false, dataset_id: 'dataset', document_id: 'document' },
+  })
+
+  await wrapper.setProps({ visible: true })
+  await flushPromises()
+  wrapper.unmount()
+  rejectLoad(new Error('document details unavailable'))
+  await flushPromises()
+
+  expect(mocks.messageError).not.toHaveBeenCalled()
+  expect(unhandled).toHaveLength(0)
 })
