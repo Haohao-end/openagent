@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, type PropType } from 'vue'
+import { computed, onUnmounted, ref, watch, type PropType } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { apiPrefix } from '@/config'
 import { getErrorMessage } from '@/utils/error'
@@ -281,6 +281,10 @@ watch(
   },
   { immediate: true },
 )
+onUnmounted(() => {
+  latestOwnRequest += 1
+  latestPublicRequest += 1
+})
 </script>
 
 <template>

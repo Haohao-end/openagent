@@ -379,6 +379,19 @@ describe('AgentBindingsMarketplacePickerModal', () => {
     wrapper.unmount()
   })
 
+  it('ignores own-app errors after the picker unmounts', async () => {
+    const request = deferred<ReturnType<typeof ownAppsResponse>>()
+    mocks.getAppsWithPage.mockReturnValueOnce(request.promise)
+    const wrapper = mount(AgentBindingsMarketplacePickerModal, {
+      props: { visible: true, selected_bindings: [], current_app_id: 'current-app' },
+      global: { stubs: globalStubs },
+    })
+    wrapper.unmount()
+    request.reject(new Error('offline'))
+    await flushPromises()
+    expect(Message.error).not.toHaveBeenCalled()
+  })
+
   it('ignores public-app errors after the picker closes', async () => {
     const request = deferred<ReturnType<typeof publicAppsResponse>>()
     mocks.getAppsWithPage.mockResolvedValueOnce(ownAppsResponse('own-1', 'Own App'))
