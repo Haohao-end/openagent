@@ -207,3 +207,16 @@ def test_get_notification_should_ignore_invalid_document_cache_fields(notificati
     fake_redis.setex("notification:corrupt", 60, json.dumps(payload))
 
     assert notification_service._get_notification("corrupt") is None
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"id": "corrupt", "user_id": "00000000-0000-0000-0000-000000000001", "app_id": "00000000-0000-0000-0000-000000000002", "created_at": "2026-01-01T00:00:00", "is_read": False},
+        {"id": "corrupt", "user_id": "not-a-uuid", "app_id": "00000000-0000-0000-0000-000000000002", "app_name": "Agent", "created_at": "2026-01-01T00:00:00", "is_read": False},
+    ],
+)
+def test_get_notification_should_ignore_invalid_agent_cache_fields(notification_service, fake_redis, payload):
+    fake_redis.setex("notification:corrupt", 60, json.dumps(payload))
+
+    assert notification_service._get_notification("corrupt") is None
