@@ -1343,6 +1343,7 @@ export default {
       audioToTextSuccess: 'Speech converted to text',
     },
     analysis: {
+      loadFailed: 'Failed to load app analytics. Please try again later.',
       title: 'Analytics Dashboard',
       description: 'Review session, activity, and cost trends from the last 7 days to quickly understand quality and resource usage.',
       recentSevenDays: 'Range: Last 7 days',
