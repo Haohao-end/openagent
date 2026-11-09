@@ -4,7 +4,15 @@ from dataclasses import dataclass
 from typing import Any, Literal, Union, get_args, get_origin
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, create_model
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    create_model,
+)
 
 
 def _normalize_text(value: Any) -> str:
@@ -229,7 +237,7 @@ class McpSchemaCompiler:
         if _normalize_text(schema_type).lower() == "number":
             return StrictFloat
         if _normalize_text(schema_type).lower() == "boolean":
-            return bool
+            return StrictBool
         if _normalize_text(schema_type).lower() == "null":
             return type(None)
         if _normalize_text(schema_type).lower() == "object":
