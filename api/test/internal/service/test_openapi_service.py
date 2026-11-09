@@ -662,3 +662,12 @@ class TestOpenAPIService:
         assert save_payload["agent_thoughts"][0].thought == "AB"
         assert save_payload["agent_thoughts"][0].answer == "AB"
         assert save_payload["message_id"] == str(message_id)
+
+        save_payload.clear()
+        with Flask(__name__).app_context():
+            events = service.chat(req, account)
+            next(events)
+            next(events)
+            events.close()
+
+        assert save_payload["agent_thoughts"][0].answer == "A"

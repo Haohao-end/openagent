@@ -175,6 +175,17 @@ class OpenAPIService(BaseService):
 
             def handle_stream() -> Generator:
                 """流式事件处理器，在Python只要在函数内部使用了yield关键字，那么这个函数的返回值类型肯定是生成器"""
+
+                def save_agent_thoughts():
+                    self.conversation_service.save_agent_thoughts(
+                        account_id=account_id,
+                        app_id=app_id,
+                        app_config=app_config,
+                        conversation_id=conversation_id,
+                        message_id=message_id,
+                        agent_thoughts=list(agent_thoughts_dict.values()),
+                    )
+
                 for agent_thought in agent.stream(agent_state):
                     # 提取thought以及answer
                     event_id = str(agent_thought.id)
@@ -206,17 +217,14 @@ class OpenAPIService(BaseService):
                         "message_id": message_id,
                         "task_id": str(agent_thought.task_id),
                     }
-                    yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
+                    try:
+                        yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
+                    except GeneratorExit:
+                        save_agent_thoughts()
+                        raise
 
                 # 22.将消息以及推理过程添加到数据库
-                self.conversation_service.save_agent_thoughts(
-                    account_id=account_id,
-                    app_id=app_id,
-                    app_config=app_config,
-                    conversation_id=conversation_id,
-                    message_id=message_id,
-                    agent_thoughts=[agent_thought for agent_thought in agent_thoughts_dict.values()],
-                )
+                save_agent_thoughts()
 
             return handle_stream()
 
