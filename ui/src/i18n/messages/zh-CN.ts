@@ -1324,6 +1324,7 @@ export default {
       audioToTextSuccess: '语音转文本成功',
     },
     analysis: {
+      loadFailed: '加载应用分析失败，请稍后重试',
       title: '统计分析看板',
       description: '通过近 7 天会话、活跃与成本趋势，快速洞察应用运营质量和资源消耗变化。',
       recentSevenDays: '数据范围：近 7 天',
