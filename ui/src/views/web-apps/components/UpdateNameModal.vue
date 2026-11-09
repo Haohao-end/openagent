@@ -53,7 +53,7 @@ watch(
 
     // 4.2 关闭弹窗，需要清空表单数据
     if (!newValue) {
-      form.value = defaultForm
+      form.value = { ...defaultForm }
       emits('update:conversation_id', '')
     }
   },
