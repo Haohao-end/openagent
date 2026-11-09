@@ -144,7 +144,11 @@ class PublicAgentRegistryService(BaseService):
                 continue
 
         if not valid_uuid_ids:
-            return []
+            return self._search_public_apps_from_db(
+                query=query,
+                limit=normalized_limit,
+                exclude_app_ids=exclude_app_ids,
+            )
 
         app_rows = self.db.session.query(App).filter(
             App.id.in_(valid_uuid_ids),
