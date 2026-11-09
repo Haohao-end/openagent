@@ -67,6 +67,7 @@ const defaultForm = (): McpForm => ({
 const form = ref<McpForm>(defaultForm())
 let latestProviderRequest = 0
 let latestAiRequest = 0
+let aiAbortController: AbortController | undefined
 
 const isEditMode = computed(() => Boolean(props.mcp_provider_id))
 const getCategoryLabel = (value: string) =>
@@ -212,13 +213,16 @@ const handleGenerateByAI = async () => {
   aiLoading.value = true
   aiAnswer.value = ''
   const requestId = ++latestAiRequest
+  aiAbortController?.abort()
+  const controller = new AbortController()
+  aiAbortController = controller
   try {
     await mcpSchemaAssistantChat(question, (eventResponse) => {
       if (requestId !== latestAiRequest) return
       const content = String(eventResponse?.data?.content ?? '')
       if (!content) return
       aiAnswer.value += content
-    })
+    }, controller.signal)
 
     if (requestId !== latestAiRequest) return
     const jsonText = extractJsonObject(aiAnswer.value)
@@ -228,7 +232,10 @@ const handleGenerateByAI = async () => {
   } catch (error: unknown) {
     if (requestId === latestAiRequest) Message.error(getErrorMessage(error, t('space.mcp.aiConfigFailed')))
   } finally {
-    if (requestId === latestAiRequest) aiLoading.value = false
+    if (requestId === latestAiRequest) {
+      aiLoading.value = false
+      if (aiAbortController === controller) aiAbortController = undefined
+    }
   }
 }
 
@@ -310,6 +317,8 @@ watch(
   async ([visible, providerId]) => {
     const requestId = ++latestProviderRequest
     latestAiRequest += 1
+    aiAbortController?.abort()
+    aiAbortController = undefined
     loadingProvider.value = Boolean(visible && providerId)
     providerDetailLoadFailed.value = false
     submitLoading.value = false
@@ -332,6 +341,8 @@ watch(
 onUnmounted(() => {
   latestProviderRequest += 1
   latestAiRequest += 1
+  aiAbortController?.abort()
+  aiAbortController = undefined
   loadingProvider.value = false
   aiLoading.value = false
 })

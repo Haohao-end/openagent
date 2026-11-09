@@ -177,6 +177,27 @@ describe('MCP provider request ordering', () => {
     expect(wrapper.emitted('update:visible')).toBeUndefined()
     wrapper.unmount()
   })
+
+  it('aborts schema assistant streaming when the modal closes', async () => {
+    const request = deferred<void>()
+    let signal: AbortSignal | undefined
+    mocks.getMcpCategories.mockResolvedValue({ data: { categories: [] } })
+    mocks.mcpSchemaAssistantChat.mockReset().mockImplementation((_question, _onData, requestSignal) => {
+      signal = requestSignal
+      return request.promise
+    })
+    const wrapper = mountModal()
+    await wrapper.setProps({ visible: true }); await flushPromises()
+    const state = (wrapper.vm.$ as any).setupState
+    state.aiQuestion = 'make an issue tracker'
+    const generation = state.handleGenerateByAI()
+    await flushPromises()
+
+    await wrapper.setProps({ visible: false }); request.resolve(undefined); await generation
+    wrapper.unmount()
+
+    expect(signal?.aborted).toBe(true)
+  })
 })
 
 it('does not overwrite a provider when its edit details fail to load', async () => {
