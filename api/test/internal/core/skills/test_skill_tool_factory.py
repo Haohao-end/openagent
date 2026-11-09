@@ -191,3 +191,20 @@ def test_skill_tool_factory_should_reject_booleans_for_numeric_schemas(schema_ty
 
     with pytest.raises(ValidationError):
         schema.model_validate({"value": [True] if is_array else True})
+
+
+@pytest.mark.parametrize(
+    ("field", "valid_value", "invalid_value"),
+    [
+        ({"type": "string", "enum": ["safe", "fast"]}, "safe", "other"),
+        ({"type": "array", "items": {"type": "string", "enum": ["safe", "fast"]}}, ["safe"], ["other"]),
+    ],
+)
+def test_skill_tool_factory_should_validate_enum_values(field, valid_value, invalid_value):
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"mode": field}, "required": ["mode"]}
+    )
+    assert schema.model_validate({"mode": valid_value}).mode == valid_value
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"mode": invalid_value})

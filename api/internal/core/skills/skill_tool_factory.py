@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -19,6 +19,9 @@ def _normalize_text(value: Any) -> str:
 
 
 def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
+    enum_values = schema.get("enum")
+    if isinstance(enum_values, list) and enum_values:
+        return Literal[tuple(enum_values)]
     schema_type = str(schema.get("type") or "string").strip().lower()
     if schema_type == "string":
         return str
