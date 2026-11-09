@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useUpdateConversationName } from '@/hooks/use-conversation'
 import type { Form, ValidatedError } from '@arco-design/web-vue'
-import { ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 
 // 1.定义组件参数
 const props = defineProps({
@@ -17,23 +17,32 @@ const {
 } = useUpdateConversationName()
 const formRef = ref<InstanceType<typeof Form>>()
 const form = ref({ name: '' })
+let saveSession = 0
 
 // 2.定义关闭弹窗函数
-const hideModal = () => emits('update:visible', false)
+const hideModal = () => {
+  saveSession += 1
+  emits('update:visible', false)
+}
 
 // 3.定义保存会话名称函数
 const saveName = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   if (errors) return
 
-  await handleUpdateConversationName(props.conversation_id, form.value.name)
-  emits('saved', props.conversation_id, form.value.name)
+  const requestSession = ++saveSession
+  const conversationId = props.conversation_id
+  const name = form.value.name
+  await handleUpdateConversationName(conversationId, name)
+  if (requestSession !== saveSession || !props.visible) return
+  emits('saved', conversationId, name)
   emits('update:visible', false)
 }
 
 // 4.监听弹窗显示状态变化，自动回填名称
 watch(
-  () => props.visible,
-  (visible) => {
+  () => [props.visible, props.conversation_id] as const,
+  ([visible]) => {
+    saveSession += 1
     formRef.value?.resetFields()
     if (!visible) {
       form.value.name = ''
@@ -41,7 +50,12 @@ watch(
     }
     form.value.name = props.conversation_name
   },
+  { flush: 'sync' },
 )
+
+onUnmounted(() => {
+  saveSession += 1
+})
 </script>
 
 <template>
