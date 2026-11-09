@@ -165,6 +165,23 @@ class IntentRecognitionService(BaseService):
                 logging.warning("Invalid response format from model")
                 return self.DEFAULT_INTENT.copy()
 
+            confidence = result["confidence"]
+            actions = result["suggested_actions"]
+            if (
+                not isinstance(result["intent"], str)
+                or not isinstance(confidence, (int, float))
+                or isinstance(confidence, bool)
+                or not 0 <= confidence <= 1
+                or not isinstance(actions, list)
+                or any(
+                    not isinstance(action, dict)
+                    or any(not isinstance(action.get(key), str) for key in ("label", "action", "icon"))
+                    for action in actions
+                )
+            ):
+                logging.getLogger(__name__).warning("Invalid response field types from model")
+                return self.DEFAULT_INTENT.copy()
+
             result["is_default"] = False
             return result
 
