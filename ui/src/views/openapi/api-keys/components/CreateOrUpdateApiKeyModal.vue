@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, ref, resolveComponent, watch } from 'vue'
+import { h, onUnmounted, ref, resolveComponent, watch } from 'vue'
 import { type ValidatedError, Message, Modal } from '@arco-design/web-vue'
 import { useCreateApiKey, useUpdateApiKey } from '@/hooks/use-api-key'
 import { copyTextToClipboard } from '@/utils/clipboard'
@@ -34,7 +34,10 @@ const IconCopy = resolveComponent('icon-copy')
 const { t } = useI18n()
 
 // 2.定义隐藏模态窗函数
+let modalSession = 0
+
 const hideModal = () => {
+  modalSession += 1
   emits('update:visible', false)
 }
 
@@ -42,11 +45,14 @@ const hideModal = () => {
 const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断表单是否出错
   if (errors) return
+  const requestSession = ++modalSession
+  const apiKeyId = props.api_key_id
+  const callback = props.callback
 
   // 3.2 检测是新增还是更新，执行不同的操作
-  if (props.api_key_id) {
+  if (apiKeyId) {
     // 3.3 执行更新操作
-    await handleUpdateApiKey(props.api_key_id, {
+    await handleUpdateApiKey(apiKeyId, {
       is_active: Boolean(form.value?.is_active),
       remark: String(form.value?.remark),
     })
@@ -56,7 +62,7 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
       is_active: Boolean(form.value?.is_active),
       remark: String(form.value?.remark),
     })
-    if (createdApiKey) {
+    if (createdApiKey && requestSession === modalSession && props.visible) {
       Modal.info({
         title: t('openapi.apiKeys.showOnceTitle'),
         width: 860,
@@ -99,15 +105,18 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
     }
   }
 
+  if (requestSession !== modalSession || !props.visible) return
+
   // 3.5 隐藏模态窗
   hideModal()
-  props.callback && props.callback()
+  callback && callback()
 }
 
 // 4.监听模态窗的显示or隐藏状态
 watch(
-  () => props.visible,
-  (newValue) => {
+  () => [props.visible, props.api_key_id] as const,
+  ([newValue]) => {
+    modalSession += 1
     if (newValue) {
       // 4.1 显示模态窗的时候，将对应的值赋值给表单
       form.value = {
@@ -121,7 +130,12 @@ watch(
       emits('update:remark', '')
     }
   },
+  { flush: 'sync' },
 )
+
+onUnmounted(() => {
+  modalSession += 1
+})
 </script>
 
 <template>
