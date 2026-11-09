@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Message } from '@arco-design/web-vue'
 import { apiPrefix } from '@/config'
@@ -208,6 +208,11 @@ const getExecutorTypeLabel = (value: string) => {
 onMounted(async () => {
   await loadCategories()
   await loadSkills()
+})
+
+onUnmounted(() => {
+  latestSkillsRequest += 1
+  latestSkillDetailRequest += 1
 })
 </script>
 
