@@ -2038,6 +2038,13 @@ class TestAppService:
         assert save_calls[0]["message_id"] == message.id
         assert len(save_calls[0]["agent_thoughts"]) == 1
 
+        save_calls.clear()
+        events = service.debug_chat(app_id, req, account)
+        next(events)
+        events.close()
+
+        assert len(save_calls[0]["agent_thoughts"]) == 1
+
     def test_debug_chat_should_attach_dataset_workflow_tools_and_merge_agent_messages(self, monkeypatch):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
