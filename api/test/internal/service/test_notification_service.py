@@ -194,3 +194,9 @@ def test_get_notification_should_ignore_non_object_cache_payload(notification_se
     fake_redis.setex("notification:corrupt", 60, json.dumps([]))
 
     assert notification_service._get_notification("corrupt") is None
+
+
+def test_get_notification_should_ignore_invalid_json_cache_payload(notification_service, fake_redis):
+    fake_redis.setex("notification:corrupt", 60, "not-json")
+
+    assert notification_service._get_notification("corrupt") is None

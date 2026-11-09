@@ -130,7 +130,10 @@ class NotificationService:
         if not data:
             return None
 
-        notification_data = json.loads(data)
+        try:
+            notification_data = json.loads(data)
+        except (TypeError, ValueError):
+            return None
         if not isinstance(notification_data, dict):
             return None
 
