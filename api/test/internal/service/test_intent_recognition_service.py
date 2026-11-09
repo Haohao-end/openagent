@@ -154,3 +154,7 @@ class TestIntentRecognitionService:
         service.clear_cache("user-1")
 
         mock_redis.delete.assert_called_once_with("home:intent:user-1")
+
+    @pytest.mark.parametrize("response", ["null", "42", "true", '"text"'])
+    def test_non_object_json_uses_default_intent(self, service, response):
+        assert service._parse_response(response) == service.DEFAULT_INTENT
