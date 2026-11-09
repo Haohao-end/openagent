@@ -677,7 +677,7 @@ export const useRegenerateIcon = () => {
   const icon = ref<string>('')
 
   // 2.定义重新生成图标函数
-  const handleRegenerateIcon = async (app_id: string) => {
+  const handleRegenerateIcon = async (app_id: string, shouldNotifyError = () => true) => {
     try {
       loading.value = true
       const resp = await regenerateIcon(app_id)
@@ -698,7 +698,7 @@ export const useRegenerateIcon = () => {
         }
       }
 
-      Message.error(errorMessage)
+      if (shouldNotifyError()) Message.error(errorMessage)
       throw error
     } finally {
       loading.value = false
@@ -714,7 +714,7 @@ export const useGenerateIconPreview = () => {
   const icon = ref<string>('')
 
   // 2.定义生成图标预览函数
-  const handleGenerateIconPreview = async (name: string, description: string) => {
+  const handleGenerateIconPreview = async (name: string, description: string, shouldNotifyError = () => true) => {
     try {
       loading.value = true
       const resp = await generateIconPreview(name, description)
@@ -739,7 +739,7 @@ export const useGenerateIconPreview = () => {
         }
       }
 
-      Message.error(errorMessage)
+      if (shouldNotifyError()) Message.error(errorMessage)
       throw error
     } finally {
       loading.value = false
