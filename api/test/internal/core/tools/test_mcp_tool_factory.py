@@ -1,7 +1,9 @@
 import json
 import pytest
 import requests
+from pydantic import ValidationError
 
+from internal.core.tools.mcp_tools.providers.mcp_schema_compiler import McpSchemaCompiler
 from internal.core.tools.mcp_tools.providers.mcp_tool_factory import McpToolFactory, _parse_json_payload
 from internal.exception import FailException
 
@@ -14,6 +16,20 @@ class _FakeResponse:
 
     def raise_for_status(self):
         return None
+
+
+def test_mcp_schema_compiler_should_keep_required_fields_required_with_default():
+    schema = McpSchemaCompiler().build_args_schema(
+        {
+            "type": "object",
+            "properties": {"mode": {"type": "string", "default": "fast"}},
+            "required": ["mode"],
+        }
+    )
+
+    assert schema.model_fields["mode"].is_required()
+    with pytest.raises(ValidationError):
+        schema.model_validate({})
 
 
 @pytest.mark.parametrize(
