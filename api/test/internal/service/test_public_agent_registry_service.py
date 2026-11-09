@@ -43,6 +43,23 @@ class TestPublicAgentRegistryService:
 
         assert service.search_public_apps("query") == fallback
 
+    def test_search_public_apps_should_fallback_when_vector_id_is_invalid(
+        self, monkeypatch
+    ):
+        service = _build_service(
+            faiss_service=SimpleNamespace(
+                search_public_agents=lambda **_kwargs: [
+                    SimpleNamespace(metadata={"app_id": "not-a-uuid"})
+                ]
+            ),
+        )
+        fallback = [{"app_id": "database-result"}]
+        monkeypatch.setattr(
+            service, "_search_public_apps_from_db", lambda **_kwargs: fallback
+        )
+
+        assert service.search_public_apps("query") == fallback
+
     def test_build_public_agent_document_should_only_keep_allowed_metadata(self):
         app_id = uuid4()
         service = _build_service()
