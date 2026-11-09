@@ -97,10 +97,17 @@ const saveApp = async ({ errors }: { errors: Record<string, ValidatedError> | un
   const requestId = detailRequest
 
   // 3.2 检测是保存还是新增，调用不同的API接口
-  if (props.app_id) {
-    await handleUpdateApp(props.app_id, form.value)
-  } else {
-    await handleCreateApp(form.value)
+  try {
+    if (props.app_id) {
+      await handleUpdateApp(props.app_id, form.value)
+    } else {
+      await handleCreateApp(form.value)
+    }
+  } catch (error: unknown) {
+    if (requestId === detailRequest) {
+      Message.error(getErrorMessage(error, t('appStudio.createModal.saveFailed')))
+    }
+    return
   }
 
   // 3.3 完成保存操作，隐藏模态窗并调用回调函数

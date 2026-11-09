@@ -1,14 +1,15 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import CreateOrUpdateAppModal from '@/views/space/apps/components/CreateOrUpdateAppModal.vue'
-const { save } = vi.hoisted(() => ({ save: vi.fn() }))
+const { save, update, error } = vi.hoisted(() => ({ save: vi.fn(), update: vi.fn(), error: vi.fn() }))
 vi.mock('@/hooks/use-app', () => ({
   useCreateApp: () => ({ loading: false, handleCreateApp: save }),
-  useUpdateApp: () => ({ loading: false, handleUpdateApp: vi.fn() }),
+  useUpdateApp: () => ({ loading: false, handleUpdateApp: update }),
   useGetApp: () => ({ app: { value: {} }, loadApp: vi.fn() }),
   useRegenerateIcon: () => ({ loading: false, handleRegenerateIcon: vi.fn() }),
   useGenerateIconPreview: () => ({ loading: false, handleGenerateIconPreview: vi.fn() }),
 }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { error, success: vi.fn() } }))
 vi.mock('@/hooks/use-upload-file', () => ({ useUploadImage: () => ({ image_url: { value: '' }, handleUploadImage: vi.fn() }) })); vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 it('keeps a reopened modal open when an earlier save finishes', async () => {
   let finish!: () => void; save.mockImplementation(() => new Promise<void>((resolve) => { finish = resolve }))
@@ -28,4 +29,31 @@ it('keeps a reopened modal open when an earlier save finishes', async () => {
   finish(); await flushPromises()
   expect(wrapper.emitted('update:visible')).toEqual([[false]])
   expect(callback).toHaveBeenCalledOnce(); wrapper.unmount()
+})
+
+it('reports an app save failure and keeps the form open', async () => {
+  const unhandled: unknown[] = []
+  const callback = vi.fn()
+  save.mockReset().mockRejectedValueOnce(new Error('app save failed'))
+  error.mockReset()
+  const wrapper = shallowMount(CreateOrUpdateAppModal, {
+    props: { app_id: '', visible: true, callback },
+    global: {
+      config: { errorHandler: (error) => unhandled.push(error) },
+      stubs: {
+        IconUploadGenerator: true,
+        'a-modal': { emits: ['cancel'], template: '<div><slot/></div>' },
+        'a-form': { emits: ['submit'], template: '<form @submit.prevent="$emit(\'submit\', { errors: undefined })"><slot/></form>' },
+      },
+    },
+  })
+
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+
+  expect(error).toHaveBeenCalledWith('app save failed')
+  expect(unhandled).toHaveLength(0)
+  expect(wrapper.emitted('update:visible')).toBeUndefined()
+  expect(callback).not.toHaveBeenCalled()
+  wrapper.unmount()
 })
