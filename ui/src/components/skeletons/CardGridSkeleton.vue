@@ -6,7 +6,7 @@ const props = defineProps({
 
 <template>
   <a-row :gutter="[20, 20]" class="flex-1">
-    <a-col v-for="idx in props.count" :key="idx" :span="6">
+    <a-col v-for="idx in props.count" :key="idx" :xs="24" :sm="12" :md="8" :lg="6">
       <div class="rounded-lg border border-gray-200 bg-white p-4">
         <div class="flex items-center gap-3 mb-4">
           <div class="skeleton-shimmer h-10 w-10 rounded-lg flex-shrink-0" />
