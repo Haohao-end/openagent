@@ -160,4 +160,26 @@ describe('McpBindingsAbilityItem', () => {
     expect(state.activateMcpBindings.map((item: any) => item.provider_key)).toEqual(['catalog::first', 'catalog::second'])
     wrapper.unmount()
   })
+
+  it('keeps the binding editor open while its save is pending', async () => {
+    let resolveSave!: () => void
+    const pendingSave = new Promise<void>((resolve) => { resolveSave = resolve })
+    mocks.updateDraftAppConfig.mockReturnValueOnce(pendingSave)
+    const wrapper = mount(McpBindingsAbilityItem, {
+      props: { app_id: 'app-1', mcp_bindings: [makeBinding()], mcp_tool_snapshots: [] },
+      global: { stubs: globalStubs },
+    })
+    const state = (wrapper.vm.$ as any).setupState
+    state.openEditModal(0)
+    const submit = state.handleSubmitBinding()
+    await nextTick()
+
+    state.handleCancelMcpBindingsModal()
+
+    expect(state.mcpBindingsModalVisible).toBe(true)
+    resolveSave()
+    await submit
+    expect(state.mcpBindingsModalVisible).toBe(false)
+    wrapper.unmount()
+  })
 })
