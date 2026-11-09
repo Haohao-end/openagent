@@ -39,6 +39,7 @@ const {
 const { loading: getWechatConfigLoading, wechat_config, loadWechatConfig } = useGetWechatConfig()
 const { loading: updateWechatConfigLoading, handleUpdateWechatConfig } = useUpdateWechatConfig()
 const { t, locale } = useI18n()
+let appRouteRequestId = 0
 const webAppUrl = computed(() => {
   if (published_config.value?.web_app?.status === 'published') {
     return getFullPath('web-apps-index', {
@@ -66,8 +67,10 @@ const loadPageData = async (appId: string) => {
 
 // 3.定义打开微信配置模态窗处理器
 const handleShowWechatConfigModal = async () => {
+  const requestId = appRouteRequestId
   // 3.1 调用api接口获取微信配置
   await loadWechatConfig(String(route.params?.app_id))
+  if (requestId !== appRouteRequestId) return
 
   // 3.2 更新表单配置
   wechatConfigForm.value = {
@@ -164,9 +167,11 @@ onMounted(() => {
 watch(
   () => String(route.params?.app_id),
   (appId, previousAppId) => {
-    if (!appId || appId === previousAppId) {
+    if (appId === previousAppId) {
       return
     }
+    appRouteRequestId += 1
+    if (!appId) return
     void loadPageData(appId)
   },
 )
