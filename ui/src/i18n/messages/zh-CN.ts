@@ -359,6 +359,7 @@ export default {
       enterNameFirst: '请先输入知识库名称',
       loadDetailFailed: '加载知识库详情失败',
       loadFailed: '加载知识库失败',
+      saveFailed: '保存知识库失败',
       stats: '{documents} 文档 · {characters} 千字符 · {apps} 关联应用',
       modal: {
         createTitle: '新建知识库',

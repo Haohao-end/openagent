@@ -370,6 +370,7 @@ export default {
       enterNameFirst: 'Enter a dataset name first',
       loadDetailFailed: 'Failed to load dataset details',
       loadFailed: 'Failed to load datasets',
+      saveFailed: 'Failed to save dataset',
       stats: '{documents} documents · {characters}k chars · {apps} related apps',
       modal: {
         createTitle: 'Create Dataset',

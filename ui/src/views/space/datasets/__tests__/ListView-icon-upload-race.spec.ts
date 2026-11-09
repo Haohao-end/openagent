@@ -225,4 +225,21 @@ describe('dataset icon upload lifecycle', () => {
 
     expect(mocks.loadDatasets).not.toHaveBeenCalled()
   })
+
+  it('reports dataset save failures and keeps the form open', async () => {
+    mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
+    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    await flushPromises()
+    mocks.saveDataset.mockReset().mockRejectedValueOnce(new Error('dataset save unavailable'))
+    mocks.error.mockReset()
+    mocks.loadDatasets.mockClear()
+    const state = (wrapper.vm.$ as any).setupState
+
+    await expect(state.handleSubmit({ errors: undefined })).resolves.toBeUndefined()
+
+    expect(mocks.error).toHaveBeenCalledWith('dataset save unavailable')
+    expect(state.showCreateModal).toBe(true)
+    expect(mocks.loadDatasets).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
 })

@@ -178,7 +178,14 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
 
   const requestId = datasetEditRequestId
   // 2.调用保存知识库服务
-  await saveDataset(updateDatasetID)
+  try {
+    await saveDataset(updateDatasetID)
+  } catch (error: unknown) {
+    if (!isUnmounted && requestId === datasetEditRequestId) {
+      Message.error(getErrorMessage(error, t('space.datasets.saveFailed')))
+    }
+    return
+  }
   if (isUnmounted || requestId !== datasetEditRequestId) return
 
   // 3.关闭模态窗并且刷新数据
