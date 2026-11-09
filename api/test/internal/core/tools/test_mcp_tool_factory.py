@@ -43,6 +43,14 @@ def test_mcp_schema_compiler_should_reject_booleans_for_numeric_types(schema_typ
         schema.model_validate({"value": [True] if is_array else True})
 
 
+def test_mcp_schema_compiler_should_allow_arrays_without_item_schema():
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "properties": {"values": {"type": "array"}}}
+    )
+
+    assert schema.model_validate({"values": [1, "text", None]}).values == [1, "text", None]
+
+
 @pytest.mark.parametrize(
     ("enabled_override", "should_load"),
     [
