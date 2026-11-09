@@ -63,6 +63,8 @@ const handleCancelWorkflowsModal = () => {
 
 // 7.工作流选择处理器
 const handleSelectWorkflow = (idx: number) => {
+  if (updateDraftAppConfigLoading.value) return
+
   // 7.1 提取对应的工作流id
   const workflow = apiWorkflows.value[idx]
 
@@ -263,7 +265,11 @@ watch(
             <div
               v-for="(workflow, idx) in apiWorkflows"
               :key="workflow.id"
-              :class="`flex items-center gap-2 border px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-700 ${activateWorkflows.some((activateWorkflow) => activateWorkflow.id === workflow.id) ? 'bg-blue-50 border-blue-700' : ''}`"
+              class="flex items-center gap-2 border px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-700"
+              :class="{
+                'bg-blue-50 border-blue-700': activateWorkflows.some((activateWorkflow) => activateWorkflow.id === workflow.id),
+                'pointer-events-none cursor-not-allowed opacity-60': updateDraftAppConfigLoading,
+              }"
               @click="() => handleSelectWorkflow(idx)"
             >
               <a-avatar

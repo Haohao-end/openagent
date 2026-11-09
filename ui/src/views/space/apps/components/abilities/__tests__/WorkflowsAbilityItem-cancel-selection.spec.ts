@@ -118,3 +118,32 @@ it('prevents another workflow removal while a save is pending', async () => {
   await flushPromises()
   wrapper.unmount()
 })
+
+it('keeps the saved workflow selection unchanged while a save is pending', async () => {
+  let resolveUpdate!: () => void
+  mocks.update.mockReset().mockReturnValue(new Promise<void>((resolve) => { resolveUpdate = resolve }))
+  const wrapper = mount(WorkflowsAbilityItem, {
+    props: { app_id: 'app-1', workflows: [] },
+    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true } },
+  })
+  await flushPromises()
+  mocks.workflows.value = [
+    { id: 'wf-1', name: 'First workflow', icon: '', description: '' },
+    { id: 'wf-2', name: 'Second workflow', icon: '', description: '' },
+  ]
+  await wrapper.findAll('button')[0].trigger('click')
+  await flushPromises()
+  const options = wrapper.findAll('.cursor-pointer')
+  await options[0].trigger('click')
+  const submit = (wrapper.vm.$ as any).setupState.handleSubmitWorkflows()
+  await nextTick()
+  await options[1].trigger('click')
+  resolveUpdate()
+  await submit
+
+  expect(mocks.update).toHaveBeenCalledWith('app-1', { workflows: ['wf-1'] })
+  expect(wrapper.emitted('update:workflows')?.[0][0]).toEqual([
+    { id: 'wf-1', name: 'First workflow', icon: '', description: '' },
+  ])
+  wrapper.unmount()
+})
