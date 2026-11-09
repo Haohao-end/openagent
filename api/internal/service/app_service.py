@@ -1608,7 +1608,18 @@ class AppService(BaseService):
 
         agent_thoughts = {}
         runtime_flask_app = current_app._get_current_object() if has_app_context() else None
-        yield from self._stream_agent_events(
+
+        def save_agent_thoughts():
+            self.conversation_service.save_agent_thoughts(
+                account_id=account.id,
+                app_id=app_id,
+                app_config=draft_app_config,
+                conversation_id=debug_conversation.id,
+                message_id=message.id,
+                agent_thoughts=list(agent_thoughts.values()),
+            )
+
+        stream = self._stream_agent_events(
             app_id=app_id,
             account=account,
             draft_app_config=draft_app_config,
@@ -1623,16 +1634,14 @@ class AppService(BaseService):
             enable_deep_thinking=bool(req.enable_deep_thinking.data),
             flask_app=runtime_flask_app,
         )
+        try:
+            yield from stream
+        except GeneratorExit:
+            save_agent_thoughts()
+            raise
 
         # 17.将消息以及推理过程添加到数据库
-        self.conversation_service.save_agent_thoughts(
-            account_id=account.id,
-            app_id=app_id,
-            app_config=draft_app_config,
-            conversation_id=debug_conversation.id,
-            message_id=message.id,
-            agent_thoughts=[agent_thought for agent_thought in agent_thoughts.values()],
-        )
+        save_agent_thoughts()
 
     def prompt_compare_chat(self, app_id: UUID, req: Any, account: Account) -> Generator[str, None, None]:
         """根据传递的应用id发起无状态提示词对比调试"""
