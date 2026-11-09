@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick } from 'vue'
+import { Message } from '@arco-design/web-vue'
 
 import SkillsMarketplacePickerModal from '../SkillsMarketplacePickerModal.vue'
 import type { SkillBinding, SkillPackage } from '@/models/skill'
@@ -221,5 +222,46 @@ describe('SkillsMarketplacePickerModal', () => {
     expect(wrapper.text()).toContain('New Search Result')
     expect(wrapper.text()).not.toContain('Old Search Result')
     wrapper.unmount()
+  })
+
+  it.each(['close', 'unmount'] as const)('does not load skills when category lookup finishes after %s', async (action) => {
+    let resolveCategories!: (value: unknown) => void
+    mocks.getSkillCategories.mockReturnValue(new Promise((resolve) => { resolveCategories = resolve }))
+
+    const wrapper = mount(SkillsMarketplacePickerModal, {
+      props: { visible: true },
+      global: { stubs: globalStubs },
+    })
+    await nextTick()
+    if (action === 'close') await wrapper.setProps({ visible: false })
+    else wrapper.unmount()
+
+    resolveCategories({ data: { categories: [] } })
+    await flushPromises()
+
+    expect(mocks.getSkillsWithPage).not.toHaveBeenCalled()
+    expect(Message.error).not.toHaveBeenCalled()
+    if (action === 'close') wrapper.unmount()
+  })
+
+  it.each(['close', 'unmount'] as const)('ignores a skill-load failure after %s', async (action) => {
+    mocks.getSkillCategories.mockResolvedValue({ data: { categories: [] } })
+    let rejectSkills!: (error: Error) => void
+    mocks.getSkillsWithPage.mockReturnValue(new Promise((_resolve, reject) => { rejectSkills = reject }))
+
+    const wrapper = mount(SkillsMarketplacePickerModal, {
+      props: { visible: true },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    expect(mocks.getSkillsWithPage).toHaveBeenCalledTimes(1)
+
+    if (action === 'close') await wrapper.setProps({ visible: false })
+    else wrapper.unmount()
+    rejectSkills(new Error('late marketplace failure'))
+    await flushPromises()
+
+    expect(Message.error).not.toHaveBeenCalled()
+    if (action === 'close') wrapper.unmount()
   })
 })

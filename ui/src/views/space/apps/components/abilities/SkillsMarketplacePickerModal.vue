@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, type PropType } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, type PropType } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { apiPrefix } from '@/config'
 import { getErrorMessage } from '@/utils/error'
@@ -40,6 +40,15 @@ const paginator = ref<PaginatorState>({
   page_size: PAGE_SIZE,
 })
 let latestSkillsRequest = 0
+let latestOpenSession = 0
+
+const invalidateRequests = () => {
+  latestOpenSession += 1
+  latestSkillsRequest += 1
+  loading.value = false
+}
+
+onBeforeUnmount(invalidateRequests)
 
 const hideModal = () => emits('update:visible', false)
 
@@ -92,12 +101,12 @@ const getExecutorLabel = (executorType: string) => {
   return normalized
 }
 
-const loadCategories = async () => {
+const loadCategories = async (session: number) => {
   try {
     const res = await getSkillCategories()
-    categories.value = res.data.categories || []
+    if (session === latestOpenSession) categories.value = res.data.categories || []
   } catch (_error: unknown) {
-    categories.value = []
+    if (session === latestOpenSession) categories.value = []
   }
 }
 
@@ -168,8 +177,13 @@ const handleScroll = (event: Event) => {
 watch(
   () => props.visible,
   async (visible) => {
-    if (!visible) return
-    await loadCategories()
+    if (!visible) {
+      invalidateRequests()
+      return
+    }
+    const session = ++latestOpenSession
+    await loadCategories(session)
+    if (session !== latestOpenSession) return
     await loadSkills(true)
   },
   { immediate: true },
