@@ -42,3 +42,16 @@ it('reports dataset load failures and ignores a late scroll failure after unmoun
   await scroll
   expect(mocks.error).toHaveBeenCalledTimes(1)
 })
+
+it('flushes pending edits to the node they came from after a node switch', async () => {
+  mocks.load.mockReset().mockResolvedValue(undefined)
+  const wrapper = shallowMount(DatasetRetrievalNodeInfo, {
+    props: { visible: true, node, loading: false },
+  })
+  const state = (wrapper.vm.$ as any).setupState
+  state.form.title = 'Edited first node'
+  await wrapper.setProps({ node: { ...node, id: 'node-2', data: { ...node.data, title: 'Second node' } } })
+
+  expect(wrapper.emitted('updateNode')?.[0]?.[0]).toMatchObject({ id: 'node-1', title: 'Edited first node' })
+  wrapper.unmount()
+})

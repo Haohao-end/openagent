@@ -167,7 +167,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
 
   // 6.3 数据校验通过，通过事件触发数据更新
   emits('updateNode', {
-    id: props.node.id,
+    id: form.value.id,
     title: form.value.title,
     description: form.value.description,
     dataset_ids: cloneDatasets.map((dataset: DatasetItem) => {

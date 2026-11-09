@@ -70,7 +70,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
 
   const input = form.value.input
   emits('updateNode', {
-    id: props.node.id,
+    id: form.value.id,
     title: form.value.title,
     description: form.value.description,
     mode: form.value.mode,

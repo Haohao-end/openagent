@@ -133,7 +133,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   const cloneConditions = cloneDeep(form.value.conditions)
 
   emits('updateNode', {
-    id: props.node.id,
+    id: form.value.id,
     title: form.value.title,
     description: form.value.description,
     logical_operator: form.value.logical_operator,
