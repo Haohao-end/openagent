@@ -1608,6 +1608,7 @@ export default {
       loadedAll: '数据已加载完成',
     },
     modelConfig: {
+      loadFailed: '加载模型参数失败，请重试',
       unsetModel: '未配置模型',
       title: '模型设置',
       modelLabel: '模型',
