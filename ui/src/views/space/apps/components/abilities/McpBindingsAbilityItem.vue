@@ -50,6 +50,7 @@ const { t } = useI18n()
 const emits = defineEmits(['update:mcp_bindings', 'reload-draft-app-config'])
 const { handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
 const mcpBindingsModalVisible = ref(false)
+const isSavingMcpBinding = ref(false)
 const isMcpBindingsInit = ref(false)
 const activateMcpBindings = ref<McpBindingForm[]>([])
 const originMcpBindings = ref<McpBindingForm[]>([])
@@ -194,6 +195,7 @@ const openMarketplacePicker = () => {
 }
 
 const handleCancelMcpBindingsModal = () => {
+  if (isSavingMcpBinding.value) return
   closeMcpBindingsModal()
 }
 
@@ -218,6 +220,7 @@ const parseJsonObject = (text: string) => {
 }
 
 const handleSubmitBinding = async () => {
+  if (isSavingMcpBinding.value) return
   const form = bindingForm.value
   if (!form.name.trim()) {
     Message.warning(t('appStudio.abilities.mcp.nameRequired'))
@@ -295,15 +298,20 @@ const handleSubmitBinding = async () => {
     newBindings.splice(editingIndex.value, 1, nextBinding)
   }
 
-  await handleUpdateDraftAppConfig(props.app_id, {
-    mcp_bindings: newBindings.map((item) => stripBindingForm(item)),
-  })
+  isSavingMcpBinding.value = true
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, {
+      mcp_bindings: newBindings.map((item) => stripBindingForm(item)),
+    })
 
-  syncLocalBindings(newBindings)
-  await nextTick()
-  emits('update:mcp_bindings', cloneDeep(newBindings.map((item) => stripBindingForm(item))))
-  emits('reload-draft-app-config')
-  closeMcpBindingsModal()
+    syncLocalBindings(newBindings)
+    await nextTick()
+    emits('update:mcp_bindings', cloneDeep(newBindings.map((item) => stripBindingForm(item))))
+    emits('reload-draft-app-config')
+    closeMcpBindingsModal()
+  } finally {
+    isSavingMcpBinding.value = false
+  }
 }
 
 const handleDeleteBinding = async (idx: number) => {
@@ -459,7 +467,7 @@ watch(
             : t('appStudio.abilities.mcp.editModalTitle')
         }}
       </div>
-      <a-button type="text" class="!text-gray-700" size="small" @click="handleCancelMcpBindingsModal">
+      <a-button type="text" class="!text-gray-700" size="small" :disabled="isSavingMcpBinding" @click="handleCancelMcpBindingsModal">
         <template #icon>
           <icon-close />
         </template>
@@ -516,8 +524,8 @@ watch(
           :placeholder="t('appStudio.abilities.mcp.envPlaceholder')"
         />
         <div class="flex justify-end gap-2 pt-2">
-          <a-button @click="handleCancelMcpBindingsModal">{{ t('common.actions.cancel') }}</a-button>
-          <a-button type="primary" @click="handleSubmitBinding">{{ t('common.actions.save') }}</a-button>
+          <a-button :disabled="isSavingMcpBinding" @click="handleCancelMcpBindingsModal">{{ t('common.actions.cancel') }}</a-button>
+          <a-button type="primary" :loading="isSavingMcpBinding" @click="handleSubmitBinding">{{ t('common.actions.save') }}</a-button>
         </div>
       </div>
     </div>
