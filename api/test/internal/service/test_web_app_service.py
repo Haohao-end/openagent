@@ -415,6 +415,15 @@ class TestWebAppService:
         assert save_payload["agent_thoughts"][0].thought == "AB"
         assert save_payload["agent_thoughts"][0].answer == "AB"
 
+        save_payload.clear()
+        with Flask(__name__).app_context():
+            events = service.web_app_chat("public-token", req, account)
+            next(events)
+            next(events)
+            events.close()
+
+        assert save_payload["agent_thoughts"][0].answer == "A"
+
     def test_web_app_chat_should_use_existing_conversation_and_react_agent(self, monkeypatch):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())

@@ -183,6 +183,17 @@ class WebAppService(BaseService):
 
         # 13.定义字典存储推理过程，并调用智能体获取消息
         agent_thoughts = {}
+
+        def save_agent_thoughts():
+            self.conversation_service.save_agent_thoughts(
+                account_id=account.id,
+                app_id=app.id,
+                app_config=app_config,
+                conversation_id=conversation.id,
+                message_id=message.id,
+                agent_thoughts=list(agent_thoughts.values()),
+            )
+
         for agent_thought in agent.stream({
             "messages": [llm.convert_to_human_message(req.query.data, req.image_urls.data)],
             "history": history,
@@ -234,17 +245,14 @@ class WebAppService(BaseService):
                 "message_id": str(message.id),
                 "task_id": str(agent_thought.task_id),
             }
-            yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
+            try:
+                yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
+            except GeneratorExit:
+                save_agent_thoughts()
+                raise
 
         # 20.将消息以及推理过程添加到数据库（同步方式）
-        self.conversation_service.save_agent_thoughts(
-            account_id=account.id,
-            app_id=app.id,
-            app_config=app_config,
-            conversation_id=conversation.id,
-            message_id=message.id,
-            agent_thoughts=[agent_thought for agent_thought in agent_thoughts.values()],
-        )
+        save_agent_thoughts()
 
     def stop_web_app_chat(self, token: str, task_id: UUID, account: Account):
         """根据传递的token+task_id停止与指定WebApp对话"""
