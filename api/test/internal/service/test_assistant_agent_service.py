@@ -939,7 +939,7 @@ class TestAssistantAgentService:
         assert service._get_cached_introduction(uuid4(), "fingerprint") is None
 
     def test_chat_should_stream_events_and_save_aggregated_agent_thoughts(
-        self, monkeypatch, app
+        self, monkeypatch, app, caplog
     ):
         assistant_agent_id = uuid4()
         app.config["ASSISTANT_AGENT_ID"] = assistant_agent_id
@@ -1106,6 +1106,17 @@ class TestAssistantAgentService:
             events.close()
 
         assert save_payload["agent_thoughts"][0].answer == "A"
+
+        def fail_save(**_kwargs):
+            raise RuntimeError("synthetic database failure")
+
+        service.conversation_service.save_agent_thoughts = fail_save
+        with app.app_context():
+            events = service.chat(req, account)
+            next(events)
+            next(events)
+            events.close()
+        assert "error_type=RuntimeError" in caplog.text
 
     def test_chat_should_use_runtime_language_model_resolution_when_available(
         self, monkeypatch, app
