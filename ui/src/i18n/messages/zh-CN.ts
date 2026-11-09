@@ -611,6 +611,7 @@ export default {
       loading: '正在加载会话信息...',
       empty: '未命名会话',
       idLabel: '会话 ID',
+      renameFailed: '重命名会话失败，请重试。',
     },
     messages: {
       imageCount: '该消息包含{count}张图片',
