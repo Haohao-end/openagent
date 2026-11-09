@@ -472,6 +472,7 @@ export default {
           nameLabel: '名称',
           nameRequired: '文档名称不能为空',
           detailLoadFailed: '加载文档详情失败，请重试',
+          saveFailed: '重命名文档失败，请重试',
           namePlaceholder: '请输入文档名称',
           cancel: '取消',
           save: '保存',

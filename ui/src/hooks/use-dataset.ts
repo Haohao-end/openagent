@@ -586,13 +586,14 @@ export const useUpdateDocumentName = () => {
     dataset_id: string,
     document_id: string,
     name: string,
+    fallbackMessage = '重命名文档失败，请稍后重试',
   ) => {
     try {
       loading.value = true
       const resp = await updateDocumentName(dataset_id, document_id, name)
       Message.success(resp.message)
     } catch (error: unknown) {
-      Message.error(getErrorMessage(error, '重命名文档失败，请稍后重试'))
+      Message.error(getErrorMessage(error, fallbackMessage))
       throw error
     } finally {
       loading.value = false

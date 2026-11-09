@@ -41,7 +41,12 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
 
   // 3.3 调用处理器发起请求
   const generation = modalGeneration
-  await handleUpdateDocumentName(props.dataset_id, props.document_id, form.value.name)
+  await handleUpdateDocumentName(
+    props.dataset_id,
+    props.document_id,
+    form.value.name,
+    t('space.datasets.documents.renameModal.saveFailed'),
+  )
   if (generation !== modalGeneration) return
 
   // 3.4 隐藏模态窗并重置表单
