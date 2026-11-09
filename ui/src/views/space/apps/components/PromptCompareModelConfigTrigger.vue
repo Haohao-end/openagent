@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { Message } from '@arco-design/web-vue'
 import { apiPrefix } from '@/config'
 import { useGetLanguageModel, useGetLanguageModels } from '@/hooks/use-language-model'
 import { useI18n } from 'vue-i18n'
+import { getErrorMessage } from '@/utils/error'
 
 type ModelForm = {
   selectValue: string
@@ -33,6 +35,7 @@ const {
   loadLanguageModel,
 } = useGetLanguageModel()
 const { language_models, loadLanguageModels } = useGetLanguageModels()
+let latestModelLoad = 0
 const modelOptions = computed(() => {
   return language_models.value.map((language_model) => {
     return {
@@ -56,9 +59,10 @@ const syncFormFromProps = (value: Record<string, any>) => {
 }
 
 const changeModel = (value: string) => {
+  const requestId = ++latestModelLoad
   const [provider_name, model_name] = value.split('/')
 
-  loadLanguageModel(provider_name, model_name).then((isLatest) => {
+  void loadLanguageModel(provider_name, model_name).then((isLatest) => {
     if (!isLatest) return
     form.value.provider = provider_name
     form.value.model = model_name
@@ -69,6 +73,10 @@ const changeModel = (value: string) => {
       },
       {} as Record<string, unknown>,
     )
+  }).catch((error: unknown) => {
+    if (requestId !== latestModelLoad || form.value.selectValue !== value) return
+    form.value.selectValue = form.value.provider && form.value.model ? `${form.value.provider}/${form.value.model}` : ''
+    Message.error(getErrorMessage(error, t('appStudio.promptCompareModel.loadFailed')))
   })
 }
 

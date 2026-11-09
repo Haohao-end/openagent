@@ -1637,6 +1637,7 @@ export default {
       },
     },
     promptCompareModel: {
+      loadFailed: '加载模型参数失败，请重试',
       title: '对比模型',
       modelLabel: '模型',
       modelPlaceholder: '请选择用于对比的大语言模型',
