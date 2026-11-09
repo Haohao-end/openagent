@@ -139,7 +139,10 @@ class NotificationService:
 
         # 判断通知类型：如果有 app_id 则是 Agent 通知，否则是文档索引通知
         if "app_id" in notification_data:
-            return self._get_agent_notification(notification_id)
+            try:
+                return self._get_agent_notification(notification_id)
+            except (KeyError, TypeError, ValueError):
+                return None
         else:
             if not {"id", "document_name", "segment_count", "index_duration", "is_read"} <= notification_data.keys():
                 return None
