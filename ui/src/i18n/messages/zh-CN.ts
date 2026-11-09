@@ -1575,6 +1575,7 @@ export default {
       enterNameFirst: '请先输入应用名称',
       generateIconSuccess: '图标生成成功',
       createSuccess: '新增 Agent 应用成功',
+      saveFailed: '保存应用失败，请稍后重试',
       regenerateIconFailed: '重新生成图标失败，请稍后重试',
       generateIconFailed: '生成图标失败，请稍后重试',
       iconServiceUnavailable: '图标生成服务暂时不可用，请联系管理员配置 API Key',
