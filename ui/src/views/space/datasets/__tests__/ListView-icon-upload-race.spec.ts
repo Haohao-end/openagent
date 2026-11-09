@@ -184,4 +184,45 @@ describe('dataset icon upload lifecycle', () => {
 
     expect(mocks.success).not.toHaveBeenCalled()
   })
+
+  it('does not let an earlier save close a reopened dataset form', async () => {
+    const pending = deferred()
+    mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
+    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    await flushPromises()
+    mocks.saveDataset.mockReset().mockReturnValueOnce(pending.promise)
+    const state = (wrapper.vm.$ as any).setupState
+    const earlierSave = state.handleSubmit({ errors: undefined })
+    await flushPromises()
+
+    await state.handleCancel()
+    mocks.route.query = { create_type: 'dataset' }
+    await flushPromises()
+    mocks.loadDatasets.mockClear()
+    state.form.name = 'New dataset'
+    pending.resolve()
+    await earlierSave
+
+    expect(state.showCreateModal).toBe(true)
+    expect(state.form.name).toBe('New dataset')
+    expect(mocks.loadDatasets).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('does not refresh datasets when a save completes after unmount', async () => {
+    const pending = deferred()
+    mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
+    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    await flushPromises()
+    mocks.saveDataset.mockReset().mockReturnValueOnce(pending.promise)
+    const state = (wrapper.vm.$ as any).setupState
+    const earlierSave = state.handleSubmit({ errors: undefined })
+    await flushPromises()
+    mocks.loadDatasets.mockClear()
+    wrapper.unmount()
+    pending.resolve()
+    await earlierSave
+
+    expect(mocks.loadDatasets).not.toHaveBeenCalled()
+  })
 })
