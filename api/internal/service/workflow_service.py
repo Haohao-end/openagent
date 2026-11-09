@@ -374,11 +374,16 @@ class WorkflowService(BaseService):
                 self.db.session.add(workflow)
                 self.db.session.commit()
             except GeneratorExit:
-                self.update(workflow_result, **{
-                    "status": WorkflowResultStatus.FAILED.value,
-                    "state": node_results,
-                    "latency": (time.perf_counter() - start_at),
-                })
+                try:
+                    self.update(workflow_result, **{
+                        "status": WorkflowResultStatus.FAILED.value,
+                        "state": node_results,
+                        "latency": (time.perf_counter() - start_at),
+                    })
+                except Exception as error:  # noqa: BLE001
+                    logging.getLogger(__name__).error(
+                        "工作流调试断开状态保存失败: error_type=%s", type(error).__name__
+                    )
                 raise
             except Exception as e:
                 logging.error("工作流调试失败: error_type=%s", type(e).__name__)
