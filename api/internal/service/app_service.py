@@ -1637,7 +1637,12 @@ class AppService(BaseService):
         try:
             yield from stream
         except GeneratorExit:
-            save_agent_thoughts()
+            try:
+                save_agent_thoughts()
+            except Exception as error:  # noqa: BLE001
+                logging.getLogger(__name__).error(
+                    "保存调试Agent推理过程失败: error_type=%s", type(error).__name__
+                )
             raise
 
         # 17.将消息以及推理过程添加到数据库
