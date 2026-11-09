@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import { useI18n } from 'vue-i18n'
 import { apiPrefix } from '@/config'
@@ -63,6 +63,7 @@ const modelOptions = computed(() => {
 })
 let modelDetailLoad: Promise<boolean> = Promise.resolve(true)
 let modelSelectionRequest = 0
+let isUnmounted = false
 
 // 2.定义选择模型处理器
 const changeModel = (value: string) => {
@@ -142,7 +143,14 @@ watch(
 )
 
 onMounted(() => {
-  loadLanguageModels()
+  void loadLanguageModels().catch((error: unknown) => {
+    if (isUnmounted) return
+    Message.error(getErrorMessage(error, t('appStudio.modelConfig.loadOptionsFailed')))
+  })
+})
+
+onUnmounted(() => {
+  isUnmounted = true
 })
 </script>
 

@@ -1609,6 +1609,7 @@ export default {
     },
     modelConfig: {
       loadFailed: '加载模型参数失败，请重试',
+      loadOptionsFailed: '加载模型列表失败，请重试',
       unsetModel: '未配置模型',
       title: '模型设置',
       modelLabel: '模型',

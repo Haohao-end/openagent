@@ -6,13 +6,14 @@ import ModelConfig from '../ModelConfig.vue'
 const mocks = vi.hoisted(() => ({
   languageModel: null as any,
   loadLanguageModel: vi.fn(),
+  loadModels: vi.fn(),
   updateDraft: vi.fn().mockResolvedValue(undefined),
   messageError: vi.fn(),
 }))
 
 vi.mock('@/hooks/use-language-model', () => ({
   useGetLanguageModel: () => ({ loading: ref(false), language_model: mocks.languageModel, loadLanguageModel: mocks.loadLanguageModel }),
-  useGetLanguageModels: () => ({ language_models: ref([]), loadLanguageModels: vi.fn() }),
+  useGetLanguageModels: () => ({ language_models: ref([]), loadLanguageModels: mocks.loadModels }),
 }))
 vi.mock('@/hooks/use-app', () => ({ useUpdateDraftAppConfig: () => ({ handleUpdateDraftAppConfig: mocks.updateDraft }) }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -30,6 +31,7 @@ describe('ModelConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.updateDraft.mockResolvedValue(undefined)
+    mocks.loadModels.mockReset().mockResolvedValue(undefined)
     mocks.languageModel = ref({ parameters: [] })
     mocks.loadLanguageModel.mockImplementation(async (_provider: string, model: string) => {
       if (model === 'new-model') await pendingLoad.promise
@@ -110,5 +112,28 @@ describe('ModelConfig', () => {
     expect(mocks.updateDraft).not.toHaveBeenCalled()
     expect(mocks.messageError).toHaveBeenCalledWith('model details unavailable')
     wrapper.unmount()
+  })
+
+  it('reports model list failures only while the editor is mounted', async () => {
+    mocks.loadModels.mockRejectedValueOnce(new Error('model list unavailable'))
+    const wrapper = mount(ModelConfig, {
+      props: { app_id: 'app-1', model_config: {}, dialog_round: 3 },
+      global: { stubs: { 'a-trigger': TriggerStub, 'a-select': SelectStub } },
+    })
+    await flushPromises()
+    expect(mocks.messageError).toHaveBeenCalledWith('model list unavailable')
+    wrapper.unmount()
+
+    let rejectLoad!: (error: Error) => void
+    mocks.loadModels.mockReset().mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectLoad = reject }))
+    const unmountedWrapper = mount(ModelConfig, {
+      props: { app_id: 'app-1', model_config: {}, dialog_round: 3 },
+      global: { stubs: { 'a-trigger': TriggerStub, 'a-select': SelectStub } },
+    })
+    unmountedWrapper.unmount()
+    mocks.messageError.mockReset()
+    rejectLoad(new Error('late model list failure'))
+    await flushPromises()
+    expect(mocks.messageError).not.toHaveBeenCalled()
   })
 })
