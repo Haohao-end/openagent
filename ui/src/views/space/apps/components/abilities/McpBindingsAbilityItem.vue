@@ -51,6 +51,7 @@ const emits = defineEmits(['update:mcp_bindings', 'reload-draft-app-config'])
 const { handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
 const mcpBindingsModalVisible = ref(false)
 const isSavingMcpBinding = ref(false)
+const isDeletingMcpBinding = ref(false)
 const isMcpBindingsInit = ref(false)
 const activateMcpBindings = ref<McpBindingForm[]>([])
 const originMcpBindings = ref<McpBindingForm[]>([])
@@ -315,16 +316,22 @@ const handleSubmitBinding = async () => {
 }
 
 const handleDeleteBinding = async (idx: number) => {
+  if (isDeletingMcpBinding.value) return
   const newBindings = [...activateMcpBindings.value]
   newBindings.splice(idx, 1)
 
-  await handleUpdateDraftAppConfig(props.app_id, {
-    mcp_bindings: newBindings.map((item) => stripBindingForm(item)),
-  })
+  isDeletingMcpBinding.value = true
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, {
+      mcp_bindings: newBindings.map((item) => stripBindingForm(item)),
+    })
 
-  syncLocalBindings(newBindings)
-  emits('update:mcp_bindings', cloneDeep(newBindings.map((item) => stripBindingForm(item))))
-  emits('reload-draft-app-config')
+    syncLocalBindings(newBindings)
+    emits('update:mcp_bindings', cloneDeep(newBindings.map((item) => stripBindingForm(item))))
+    emits('reload-draft-app-config')
+  } finally {
+    isDeletingMcpBinding.value = false
+  }
 }
 
 const saveMarketplaceBinding = async (binding: McpBinding) => {
@@ -438,6 +445,7 @@ watch(
           size="mini"
           type="text"
           class="hidden group-hover:block flex-shrink-0 ml-2 !text-red-700 rounded"
+          :loading="isDeletingMcpBinding"
           @click.stop="handleDeleteBinding(idx)"
         >
           <template #icon>

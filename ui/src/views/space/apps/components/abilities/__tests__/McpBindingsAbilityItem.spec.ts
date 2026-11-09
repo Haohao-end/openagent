@@ -182,4 +182,27 @@ describe('McpBindingsAbilityItem', () => {
     expect(state.mcpBindingsModalVisible).toBe(false)
     wrapper.unmount()
   })
+
+  it('prevents overlapping MCP binding deletions', async () => {
+    let resolveDelete!: () => void
+    const pendingDelete = new Promise<void>((resolve) => { resolveDelete = resolve })
+    mocks.updateDraftAppConfig.mockReturnValueOnce(pendingDelete)
+    const wrapper = mount(McpBindingsAbilityItem, {
+      props: {
+        app_id: 'app-1',
+        mcp_bindings: [makeBinding({ provider_key: 'catalog::first' }), makeBinding({ provider_key: 'catalog::second' })],
+        mcp_tool_snapshots: [],
+      },
+      global: { stubs: globalStubs },
+    })
+    const state = (wrapper.vm.$ as any).setupState
+    const firstDelete = state.handleDeleteBinding(0)
+    const secondDelete = state.handleDeleteBinding(1)
+
+    expect(mocks.updateDraftAppConfig).toHaveBeenCalledTimes(1)
+    resolveDelete()
+    await Promise.all([firstDelete, secondDelete])
+    expect(state.activateMcpBindings.map((item: any) => item.provider_key)).toEqual(['catalog::second'])
+    wrapper.unmount()
+  })
 })
