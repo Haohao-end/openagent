@@ -163,7 +163,7 @@ onMounted(() => {
       <div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-w-none">
         <a-row :gutter="[20, 20]">
           <!-- 有数据的UI状态 -->
-          <a-col v-for="(builtinTool, idx) in filterBuiltinTools" :key="builtinTool.name" :span="6">
+          <a-col v-for="(builtinTool, idx) in filterBuiltinTools" :key="builtinTool.name" :xs="24" :sm="12" :md="8" :lg="6">
             <a-card hoverable class="cursor-pointer rounded-lg" @click="showIdx = idx">
               <!-- 顶部提供商名称 -->
               <div class="flex items-center gap-3 mb-3">

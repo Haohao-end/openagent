@@ -199,7 +199,7 @@ onMounted(() => {
 
       <div class="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide" @scroll="handleScroll">
         <a-row :gutter="[20, 20]">
-          <a-col v-for="app in apps" :key="app.id" :span="6">
+          <a-col v-for="app in apps" :key="app.id" :xs="24" :sm="12" :md="8" :lg="6">
             <a-card hoverable class="h-full rounded-lg flex flex-col" :body-style="{ padding: '16px' }">
               <button type="button" class="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-lg flex-1" @click="handlePreview(app)">
                 <!-- 顶部应用名称和标签 -->

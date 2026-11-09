@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent } from 'vue'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import StoreToolsListView from '@/views/store/tools/ListView.vue'
 
@@ -25,6 +26,11 @@ const slotStub = {
   template: '<div><slot /></div>',
 }
 
+const ColStub = defineComponent({
+  props: { span: Number, xs: Number, sm: Number, md: Number, lg: Number },
+  template: '<div><slot /></div>',
+})
+
 const globalStubs = {
   'a-spin': slotStub,
   'a-avatar': slotStub,
@@ -35,7 +41,7 @@ const globalStubs = {
     template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
   },
   'a-row': slotStub,
-  'a-col': slotStub,
+  'a-col': ColStub,
   'a-card': slotStub,
   'a-empty': slotStub,
   'a-drawer': slotStub,
@@ -106,6 +112,14 @@ describe('store tools list', () => {
     expect(scrollContainer.classes()).toContain('scrollbar-w-none')
     expect(scrollContainer.text()).toContain('搜索工具')
     expect(scrollContainer.text()).toContain('代码工具')
+  })
+
+  it('uses responsive card columns', async () => {
+    const wrapper = shallowMount(StoreToolsListView, { global: { stubs: globalStubs } })
+    await flushPromises()
+
+    expect(wrapper.findAllComponents(ColStub)[0].props()).toMatchObject({ xs: 24, sm: 12, md: 8, lg: 6 })
+    wrapper.unmount()
   })
 
   it('matches builtin tool labels without case sensitivity', async () => {

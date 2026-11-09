@@ -34,6 +34,11 @@ const SearchStub = defineComponent({
   },
 })
 
+const ColStub = defineComponent({
+  props: { span: Number, xs: Number, sm: Number, md: Number, lg: Number },
+  template: '<div><slot /></div>',
+})
+
 const deferred = <T,>() => {
   let resolve!: (value: T) => void
   let reject!: (reason: Error) => void
@@ -55,6 +60,16 @@ describe('PublicAppsListView request ordering', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetAppTags.mockResolvedValue({ data: { tags: [] } })
+  })
+
+  it('uses responsive card columns', async () => {
+    mockGetPublicApps.mockResolvedValue(appsResponse('app', 'App'))
+    const { default: ListView } = await import('../ListView.vue')
+    const wrapper = mount(ListView, { global: { stubs: { 'a-col': ColStub } } })
+    await flushPromises()
+
+    expect(wrapper.findAllComponents(ColStub)[0].props()).toMatchObject({ xs: 24, sm: 12, md: 8, lg: 6 })
+    wrapper.unmount()
   })
 
   it('runs the latest search and ignores the stale list response', async () => {
