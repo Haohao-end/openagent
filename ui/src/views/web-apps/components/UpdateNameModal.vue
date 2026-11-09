@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useUpdateConversationName } from '@/hooks/use-conversation'
 import type { Form, ValidatedError } from '@arco-design/web-vue'
-import { ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
@@ -17,9 +17,13 @@ const {
 const defaultForm = { name: '' }
 const form = ref({ ...defaultForm })
 const formRef = ref<InstanceType<typeof Form>>()
+let saveSession = 0
 
 // 2.定义隐藏模态窗函数
-const hideModal = () => emits('update:visible', false)
+const hideModal = () => {
+  saveSession += 1
+  emits('update:visible', false)
+}
 
 // 3.定义表单提交函数
 const saveName = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
@@ -27,17 +31,23 @@ const saveName = async ({ errors }: { errors: Record<string, ValidatedError> | u
   if (errors) return
 
   // 3.2 检测是保存还是新增，调用不同的API接口
-  await handleUpdateConversationName(props.conversation_id, form.value.name)
+  const requestSession = ++saveSession
+  const conversationId = props.conversation_id
+  const name = form.value.name
+  const successCallback = props.success_callback
+  await handleUpdateConversationName(conversationId, name)
+  if (requestSession !== saveSession || !props.visible) return
 
   // 3.3 完成保存操作，隐藏模态窗并调用回调函数
-  props.success_callback && props.success_callback(props.conversation_id, form.value.name)
+  successCallback && successCallback(conversationId, name)
   emits('update:visible', false)
 }
 
 // 4.监听模态窗显示状态变化
 watch(
-  () => props.visible,
-  async (newValue) => {
+  () => [props.visible, props.conversation_id] as const,
+  ([newValue]) => {
+    saveSession += 1
     // 4.1 清除表单校验信息
     formRef.value?.resetFields()
 
@@ -47,7 +57,12 @@ watch(
       emits('update:conversation_id', '')
     }
   },
+  { flush: 'sync' },
 )
+
+onUnmounted(() => {
+  saveSession += 1
+})
 </script>
 
 <template>
