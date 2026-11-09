@@ -186,7 +186,8 @@ class IntentRecognitionService(BaseService):
             if not cached_data:
                 return None
 
-            return json.loads(cached_data)
+            cached_intent = json.loads(cached_data)
+            return cached_intent if isinstance(cached_intent, dict) else None
         except Exception as e:
             logging.error("Failed to get cached intent: error_type=%s", type(e).__name__)
             return None

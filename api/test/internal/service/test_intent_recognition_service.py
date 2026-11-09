@@ -158,3 +158,10 @@ class TestIntentRecognitionService:
     @pytest.mark.parametrize("response", ["null", "42", "true", '"text"'])
     def test_non_object_json_uses_default_intent(self, service, response):
         assert service._parse_response(response) == service.DEFAULT_INTENT
+
+    @pytest.mark.parametrize(
+        "payload", ['[{"intent":"stale"}]', '"stale"', "42", "true"]
+    )
+    def test_cached_payload_must_be_object(self, service, mock_redis, payload):
+        mock_redis.get.return_value = payload
+        assert service.get_cached_intent("user-1") is None
