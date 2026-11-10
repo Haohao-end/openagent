@@ -61,6 +61,16 @@ def test_mcp_schema_compiler_should_reject_items_when_item_schema_is_false():
         schema.model_validate({"values": [{}]})
 
 
+def test_mcp_schema_compiler_should_validate_additional_properties_schema():
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "additionalProperties": {"type": "integer"}}
+    )
+
+    assert schema.model_validate({"extra": 3}).model_dump() == {"extra": 3}
+    with pytest.raises(ValidationError):
+        schema.model_validate({"extra": "not an integer"})
+
+
 @pytest.mark.parametrize(
     ("value_schema", "value"),
     [

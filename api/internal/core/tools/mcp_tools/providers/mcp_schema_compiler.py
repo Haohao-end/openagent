@@ -250,7 +250,8 @@ class McpSchemaCompiler:
     def _build_object_model(self, schema: dict[str, Any], model_name_hint: str, depth: int) -> type[BaseModel]:
         properties = schema.get("properties") or {}
         required_fields = {str(field_name) for field_name in (schema.get("required") or []) if _normalize_text(field_name)}
-        allow_extra = schema.get("additionalProperties", True) is not False
+        additional_properties = schema.get("additionalProperties", True)
+        allow_extra = additional_properties is not False
 
         fields: dict[str, tuple[Any, Any]] = {}
         if isinstance(properties, dict):
@@ -284,6 +285,22 @@ class McpSchemaCompiler:
 
         model_name = f"{model_name_hint}_{uuid4().hex}"
         model_config = ConfigDict(extra="allow" if allow_extra else "forbid")
+        if isinstance(additional_properties, dict):
+            extra_type = (
+                self._compile_schema(additional_properties, model_name_hint=f"{model_name_hint}Extra", depth=depth + 1)
+                if additional_properties
+                else Any
+            )
+            model_base = type(
+                f"{model_name}Base",
+                (BaseModel,),
+                {
+                    "__annotations__": {"__pydantic_extra__": dict[str, extra_type]},
+                    "__pydantic_extra__": Field(init=False),
+                    "model_config": ConfigDict(extra="allow"),
+                },
+            )
+            return create_model(model_name, __base__=model_base, **fields)
         if not fields:
             return create_model(model_name, __config__=model_config)
         return create_model(model_name, __config__=model_config, **fields)
