@@ -29,13 +29,41 @@ def _reject_empty_enum(_value: Any) -> Any:
     raise ValueError("No values are allowed by an empty enum")
 
 
+def _validate_enum(value: Any, enum_values: list[Any]) -> Any:
+    if any(value == item and isinstance(value, bool) == isinstance(item, bool) for item in enum_values):
+        return value
+    raise ValueError("Value is not allowed by the enum")
+
+
+def _numeric_constraints(schema: dict[str, Any]) -> dict[str, int | float]:
+    return {
+        name: value
+        for name, value in (
+            ("ge", schema.get("minimum")),
+            ("le", schema.get("maximum")),
+            ("gt", schema.get("exclusiveMinimum")),
+            ("lt", schema.get("exclusiveMaximum")),
+            ("multiple_of", schema.get("multipleOf")),
+        )
+        if type(value) in (int, float)
+    }
+
+
 def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
+    schema_type = str(schema.get("type") or "string").strip().lower()
     enum_values = schema.get("enum")
     if isinstance(enum_values, list):
         if not enum_values:
             return Annotated[Any, Field(json_schema_extra={"enum": []}), AfterValidator(_reject_empty_enum)]
+        if schema_type in {"integer", "number"}:
+            numeric_type = StrictInt if schema_type == "integer" else StrictFloat
+            constraints = _numeric_constraints(schema)
+            annotation = Annotated[
+                numeric_type,
+                Field(**constraints, json_schema_extra={"enum": enum_values}),
+            ]
+            return Annotated[annotation, AfterValidator(lambda value: _validate_enum(value, enum_values))]
         return Literal[tuple(enum_values)]
-    schema_type = str(schema.get("type") or "string").strip().lower()
     if schema_type == "string":
         constraints = {
             name: value
@@ -46,10 +74,10 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
             if type(value) is int and value >= 0
         }
         return Annotated[str, Field(**constraints)] if constraints else str
-    if schema_type == "integer":
-        return StrictInt
-    if schema_type == "number":
-        return StrictFloat
+    if schema_type in {"integer", "number"}:
+        numeric_type = StrictInt if schema_type == "integer" else StrictFloat
+        constraints = _numeric_constraints(schema)
+        return Annotated[numeric_type, Field(**constraints)] if constraints else numeric_type
     if schema_type == "boolean":
         return StrictBool
     if schema_type == "array":
