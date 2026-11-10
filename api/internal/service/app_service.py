@@ -348,12 +348,12 @@ class AppService(BaseService):
         icon_url = req.icon.data
         if not icon_url:
             try:
-                logging.info(f"用户未提供图标，自动生成图标: name={req.name.data}")
+                logging.info("icon_generation_started")
                 icon_url = self.icon_generator_service.generate_icon(
                     name=req.name.data,
                     description=req.description.data or ""
                 )
-                logging.info(f"自动生成图标成功: {icon_url}")
+                logging.info("icon_generation_succeeded")
             except Exception as e:
                 logging.error("自动生成图标失败: error_type=%s", type(e).__name__)
                 # 如果生成失败，使用默认图标 - 使用一个彩色的SVG图标
@@ -1791,12 +1791,12 @@ class AppService(BaseService):
 
         # 2.使用图标生成服务生成新图标
         try:
-            logging.info(f"重新生成应用图标: app_id={app_id}, name={app.name}")
+            logging.info("icon_regeneration_started")
             icon_url = self.icon_generator_service.generate_icon(
                 name=app.name,
                 description=app.description or ""
             )
-            logging.info(f"重新生成图标成功: {icon_url}")
+            logging.info("icon_regeneration_succeeded")
         except Exception as e:
             logging.error("重新生成图标失败: error_type=%s", type(e).__name__)
             # 直接抛出原始异常，保留错误信息
@@ -1810,12 +1810,12 @@ class AppService(BaseService):
     def generate_icon_preview(self, name: str, description: str) -> str:
         """生成图标预览（不保存到应用）"""
         try:
-            logging.info(f"生成图标预览: name={name}")
+            logging.info("icon_preview_started")
             icon_url = self.icon_generator_service.generate_icon(
                 name=name,
                 description=description or ""
             )
-            logging.info(f"生成图标预览成功: {icon_url}")
+            logging.info("icon_preview_succeeded")
             return icon_url
         except Exception as e:
             logging.error("生成图标预览失败: error_type=%s", type(e).__name__)
