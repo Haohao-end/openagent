@@ -7,7 +7,14 @@ from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 from langchain_core.tools import BaseTool, StructuredTool
-from pydantic import Field, StrictBool, StrictFloat, StrictInt, create_model
+from pydantic import (
+    AfterValidator,
+    Field,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    create_model,
+)
 
 from .skill_executor import SkillSandboxExecutor, SkillScfClient
 
@@ -18,9 +25,15 @@ def _normalize_text(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _reject_empty_enum(_value: Any) -> Any:
+    raise ValueError("No values are allowed by an empty enum")
+
+
 def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
     enum_values = schema.get("enum")
-    if isinstance(enum_values, list) and enum_values:
+    if isinstance(enum_values, list):
+        if not enum_values:
+            return Annotated[Any, Field(json_schema_extra={"enum": []}), AfterValidator(_reject_empty_enum)]
         return Literal[tuple(enum_values)]
     schema_type = str(schema.get("type") or "string").strip().lower()
     if schema_type == "string":
