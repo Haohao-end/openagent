@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import json
+import logging
 import random
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -3217,8 +3218,10 @@ class TestAppServiceDraftConfigValidation:
         with pytest.raises(ValidateErrorException):
             service._validate_draft_app_config(payload, SimpleNamespace(id=uuid4()))
 
-    def test_create_app_with_auto_generated_icon(self, monkeypatch):
+    def test_create_app_with_auto_generated_icon(self, monkeypatch, caplog):
         """测试创建应用时自动生成图标"""
+        caplog.set_level(logging.INFO)
+
         class _CreateSession:
             def __init__(self):
                 self.added = []
@@ -3271,6 +3274,9 @@ class TestAppServiceDraftConfigValidation:
 
         assert create_db.auto_commit_count == 1
         assert app.icon == "https://cos.com/generated-icon.png"
+        assert "https://cos.com/generated-icon.png" not in caplog.text
+        assert "测试应用" not in caplog.text
+        assert "应用描述" not in caplog.text
         mock_icon_generator.generate_icon.assert_called_once_with(
             name="测试应用",
             description="应用描述"
@@ -3335,8 +3341,9 @@ class TestAppServiceDraftConfigValidation:
         assert "测" in app.icon or "A" in app.icon  # 应该包含应用名称的首字母或默认字母
         assert secret not in caplog.text
 
-    def test_regenerate_icon_success(self):
+    def test_regenerate_icon_success(self, caplog):
         """测试重新生成图标成功"""
+        caplog.set_level(logging.INFO)
         app_id = uuid4()
         account_id = uuid4()
         app = SimpleNamespace(
@@ -3374,6 +3381,10 @@ class TestAppServiceDraftConfigValidation:
         icon_url = service.regenerate_icon(app_id, account)
 
         assert icon_url == "https://cos.com/new-icon.png"
+        assert "https://cos.com/new-icon.png" not in caplog.text
+        assert "测试应用" not in caplog.text
+        assert "应用描述" not in caplog.text
+        assert str(app_id) not in caplog.text
         mock_icon_generator.generate_icon.assert_called_once_with(
             name="测试应用",
             description="应用描述"
@@ -3503,7 +3514,8 @@ class TestAppServiceDraftConfigValidation:
         assert result is conversation
         assert updates == []
 
-    def test_generate_icon_preview_should_return_icon_url(self):
+    def test_generate_icon_preview_should_return_icon_url(self, caplog):
+        caplog.set_level(logging.INFO)
         mock_icon_generator = SimpleNamespace(
             generate_icon=Mock(return_value="https://cos.com/preview-icon.png"),
         )
@@ -3524,6 +3536,9 @@ class TestAppServiceDraftConfigValidation:
         icon_url = service.generate_icon_preview(name="预览应用", description="应用描述")
 
         assert icon_url == "https://cos.com/preview-icon.png"
+        assert "https://cos.com/preview-icon.png" not in caplog.text
+        assert "预览应用" not in caplog.text
+        assert "应用描述" not in caplog.text
         mock_icon_generator.generate_icon.assert_called_once_with(
             name="预览应用",
             description="应用描述",
