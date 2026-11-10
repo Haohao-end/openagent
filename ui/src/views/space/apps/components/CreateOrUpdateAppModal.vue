@@ -38,21 +38,25 @@ const form = ref<AppForm>(createDefaultForm())
 const appDetailLoadFailed = ref(false)
 const formRef = ref<InstanceType<typeof Form>>()
 let detailRequest = 0
+let iconOperationRequest = 0
 
 // 2.定义隐藏模态窗函数
 const hideModal = () => emits('update:visible', false)
 
 // 2.5 定义上传图标处理器
 const handleUploadIcon = async (file: File) => {
-  const requestId = detailRequest
+  const requestId = ++iconOperationRequest
+  const detailRequestId = detailRequest
+  const isCurrentRequest = () =>
+    requestId === iconOperationRequest && detailRequestId === detailRequest
   try {
     await handleUploadImage(file)
-    if (requestId !== detailRequest) return
+    if (!isCurrentRequest()) return
     form.value.icon = image_url.value
     form.value.fileList = [{ uid: '1', name: t('appStudio.createModal.iconFileName'), url: image_url.value }]
     Message.success(t('appStudio.createModal.uploadIconSuccess'))
   } catch (error: unknown) {
-    if (requestId !== detailRequest) return
+    if (!isCurrentRequest()) return
     Message.error(getErrorMessage(error, t('appStudio.createModal.uploadIconFailed')))
     throw error
   }
@@ -65,20 +69,27 @@ const handleGenerateIcon = async () => {
     return
   }
 
-  const requestId = detailRequest
+  const requestId = ++iconOperationRequest
+  const detailRequestId = detailRequest
+  const isCurrentRequest = () =>
+    requestId === iconOperationRequest && detailRequestId === detailRequest
   try {
     // 如果是更新模式，调用regenerate API
     if (props.app_id) {
-      const iconUrl = await handleRegenerateIcon(props.app_id, () => requestId === detailRequest)
-      if (requestId !== detailRequest) return
+      const iconUrl = await handleRegenerateIcon(props.app_id, isCurrentRequest)
+      if (!isCurrentRequest()) return
       if (iconUrl) {
         form.value.icon = iconUrl
         form.value.fileList = [{ uid: '1', name: t('appStudio.createModal.iconFileName'), url: iconUrl }]
         Message.success(t('appStudio.createModal.generateIconSuccess'))
       }
     } else {
-      const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description, () => requestId === detailRequest)
-      if (requestId !== detailRequest) return
+      const iconUrl = await handleGenerateIconPreview(
+        form.value.name,
+        form.value.description,
+        isCurrentRequest,
+      )
+      if (!isCurrentRequest()) return
       if (iconUrl) {
         form.value.icon = iconUrl
         form.value.fileList = [{ uid: '1', name: t('appStudio.createModal.iconFileName'), url: iconUrl }]
