@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 
 import pytest
+from pydantic import ValidationError
+
+from internal.core.skills import skill_tool_factory
 from internal.core.skills.skill_tool_factory import SkillToolFactory
 from internal.exception import FailException
-from pydantic import ValidationError
 
 
 def test_skill_tool_factory_should_fallback_to_sandbox_when_scf_fails():
@@ -307,6 +309,8 @@ def test_skill_tool_factory_should_validate_string_length_constraints(field, val
         ({"type": "string", "pattern": r"^\w+$"}, "word_1", "café"),
         ({"type": "string", "pattern": r"\bcat\b"}, "écaté", "scatter"),
         ({"type": "string", "pattern": r"^[[]$"}, "[", "x"),
+        ({"type": "string", "pattern": r"^(?<word>[a-z]+)-\k<word>$"}, "cat-cat", "cat-dog"),
+        ({"type": "string", "pattern": r"^[\k]$"}, "k", "x"),
         ({"type": "string", "pattern": r"^.$"}, "x", "\u2028"),
         ({"type": "string", "pattern": "^x$"}, "x", "x\u2028"),
         ({"type": "string", "pattern": "^x$"}, "x", "x\n"),
@@ -345,7 +349,7 @@ def test_skill_tool_factory_should_share_pattern_timeout_across_array_items(monk
     schema = SkillToolFactory(scf_client=None)._build_args_schema(
         {"properties": {"values": {"type": "array", "items": {"type": "string", "pattern": "^a$"}}}}
     )
-    elapsed = iter((0.0, 0.01, 0.03, 0.06))
+    elapsed = iter((0.0, 0.01, 0.01, 0.03, 0.03, 0.06))
     monkeypatch.setattr("internal.core.skills.skill_tool_factory.monotonic", lambda: next(elapsed))
 
     with pytest.raises(ValidationError, match="Pattern validation timed out"):
@@ -361,10 +365,23 @@ def test_skill_tool_factory_should_start_pattern_timeout_lazily(monkeypatch):
             }
         }
     )
-    elapsed = iter((0.0, 0.06))
+    elapsed = iter((0.0, 0.06, 0.06))
     monkeypatch.setattr("internal.core.skills.skill_tool_factory.monotonic", lambda: next(elapsed))
 
     assert schema.model_validate({"unrelated": [1], "value": "a"}).value == "a"
+
+
+def test_skill_tool_factory_should_not_charge_unrelated_time_to_pattern_budget(monkeypatch):
+    elapsed = [0.0]
+    monkeypatch.setattr(skill_tool_factory, "monotonic", lambda: elapsed[0])
+    token = skill_tool_factory._PATTERN_VALIDATION_REMAINING.set(None)
+    pattern = skill_tool_factory._compile_json_schema_pattern("^a$")
+    try:
+        assert skill_tool_factory._validate_string_pattern("a", pattern) == "a"
+        elapsed[0] = 1.0
+        assert skill_tool_factory._validate_string_pattern("a", pattern) == "a"
+    finally:
+        skill_tool_factory._PATTERN_VALIDATION_REMAINING.reset(token)
 
 
 def test_skill_tool_factory_should_handle_empty_character_classes():

@@ -26,7 +26,7 @@ from .skill_executor import SkillSandboxExecutor, SkillScfClient
 
 logger = logging.getLogger(__name__)
 SKILL_PATTERN_TIMEOUT_SECONDS = 0.05
-_PATTERN_VALIDATION_DEADLINE: ContextVar[float | None] = ContextVar("skill_pattern_validation_deadline", default=None)
+_PATTERN_VALIDATION_REMAINING: ContextVar[float | None] = ContextVar("skill_pattern_validation_remaining", default=None)
 _ECMASCRIPT_WHITESPACE = r"\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
 
 
@@ -47,7 +47,14 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
     while index < len(pattern):
         char = pattern[index]
         if escaped:
-            if char in "sS":
+            if char == "k" and not in_character_class and pattern[index + 1 : index + 2] == "<":
+                name_end = pattern.find(">", index + 2)
+                if name_end != -1:
+                    translated.append(f"(?P={pattern[index + 2 : name_end]})")
+                    index = name_end
+            elif char == "k" and in_character_class:
+                translated.append("k")
+            elif char in "sS":
                 whitespace = f"[{_ECMASCRIPT_WHITESPACE}]"
                 if char == "S":
                     whitespace = f"[^{_ECMASCRIPT_WHITESPACE}]"
@@ -80,6 +87,11 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
         elif char == "[" and in_character_class:
             translated.append(r"\[")
             class_first = False
+        elif not in_character_class and pattern[index : index + 3] == "(?<" and pattern[index + 3 : index + 4] not in "=!":
+            name_end = pattern.find(">", index + 3)
+            if name_end != -1:
+                translated.append(f"(?P<{pattern[index + 3 : name_end]}>")
+                index = name_end
         elif char == "]" and in_character_class and not class_first:
             in_character_class = False
             translated.append(char)
@@ -101,19 +113,19 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
 def _validate_string_pattern(value: Any, pattern: regex.Pattern[str]) -> str:
     if not isinstance(value, str):
         raise ValueError("Value does not match the pattern")  # noqa: TRY004
-    deadline = _PATTERN_VALIDATION_DEADLINE.get()
-    if deadline is None:
-        deadline = monotonic() + SKILL_PATTERN_TIMEOUT_SECONDS
-        _PATTERN_VALIDATION_DEADLINE.set(deadline)
-        timeout = SKILL_PATTERN_TIMEOUT_SECONDS
-    else:
-        timeout = deadline - monotonic()
-    if timeout <= 0:
+    remaining = _PATTERN_VALIDATION_REMAINING.get()
+    if remaining is None:
+        remaining = SKILL_PATTERN_TIMEOUT_SECONDS
+    if remaining <= 0:
         raise ValueError("Pattern validation timed out")
+    started = monotonic()
     try:
-        match = pattern.search(value, timeout=timeout)
+        match = pattern.search(value, timeout=remaining)
     except TimeoutError as exc:
         raise ValueError("Pattern validation timed out") from exc
+    finally:
+        elapsed = monotonic() - started
+        _PATTERN_VALIDATION_REMAINING.set(max(0.0, remaining - elapsed))
     if match is None:
         raise ValueError("Value does not match the pattern")
     return value
@@ -123,11 +135,11 @@ class _SkillToolArgsBase(BaseModel):
     @model_validator(mode="wrap")
     @classmethod
     def _bound_pattern_validation(cls, value: Any, handler: Any) -> Any:
-        token = _PATTERN_VALIDATION_DEADLINE.set(None)
+        token = _PATTERN_VALIDATION_REMAINING.set(None)
         try:
             return handler(value)
         finally:
-            _PATTERN_VALIDATION_DEADLINE.reset(token)
+            _PATTERN_VALIDATION_REMAINING.reset(token)
 
 
 class _ClosedSkillToolArgsBase(_SkillToolArgsBase):
