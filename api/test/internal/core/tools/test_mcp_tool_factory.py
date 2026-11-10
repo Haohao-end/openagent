@@ -51,6 +51,16 @@ def test_mcp_schema_compiler_should_allow_arrays_without_item_schema():
     assert schema.model_validate({"values": [1, "text", None]}).values == [1, "text", None]
 
 
+def test_mcp_schema_compiler_should_reject_items_when_item_schema_is_false():
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "properties": {"values": {"type": "array", "items": False}}}
+    )
+
+    assert schema.model_validate({"values": []}).values == []
+    with pytest.raises(ValidationError):
+        schema.model_validate({"values": [{}]})
+
+
 @pytest.mark.parametrize(
     ("value_schema", "value"),
     [

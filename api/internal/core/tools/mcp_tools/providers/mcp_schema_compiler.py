@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, Union, get_args, get_origin
+from typing import Annotated, Any, Literal, Union, get_args, get_origin
 from uuid import uuid4
 
 from pydantic import (
@@ -220,6 +220,8 @@ class McpSchemaCompiler:
             return self._build_object_model(schema, model_name_hint, depth)
 
         if _normalize_text(schema_type).lower() == "array":
+            if schema.get("items") is False:
+                return Annotated[list[Any], Field(max_length=0)]
             if "items" not in schema or schema["items"] is True or schema["items"] == {}:
                 return list[Any]
             item_schema = schema.get("items") or {}
