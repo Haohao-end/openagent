@@ -152,10 +152,9 @@ it('ignores generation finishing after the modal closes and reopens', async () =
   const { wrapper, state } = mountModal()
   const pending = state.handleGenerateIcon()
 
-  const closing = wrapper.setProps({ visible: false })
-  generated.resolve('stale-icon')
-  await closing
+  await wrapper.setProps({ visible: false })
   await wrapper.setProps({ visible: true })
+  generated.resolve('stale-icon')
   await pending
 
   expect(state.form.icon).toBe('')
