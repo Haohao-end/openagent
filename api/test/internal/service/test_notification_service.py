@@ -230,6 +230,32 @@ def test_get_notification_should_ignore_non_numeric_document_cache_fields(
     assert notification_service._get_notification("corrupt") is None
 
 
+@pytest.mark.parametrize("notification_type", ["document", "agent"])
+@pytest.mark.parametrize("is_read", ["false", {"invalid": True}])
+def test_get_notification_should_ignore_non_boolean_read_state(
+    notification_service, fake_redis, notification_type, is_read
+):
+    payload = {
+        "id": "corrupt",
+        "user_id": "00000000-0000-0000-0000-000000000001",
+        "created_at": "2026-01-01T00:00:00",
+        "is_read": is_read,
+    }
+    if notification_type == "document":
+        payload.update(
+            dataset_id="00000000-0000-0000-0000-000000000002",
+            document_id="00000000-0000-0000-0000-000000000003",
+            document_name="document.pdf",
+            segment_count=3,
+            index_duration=1.5,
+        )
+    else:
+        payload.update(app_id="00000000-0000-0000-0000-000000000002", app_name="Agent")
+    fake_redis.setex("notification:corrupt", 60, json.dumps(payload))
+
+    assert notification_service._get_notification("corrupt") is None
+
+
 @pytest.mark.parametrize(
     "payload",
     [
