@@ -209,6 +209,27 @@ def test_get_notification_should_ignore_invalid_document_cache_fields(notificati
     assert notification_service._get_notification("corrupt") is None
 
 
+@pytest.mark.parametrize("field", ["segment_count", "index_duration"])
+def test_get_notification_should_ignore_non_numeric_document_cache_fields(
+    notification_service, fake_redis, field
+):
+    payload = {
+        "id": "corrupt",
+        "user_id": "00000000-0000-0000-0000-000000000001",
+        "dataset_id": "00000000-0000-0000-0000-000000000002",
+        "document_id": "00000000-0000-0000-0000-000000000003",
+        "document_name": "document.pdf",
+        "segment_count": 3,
+        "index_duration": 1.5,
+        "created_at": "2026-01-01T00:00:00",
+        "is_read": False,
+    }
+    payload[field] = "invalid"
+    fake_redis.setex("notification:corrupt", 60, json.dumps(payload))
+
+    assert notification_service._get_notification("corrupt") is None
+
+
 @pytest.mark.parametrize(
     "payload",
     [
