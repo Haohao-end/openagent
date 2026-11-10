@@ -43,7 +43,14 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
         items = schema.get("items")
         if items is False:
             return Annotated[list[Any], Field(max_length=0)]
-        return list[_json_schema_type_to_python(items)] if isinstance(items, dict) else list[Any]
+        item_type = _json_schema_type_to_python(items) if isinstance(items, dict) else Any
+        constraints = {
+            name: value
+            for name, value in (("min_length", schema.get("minItems")), ("max_length", schema.get("maxItems")))
+            if type(value) is int and value >= 0
+        }
+        array_type = list[item_type]
+        return Annotated[array_type, Field(**constraints)] if constraints else array_type
     if schema_type == "object":
         return dict[str, Any]
     return Any
