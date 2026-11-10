@@ -24,6 +24,20 @@ def _normalize_schema(schema: Any) -> dict[str, Any]:
     return schema if isinstance(schema, dict) else {}
 
 
+def _numeric_constraints(schema: dict[str, Any]) -> dict[str, int | float]:
+    return {
+        name: value
+        for name, value in (
+            ("ge", schema.get("minimum")),
+            ("le", schema.get("maximum")),
+            ("gt", schema.get("exclusiveMinimum")),
+            ("lt", schema.get("exclusiveMaximum")),
+            ("multiple_of", schema.get("multipleOf")),
+        )
+        if type(value) in (int, float)
+    }
+
+
 def _safe_identifier(value: str) -> str:
     normalized = _normalize_text(value)
     if not normalized:
@@ -186,7 +200,7 @@ class McpSchemaCompiler:
                 json_schema_extra = {"const": enum_values[0]} if has_const else {"enum": enum_values}
                 return Annotated[
                     numeric_type,
-                    Field(json_schema_extra=json_schema_extra),
+                    Field(**_numeric_constraints(schema), json_schema_extra=json_schema_extra),
                     AfterValidator(lambda value: _validate_enum(value, enum_values)),
                 ]
             return _build_literal_type(enum_values)
@@ -252,10 +266,10 @@ class McpSchemaCompiler:
 
         if _normalize_text(schema_type).lower() == "string":
             return str
-        if _normalize_text(schema_type).lower() == "integer":
-            return StrictInt
-        if _normalize_text(schema_type).lower() == "number":
-            return StrictFloat
+        if _normalize_text(schema_type).lower() in {"integer", "number"}:
+            numeric_type = StrictInt if _normalize_text(schema_type).lower() == "integer" else StrictFloat
+            constraints = _numeric_constraints(schema)
+            return Annotated[numeric_type, Field(**constraints)] if constraints else numeric_type
         if _normalize_text(schema_type).lower() == "boolean":
             return StrictBool
         if _normalize_text(schema_type).lower() == "null":
@@ -333,17 +347,6 @@ class McpSchemaCompiler:
                 constraints["max_length"] = schema["maxLength"]
             if "pattern" in schema:
                 constraints["pattern"] = schema["pattern"]
-        elif schema_type in {"integer", "number"}:
-            if "minimum" in schema:
-                constraints["ge"] = schema["minimum"]
-            if "maximum" in schema:
-                constraints["le"] = schema["maximum"]
-            if "exclusiveMinimum" in schema:
-                constraints["gt"] = schema["exclusiveMinimum"]
-            if "exclusiveMaximum" in schema:
-                constraints["lt"] = schema["exclusiveMaximum"]
-            if "multipleOf" in schema:
-                constraints["multiple_of"] = schema["multipleOf"]
         elif schema_type == "array":
             if "minItems" in schema:
                 constraints["min_length"] = schema["minItems"]
