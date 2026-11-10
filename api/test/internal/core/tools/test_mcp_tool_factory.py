@@ -42,6 +42,16 @@ def test_mcp_schema_compiler_should_reject_null_for_optional_non_nullable_fields
         schema.model_validate({"value": None})
 
 
+def test_mcp_schema_compiler_should_reject_values_for_empty_enum():
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "properties": {"value": {"type": "string", "enum": []}}}
+    )
+
+    assert schema.model_json_schema()["properties"]["value"]["enum"] == []
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": "any string"})
+
+
 @pytest.mark.parametrize("schema_type,is_array", [("integer", False), ("number", False), ("integer", True), ("number", True)])
 def test_mcp_schema_compiler_should_reject_booleans_for_numeric_types(schema_type, is_array):
     value_schema = {"type": schema_type}
