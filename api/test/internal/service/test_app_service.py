@@ -362,7 +362,8 @@ class TestAppService:
             description="",
         )
 
-    def test_auto_create_app_should_fallback_when_icon_generation_failed(self, monkeypatch):
+    def test_auto_create_app_should_fallback_when_icon_generation_failed(self, monkeypatch, caplog):
+        secret = "SYNTHETIC_ICON_EXCEPTION_SECRET"
         account = SimpleNamespace(id=uuid4())
 
         class _AccountQuery:
@@ -415,7 +416,7 @@ class TestAppService:
             language_model_service=SimpleNamespace(),
             builtin_provider_manager=SimpleNamespace(),
             icon_generator_service=SimpleNamespace(
-                generate_icon=Mock(side_effect=FailException("icon failed"))
+                generate_icon=Mock(side_effect=FailException(secret))
             ),
         )
         service.conversation_service = SimpleNamespace(generate_suggested_questions=lambda _histories: [])
@@ -425,6 +426,8 @@ class TestAppService:
         assert app.icon.startswith("data:image/svg+xml;base64,")
         assert len(service.db.session.added) == 2
         assert service.db.session.added[0] is app
+        assert secret not in caplog.text
+        assert "name=助手" not in caplog.text
 
     def test_cancel_publish_should_raise_when_app_is_not_published(self, monkeypatch):
         service = _build_service()
