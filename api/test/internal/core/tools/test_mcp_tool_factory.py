@@ -52,6 +52,33 @@ def test_mcp_schema_compiler_should_reject_values_for_empty_enum():
         schema.model_validate({"value": "any string"})
 
 
+@pytest.mark.parametrize("minimum", [None, 0])
+def test_mcp_schema_compiler_should_intersect_numeric_enums_with_schema_type(minimum):
+    value_schema = {"type": "integer", "enum": [1, "x"]}
+    if minimum is not None:
+        value_schema["minimum"] = minimum
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "properties": {"value": value_schema}}
+    )
+
+    compiled_schema = schema.model_json_schema()["properties"]["value"]
+    assert compiled_schema["type"] == "integer"
+    assert compiled_schema["enum"] == [1, "x"]
+    assert schema.model_validate({"value": 1}).value == 1
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": "x"})
+
+
+def test_mcp_schema_compiler_should_reject_wrong_type_const_before_numeric_constraints():
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "properties": {"value": {"type": "integer", "const": "x", "minimum": 0}}}
+    )
+
+    assert schema.model_json_schema()["properties"]["value"]["const"] == "x"
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": "x"})
+
+
 @pytest.mark.parametrize("schema_type,is_array", [("integer", False), ("number", False), ("integer", True), ("number", True)])
 def test_mcp_schema_compiler_should_reject_booleans_for_numeric_types(schema_type, is_array):
     value_schema = {"type": schema_type}
