@@ -288,6 +288,7 @@ def test_skill_tool_factory_should_validate_string_length_constraints(field, val
         ({"type": "integer", "enum": [1, 2], "minimum": 2}, 2, 1),
         ({"type": "integer", "enum": [1, "x"], "minimum": 0}, 1, "x"),
         ({"type": "integer", "enum": [True, 1], "minimum": 0}, 1, True),
+        ({"type": "integer", "enum": [True, 2], "minimum": 0}, 2, 1),
     ],
 )
 def test_skill_tool_factory_should_validate_numeric_constraints(field, valid_value, invalid_value):

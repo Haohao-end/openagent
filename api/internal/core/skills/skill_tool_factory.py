@@ -30,9 +30,9 @@ def _reject_empty_enum(_value: Any) -> Any:
 
 
 def _validate_enum(value: Any, enum_values: list[Any]) -> Any:
-    if value not in enum_values:
-        raise ValueError("Value is not allowed by the enum")
-    return value
+    if any(value == item and isinstance(value, bool) == isinstance(item, bool) for item in enum_values):
+        return value
+    raise ValueError("Value is not allowed by the enum")
 
 
 def _numeric_constraints(schema: dict[str, Any]) -> dict[str, int | float]:
