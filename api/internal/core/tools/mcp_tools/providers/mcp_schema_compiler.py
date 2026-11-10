@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal, Union, get_args, get_origin
 from uuid import uuid4
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -67,10 +68,14 @@ def _flatten_union_types(types: list[Any]) -> list[Any]:
 def _build_literal_type(values: list[Any]) -> Any:
     normalized_values = _dedupe_types(values)
     if not normalized_values:
-        return Any
+        return Annotated[Any, Field(json_schema_extra={"enum": []}), AfterValidator(_reject_empty_enum)]
     if len(normalized_values) == 1:
         return Literal[normalized_values[0]]
     return Literal[tuple(normalized_values)]
+
+
+def _reject_empty_enum(_value: Any) -> Any:
+    raise ValueError("No values are allowed by an empty enum")
 
 
 @dataclass(slots=True)
@@ -170,7 +175,7 @@ class McpSchemaCompiler:
             return _build_literal_type([schema.get("const")])
 
         enum_values = schema.get("enum")
-        if isinstance(enum_values, list) and enum_values:
+        if isinstance(enum_values, list):
             return _build_literal_type(enum_values)
 
         schema_type = schema.get("type")
