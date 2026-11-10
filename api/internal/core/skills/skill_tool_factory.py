@@ -232,4 +232,5 @@ class SkillToolFactory:
         if not fields:
             return create_model(f"SkillToolArgs_{uuid4().hex}")
 
-        return create_model(f"SkillToolArgs_{uuid4().hex}", **fields)
+        config = {"extra": "forbid"} if input_schema.get("additionalProperties") is False else None
+        return create_model(f"SkillToolArgs_{uuid4().hex}", __config__=config, **fields)
