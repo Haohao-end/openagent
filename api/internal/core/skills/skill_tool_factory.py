@@ -54,6 +54,14 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
                     index = name_end
             elif char == "k" and in_character_class:
                 translated.append("k")
+            elif char == "c":
+                control = pattern[index + 1 : index + 2]
+                if control.isascii() and control.isalpha():
+                    codepoint = ord(control.upper()) - ord("A") + 1
+                    translated.append(f"\\x{codepoint:02x}")
+                    index += 1
+                else:
+                    translated.append("c")
             elif char in "sS":
                 whitespace = f"[{_ECMASCRIPT_WHITESPACE}]"
                 if char == "S":

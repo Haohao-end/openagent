@@ -311,6 +311,7 @@ def test_skill_tool_factory_should_validate_string_length_constraints(field, val
         ({"type": "string", "pattern": r"^[[]$"}, "[", "x"),
         ({"type": "string", "pattern": r"^(?<word>[a-z]+)-\k<word>$"}, "cat-cat", "cat-dog"),
         ({"type": "string", "pattern": r"^[\k]$"}, "k", "x"),
+        ({"type": "string", "pattern": r"^\cA$"}, "\x01", "A"),
         ({"type": "string", "pattern": r"^.$"}, "x", "\u2028"),
         ({"type": "string", "pattern": "^x$"}, "x", "x\u2028"),
         ({"type": "string", "pattern": "^x$"}, "x", "x\n"),
