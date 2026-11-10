@@ -41,6 +41,8 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
         return StrictBool
     if schema_type == "array":
         items = schema.get("items")
+        if items is False:
+            return Annotated[list[Any], Field(max_length=0)]
         return list[_json_schema_type_to_python(items)] if isinstance(items, dict) else list[Any]
     if schema_type == "object":
         return dict[str, Any]
