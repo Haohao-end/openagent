@@ -182,7 +182,7 @@ class McpSchemaCompiler:
         normalized_type = _normalize_text(schema.get("type")).lower()
         if isinstance(enum_values, list):
             if normalized_type in {"integer", "number"}:
-                numeric_type = StrictInt if normalized_type == "integer" else StrictFloat
+                numeric_type = StrictInt if normalized_type == "integer" else StrictInt | StrictFloat
                 json_schema_extra = {"const": enum_values[0]} if has_const else {"enum": enum_values}
                 return Annotated[
                     numeric_type,

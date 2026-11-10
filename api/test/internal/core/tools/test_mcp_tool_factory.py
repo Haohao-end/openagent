@@ -79,6 +79,17 @@ def test_mcp_schema_compiler_should_reject_wrong_type_const_before_numeric_const
         schema.model_validate({"value": "x"})
 
 
+@pytest.mark.parametrize("keyword", ["enum", "const"])
+def test_mcp_schema_compiler_should_preserve_integer_precision_for_number_constraints(keyword):
+    integer_value = 9007199254740993
+    constraint = {keyword: [integer_value] if keyword == "enum" else integer_value}
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "properties": {"value": {"type": "number", **constraint}}}
+    )
+
+    assert schema.model_validate({"value": integer_value}).value == integer_value
+
+
 @pytest.mark.parametrize("schema_type,is_array", [("integer", False), ("number", False), ("integer", True), ("number", True)])
 def test_mcp_schema_compiler_should_reject_booleans_for_numeric_types(schema_type, is_array):
     value_schema = {"type": schema_type}
