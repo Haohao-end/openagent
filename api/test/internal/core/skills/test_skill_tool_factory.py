@@ -303,6 +303,18 @@ def test_skill_tool_factory_should_validate_string_length_constraints(field, val
         ({"type": "string", "enum": ["AA", "bb"], "pattern": "^[A-Z]+$"}, "AA", "bb"),
         ({"type": "array", "items": {"type": "string", "enum": ["AA", "bb"], "pattern": "^[A-Z]+$"}}, ["AA"], ["bb"]),
         ({"type": "string", "pattern": "^(?=.{8,}$).*$"}, "OpenAgent", "short"),
+        ({"type": "string", "pattern": r"^\d+$"}, "42", "١٢"),
+        ({"type": "string", "pattern": r"^\w+$"}, "word_1", "café"),
+        ({"type": "string", "pattern": r"\bcat\b"}, "écaté", "scatter"),
+        ({"type": "string", "pattern": r"^.$"}, "x", "\u2028"),
+        ({"type": "string", "pattern": "^x$"}, "x", "x\u2028"),
+        ({"type": "string", "pattern": "^x$"}, "x", "x\n"),
+        ({"type": "string", "pattern": "^x$"}, "x", "x\r\n"),
+        ({"type": "string", "pattern": r"^[&&]+$"}, "&", "x"),
+        ({"type": "string", "pattern": r"^\s+$"}, "\u00a0", "\u001c"),
+        ({"type": "string", "pattern": r"^\S+$"}, "\u001c", "\u00a0"),
+        ({"type": "string", "pattern": r"^[\S]+$"}, "word", "\u00a0"),
+        ({"type": "string", "pattern": r"^[\s]+$"}, "\u00a0", "word"),
     ],
 )
 def test_skill_tool_factory_should_validate_string_patterns(field, valid_value, invalid_value):
@@ -326,6 +338,17 @@ def test_skill_tool_factory_should_bound_string_pattern_validation_time():
 
     with pytest.raises(ValidationError, match="Pattern validation timed out"):
         schema.model_validate({"value": "a" * 1000 + "!"})
+
+
+def test_skill_tool_factory_should_share_pattern_timeout_across_array_items(monkeypatch):
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"values": {"type": "array", "items": {"type": "string", "pattern": "^a$"}}}}
+    )
+    elapsed = iter((0.0, 0.01, 0.03, 0.06))
+    monkeypatch.setattr("internal.core.skills.skill_tool_factory.monotonic", lambda: next(elapsed))
+
+    with pytest.raises(ValidationError, match="Pattern validation timed out"):
+        schema.model_validate({"values": ["a"] * 3})
 
 
 @pytest.mark.parametrize(

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+from contextvars import ContextVar
 from dataclasses import dataclass, field
+from time import monotonic
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
@@ -10,17 +12,22 @@ import regex
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import (
     AfterValidator,
+    BaseModel,
+    ConfigDict,
     Field,
     StrictBool,
     StrictFloat,
     StrictInt,
     create_model,
+    model_validator,
 )
 
 from .skill_executor import SkillSandboxExecutor, SkillScfClient
 
 logger = logging.getLogger(__name__)
 SKILL_PATTERN_TIMEOUT_SECONDS = 0.05
+_PATTERN_VALIDATION_DEADLINE: ContextVar[float | None] = ContextVar("skill_pattern_validation_deadline", default=None)
+_ECMASCRIPT_WHITESPACE = r"\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
 
 
 def _normalize_text(value: Any) -> str:
@@ -31,16 +38,86 @@ def _reject_empty_enum(_value: Any) -> Any:
     raise ValueError("No values are allowed by an empty enum")
 
 
+def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
+    translated: list[str] = []
+    in_character_class = False
+    class_first = False
+    escaped = False
+    index = 0
+    while index < len(pattern):
+        char = pattern[index]
+        if escaped:
+            if char in "sS":
+                whitespace = f"[{_ECMASCRIPT_WHITESPACE}]"
+                if char == "S":
+                    whitespace = f"[^{_ECMASCRIPT_WHITESPACE}]"
+                translated.append(whitespace if not in_character_class else f"[{whitespace}]")
+            elif char in "bB" and not in_character_class:
+                translated.append(f"(?a:\\{char})")
+            elif char == "b" and in_character_class:
+                translated.append(r"\x08")
+            else:
+                translated.extend(("\\", char))
+            escaped = False
+            if in_character_class:
+                class_first = False
+        elif in_character_class and char in "&~|-" and pattern[index : index + 2] == char * 2:
+            translated.extend((f"\\{char}", f"\\{char}"))
+            class_first = False
+            index += 1
+        elif char == "\\":
+            escaped = True
+        elif char == "[" and not in_character_class:
+            in_character_class = True
+            class_first = True
+            translated.append(char)
+        elif char == "]" and in_character_class and not class_first:
+            in_character_class = False
+            translated.append(char)
+        elif char == "." and not in_character_class:
+            translated.append(r"[^\n\r\u2028\u2029]")
+        elif char == "$" and not in_character_class:
+            translated.append(r"\Z")
+        else:
+            translated.append(char)
+            if in_character_class and not (class_first and char == "^"):
+                class_first = False
+        index += 1
+
+    if escaped:
+        translated.append("\\")
+    return regex.compile("".join(translated), regex.ASCII | regex.VERSION1)
+
+
 def _validate_string_pattern(value: Any, pattern: regex.Pattern[str]) -> str:
     if not isinstance(value, str):
         raise ValueError("Value does not match the pattern")  # noqa: TRY004
+    deadline = _PATTERN_VALIDATION_DEADLINE.get() or monotonic() + SKILL_PATTERN_TIMEOUT_SECONDS
+    timeout = deadline - monotonic()
+    if timeout <= 0:
+        raise ValueError("Pattern validation timed out")
     try:
-        match = pattern.search(value, timeout=SKILL_PATTERN_TIMEOUT_SECONDS)
+        match = pattern.search(value, timeout=timeout)
     except TimeoutError as exc:
         raise ValueError("Pattern validation timed out") from exc
     if match is None:
         raise ValueError("Value does not match the pattern")
     return value
+
+
+class _SkillToolArgsBase(BaseModel):
+    @model_validator(mode="wrap")
+    @classmethod
+    def _bound_pattern_validation(cls, value: Any, handler: Any) -> Any:
+        token = _PATTERN_VALIDATION_DEADLINE.set(monotonic() + SKILL_PATTERN_TIMEOUT_SECONDS)
+        try:
+            return handler(value)
+        finally:
+            _PATTERN_VALIDATION_DEADLINE.reset(token)
+
+
+class _ClosedSkillToolArgsBase(_SkillToolArgsBase):
+    model_config = ConfigDict(extra="forbid")
 
 
 def _validate_enum(value: Any, enum_values: list[Any]) -> Any:
@@ -82,7 +159,7 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
             return Annotated[annotation, AfterValidator(lambda value: _validate_enum(value, enum_values))]
         if schema_type == "string" and isinstance(schema.get("pattern"), str):
             pattern = schema["pattern"]
-            compiled_pattern = regex.compile(pattern)
+            compiled_pattern = _compile_json_schema_pattern(pattern)
             return Annotated[
                 Literal[tuple(enum_values)],
                 Field(json_schema_extra={"pattern": pattern}),
@@ -100,7 +177,7 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
         }
         pattern = schema.get("pattern")
         if isinstance(pattern, str):
-            compiled_pattern = regex.compile(pattern)
+            compiled_pattern = _compile_json_schema_pattern(pattern)
             return Annotated[
                 str,
                 Field(**constraints, json_schema_extra={"pattern": pattern}),
@@ -262,8 +339,12 @@ class SkillToolFactory:
                         Field(default=... if prop_name in required_fields else default, description=description),
                     )
 
-        config = {"extra": "forbid"} if input_schema.get("additionalProperties") is False else None
+        model_base = (
+            _ClosedSkillToolArgsBase
+            if input_schema.get("additionalProperties") is False
+            else _SkillToolArgsBase
+        )
         if not fields:
-            return create_model(f"SkillToolArgs_{uuid4().hex}", __config__=config)
+            return create_model(f"SkillToolArgs_{uuid4().hex}", __base__=model_base)
 
-        return create_model(f"SkillToolArgs_{uuid4().hex}", __config__=config, **fields)
+        return create_model(f"SkillToolArgs_{uuid4().hex}", __base__=model_base, **fields)
