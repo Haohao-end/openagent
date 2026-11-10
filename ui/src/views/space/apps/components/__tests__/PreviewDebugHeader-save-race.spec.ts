@@ -93,3 +93,38 @@ it('reports a summary save failure and leaves the modal open', async () => {
   expect(state.summaryModalVisible).toBe(true)
   wrapper.unmount()
 })
+
+it('reports a summary load failure without opening the modal', async () => {
+  mocks.error.mockReset()
+  mocks.load.mockReset().mockRejectedValueOnce(new Error(''))
+  const wrapper = mount(PreviewDebugHeader, {
+    props: { app_id: 'app-1', long_term_memory: { enable: true } },
+    global: { stubs: { 'a-modal': ModalStub, 'a-button': ButtonStub, 'a-space': SpaceStub, 'a-textarea': true, 'icon-save': true, 'icon-close': true } },
+  })
+  const state = (wrapper.vm as any).$.setupState
+
+  await state.openSummaryModal().catch(() => undefined)
+
+  expect(mocks.error).toHaveBeenCalledWith('appStudio.debug.summaryLoadFailed')
+  expect(state.summaryModalVisible).toBe(false)
+  wrapper.unmount()
+})
+
+it('does not report a summary load failure after changing apps', async () => {
+  let reject!: (error: Error) => void
+  mocks.error.mockReset()
+  mocks.load.mockReset().mockReturnValueOnce(new Promise<void>((_resolve, rejectPromise) => { reject = rejectPromise }))
+  const wrapper = mount(PreviewDebugHeader, {
+    props: { app_id: 'app-1', long_term_memory: { enable: true } },
+    global: { stubs: { 'a-modal': ModalStub, 'a-button': ButtonStub, 'a-space': SpaceStub, 'a-textarea': true, 'icon-save': true, 'icon-close': true } },
+  })
+  const state = (wrapper.vm as any).$.setupState
+  const loading = state.openSummaryModal()
+  await wrapper.setProps({ app_id: 'app-2' })
+  reject(new Error('old app failed'))
+  await loading
+
+  expect(mocks.error).not.toHaveBeenCalled()
+  expect(state.summaryModalVisible).toBe(false)
+  wrapper.unmount()
+})
