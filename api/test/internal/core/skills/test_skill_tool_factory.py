@@ -298,6 +298,23 @@ def test_skill_tool_factory_should_validate_string_length_constraints(field, val
 @pytest.mark.parametrize(
     ("field", "valid_value", "invalid_value"),
     [
+        ({"type": "string", "pattern": "^[A-Z]{2}$"}, "AB", "a1"),
+        ({"type": "array", "items": {"type": "string", "pattern": "^[A-Z]{2}$"}}, ["AB"], ["a1"]),
+    ],
+)
+def test_skill_tool_factory_should_validate_string_patterns(field, valid_value, invalid_value):
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": field}, "required": ["value"]}
+    )
+    assert schema.model_validate({"value": valid_value}).value == valid_value
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": invalid_value})
+
+
+@pytest.mark.parametrize(
+    ("field", "valid_value", "invalid_value"),
+    [
         ({"type": "integer", "minimum": 2}, 2, 1),
         ({"type": "integer", "maximum": 4}, 4, 5),
         ({"type": "number", "exclusiveMinimum": 1.5}, 2.0, 1.5),

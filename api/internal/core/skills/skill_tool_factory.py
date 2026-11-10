@@ -70,8 +70,9 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
             for name, value in (
                 ("min_length", schema.get("minLength")),
                 ("max_length", schema.get("maxLength")),
+                ("pattern", schema.get("pattern")),
             )
-            if type(value) is int and value >= 0
+            if (name == "pattern" and isinstance(value, str)) or (type(value) is int and value >= 0)
         }
         return Annotated[str, Field(**constraints)] if constraints else str
     if schema_type in {"integer", "number"}:
