@@ -104,7 +104,7 @@ class TestIconGeneratorService:
                 assert "/icons/kolors_" in icon_url
                 mock_cos_client.put_object.assert_called_once()
 
-    def test_generate_icon_should_fallback_to_qwen_when_kolors_rate_limited(self, monkeypatch):
+    def test_generate_icon_should_fallback_to_qwen_when_kolors_rate_limited(self, monkeypatch, caplog):
         mock_app = Mock()
         mock_app.config = {"SILICONFLOW_API_KEY": "test-key", "COS_DOMAIN": "https://test.cos.com"}
         monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
@@ -117,9 +117,16 @@ class TestIconGeneratorService:
         )
         monkeypatch.setattr(service, "_generate_with_qwen", lambda *_args, **_kwargs: "https://qwen/icon.png")
 
-        icon_url = service.generate_icon("测试应用", "desc")
+        with caplog.at_level(logging.INFO):
+            icon_url = service.generate_icon("ICON_USER_NAME_SECRET", "ICON_USER_DESCRIPTION_SECRET")
 
         assert icon_url == "https://qwen/icon.png"
+        assert "provider=Kolors model=Kwai-Kolors/Kolors attempt=1 status=failed" in caplog.text
+        assert "error_class=provider_error fallback=Qwen" in caplog.text
+        assert "provider=Qwen model=Qwen/Qwen-Image attempt=2 status=success" in caplog.text
+        assert "ICON_USER_NAME_SECRET" not in caplog.text
+        assert "ICON_USER_DESCRIPTION_SECRET" not in caplog.text
+        assert "https://qwen/icon.png" not in caplog.text
 
     def test_generate_icon_should_fallback_to_dalle_when_siliconflow_providers_rate_limited(self, monkeypatch):
         mock_app = Mock()
@@ -702,7 +709,8 @@ class TestIconGeneratorService:
 
     def test_generate_icon_should_not_log_provider_exception_details(self, monkeypatch, caplog):
         mock_app = Mock()
-        mock_app.config = {}
+        api_key = "SYNTHETIC_API_KEY"
+        mock_app.config = {"SILICONFLOW_API_KEY": api_key, "OPENAI_API_KEY": api_key}
         monkeypatch.setattr("internal.service.icon_generator_service.current_app", mock_app)
         service = _build_service()
         secret = "SYNTHETIC_PROVIDER_CREDENTIAL"
@@ -712,10 +720,18 @@ class TestIconGeneratorService:
         monkeypatch.setattr(service, "_generate_with_dalle", lambda *_args: (_ for _ in ()).throw(failure))
 
         with caplog.at_level(logging.INFO), pytest.raises(FailException, match="图标生成服务暂时不可用"):
-            service.generate_icon("test app", "desc")
+            service.generate_icon("ICON_USER_NAME_SECRET", "ICON_USER_DESCRIPTION_SECRET")
 
         assert secret not in caplog.text
-        assert "RuntimeError" in caplog.text
+        assert api_key not in caplog.text
+        assert "provider=Kolors model=Kwai-Kolors/Kolors attempt=1 status=failed" in caplog.text
+        assert "provider=Qwen model=Qwen/Qwen-Image attempt=2 status=failed" in caplog.text
+        assert "provider=DALLE model=dall-e-3 attempt=3 status=failed" in caplog.text
+        assert "error_class=provider_error" in caplog.text
+        assert "error_class=all_providers_failed" in caplog.text
+        assert "ICON_USER_NAME_SECRET" not in caplog.text
+        assert "ICON_USER_DESCRIPTION_SECRET" not in caplog.text
+        assert "A stable mocked icon prompt" not in caplog.text
 
     def test_generate_with_kolors_should_send_expected_request_payload(self, monkeypatch):
         mock_app = Mock()
