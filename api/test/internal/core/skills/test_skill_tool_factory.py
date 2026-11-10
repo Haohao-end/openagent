@@ -285,6 +285,7 @@ def test_skill_tool_factory_should_validate_string_length_constraints(field, val
         ({"type": "number", "exclusiveMinimum": 1.5}, 2.0, 1.5),
         ({"type": "number", "exclusiveMaximum": 3.5}, 3.0, 3.5),
         ({"type": "integer", "multipleOf": 3}, 6, 7),
+        ({"type": "integer", "enum": [1, 2], "minimum": 2}, 2, 1),
     ],
 )
 def test_skill_tool_factory_should_validate_numeric_constraints(field, valid_value, invalid_value):
