@@ -39,7 +39,14 @@ const openSummaryModal = async () => {
   const requestId = ++loadSession
   const appId = props.app_id
   // 2.1 调用API获取长期记忆
-  await loadDebugConversationSummary(appId, () => requestId === loadSession && props.app_id === appId)
+  try {
+    await loadDebugConversationSummary(appId, () => requestId === loadSession && props.app_id === appId)
+  } catch (error: unknown) {
+    if (requestId === loadSession && props.app_id === appId) {
+      Message.error(getErrorMessage(error, t('appStudio.debug.summaryLoadFailed')))
+    }
+    return
+  }
   if (requestId !== loadSession || props.app_id !== appId) return
 
   // 2.2 开启模态窗
