@@ -340,6 +340,31 @@ def test_skill_tool_factory_should_validate_string_patterns(field, valid_value, 
         schema.model_validate({"value": invalid_value})
 
 
+@pytest.mark.parametrize(
+    ("pattern", "valid_value", "invalid_value"),
+    [
+        (r"^.$", "a", "😀"),
+        (r"^..$", "😀", "a"),
+        (r"^[😀][😀]$", "😀", "a"),
+        (r"^\1$", "\x01", "1"),
+        (r"^\8$", "8", "\x08"),
+        (r"^[\1]$", "\x01", "1"),
+        (r"^[\c1]$", "\x11", "1"),
+        (r"^[\c_]$", "\x1f", "_"),
+        (r"^\c1$", "c1", "\x11"),
+        (r"^\c$", "c", "\x03"),
+    ],
+)
+def test_skill_tool_factory_should_match_ecmascript_legacy_regex_semantics(pattern, valid_value, invalid_value):
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": {"type": "string", "pattern": pattern}}, "required": ["value"]}
+    )
+
+    assert schema.model_validate({"value": valid_value}).value == valid_value
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": invalid_value})
+
+
 def test_skill_tool_factory_should_bound_string_pattern_validation_time():
     schema = SkillToolFactory(scf_client=None)._build_args_schema(
         {"properties": {"value": {"type": "string", "pattern": "(a+)+$"}}, "required": ["value"]}

@@ -73,7 +73,24 @@ def _scan_json_schema_groups(pattern: str) -> tuple[int, set[str]]:
     return capture_count, named_groups
 
 
+def _to_ecmascript_code_units(value: str) -> str:
+    encoded = value.encode("utf-16-le", errors="surrogatepass")
+    return "".join(chr(encoded[index] | encoded[index + 1] << 8) for index in range(0, len(encoded), 2))
+
+
+def _translate_legacy_decimal_escape(pattern: str, index: int) -> tuple[str, int]:
+    digit = pattern[index]
+    if digit not in "01234567":
+        return regex.escape(digit), index
+    max_digits = 3 if digit in "0123" else 2
+    end = index + 1
+    while end < len(pattern) and end - index < max_digits and pattern[end] in "01234567":
+        end += 1
+    return f"\\x{int(pattern[index:end], 8):02x}", end - 1
+
+
 def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
+    pattern = _to_ecmascript_code_units(pattern)
     translated: list[str] = []
     capture_count, named_groups = _scan_json_schema_groups(pattern)
     in_character_class = False
@@ -91,20 +108,29 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
                     index = name_end
             elif char == "k" and in_character_class:
                 translated.append("k")
-            elif char.isdigit() and char != "0" and not in_character_class:
-                reference_end = index + 1
-                while reference_end < len(pattern) and pattern[reference_end].isdigit():
-                    reference_end += 1
-                group_number = int(pattern[index:reference_end])
-                if 0 < group_number <= capture_count:
-                    translated.append(f"(?({group_number})\\g<{group_number}>|)")
-                    index = reference_end - 1
+            elif char in "0123456789":
+                if char != "0" and not in_character_class:
+                    reference_end = index + 1
+                    while reference_end < len(pattern) and pattern[reference_end] in "0123456789":
+                        reference_end += 1
+                    group_number = int(pattern[index:reference_end])
+                    if group_number <= capture_count:
+                        translated.append(f"(?({group_number})\\g<{group_number}>|)")
+                        index = reference_end - 1
+                    elif char in "89":
+                        translated.append(char)
+                    else:
+                        escape, end = _translate_legacy_decimal_escape(pattern, index)
+                        translated.append(escape)
+                        index = end
                 else:
-                    translated.extend(("\\", char))
+                    escape, end = _translate_legacy_decimal_escape(pattern, index)
+                    translated.append(escape)
+                    index = end
             elif char == "c":
                 control = pattern[index + 1 : index + 2]
-                if control.isascii() and control.isalpha():
-                    codepoint = ord(control.upper()) - ord("A") + 1
+                if control and control.isascii() and (control.isalpha() or (in_character_class and control in "0123456789_")):
+                    codepoint = ord(control.upper()) & 0x1F
                     translated.append(f"\\x{codepoint:02x}")
                     index += 1
                 else:
@@ -179,7 +205,7 @@ def _validate_string_pattern(value: Any, pattern: regex.Pattern[str]) -> str:
         raise ValueError("Pattern validation timed out")
     started = monotonic()
     try:
-        match = pattern.search(value, timeout=remaining)
+        match = pattern.search(_to_ecmascript_code_units(value), timeout=remaining)
     except TimeoutError as exc:
         raise ValueError("Pattern validation timed out") from exc
     finally:
