@@ -179,6 +179,16 @@ def test_skill_tool_factory_should_validate_array_item_types():
         schema.model_validate({"values": ["not an integer"]})
 
 
+def test_skill_tool_factory_should_reject_items_when_item_schema_is_false():
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"values": {"type": "array", "items": False}}, "required": ["values"]}
+    )
+
+    assert schema.model_validate({"values": []}).values == []
+    with pytest.raises(ValidationError):
+        schema.model_validate({"values": [1]})
+
+
 @pytest.mark.parametrize(
     ("schema_type", "is_array"),
     [("integer", False), ("number", False), ("integer", True), ("number", True)],
