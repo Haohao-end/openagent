@@ -55,6 +55,30 @@ class IconGeneratorService(BaseService):
     cos_service: CosService
     language_model_manager: LanguageModelManager
 
+    @staticmethod
+    def _log_generation_result(
+        provider: str,
+        model: str,
+        attempt: int,
+        status: str,
+        error_class: str = "none",
+        fallback: str = "none",
+    ) -> None:
+        logging.info(
+            "icon_generation provider=%s model=%s attempt=%s status=%s error_class=%s fallback=%s",
+            provider, model, attempt, status, error_class, fallback,
+        )
+
+    @staticmethod
+    def _icon_error_class(error: Exception) -> str:
+        if isinstance(error, IconStorageError):
+            return "shared_storage"
+        if isinstance(error, requests.exceptions.Timeout):
+            return "timeout"
+        if isinstance(error, requests.exceptions.RequestException):
+            return "network"
+        return "provider_error"
+
     def generate_icon(self, name: str, description: str = "") -> str:
         """
         根据应用名称和描述生成图标并上传到COS
@@ -69,51 +93,54 @@ class IconGeneratorService(BaseService):
         Raises:
             FailException: 所有图标生成方式都失败时抛出
         """
-        errors = []
         prompt = self._generate_icon_prompt(name, description)
 
         # 1. 尝试使用 Kolors (硅基流动)
         try:
-            logging.info(f"尝试使用 Kolors 生成图标: name={name}")
             icon_url = self._generate_with_kolors(name, description, prompt)
             if icon_url:
-                logging.info(f"Kolors 生成图标成功: {icon_url}")
+                self._log_generation_result("Kolors", "Kwai-Kolors/Kolors", 1, "success")
                 return icon_url
+            self._log_generation_result("Kolors", "Kwai-Kolors/Kolors", 1, "failed", "empty_result", "Qwen")
         except IconStorageError:
+            self._log_generation_result("Kolors", "Kwai-Kolors/Kolors", 1, "failed", "shared_storage", "stopped")
             raise
-        except Exception as e:
-            logging.warning("Kolors 生成图标失败: error_type=%s", type(e).__name__)
-            errors.append(f"Kolors: {type(e).__name__}")
+        except Exception as error:
+            self._log_generation_result(
+                "Kolors", "Kwai-Kolors/Kolors", 1, "failed", self._icon_error_class(error), "Qwen"
+            )
 
         # 2. 尝试使用 Qwen (通义万相)
         try:
-            logging.info(f"尝试使用 Qwen 生成图标: name={name}")
             icon_url = self._generate_with_qwen(name, description, prompt)
             if icon_url:
-                logging.info(f"Qwen 生成图标成功: {icon_url}")
+                self._log_generation_result("Qwen", "Qwen/Qwen-Image", 2, "success")
                 return icon_url
+            self._log_generation_result("Qwen", "Qwen/Qwen-Image", 2, "failed", "empty_result", "DALLE")
         except IconStorageError:
+            self._log_generation_result("Qwen", "Qwen/Qwen-Image", 2, "failed", "shared_storage", "stopped")
             raise
-        except Exception as e:
-            logging.warning("Qwen 生成图标失败: error_type=%s", type(e).__name__)
-            errors.append(f"Qwen: {type(e).__name__}")
+        except Exception as error:
+            self._log_generation_result(
+                "Qwen", "Qwen/Qwen-Image", 2, "failed", self._icon_error_class(error), "DALLE"
+            )
 
         # 3. 最后使用 DALLE 兜底
         try:
-            logging.info(f"尝试使用 DALLE 生成图标: name={name}")
             icon_url = self._generate_with_dalle(name, description, prompt)
             if icon_url:
-                logging.info(f"DALLE 生成图标成功: {icon_url}")
+                self._log_generation_result("DALLE", "dall-e-3", 3, "success")
                 return icon_url
+            self._log_generation_result("DALLE", "dall-e-3", 3, "failed", "empty_result", "none")
         except IconStorageError:
+            self._log_generation_result("DALLE", "dall-e-3", 3, "failed", "shared_storage", "stopped")
             raise
-        except Exception as e:
-            logging.error("DALLE 生成图标失败: error_type=%s", type(e).__name__)
-            errors.append(f"DALLE: {type(e).__name__}")
+        except Exception as error:
+            self._log_generation_result(
+                "DALLE", "dall-e-3", 3, "failed", self._icon_error_class(error), "none"
+            )
 
-        # 所有服务都失败，返回友好的错误信息
-        error_summary = "; ".join(errors)
-        logging.error(f"所有图标生成服务均失败: {error_summary}")
+        self._log_generation_result("none", "none", 3, "failed", "all_providers_failed")
         raise FailException("图标生成服务暂时不可用，请稍后重试或手动上传图标")
 
     def _generate_icon_prompt(self, name: str, description: str) -> str:
