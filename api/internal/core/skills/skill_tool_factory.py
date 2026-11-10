@@ -38,8 +38,44 @@ def _reject_empty_enum(_value: Any) -> Any:
     raise ValueError("No values are allowed by an empty enum")
 
 
+def _scan_json_schema_groups(pattern: str) -> tuple[int, set[str]]:
+    capture_count = 0
+    named_groups: set[str] = set()
+    in_character_class = False
+    escaped = False
+    index = 0
+    while index < len(pattern):
+        if not in_character_class and pattern[index : index + 2] == "[]":
+            index += 2
+            continue
+        if not in_character_class and pattern[index : index + 3] == "[^]":
+            index += 3
+            continue
+        char = pattern[index]
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == "[" and not in_character_class:
+            in_character_class = True
+        elif char == "]" and in_character_class:
+            in_character_class = False
+        elif char == "(" and not in_character_class:
+            if pattern[index + 1 : index + 2] != "?":
+                capture_count += 1
+            elif pattern[index : index + 3] == "(?<" and pattern[index + 3 : index + 4] not in "=!":
+                name_end = pattern.find(">", index + 3)
+                if name_end != -1:
+                    named_groups.add(pattern[index + 3 : name_end])
+                    capture_count += 1
+                    index = name_end
+        index += 1
+    return capture_count, named_groups
+
+
 def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
     translated: list[str] = []
+    capture_count, named_groups = _scan_json_schema_groups(pattern)
     in_character_class = False
     class_first = False
     escaped = False
@@ -50,10 +86,21 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
             if char == "k" and not in_character_class and pattern[index + 1 : index + 2] == "<":
                 name_end = pattern.find(">", index + 2)
                 if name_end != -1:
-                    translated.append(f"(?P={pattern[index + 2 : name_end]})")
+                    name = pattern[index + 2 : name_end]
+                    translated.append(f"(?({name})(?P={name})|)" if name in named_groups else f"k<{name}>")
                     index = name_end
             elif char == "k" and in_character_class:
                 translated.append("k")
+            elif char.isdigit() and char != "0" and not in_character_class:
+                reference_end = index + 1
+                while reference_end < len(pattern) and pattern[reference_end].isdigit():
+                    reference_end += 1
+                group_number = int(pattern[index:reference_end])
+                if 0 < group_number <= capture_count:
+                    translated.append(f"(?({group_number})\\g<{group_number}>|)")
+                    index = reference_end - 1
+                else:
+                    translated.extend(("\\", char))
             elif char == "c":
                 control = pattern[index + 1 : index + 2]
                 if control.isascii() and control.isalpha():
@@ -71,6 +118,10 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
                 translated.append(f"(?a:\\{char})")
             elif char == "b" and in_character_class:
                 translated.append(r"\x08")
+            elif char.isascii() and char.isalpha() and char not in "dDsSwWbBfnrtvcxuU":
+                translated.append(char)
+            elif in_character_class and char not in "dDsSwWbfnrtvcxuU0123456789":
+                translated.append(regex.escape(char))
             else:
                 translated.extend(("\\", char))
             escaped = False
