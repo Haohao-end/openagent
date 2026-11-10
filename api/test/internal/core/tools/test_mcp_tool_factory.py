@@ -109,6 +109,37 @@ def test_mcp_schema_compiler_should_allow_arrays_without_item_schema():
     assert schema.model_validate({"values": [1, "text", None]}).values == [1, "text", None]
 
 
+@pytest.mark.parametrize(
+    ("item_schema", "valid_values", "invalid_values", "bound"),
+    [
+        ({"type": "integer", "minimum": 2, "maximum": 4}, [2, 4], [[1], [5]], ("minimum", 2)),
+        ({"type": "integer", "enum": [2, 3], "minimum": 3}, [3], [[2]], ("minimum", 3)),
+    ],
+)
+def test_mcp_schema_compiler_should_enforce_numeric_bounds_on_array_items(
+    item_schema, valid_values, invalid_values, bound
+):
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "properties": {"values": {"type": "array", "items": item_schema}}}
+    )
+
+    assert schema.model_validate({"values": valid_values}).values == valid_values
+    for value in invalid_values:
+        with pytest.raises(ValidationError):
+            schema.model_validate({"values": value})
+    assert schema.model_json_schema()["properties"]["values"]["items"][bound[0]] == bound[1]
+
+
+def test_mcp_schema_compiler_should_keep_root_numeric_bounds():
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "properties": {"value": {"type": "integer", "minimum": 2}}}
+    )
+
+    assert schema.model_validate({"value": 2}).value == 2
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": 1})
+
+
 def test_mcp_schema_compiler_should_reject_items_when_item_schema_is_false():
     schema = McpSchemaCompiler().build_args_schema(
         {"type": "object", "properties": {"values": {"type": "array", "items": False}}}
