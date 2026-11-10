@@ -180,6 +180,16 @@ def test_skill_tool_factory_should_reject_null_for_optional_non_nullable_fields(
         schema.model_validate({"value": None})
 
 
+def test_skill_tool_factory_should_reject_values_for_empty_enum():
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": {"type": "string", "enum": []}}, "required": ["value"]}
+    )
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": "any string"})
+    assert schema.model_json_schema()["properties"]["value"]["enum"] == []
+
+
 def test_skill_tool_factory_should_validate_array_item_types():
     schema = SkillToolFactory(scf_client=None)._build_args_schema(
         {"properties": {"values": {"type": "array", "items": {"type": "integer"}}}}
