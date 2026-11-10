@@ -42,6 +42,10 @@ let iconOperationRequest = 0
 
 // 2.定义隐藏模态窗函数
 const hideModal = () => emits('update:visible', false)
+const handleIconChange = (icon: string) => {
+  if (!icon) iconOperationRequest += 1
+  form.value.icon = icon
+}
 
 // 2.5 定义上传图标处理器
 const handleUploadIcon = async (file: File) => {
@@ -207,7 +211,7 @@ onUnmounted(() => {
             :placeholder="t('appStudio.createModal.placeholder')"
             :on-upload="handleUploadIcon"
             :on-generate="handleGenerateIcon"
-            @update:icon="(val) => (form.icon = val)"
+            @update:icon="handleIconChange"
             @update:fileList="(val) => (form.fileList = val)"
           />
         </a-form-item>
