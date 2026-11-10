@@ -46,10 +46,20 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
             if type(value) is int and value >= 0
         }
         return Annotated[str, Field(**constraints)] if constraints else str
-    if schema_type == "integer":
-        return StrictInt
-    if schema_type == "number":
-        return StrictFloat
+    if schema_type in {"integer", "number"}:
+        numeric_type = StrictInt if schema_type == "integer" else StrictFloat
+        constraints = {
+            name: value
+            for name, value in (
+                ("ge", schema.get("minimum")),
+                ("le", schema.get("maximum")),
+                ("gt", schema.get("exclusiveMinimum")),
+                ("lt", schema.get("exclusiveMaximum")),
+                ("multiple_of", schema.get("multipleOf")),
+            )
+            if type(value) in (int, float)
+        }
+        return Annotated[numeric_type, Field(**constraints)] if constraints else numeric_type
     if schema_type == "boolean":
         return StrictBool
     if schema_type == "array":
