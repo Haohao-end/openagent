@@ -146,6 +146,11 @@ class NotificationService:
         else:
             if not {"id", "document_name", "segment_count", "index_duration", "is_read"} <= notification_data.keys():
                 return None
+            if (
+                type(notification_data["segment_count"]) is not int
+                or type(notification_data["index_duration"]) not in (int, float)
+            ):
+                return None
             try:
                 user_id = UUID(notification_data["user_id"])
                 dataset_id = UUID(notification_data["dataset_id"])
