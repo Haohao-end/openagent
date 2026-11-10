@@ -306,6 +306,7 @@ def test_skill_tool_factory_should_validate_string_length_constraints(field, val
         ({"type": "string", "pattern": r"^\d+$"}, "42", "١٢"),
         ({"type": "string", "pattern": r"^\w+$"}, "word_1", "café"),
         ({"type": "string", "pattern": r"\bcat\b"}, "écaté", "scatter"),
+        ({"type": "string", "pattern": r"^[[]$"}, "[", "x"),
         ({"type": "string", "pattern": r"^.$"}, "x", "\u2028"),
         ({"type": "string", "pattern": "^x$"}, "x", "x\u2028"),
         ({"type": "string", "pattern": "^x$"}, "x", "x\n"),
@@ -348,7 +349,36 @@ def test_skill_tool_factory_should_share_pattern_timeout_across_array_items(monk
     monkeypatch.setattr("internal.core.skills.skill_tool_factory.monotonic", lambda: next(elapsed))
 
     with pytest.raises(ValidationError, match="Pattern validation timed out"):
-        schema.model_validate({"values": ["a"] * 3})
+        schema.model_validate({"values": ["a"] * 4})
+
+
+def test_skill_tool_factory_should_start_pattern_timeout_lazily(monkeypatch):
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {
+            "properties": {
+                "unrelated": {"type": "array", "items": {"type": "integer"}},
+                "value": {"type": "string", "pattern": "^a$"},
+            }
+        }
+    )
+    elapsed = iter((0.0, 0.06))
+    monkeypatch.setattr("internal.core.skills.skill_tool_factory.monotonic", lambda: next(elapsed))
+
+    assert schema.model_validate({"unrelated": [1], "value": "a"}).value == "a"
+
+
+def test_skill_tool_factory_should_handle_empty_character_classes():
+    never_matches = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": {"type": "string", "pattern": "^[]$"}}}
+    )
+    matches_any_character = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": {"type": "string", "pattern": "^[^]$"}}}
+    )
+
+    with pytest.raises(ValidationError):
+        never_matches.model_validate({"value": "x"})
+    for value in ("[", "x", "\n"):
+        assert matches_any_character.model_validate({"value": value}).value == value
 
 
 @pytest.mark.parametrize(

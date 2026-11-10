@@ -61,6 +61,12 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
             escaped = False
             if in_character_class:
                 class_first = False
+        elif not in_character_class and pattern[index : index + 2] == "[]":
+            translated.append("(?!)")
+            index += 1
+        elif not in_character_class and pattern[index : index + 3] == "[^]":
+            translated.append("(?s:.)")
+            index += 2
         elif in_character_class and char in "&~|-" and pattern[index : index + 2] == char * 2:
             translated.extend((f"\\{char}", f"\\{char}"))
             class_first = False
@@ -71,6 +77,9 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
             in_character_class = True
             class_first = True
             translated.append(char)
+        elif char == "[" and in_character_class:
+            translated.append(r"\[")
+            class_first = False
         elif char == "]" and in_character_class and not class_first:
             in_character_class = False
             translated.append(char)
@@ -92,8 +101,13 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
 def _validate_string_pattern(value: Any, pattern: regex.Pattern[str]) -> str:
     if not isinstance(value, str):
         raise ValueError("Value does not match the pattern")  # noqa: TRY004
-    deadline = _PATTERN_VALIDATION_DEADLINE.get() or monotonic() + SKILL_PATTERN_TIMEOUT_SECONDS
-    timeout = deadline - monotonic()
+    deadline = _PATTERN_VALIDATION_DEADLINE.get()
+    if deadline is None:
+        deadline = monotonic() + SKILL_PATTERN_TIMEOUT_SECONDS
+        _PATTERN_VALIDATION_DEADLINE.set(deadline)
+        timeout = SKILL_PATTERN_TIMEOUT_SECONDS
+    else:
+        timeout = deadline - monotonic()
     if timeout <= 0:
         raise ValueError("Pattern validation timed out")
     try:
@@ -109,7 +123,7 @@ class _SkillToolArgsBase(BaseModel):
     @model_validator(mode="wrap")
     @classmethod
     def _bound_pattern_validation(cls, value: Any, handler: Any) -> Any:
-        token = _PATTERN_VALIDATION_DEADLINE.set(monotonic() + SKILL_PATTERN_TIMEOUT_SECONDS)
+        token = _PATTERN_VALIDATION_DEADLINE.set(None)
         try:
             return handler(value)
         finally:
