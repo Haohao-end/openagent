@@ -298,8 +298,8 @@ class AppService(BaseService):
                 name=name,
                 description=description or "",
             )
-        except Exception:
-            logging.exception("自动创建Agent时生成图标失败，使用默认图标: name=%s", name)
+        except Exception as error:
+            logging.error("自动创建Agent时生成图标失败，使用默认图标: error_type=%s", type(error).__name__)
             icon = self._generate_default_icon(name)
 
         account = self.db.session.query(Account).get(account_id)
