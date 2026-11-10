@@ -286,6 +286,8 @@ def test_skill_tool_factory_should_validate_string_length_constraints(field, val
         ({"type": "number", "exclusiveMaximum": 3.5}, 3.0, 3.5),
         ({"type": "integer", "multipleOf": 3}, 6, 7),
         ({"type": "integer", "enum": [1, 2], "minimum": 2}, 2, 1),
+        ({"type": "integer", "enum": [1, "x"], "minimum": 0}, 1, "x"),
+        ({"type": "integer", "enum": [True, 1], "minimum": 0}, 1, True),
     ],
 )
 def test_skill_tool_factory_should_validate_numeric_constraints(field, valid_value, invalid_value):
@@ -293,6 +295,11 @@ def test_skill_tool_factory_should_validate_numeric_constraints(field, valid_val
         {"properties": {"value": field}, "required": ["value"]}
     )
     assert schema.model_validate({"value": valid_value}).value == valid_value
+    if "enum" in field:
+        generated = schema.model_json_schema()["properties"]["value"]
+        assert (generated["type"], generated["enum"], generated["minimum"]) == (
+            field["type"], field["enum"], field["minimum"]
+        )
 
     with pytest.raises(ValidationError):
         schema.model_validate({"value": invalid_value})

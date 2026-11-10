@@ -29,6 +29,12 @@ def _reject_empty_enum(_value: Any) -> Any:
     raise ValueError("No values are allowed by an empty enum")
 
 
+def _validate_enum(value: Any, enum_values: list[Any]) -> Any:
+    if value not in enum_values:
+        raise ValueError("Value is not allowed by the enum")
+    return value
+
+
 def _numeric_constraints(schema: dict[str, Any]) -> dict[str, int | float]:
     return {
         name: value
@@ -49,11 +55,15 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
     if isinstance(enum_values, list):
         if not enum_values:
             return Annotated[Any, Field(json_schema_extra={"enum": []}), AfterValidator(_reject_empty_enum)]
-        enum_type = Literal[tuple(enum_values)]
         if schema_type in {"integer", "number"}:
+            numeric_type = StrictInt if schema_type == "integer" else StrictFloat
             constraints = _numeric_constraints(schema)
-            return Annotated[enum_type, Field(**constraints)] if constraints else enum_type
-        return enum_type
+            annotation = Annotated[
+                numeric_type,
+                Field(**constraints, json_schema_extra={"enum": enum_values}),
+            ]
+            return Annotated[annotation, AfterValidator(lambda value: _validate_enum(value, enum_values))]
+        return Literal[tuple(enum_values)]
     if schema_type == "string":
         constraints = {
             name: value
