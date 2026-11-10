@@ -78,6 +78,12 @@ def _reject_empty_enum(_value: Any) -> Any:
     raise ValueError("No values are allowed by an empty enum")
 
 
+def _validate_enum(value: Any, enum_values: list[Any]) -> Any:
+    if any(value == item and isinstance(value, bool) == isinstance(item, bool) for item in enum_values):
+        return value
+    raise ValueError(f"Value must be one of {enum_values}")
+
+
 @dataclass(slots=True)
 class McpSchemaCompiler:
     """把 MCP tools/list 返回的 JSON Schema 编译成更适合模型消费的结构。"""
@@ -171,11 +177,18 @@ class McpSchemaCompiler:
         if not schema:
             return self._build_object_model(schema, model_name_hint, depth)
 
-        if "const" in schema:
-            return _build_literal_type([schema.get("const")])
-
-        enum_values = schema.get("enum")
+        has_const = "const" in schema
+        enum_values = [schema["const"]] if has_const else schema.get("enum")
+        normalized_type = _normalize_text(schema.get("type")).lower()
         if isinstance(enum_values, list):
+            if normalized_type in {"integer", "number"}:
+                numeric_type = StrictInt if normalized_type == "integer" else StrictInt | StrictFloat
+                json_schema_extra = {"const": enum_values[0]} if has_const else {"enum": enum_values}
+                return Annotated[
+                    numeric_type,
+                    Field(json_schema_extra=json_schema_extra),
+                    AfterValidator(lambda value: _validate_enum(value, enum_values)),
+                ]
             return _build_literal_type(enum_values)
 
         schema_type = schema.get("type")
