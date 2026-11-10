@@ -32,6 +32,16 @@ def test_mcp_schema_compiler_should_keep_required_fields_required_with_default()
         schema.model_validate({})
 
 
+def test_mcp_schema_compiler_should_reject_null_for_optional_non_nullable_fields():
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "properties": {"value": {"type": "string"}}}
+    )
+
+    assert schema.model_validate({}).value is None
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": None})
+
+
 @pytest.mark.parametrize("schema_type,is_array", [("integer", False), ("number", False), ("integer", True), ("number", True)])
 def test_mcp_schema_compiler_should_reject_booleans_for_numeric_types(schema_type, is_array):
     value_schema = {"type": schema_type}
