@@ -1,5 +1,7 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
+import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
 import CreateOrUpdateAppModal from '../CreateOrUpdateAppModal.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -92,3 +94,49 @@ it.each([
     wrapper.unmount()
   },
 )
+
+it.each(
+  ['generation', 'upload'].flatMap((action) =>
+    ['resolve', 'reject'].map((outcome) => [action, outcome] as const),
+  ),
+)('ignores a pending %s request after the icon is deleted (%s)', async (action, outcome) => {
+  const generation = deferred<string>()
+  const upload = deferred<string>()
+  mocks.generate.mockImplementation(
+    async (_name: string, _description: string, shouldNotify: () => boolean) => {
+      try {
+        return await generation.promise
+      } catch (error) {
+        if (shouldNotify()) mocks.error('generation failed')
+        throw error
+      }
+    },
+  )
+  mocks.upload.mockImplementation(async () => {
+    mocks.imageUrl.value = await upload.promise
+  })
+  const { wrapper, state } = mountModal()
+  state.form.icon = 'existing-icon'
+  state.form.fileList = [{ uid: '1', name: 'icon', url: 'existing-icon' }]
+
+  const pending =
+    action === 'generation'
+      ? state.handleGenerateIcon()
+      : state.handleUploadIcon(new File(['icon'], 'icon.png'))
+  const iconControl = wrapper.findComponent(IconUploadGenerator)
+  iconControl.vm.$emit('update:icon', '')
+  iconControl.vm.$emit('update:fileList', [])
+  await nextTick()
+  expect(iconControl.props('icon')).toBe('')
+  expect(iconControl.props('fileList')).toEqual([])
+  const request = action === 'generation' ? generation : upload
+  if (outcome === 'reject') request.reject(new Error('request failed'))
+  else request.resolve('late-icon')
+  await pending.catch(() => undefined)
+  await flushPromises()
+
+  expect(state.form.icon).toBe('')
+  expect(state.form.fileList).toEqual([])
+  expect(mocks.error).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
