@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 
 import pytest
+from pydantic import ValidationError
+
+from internal.core.skills import skill_tool_factory
 from internal.core.skills.skill_tool_factory import SkillToolFactory
 from internal.exception import FailException
-from pydantic import ValidationError
 
 
 def test_skill_tool_factory_should_fallback_to_sandbox_when_scf_fails():
@@ -293,6 +295,142 @@ def test_skill_tool_factory_should_validate_string_length_constraints(field, val
 
     with pytest.raises(ValidationError):
         schema.model_validate({"value": invalid_value})
+
+
+@pytest.mark.parametrize(
+    ("field", "valid_value", "invalid_value"),
+    [
+        ({"type": "string", "pattern": "^[A-Z]{2}$"}, "AB", "a1"),
+        ({"type": "array", "items": {"type": "string", "pattern": "^[A-Z]{2}$"}}, ["AB"], ["a1"]),
+        ({"type": "string", "enum": ["AA", "bb"], "pattern": "^[A-Z]+$"}, "AA", "bb"),
+        ({"type": "array", "items": {"type": "string", "enum": ["AA", "bb"], "pattern": "^[A-Z]+$"}}, ["AA"], ["bb"]),
+        ({"type": "string", "pattern": "^(?=.{8,}$).*$"}, "OpenAgent", "short"),
+        ({"type": "string", "pattern": r"^\d+$"}, "42", "١٢"),
+        ({"type": "string", "pattern": r"^\w+$"}, "word_1", "café"),
+        ({"type": "string", "pattern": r"\bcat\b"}, "écaté", "scatter"),
+        ({"type": "string", "pattern": r"^[[]$"}, "[", "x"),
+        ({"type": "string", "pattern": r"^[\q]$"}, "q", "x"),
+        ({"type": "string", "pattern": r"^(?<word>[a-z]+)-\k<word>$"}, "cat-cat", "cat-dog"),
+        ({"type": "string", "pattern": r"^(?<outer>a)?\k<outer>c$"}, "c", "ac"),
+        ({"type": "string", "pattern": r"^[\k]$"}, "k", "x"),
+        ({"type": "string", "pattern": r"^(a|(b))\2c$"}, "ac", "bc"),
+        ({"type": "string", "pattern": r"^\cA$"}, "\x01", "A"),
+        ({"type": "string", "pattern": r"^.$"}, "x", "\u2028"),
+        ({"type": "string", "pattern": "^x$"}, "x", "x\u2028"),
+        ({"type": "string", "pattern": "^x$"}, "x", "x\n"),
+        ({"type": "string", "pattern": "^x$"}, "x", "x\r\n"),
+        ({"type": "string", "pattern": r"^[&&]+$"}, "&", "x"),
+        ({"type": "string", "pattern": r"^\s+$"}, "\u00a0", "\u001c"),
+        ({"type": "string", "pattern": r"^\S+$"}, "\u001c", "\u00a0"),
+        ({"type": "string", "pattern": r"^[\S]+$"}, "word", "\u00a0"),
+        ({"type": "string", "pattern": r"^[\s]+$"}, "\u00a0", "word"),
+    ],
+)
+def test_skill_tool_factory_should_validate_string_patterns(field, valid_value, invalid_value):
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": field}, "required": ["value"]}
+    )
+    assert schema.model_validate({"value": valid_value}).value == valid_value
+    value_schema = schema.model_json_schema()["properties"]["value"]
+    if field["type"] == "array":
+        value_schema = value_schema["items"]
+    assert value_schema["pattern"] == (field.get("items") or field)["pattern"]
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": invalid_value})
+
+
+@pytest.mark.parametrize(
+    ("pattern", "valid_value", "invalid_value"),
+    [
+        (r"^.$", "a", "😀"),
+        (r"^..$", "😀", "a"),
+        (r"^[😀][😀]$", "😀", "a"),
+        (r"^\1$", "\x01", "1"),
+        (r"^\8$", "8", "\x08"),
+        (r"^[\1]$", "\x01", "1"),
+        (r"^[\c1]$", "\x11", "1"),
+        (r"^[\c_]$", "\x1f", "_"),
+        (r"^\c1$", "c1", "\x11"),
+        (r"^\c$", "c", "\x03"),
+        (r"^\u$", "u", "v"),
+        (r"^\x$", "x", "y"),
+        (r"^\U$", "U", "u"),
+        (r"^[\u]$", "u", "v"),
+        (r"^[\x]$", "x", "y"),
+        (r"^(?<$foo>a)\k<$foo>$", "aa", "ab"),
+    ],
+)
+def test_skill_tool_factory_should_match_ecmascript_regex_edge_semantics(pattern, valid_value, invalid_value):
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": {"type": "string", "pattern": pattern}}, "required": ["value"]}
+    )
+
+    assert schema.model_validate({"value": valid_value}).value == valid_value
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": invalid_value})
+
+
+def test_skill_tool_factory_should_bound_string_pattern_validation_time():
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": {"type": "string", "pattern": "(a+)+$"}}, "required": ["value"]}
+    )
+
+    with pytest.raises(ValidationError, match="Pattern validation timed out"):
+        schema.model_validate({"value": "a" * 1000 + "!"})
+
+
+def test_skill_tool_factory_should_share_pattern_timeout_across_array_items(monkeypatch):
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"values": {"type": "array", "items": {"type": "string", "pattern": "^a$"}}}}
+    )
+    elapsed = iter((0.0, 0.01, 0.01, 0.03, 0.03, 0.06))
+    monkeypatch.setattr("internal.core.skills.skill_tool_factory.monotonic", lambda: next(elapsed))
+
+    with pytest.raises(ValidationError, match="Pattern validation timed out"):
+        schema.model_validate({"values": ["a"] * 4})
+
+
+def test_skill_tool_factory_should_start_pattern_timeout_lazily(monkeypatch):
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {
+            "properties": {
+                "unrelated": {"type": "array", "items": {"type": "integer"}},
+                "value": {"type": "string", "pattern": "^a$"},
+            }
+        }
+    )
+    elapsed = iter((0.0, 0.06, 0.06))
+    monkeypatch.setattr("internal.core.skills.skill_tool_factory.monotonic", lambda: next(elapsed))
+
+    assert schema.model_validate({"unrelated": [1], "value": "a"}).value == "a"
+
+
+def test_skill_tool_factory_should_not_charge_unrelated_time_to_pattern_budget(monkeypatch):
+    elapsed = [0.0]
+    monkeypatch.setattr(skill_tool_factory, "monotonic", lambda: elapsed[0])
+    token = skill_tool_factory._PATTERN_VALIDATION_REMAINING.set(None)
+    pattern = skill_tool_factory._compile_json_schema_pattern("^a$")
+    try:
+        assert skill_tool_factory._validate_string_pattern("a", pattern) == "a"
+        elapsed[0] = 1.0
+        assert skill_tool_factory._validate_string_pattern("a", pattern) == "a"
+    finally:
+        skill_tool_factory._PATTERN_VALIDATION_REMAINING.reset(token)
+
+
+def test_skill_tool_factory_should_handle_empty_character_classes():
+    never_matches = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": {"type": "string", "pattern": "^[]$"}}}
+    )
+    matches_any_character = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": {"type": "string", "pattern": "^[^]$"}}}
+    )
+
+    with pytest.raises(ValidationError):
+        never_matches.model_validate({"value": "x"})
+    for value in ("[", "x", "\n"):
+        assert matches_any_character.model_validate({"value": value}).value == value
 
 
 @pytest.mark.parametrize(
