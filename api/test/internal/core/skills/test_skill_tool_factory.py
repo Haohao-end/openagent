@@ -240,6 +240,24 @@ def test_skill_tool_factory_should_validate_enum_values(field, valid_value, inva
         schema.model_validate({"mode": invalid_value})
 
 
+def test_skill_tool_factory_should_reject_additional_properties_when_disabled():
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"query": {"type": "string"}}, "additionalProperties": False}
+    )
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"query": "hello", "unexpected": "value"})
+
+
+def test_skill_tool_factory_should_reject_additional_properties_for_empty_closed_schema():
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {}, "additionalProperties": False}
+    )
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"unexpected": "value"})
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
