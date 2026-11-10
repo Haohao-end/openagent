@@ -179,12 +179,11 @@ def test_workflow_build_workflow_should_register_nodes_edges_and_special_points(
     assert isinstance(compiled, _FakeCompiledGraph)
     assert _FakeGraph.latest.entry == f"{NodeType.START.value}_{start_id}"
     assert _FakeGraph.latest.finish == f"{NodeType.END.value}_{end_id}"
-    # 11 个节点全部注册，且 parameter_extractor 节点至少有 2 条来源边（并行汇聚）。
+    # 11 个节点全部注册，且每条汇聚前驱边都被保留。
     assert len(_FakeGraph.latest.nodes) == 11
     extractor_target = f"{NodeType.PARAMETER_EXTRACTOR.value}_{extractor_id}"
-    parallel_edges = [edge for edge in _FakeGraph.latest.edges if edge[1] == extractor_target]
-    assert parallel_edges
-    assert set(parallel_edges[0][0]) == {
+    extractor_sources = {source for source, target in _FakeGraph.latest.edges if target == extractor_target}
+    assert extractor_sources == {
         f"{NodeType.VARIABLE_ASSIGNER.value}_{assigner_id}",
         f"{NodeType.CODE.value}_{code_id}",
     }
@@ -219,7 +218,7 @@ def test_workflow_ordinary_join_waits_for_all_predecessors(monkeypatch):
             if self.node_data.id == slow2_id:
                 await asyncio.sleep(0.02)
             calls.append(self.node_data.id)
-            return {}
+            return {"node_results": [SimpleNamespace(node_data=self.node_data, outputs={})]}
 
     monkeypatch.setattr(
         "internal.core.workflow.workflow.NodeClasses",
@@ -267,7 +266,7 @@ def test_workflow_conditional_branches_should_rejoin_after_selected_branch_once(
                     node_data=SimpleNamespace(node_type=NodeType.IF_ELSE.value, id=if_else_id),
                     outputs={"result": condition_result},
                 )]}
-            return {}
+            return {"node_results": [SimpleNamespace(node_data=self.node_data, outputs={})]}
 
     monkeypatch.setattr(
         "internal.core.workflow.workflow.NodeClasses",
@@ -318,7 +317,7 @@ def test_workflow_conditional_terminal_join_runs_end_once(monkeypatch, condition
                     node_data=SimpleNamespace(node_type=NodeType.IF_ELSE.value, id=if_else_id),
                     outputs={"result": condition_result},
                 )]}
-            return {}
+            return {"node_results": [SimpleNamespace(node_data=self.node_data, outputs={})]}
 
     monkeypatch.setattr(
         "internal.core.workflow.workflow.NodeClasses",
@@ -378,8 +377,11 @@ def test_workflow_partial_if_else_branch_routes_missing_side_to_end(
                     ]
                 }
             if self.node_data.node_type == NodeType.END.value:
-                return {"outputs": {"reached_end": True}}
-            return {}
+                return {
+                    "outputs": {"reached_end": True},
+                    "node_results": [SimpleNamespace(node_data=self.node_data, outputs={})],
+                }
+            return {"node_results": [SimpleNamespace(node_data=self.node_data, outputs={})]}
 
     monkeypatch.setattr(
         "internal.core.workflow.workflow.NodeClasses",

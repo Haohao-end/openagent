@@ -1,3 +1,4 @@
+import inspect
 from typing import Any, Optional, Iterator
 from flask import current_app
 from pydantic import PrivateAttr, BaseModel, Field, create_model
@@ -90,6 +91,79 @@ class Workflow(BaseTool):
         """构建编译后的工作流图程序"""
         # 1.创建graph图程序结构
         graph = StateGraph(WorkflowState)
+        node_types = {}
+        incoming_edges = {}
+
+        def find_result(state, node_flag):
+            for result in reversed(state.get("node_results", [])):
+                node_type = result.node_data.node_type
+                if isinstance(node_type, NodeType):
+                    node_type = node_type.value
+                if f"{node_type}_{result.node_data.id}" == node_flag:
+                    return result
+            return None
+
+        def active(node_flag, state, seen=None):
+            if node_types.get(node_flag) == NodeType.START:
+                return True
+            seen = set() if seen is None else seen
+            if node_flag in seen:
+                return None
+            seen.add(node_flag)
+            statuses = []
+            for source, source_type, handle in incoming_edges.get(node_flag, []):
+                source_active = active(source, state, seen.copy())
+                if source_active is False:
+                    statuses.append(False)
+                elif source_active is None:
+                    statuses.append(None)
+                elif source_type == NodeType.IF_ELSE:
+                    result = find_result(state, source)
+                    if result is None:
+                        statuses.append(None)
+                    else:
+                        selected = "true" if result.outputs.get("result", True) else "false"
+                        statuses.append(selected == (handle or "true"))
+                else:
+                    statuses.append(True)
+            if any(status is True for status in statuses):
+                return True
+            return None if any(status is None for status in statuses) else False
+
+        def ready(node_flag, state):
+            if find_result(state, node_flag) is not None:
+                return False
+            if node_types.get(node_flag) == NodeType.START:
+                return True
+            has_active_predecessor = False
+            for source, source_type, handle in incoming_edges.get(node_flag, []):
+                source_active = active(source, state)
+                if source_active is None:
+                    return False
+                if source_active is False:
+                    continue
+                result = find_result(state, source)
+                if result is None:
+                    return False
+                if source_type == NodeType.IF_ELSE:
+                    selected = "true" if result.outputs.get("result", True) else "false"
+                    if selected != (handle or "true"):
+                        continue
+                has_active_predecessor = True
+            return has_active_predecessor
+
+        class WorkflowNodeRunner:
+            def __init__(self, node_flag, node):
+                self.node_flag = node_flag
+                self.node = node
+
+            async def __call__(self, state, config=None):
+                if not ready(self.node_flag, state):
+                    return {}
+                if hasattr(self.node, "ainvoke"):
+                    return await self.node.ainvoke(state, config=config)
+                result = self.node(state)
+                return await result if inspect.isawaitable(result) else result
 
         # 2.提取nodes和edges信息
         nodes = self._workflow_config.nodes
@@ -101,69 +175,73 @@ class Workflow(BaseTool):
             if isinstance(node_type, str):
                 node_type = NodeType(node_type)
             node_flag = f"{node_type.value}_{node.id}"
+            node_types[node_flag] = node_type
             if node.node_type == NodeType.START.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.START.value](node_data=node),
+                    WorkflowNodeRunner(node_flag, NodeClasses[NodeType.START.value](node_data=node)),
                 )
             elif node.node_type == NodeType.LLM.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.LLM.value](node_data=node),
+                    WorkflowNodeRunner(node_flag, NodeClasses[NodeType.LLM.value](node_data=node)),
                 )
             elif node.node_type == NodeType.TEMPLATE_TRANSFORM.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.TEMPLATE_TRANSFORM.value](node_data=node),
+                    WorkflowNodeRunner(node_flag, NodeClasses[NodeType.TEMPLATE_TRANSFORM.value](node_data=node)),
                 )
             elif node.node_type == NodeType.DATASET_RETRIEVAL.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.DATASET_RETRIEVAL.value](
-                        flask_app=current_app._get_current_object(),
-                        account_id=self._workflow_config.account_id,
-                        node_data=node,
+                    WorkflowNodeRunner(
+                        node_flag,
+                        NodeClasses[NodeType.DATASET_RETRIEVAL.value](
+                            flask_app=current_app._get_current_object(),
+                            account_id=self._workflow_config.account_id,
+                            node_data=node,
+                        ),
                     ),
                 )
             elif node.node_type == NodeType.CODE.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.CODE.value](node_data=node),
+                    WorkflowNodeRunner(node_flag, NodeClasses[NodeType.CODE.value](node_data=node)),
                 )
             elif node.node_type == NodeType.TOOL.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.TOOL.value](node_data=node),
+                    WorkflowNodeRunner(node_flag, NodeClasses[NodeType.TOOL.value](node_data=node)),
                 )
             elif node.node_type == NodeType.HTTP_REQUEST.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.HTTP_REQUEST.value](node_data=node),
+                    WorkflowNodeRunner(node_flag, NodeClasses[NodeType.HTTP_REQUEST.value](node_data=node)),
                 )
             elif node.node_type == NodeType.TEXT_PROCESSOR.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.TEXT_PROCESSOR.value](node_data=node),
+                    WorkflowNodeRunner(node_flag, NodeClasses[NodeType.TEXT_PROCESSOR.value](node_data=node)),
                 )
             elif node.node_type == NodeType.VARIABLE_ASSIGNER.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.VARIABLE_ASSIGNER.value](node_data=node),
+                    WorkflowNodeRunner(node_flag, NodeClasses[NodeType.VARIABLE_ASSIGNER.value](node_data=node)),
                 )
             elif node.node_type == NodeType.PARAMETER_EXTRACTOR.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.PARAMETER_EXTRACTOR.value](node_data=node),
+                    WorkflowNodeRunner(node_flag, NodeClasses[NodeType.PARAMETER_EXTRACTOR.value](node_data=node)),
                 )
             elif node.node_type == NodeType.IF_ELSE.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.IF_ELSE.value](node_data=node),
+                    WorkflowNodeRunner(node_flag, NodeClasses[NodeType.IF_ELSE.value](node_data=node)),
                 )
             elif node.node_type == NodeType.END.value:
                 graph.add_node(
                     node_flag,
-                    NodeClasses[NodeType.END.value](node_data=node),
+                    WorkflowNodeRunner(node_flag, NodeClasses[NodeType.END.value](node_data=node)),
                 )
             else:
                 raise ValidateErrorException("工作流节点类型错误，请核实后重试")
@@ -171,12 +249,16 @@ class Workflow(BaseTool):
         # 4.循环遍历edges信息，区分普通边和条件边
         parallel_edges = {}  # key:终点，value:起点列表（普通边）
         conditional_edges = {}  # key:if_else节点，value:条件边配置
+        incoming_edges = {}
         start_node = ""
         end_node = ""
 
         for edge in edges:
             source_node = f"{edge.source_type.value}_{edge.source}"
             target_node = f"{edge.target_type.value}_{edge.target}"
+            incoming_edges.setdefault(target_node, []).append(
+                (source_node, edge.source_type, edge.source_handle)
+            )
 
             # 检测是否为条件边（从 if_else 节点出发的边）
             if edge.source_type == NodeType.IF_ELSE.value:
@@ -198,88 +280,29 @@ class Workflow(BaseTool):
             if edge.target_type == NodeType.END.value:
                 end_node = target_node
 
-        conditional_targets = {
-            target_node
-            for branches in conditional_edges.values()
-            for target_node in branches.values()
-        }
-        conditional_end_routes = set()
-
         # 5.设置开始和终点
         graph.set_entry_point(start_node)
         graph.set_finish_point(end_node)
 
-        # 6.普通汇聚等待全部前置节点；互斥分支目标分别等待各自路径。
+        # 6.保留每条普通边，由节点运行器只等待当前执行路径中的前置节点。
         for target_node, source_nodes in parallel_edges.items():
-            if target_node in conditional_targets:
-                if target_node.startswith(f"{NodeType.END.value}_"):
-                    for if_else_node, branches in conditional_edges.items():
-                        matching_branches = [
-                            branch for branch, branch_target in branches.items()
-                            if branch_target == target_node
-                        ]
-                        if matching_branches:
-                            gate_node = f"conditional_end_gate_{if_else_node}_{target_node}"
-                            graph.add_node(gate_node, lambda _state: {})
-                            graph.add_edge(if_else_node, gate_node)
-                            graph.add_edge([gate_node, *source_nodes], target_node)
-                            conditional_end_routes.update(
-                                (if_else_node, branch) for branch in matching_branches
-                            )
-                else:
-                    for source_node in source_nodes:
-                        graph.add_edge(source_node, target_node)
-                continue
-
-            barriers = []
-            for branches in conditional_edges.values():
-                branch_sources = [
-                    set(source_nodes) & {branch_target}
-                    for branch_target in set(branches.values())
-                ]
-                branch_sources = [sources for sources in branch_sources if sources]
-                if len(branch_sources) > 1 and all(
-                    branch_sources[left].isdisjoint(branch_sources[right])
-                    for left in range(len(branch_sources))
-                    for right in range(left + 1, len(branch_sources))
-                ):
-                    independent = set(source_nodes) - set.union(*branch_sources)
-                    barriers = [sorted(independent | sources) for sources in branch_sources]
-                    break
-
-            if barriers:
-                for barrier in barriers:
-                    graph.add_edge(barrier if len(barrier) > 1 else barrier[0], target_node)
-            elif len(source_nodes) > 1:
-                graph.add_edge(source_nodes, target_node)
-            else:
-                graph.add_edge(source_nodes[0], target_node)
+            for source_node in source_nodes:
+                graph.add_edge(source_node, target_node)
 
         # 7.添加条件边
         for if_else_node, branches in conditional_edges.items():
             # 创建条件函数，根据节点输出的 result 决定路径
             def create_condition_func(node_id):
                 def condition_func(state: WorkflowState):
-                    # 从最新的节点结果中获取条件判断结果
-                    for node_result in reversed(state.get("node_results", [])):
-                        if f"{node_result.node_data.node_type}_{node_result.node_data.id}" == node_id:
-                            result = node_result.outputs.get("result", True)
-                            return "true" if result else "false"
-                    return "true"
+                    node_result = find_result(state, node_id)
+                    result = node_result.outputs.get("result", True) if node_result else True
+                    return "true" if result else "false"
                 return condition_func
 
             # An unwired condition side means that branch terminates the workflow.
             path_map = {
-                "true": (
-                    END
-                    if (if_else_node, "true") in conditional_end_routes
-                    else branches.get("true", END)
-                ),
-                "false": (
-                    END
-                    if (if_else_node, "false") in conditional_end_routes
-                    else branches.get("false", END)
-                ),
+                "true": branches.get("true", END),
+                "false": branches.get("false", END),
             }
             graph.add_conditional_edges(
                 if_else_node,
