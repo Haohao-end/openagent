@@ -149,6 +149,7 @@ class NotificationService:
             if (
                 type(notification_data["segment_count"]) is not int
                 or type(notification_data["index_duration"]) not in (int, float)
+                or type(notification_data["is_read"]) is not bool
             ):
                 return None
             try:
@@ -227,6 +228,8 @@ class NotificationService:
             return None
 
         notification_data = json.loads(data)
+        if not isinstance(notification_data, dict) or type(notification_data.get("is_read")) is not bool:
+            return None
         return AgentNotificationEntity(
             id=notification_data["id"],
             user_id=UUID(notification_data["user_id"]),
