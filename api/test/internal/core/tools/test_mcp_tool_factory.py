@@ -140,6 +140,16 @@ def test_mcp_schema_compiler_should_keep_root_numeric_bounds():
         schema.model_validate({"value": 1})
 
 
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_mcp_schema_compiler_should_reject_non_finite_numbers(value):
+    schema = McpSchemaCompiler().build_args_schema(
+        {"type": "object", "properties": {"value": {"type": "number"}}}
+    )
+
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": value})
+
+
 def test_mcp_schema_compiler_should_reject_items_when_item_schema_is_false():
     schema = McpSchemaCompiler().build_args_schema(
         {"type": "object", "properties": {"values": {"type": "array", "items": False}}}

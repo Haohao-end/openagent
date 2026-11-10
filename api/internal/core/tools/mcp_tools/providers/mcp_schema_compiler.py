@@ -267,8 +267,11 @@ class McpSchemaCompiler:
         if _normalize_text(schema_type).lower() == "string":
             return str
         if _normalize_text(schema_type).lower() in {"integer", "number"}:
-            numeric_type = StrictInt if _normalize_text(schema_type).lower() == "integer" else StrictFloat
+            schema_type = _normalize_text(schema_type).lower()
+            numeric_type = StrictInt if schema_type == "integer" else StrictFloat
             constraints = _numeric_constraints(schema)
+            if schema_type == "number":
+                constraints["allow_inf_nan"] = False
             return Annotated[numeric_type, Field(**constraints)] if constraints else numeric_type
         if _normalize_text(schema_type).lower() == "boolean":
             return StrictBool
