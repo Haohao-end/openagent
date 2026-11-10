@@ -147,6 +147,34 @@ class TestIconGeneratorService:
 
         assert icon_url == "https://dalle/icon.png"
 
+    def test_generate_icon_reuses_one_prompt_across_provider_fallbacks(self, monkeypatch):
+        app = Mock()
+        app.config = {"SILICONFLOW_API_KEY": "test-key", "OPENAI_API_KEY": "test-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+        service = _build_service()
+        prompt = Mock(return_value="one prompt")
+        monkeypatch.setattr(service, "_generate_icon_prompt", prompt)
+        provider_prompts = []
+
+        def request(provider, _model, prompt, _source, **_kwargs):
+            provider_prompts.append((provider, prompt))
+            raise FailException("provider unavailable")
+
+        monkeypatch.setattr(service, "_request_siliconflow_image", request)
+        monkeypatch.setattr(service, "_download_and_upload_image", lambda *_args: "https://dalle/icon.png")
+        monkeypatch.setattr(
+            "internal.service.icon_generator_service.DallEAPIWrapper",
+            lambda **_kwargs: SimpleNamespace(
+                run=lambda prompt: provider_prompts.append(("DALLE", prompt)) or "https://dalle/image.png"
+            ),
+        )
+
+        result = service.generate_icon("测试应用", "desc")
+
+        assert result.endswith("icon.png")
+        prompt.assert_called_once_with("测试应用", "desc")
+        assert provider_prompts == [(provider, "one prompt") for provider in ("Kolors", "Qwen", "DALLE")]
+
     def test_generate_icon_all_services_fail(self, monkeypatch):
         mock_app = Mock()
         mock_app.config = {

@@ -66,11 +66,12 @@ class IconGeneratorService(BaseService):
             FailException: 所有图标生成方式都失败时抛出
         """
         errors = []
+        prompt = self._generate_icon_prompt(name, description)
 
         # 1. 尝试使用 Kolors (硅基流动)
         try:
             logging.info(f"尝试使用 Kolors 生成图标: name={name}")
-            icon_url = self._generate_with_kolors(name, description)
+            icon_url = self._generate_with_kolors(name, description, prompt)
             if icon_url:
                 logging.info(f"Kolors 生成图标成功: {icon_url}")
                 return icon_url
@@ -81,7 +82,7 @@ class IconGeneratorService(BaseService):
         # 2. 尝试使用 Qwen (通义万相)
         try:
             logging.info(f"尝试使用 Qwen 生成图标: name={name}")
-            icon_url = self._generate_with_qwen(name, description)
+            icon_url = self._generate_with_qwen(name, description, prompt)
             if icon_url:
                 logging.info(f"Qwen 生成图标成功: {icon_url}")
                 return icon_url
@@ -92,7 +93,7 @@ class IconGeneratorService(BaseService):
         # 3. 最后使用 DALLE 兜底
         try:
             logging.info(f"尝试使用 DALLE 生成图标: name={name}")
-            icon_url = self._generate_with_dalle(name, description)
+            icon_url = self._generate_with_dalle(name, description, prompt)
             if icon_url:
                 logging.info(f"DALLE 生成图标成功: {icon_url}")
                 return icon_url
@@ -222,9 +223,10 @@ class IconGeneratorService(BaseService):
 
         return self._download_and_upload_image(image_url, source)
 
-    def _generate_with_kolors(self, name: str, description: str) -> Optional[str]:
+    def _generate_with_kolors(self, name: str, description: str, prompt: Optional[str] = None) -> Optional[str]:
         """使用 Kolors (硅基流动) 生成图标"""
-        prompt = self._generate_icon_prompt(name, description)
+        if prompt is None:
+            prompt = self._generate_icon_prompt(name, description)
         return self._request_siliconflow_image(
             "Kolors",
             "Kwai-Kolors/Kolors",
@@ -236,9 +238,10 @@ class IconGeneratorService(BaseService):
             guidance_scale=7.5,
         )
 
-    def _generate_with_qwen(self, name: str, description: str) -> Optional[str]:
+    def _generate_with_qwen(self, name: str, description: str, prompt: Optional[str] = None) -> Optional[str]:
         """使用 Qwen (SiliconFlow) 生成图标"""
-        prompt = self._generate_icon_prompt(name, description)
+        if prompt is None:
+            prompt = self._generate_icon_prompt(name, description)
         return self._request_siliconflow_image(
             "Qwen",
             "Qwen/Qwen-Image",
@@ -249,14 +252,14 @@ class IconGeneratorService(BaseService):
             cfg=4.0,
         )
 
-    def _generate_with_dalle(self, name: str, description: str) -> Optional[str]:
+    def _generate_with_dalle(self, name: str, description: str, prompt: Optional[str] = None) -> Optional[str]:
         """使用 DALLE 生成图标"""
         api_key = current_app.config.get("OPENAI_API_KEY")
         if not api_key:
             raise FailException("OPENAI_API_KEY 未配置")
 
-        # 生成图标描述
-        prompt = self._generate_icon_prompt(name, description)
+        if prompt is None:
+            prompt = self._generate_icon_prompt(name, description)
 
         # 使用 LangChain 的 DALLE wrapper
         dalle_api_wrapper = DallEAPIWrapper(
