@@ -9,7 +9,7 @@ import requests
 from PIL import Image
 
 from internal.exception import FailException
-from internal.service.icon_generator_service import IconGeneratorService
+from internal.service.icon_generator_service import IconGeneratorService, IconStorageError
 
 _ORIGINAL_GENERATE_ICON_PROMPT = IconGeneratorService._generate_icon_prompt
 
@@ -262,6 +262,39 @@ class TestIconGeneratorService:
 
         network_request.assert_not_called()
         cos_client.put_object.assert_not_called()
+
+    @pytest.mark.parametrize("failure", ["domain", "client", "bucket", "put_object", "invalid_image"])
+    def test_generate_icon_falls_back_for_invalid_image_but_not_cos_failures(self, monkeypatch, failure):
+        app = Mock()
+        app.config = {} if failure == "domain" else {"COS_DOMAIN": "https://test.cos.com"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+        service = _build_service()
+        cos_client = service.cos_service._get_client.return_value
+        failure_call = {
+            "client": service.cos_service._get_client,
+            "bucket": service.cos_service._get_bucket,
+            "put_object": cos_client.put_object,
+        }.get(failure)
+        if failure_call:
+            failure_call.side_effect = RuntimeError("storage unavailable")
+        response = _mock_image_response(_image_bytes("GIF" if failure == "invalid_image" else "PNG"))
+        monkeypatch.setattr(
+            "internal.service.icon_generator_service.safe_request", lambda *_args, **_kwargs: response
+        )
+        monkeypatch.setattr(
+            service, "_generate_with_kolors",
+            lambda *_a, **_kw: service._download_and_upload_image("https://example.com/icon.png", "kolors"),
+        )
+        qwen = Mock(return_value="https://qwen/icon.png")
+        monkeypatch.setattr(service, "_generate_with_qwen", qwen)
+
+        if failure == "invalid_image":
+            assert service.generate_icon("app", "desc") == "https://qwen/icon.png"
+            qwen.assert_called_once()
+        else:
+            with pytest.raises(IconStorageError):
+                service.generate_icon("app", "desc")
+            qwen.assert_not_called()
 
     def test_download_and_upload_image(self, monkeypatch):
         mock_app = Mock()

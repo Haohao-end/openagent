@@ -27,6 +27,10 @@ MAX_ICON_IMAGE_PIXELS = 20_000_000
 SUPPORTED_ICON_IMAGE_FORMATS = {"PNG", "JPEG", "WEBP"}
 
 
+class IconStorageError(FailException):
+    """Shared icon storage failure that should not trigger provider fallback."""
+
+
 def _normalize_provider_image_url(value: object) -> Optional[str]:
     if not isinstance(value, str) or not value.strip():
         return None
@@ -75,6 +79,8 @@ class IconGeneratorService(BaseService):
             if icon_url:
                 logging.info(f"Kolors 生成图标成功: {icon_url}")
                 return icon_url
+        except IconStorageError:
+            raise
         except Exception as e:
             logging.warning("Kolors 生成图标失败: error_type=%s", type(e).__name__)
             errors.append(f"Kolors: {type(e).__name__}")
@@ -86,6 +92,8 @@ class IconGeneratorService(BaseService):
             if icon_url:
                 logging.info(f"Qwen 生成图标成功: {icon_url}")
                 return icon_url
+        except IconStorageError:
+            raise
         except Exception as e:
             logging.warning("Qwen 生成图标失败: error_type=%s", type(e).__name__)
             errors.append(f"Qwen: {type(e).__name__}")
@@ -97,6 +105,8 @@ class IconGeneratorService(BaseService):
             if icon_url:
                 logging.info(f"DALLE 生成图标成功: {icon_url}")
                 return icon_url
+        except IconStorageError:
+            raise
         except Exception as e:
             logging.error("DALLE 生成图标失败: error_type=%s", type(e).__name__)
             errors.append(f"DALLE: {type(e).__name__}")
@@ -292,7 +302,7 @@ class IconGeneratorService(BaseService):
         """
         cos_domain = current_app.config.get("COS_DOMAIN")
         if not cos_domain:
-            raise FailException("COS_DOMAIN 未配置")
+            raise IconStorageError("COS_DOMAIN 未配置")
 
         # 1. 流式下载并限制体积，避免异常上游响应占用过多内存。
         response = safe_request("GET", image_url, timeout=30, stream=True)
@@ -324,8 +334,11 @@ class IconGeneratorService(BaseService):
         image_data = self._normalize_icon_image(b"".join(image_chunks))
 
         # 2. 获取COS客户端和存储桶
-        client = self.cos_service._get_client()
-        bucket = self.cos_service._get_bucket()
+        try:
+            client = self.cos_service._get_client()
+            bucket = self.cos_service._get_bucket()
+        except Exception as error:
+            raise IconStorageError("图标存储服务暂时不可用") from error
 
         # 3. 生成文件名
         random_filename = f"{uuid.uuid4()}.png"
@@ -333,12 +346,15 @@ class IconGeneratorService(BaseService):
         upload_filename = f"{now.year}/{now.month:02d}/{now.day:02d}/icons/{source}_{random_filename}"
 
         # 4. 上传到COS
-        client.put_object(
-            Bucket=bucket,
-            Body=image_data,
-            Key=upload_filename,
-            ContentType="image/png"
-        )
+        try:
+            client.put_object(
+                Bucket=bucket,
+                Body=image_data,
+                Key=upload_filename,
+                ContentType="image/png"
+            )
+        except Exception as error:
+            raise IconStorageError("图标存储服务暂时不可用") from error
 
         # 5. 返回COS URL
         return f"{str(cos_domain).rstrip('/')}/{upload_filename}"
