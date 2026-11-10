@@ -353,9 +353,15 @@ def test_skill_tool_factory_should_validate_string_patterns(field, valid_value, 
         (r"^[\c_]$", "\x1f", "_"),
         (r"^\c1$", "c1", "\x11"),
         (r"^\c$", "c", "\x03"),
+        (r"^\u$", "u", "v"),
+        (r"^\x$", "x", "y"),
+        (r"^\U$", "U", "u"),
+        (r"^[\u]$", "u", "v"),
+        (r"^[\x]$", "x", "y"),
+        (r"^(?<$foo>a)\k<$foo>$", "aa", "ab"),
     ],
 )
-def test_skill_tool_factory_should_match_ecmascript_legacy_regex_semantics(pattern, valid_value, invalid_value):
+def test_skill_tool_factory_should_match_ecmascript_regex_edge_semantics(pattern, valid_value, invalid_value):
     schema = SkillToolFactory(scf_client=None)._build_args_schema(
         {"properties": {"value": {"type": "string", "pattern": pattern}}, "required": ["value"]}
     )

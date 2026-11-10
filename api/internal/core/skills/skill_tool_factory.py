@@ -38,9 +38,9 @@ def _reject_empty_enum(_value: Any) -> Any:
     raise ValueError("No values are allowed by an empty enum")
 
 
-def _scan_json_schema_groups(pattern: str) -> tuple[int, set[str]]:
+def _scan_json_schema_groups(pattern: str) -> tuple[int, dict[str, str]]:
     capture_count = 0
-    named_groups: set[str] = set()
+    named_groups: dict[str, str] = {}
     in_character_class = False
     escaped = False
     index = 0
@@ -66,8 +66,8 @@ def _scan_json_schema_groups(pattern: str) -> tuple[int, set[str]]:
             elif pattern[index : index + 3] == "(?<" and pattern[index + 3 : index + 4] not in "=!":
                 name_end = pattern.find(">", index + 3)
                 if name_end != -1:
-                    named_groups.add(pattern[index + 3 : name_end])
                     capture_count += 1
+                    named_groups[pattern[index + 3 : name_end]] = f"ecma_group_{capture_count}"
                     index = name_end
         index += 1
     return capture_count, named_groups
@@ -104,7 +104,10 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
                 name_end = pattern.find(">", index + 2)
                 if name_end != -1:
                     name = pattern[index + 2 : name_end]
-                    translated.append(f"(?({name})(?P={name})|)" if name in named_groups else f"k<{name}>")
+                    mapped_name = named_groups.get(name)
+                    translated.append(
+                        f"(?({mapped_name})(?P={mapped_name})|)" if mapped_name else f"k<{name}>"
+                    )
                     index = name_end
             elif char == "k" and in_character_class:
                 translated.append("k")
@@ -135,6 +138,15 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
                     index += 1
                 else:
                     translated.append("c")
+            elif char in "uUxX":
+                escape_length = 4 if char == "u" else 2 if char == "x" else 0
+                escape_digits = pattern[index + 1 : index + 1 + escape_length]
+                if escape_length and len(escape_digits) == escape_length and all(
+                    digit in "0123456789abcdefABCDEF" for digit in escape_digits
+                ):
+                    translated.extend(("\\", char))
+                else:
+                    translated.append(char)
             elif char in "sS":
                 whitespace = f"[{_ECMASCRIPT_WHITESPACE}]"
                 if char == "S":
@@ -175,7 +187,8 @@ def _compile_json_schema_pattern(pattern: str) -> regex.Pattern[str]:
         elif not in_character_class and pattern[index : index + 3] == "(?<" and pattern[index + 3 : index + 4] not in "=!":
             name_end = pattern.find(">", index + 3)
             if name_end != -1:
-                translated.append(f"(?P<{pattern[index + 3 : name_end]}>")
+                name = pattern[index + 3 : name_end]
+                translated.append(f"(?P<{named_groups.get(name, name)}>")
                 index = name_end
         elif char == "]" and in_character_class and not class_first:
             in_character_class = False
