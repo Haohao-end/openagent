@@ -300,6 +300,7 @@ def test_skill_tool_factory_should_validate_string_length_constraints(field, val
     [
         ({"type": "string", "pattern": "^[A-Z]{2}$"}, "AB", "a1"),
         ({"type": "array", "items": {"type": "string", "pattern": "^[A-Z]{2}$"}}, ["AB"], ["a1"]),
+        ({"type": "string", "pattern": "^(?=.{8,}$).*$"}, "OpenAgent", "short"),
     ],
 )
 def test_skill_tool_factory_should_validate_string_patterns(field, valid_value, invalid_value):
@@ -307,6 +308,10 @@ def test_skill_tool_factory_should_validate_string_patterns(field, valid_value, 
         {"properties": {"value": field}, "required": ["value"]}
     )
     assert schema.model_validate({"value": valid_value}).value == valid_value
+    value_schema = schema.model_json_schema()["properties"]["value"]
+    if field["type"] == "array":
+        value_schema = value_schema["items"]
+    assert value_schema["pattern"] == (field.get("items") or field)["pattern"]
 
     with pytest.raises(ValidationError):
         schema.model_validate({"value": invalid_value})

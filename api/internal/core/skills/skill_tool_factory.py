@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal
 from uuid import uuid4
@@ -27,6 +28,12 @@ def _normalize_text(value: Any) -> str:
 
 def _reject_empty_enum(_value: Any) -> Any:
     raise ValueError("No values are allowed by an empty enum")
+
+
+def _validate_string_pattern(value: str, pattern: re.Pattern[str]) -> str:
+    if pattern.search(value) is None:
+        raise ValueError("Value does not match the pattern")
+    return value
 
 
 def _validate_enum(value: Any, enum_values: list[Any]) -> Any:
@@ -70,10 +77,17 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
             for name, value in (
                 ("min_length", schema.get("minLength")),
                 ("max_length", schema.get("maxLength")),
-                ("pattern", schema.get("pattern")),
             )
-            if (name == "pattern" and isinstance(value, str)) or (type(value) is int and value >= 0)
+            if type(value) is int and value >= 0
         }
+        pattern = schema.get("pattern")
+        if isinstance(pattern, str):
+            compiled_pattern = re.compile(pattern)
+            return Annotated[
+                str,
+                Field(**constraints, json_schema_extra={"pattern": pattern}),
+                AfterValidator(lambda value: _validate_string_pattern(value, compiled_pattern)),
+            ]
         return Annotated[str, Field(**constraints)] if constraints else str
     if schema_type in {"integer", "number"}:
         numeric_type = StrictInt if schema_type == "integer" else StrictFloat
