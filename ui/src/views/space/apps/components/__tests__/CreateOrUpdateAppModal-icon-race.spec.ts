@@ -10,12 +10,14 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
   success: vi.fn(),
   imageUrl: { value: '' },
+  app: { value: {} as any },
+  loadApp: vi.fn(),
 }))
 
 vi.mock('@/hooks/use-app', () => ({
   useCreateApp: () => ({ loading: false, handleCreateApp: vi.fn() }),
   useUpdateApp: () => ({ loading: false, handleUpdateApp: vi.fn() }),
-  useGetApp: () => ({ app: { value: {} }, loading: { value: false }, loadApp: vi.fn() }),
+  useGetApp: () => ({ app: mocks.app, loading: { value: false }, loadApp: mocks.loadApp }),
   useRegenerateIcon: () => ({ loading: false, handleRegenerateIcon: vi.fn() }),
   useGenerateIconPreview: () => ({ loading: false, handleGenerateIconPreview: mocks.generate }),
 }))
@@ -41,6 +43,9 @@ const deferred = <T>() => {
 const mountModal = () => {
   const wrapper = shallowMount(CreateOrUpdateAppModal, {
     props: { app_id: '', visible: true },
+    global: {
+      stubs: { 'a-form': { methods: { resetFields: vi.fn() }, template: '<form><slot /></form>' } },
+    },
   })
   const state = (wrapper.vm as any).$.setupState
   state.form.name = 'Agent'
@@ -139,4 +144,52 @@ it.each(
   expect(state.form.fileList).toEqual([])
   expect(mocks.error).not.toHaveBeenCalled()
   wrapper.unmount()
+})
+
+it('ignores generation finishing after the modal closes and reopens', async () => {
+  const generated = deferred<string>()
+  mocks.generate.mockReturnValue(generated.promise)
+  const { wrapper, state } = mountModal()
+  const pending = state.handleGenerateIcon()
+
+  const closing = wrapper.setProps({ visible: false })
+  generated.resolve('stale-icon')
+  await closing
+  await wrapper.setProps({ visible: true })
+  await pending
+
+  expect(state.form.icon).toBe('')
+  wrapper.unmount()
+})
+
+it('keeps the new app icon when an earlier upload finishes after an app switch', async () => {
+  const uploaded = deferred<string>()
+  mocks.app.value = { icon: 'new-icon', name: 'New Agent', description: '' }
+  mocks.upload.mockImplementation(async () => {
+    mocks.imageUrl.value = await uploaded.promise
+  })
+  const { wrapper, state } = mountModal()
+  const pending = state.handleUploadIcon(new File(['icon'], 'icon.png'))
+
+  await wrapper.setProps({ app_id: 'new-app' })
+  await flushPromises()
+  uploaded.resolve('stale-icon')
+  await pending
+
+  expect(state.form.icon).toBe('new-icon')
+  expect(state.form.fileList[0]?.url).toBe('new-icon')
+  wrapper.unmount()
+})
+
+it('ignores generation finishing after the modal component unmounts', async () => {
+  const generated = deferred<string>()
+  mocks.generate.mockReturnValue(generated.promise)
+  const { wrapper, state } = mountModal()
+  const pending = state.handleGenerateIcon()
+
+  wrapper.unmount()
+  generated.resolve('stale-icon')
+  await pending
+
+  expect(state.form.icon).toBe('')
 })
