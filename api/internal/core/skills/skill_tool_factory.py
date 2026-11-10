@@ -229,8 +229,8 @@ class SkillToolFactory:
                         Field(default=... if prop_name in required_fields else default, description=description),
                     )
 
-        if not fields:
-            return create_model(f"SkillToolArgs_{uuid4().hex}")
-
         config = {"extra": "forbid"} if input_schema.get("additionalProperties") is False else None
+        if not fields:
+            return create_model(f"SkillToolArgs_{uuid4().hex}", __config__=config)
+
         return create_model(f"SkillToolArgs_{uuid4().hex}", __config__=config, **fields)
