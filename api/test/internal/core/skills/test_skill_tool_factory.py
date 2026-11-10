@@ -300,6 +300,8 @@ def test_skill_tool_factory_should_validate_string_length_constraints(field, val
     [
         ({"type": "string", "pattern": "^[A-Z]{2}$"}, "AB", "a1"),
         ({"type": "array", "items": {"type": "string", "pattern": "^[A-Z]{2}$"}}, ["AB"], ["a1"]),
+        ({"type": "string", "enum": ["AA", "bb"], "pattern": "^[A-Z]+$"}, "AA", "bb"),
+        ({"type": "array", "items": {"type": "string", "enum": ["AA", "bb"], "pattern": "^[A-Z]+$"}}, ["AA"], ["bb"]),
         ({"type": "string", "pattern": "^(?=.{8,}$).*$"}, "OpenAgent", "short"),
     ],
 )
@@ -315,6 +317,15 @@ def test_skill_tool_factory_should_validate_string_patterns(field, valid_value, 
 
     with pytest.raises(ValidationError):
         schema.model_validate({"value": invalid_value})
+
+
+def test_skill_tool_factory_should_bound_string_pattern_validation_time():
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": {"type": "string", "pattern": "(a+)+$"}}, "required": ["value"]}
+    )
+
+    with pytest.raises(ValidationError, match="Pattern validation timed out"):
+        schema.model_validate({"value": "a" * 1000 + "!"})
 
 
 @pytest.mark.parametrize(

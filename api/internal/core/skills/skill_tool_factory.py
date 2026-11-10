@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
+import regex
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import (
     AfterValidator,
@@ -20,6 +20,7 @@ from pydantic import (
 from .skill_executor import SkillSandboxExecutor, SkillScfClient
 
 logger = logging.getLogger(__name__)
+SKILL_PATTERN_TIMEOUT_SECONDS = 0.05
 
 
 def _normalize_text(value: Any) -> str:
@@ -30,8 +31,14 @@ def _reject_empty_enum(_value: Any) -> Any:
     raise ValueError("No values are allowed by an empty enum")
 
 
-def _validate_string_pattern(value: str, pattern: re.Pattern[str]) -> str:
-    if pattern.search(value) is None:
+def _validate_string_pattern(value: Any, pattern: regex.Pattern[str]) -> str:
+    if not isinstance(value, str):
+        raise ValueError("Value does not match the pattern")  # noqa: TRY004
+    try:
+        match = pattern.search(value, timeout=SKILL_PATTERN_TIMEOUT_SECONDS)
+    except TimeoutError as exc:
+        raise ValueError("Pattern validation timed out") from exc
+    if match is None:
         raise ValueError("Value does not match the pattern")
     return value
 
@@ -61,7 +68,10 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
     enum_values = schema.get("enum")
     if isinstance(enum_values, list):
         if not enum_values:
-            return Annotated[Any, Field(json_schema_extra={"enum": []}), AfterValidator(_reject_empty_enum)]
+            json_schema_extra = {"enum": []}
+            if schema_type == "string" and isinstance(schema.get("pattern"), str):
+                json_schema_extra["pattern"] = schema["pattern"]
+            return Annotated[Any, Field(json_schema_extra=json_schema_extra), AfterValidator(_reject_empty_enum)]
         if schema_type in {"integer", "number"}:
             numeric_type = StrictInt if schema_type == "integer" else StrictFloat
             constraints = _numeric_constraints(schema)
@@ -70,6 +80,14 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
                 Field(**constraints, json_schema_extra={"enum": enum_values}),
             ]
             return Annotated[annotation, AfterValidator(lambda value: _validate_enum(value, enum_values))]
+        if schema_type == "string" and isinstance(schema.get("pattern"), str):
+            pattern = schema["pattern"]
+            compiled_pattern = regex.compile(pattern)
+            return Annotated[
+                Literal[tuple(enum_values)],
+                Field(json_schema_extra={"pattern": pattern}),
+                AfterValidator(lambda value: _validate_string_pattern(value, compiled_pattern)),
+            ]
         return Literal[tuple(enum_values)]
     if schema_type == "string":
         constraints = {
@@ -82,7 +100,7 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> Any:
         }
         pattern = schema.get("pattern")
         if isinstance(pattern, str):
-            compiled_pattern = re.compile(pattern)
+            compiled_pattern = regex.compile(pattern)
             return Annotated[
                 str,
                 Field(**constraints, json_schema_extra={"pattern": pattern}),
