@@ -170,6 +170,16 @@ def test_skill_tool_factory_should_keep_required_fields_required_when_default_de
         schema.model_validate({})
 
 
+def test_skill_tool_factory_should_reject_null_for_optional_non_nullable_fields():
+    schema = SkillToolFactory(scf_client=None)._build_args_schema(
+        {"properties": {"value": {"type": "string"}}}
+    )
+
+    assert schema.model_validate({}).value is None
+    with pytest.raises(ValidationError):
+        schema.model_validate({"value": None})
+
+
 def test_skill_tool_factory_should_validate_array_item_types():
     schema = SkillToolFactory(scf_client=None)._build_args_schema(
         {"properties": {"values": {"type": "array", "items": {"type": "integer"}}}}

@@ -179,7 +179,7 @@ class SkillToolFactory:
                 default = prop_schema.get("default", ...)
                 if prop_name not in required_fields and default is ...:
                     fields[prop_name] = (
-                        python_type | None,
+                        python_type,
                         Field(default=None, description=description),
                     )
                 else:
