@@ -20,7 +20,7 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
             raise ValueError("max_queue_size must be a positive integer")
         self._events: queue.Queue[str] = queue.Queue(maxsize=max_queue_size)
         self._lock = threading.Lock()
-        self._started_at: dict[str, tuple[float, str, str]] = {}
+        self._started_at: dict[str, tuple[float, str, str, Any]] = {}
         self._dropped_events = 0
 
     @property
@@ -134,7 +134,7 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
         with self._lock:
             if len(self._started_at) >= self._events.maxsize:
                 self._started_at.pop(next(iter(self._started_at)))
-            self._started_at[safe_run_id] = (time.monotonic(), run_type, name)
+            self._started_at[safe_run_id] = (time.monotonic(), run_type, name, inputs)
         self._publish(run_type, "start", name, safe_run_id, parent_run_id, inputs=inputs)
 
     def _finish(
@@ -155,8 +155,9 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
             run_state = self._started_at.pop(safe_run_id, None)
         if run_state is None:
             latency_ms = None
+            inputs = None
         else:
-            started_at, run_type, name = run_state
+            started_at, run_type, name, inputs = run_state
             latency_ms = max(0.0, (time.monotonic() - started_at) * 1000)
         self._publish(
             run_type,
@@ -164,6 +165,7 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
             name,
             safe_run_id,
             parent_run_id,
+            inputs=inputs,
             outputs=outputs,
             error=error,
             latency_ms=latency_ms,

@@ -59,6 +59,7 @@ def test_handler_inherits_base_handler_and_records_chain_timing_safely():
     ended = read_event(handler)
     assert ended["phase"] == "end"
     assert ended["name"] == "outer-chain"
+    assert ended["inputs"] == started["inputs"]
     assert ended["outputs"] == {"type": "mapping", "size": 1}
     assert ended["latency_ms"] >= 0
     assert handler.dropped_events == 0
