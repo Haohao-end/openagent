@@ -97,6 +97,22 @@ it('shows error phase details and error status', () => {
   wrapper.unmount()
 })
 
+it.each(['', '   '])('shows the localized fallback when error details are blank', (error) => {
+  const wrapper = mountTimeline([trace({ phase: 'error', status: 'failed', error })])
+
+  expect(wrapper.get('[data-testid="callable-trace-error"]').text()).toBe(
+    '调用失败，暂无错误详情。',
+  )
+  wrapper.unmount()
+})
+
+it('preserves empty string outputs instead of rendering them as null', () => {
+  const wrapper = mountTimeline([trace({ phase: 'end', status: 'succeeded', outputs: '' })])
+
+  expect(wrapper.get('[data-testid="callable-trace-output"]').text()).toBe('')
+  wrapper.unmount()
+})
+
 it('shows nested calls under their parent run', () => {
   const wrapper = mountTimeline([
     trace({ run_id: 'chain-1', run_type: 'chain', phase: 'start', name: 'AgentChain' }),
