@@ -85,11 +85,15 @@ def test_redacts_credentials_in_url_userinfo():
         "url": "postgresql://alice:URL-SECRET@db.example/app",
         "redis": "redis://:EMPTY-USER-SECRET@cache.example/0",
         "long": "redis://user:" + "LONGPASS" * 300 + "@cache.example/0",
+        "token_user": "https://ghp-USERNAME-SECRET@github.com/repo",
+        "long_user": "https://" + "USERPASS" * 300 + "@github.com/repo",
         "port": "http://localhost:8080",
     }))
     assert "URL-SECRET" not in payload
     assert "EMPTY-USER-SECRET" not in payload
     assert "LONGPASS" not in payload
+    assert "USERNAME-SECRET" not in payload
+    assert "USERPASS" not in payload
     assert "http://localhost:8080" in payload
 
 
@@ -165,6 +169,10 @@ def test_redacts_sensitive_header_pairs_and_private_keys():
             ("password", "PAIR-SECRET"),
             ("ordinary", "visible"),
         ],
+        "mcp_headers": [
+            {"key": "Authorization", "value": "Bearer OBJECT-SECRET"},
+            {"key": "Content-Type", "value": "application/json"},
+        ],
         "private_key": "PRIVATE-FIELD-SECRET",
         "message": "-----BEGIN PRIVATE KEY-----\nPEM-SECRET\n-----END PRIVATE KEY-----",
     }))
@@ -172,6 +180,8 @@ def test_redacts_sensitive_header_pairs_and_private_keys():
     assert "COOKIE-SECRET" not in payload
     assert "LIST-SECRET" not in payload
     assert "BYTE-SECRET" not in payload
+    assert "OBJECT-SECRET" not in payload
+    assert "application/json" in payload
     assert "PAIR-SECRET" not in payload
     assert "PRIVATE-FIELD-SECRET" not in payload
     assert "PEM-SECRET" not in payload

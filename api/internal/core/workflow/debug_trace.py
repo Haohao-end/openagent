@@ -37,8 +37,8 @@ _CREDENTIAL_HINT = re.compile(
     r"ssh.?key|signature|awsaccesskeyid|googleaccessid|(?<![a-z0-9])(?:auth|sig|key)(?![a-z0-9]))"
     r"[^\"'\r\n,;:=]{0,128}[\"']?\s*[:=]"
 )
-_URL_CREDENTIAL = re.compile(r"(?i)([a-z][a-z0-9+.-]*://[^/@\s:?#\"']*:)[^/@\s?#\"']+@")
-_URL_CREDENTIAL_PREFIX = re.compile(r"(?i)([a-z][a-z0-9+.-]*://[^/@\s:?#\"']*:)[^/@\s?#\"']+$")
+_URL_CREDENTIAL = re.compile(r"(?i)([a-z][a-z0-9+.-]*://)[^/\s?#]+@")
+_URL_CREDENTIAL_PREFIX = re.compile(r"(?i)([a-z][a-z0-9+.-]*://)[^/\s?#]*$")
 _PRIVATE_KEY_BLOCK = re.compile(
     r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----.*?(?:-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----|$)",
     re.S,
@@ -180,6 +180,11 @@ def _safe(
         try:
             if isinstance(value, Mapping):
                 result = {}
+                sensitive_header_label = None
+                if type(value) is dict:
+                    candidate_label = value.get("key")
+                    if isinstance(candidate_label, str) and _is_sensitive_pair_label(candidate_label):
+                        sensitive_header_label = candidate_label
                 try:
                     iterator = iter(value.items())
                     for _ in range(MAX_COLLECTION_ITEMS):
@@ -196,7 +201,8 @@ def _safe(
                             _add_mapping_marker(result, "_truncated", True, size_budget)
                             break
                         if isinstance(child_key, str):
-                            result[safe_key] = _safe(child, depth + 1, seen, child_key, budget, size_budget)
+                            child_label = sensitive_header_label if child_key == "value" else child_key
+                            result[safe_key] = _safe(child, depth + 1, seen, child_label, budget, size_budget)
                         else:
                             result[safe_key] = _safe(
                                 _REDACTED, depth + 1, seen, budget=budget, size_budget=size_budget
