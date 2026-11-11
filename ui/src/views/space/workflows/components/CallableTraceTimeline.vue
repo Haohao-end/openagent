@@ -94,33 +94,42 @@ const normalizeValue = (
   if (depth >= MAX_VALUE_DEPTH) return '[Maximum depth reached]'
   if (seen.has(value)) return '[Circular]'
   seen.add(value)
-  if (Array.isArray(value)) {
-    const count = Math.min(value.length, MAX_COLLECTION_ITEMS, budget.remaining)
-    const items = []
-    for (let index = 0; index < count; index += 1) {
+  try {
+    if (Array.isArray(value)) {
+      const count = Math.min(value.length, MAX_COLLECTION_ITEMS, budget.remaining)
+      const items = []
+      for (let index = 0; index < count; index += 1) {
+        budget.remaining -= 1
+        items.push(normalizeValue(value[index], seen, budget, depth + 1))
+      }
+      if (value.length > count) items.push('[truncated]')
+      return items
+    }
+    const result: Record<string, unknown> = {}
+    let count = 0
+    for (const key in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, key)) continue
+      if (count >= MAX_COLLECTION_ITEMS || budget.remaining <= 0) {
+        result._truncated = true
+        break
+      }
+      count += 1
       budget.remaining -= 1
-      items.push(normalizeValue(value[index], seen, budget, depth + 1))
+      try {
+        result[key] = normalizeValue(
+          (value as Record<string, unknown>)[key],
+          seen,
+          budget,
+          depth + 1,
+        )
+      } catch {
+        result[key] = '[Unserializable value]'
+      }
     }
-    if (value.length > count) items.push('[truncated]')
-    return items
+    return result
+  } finally {
+    seen.delete(value)
   }
-  const result: Record<string, unknown> = {}
-  let count = 0
-  for (const key in value) {
-    if (!Object.prototype.hasOwnProperty.call(value, key)) continue
-    if (count >= MAX_COLLECTION_ITEMS || budget.remaining <= 0) {
-      result._truncated = true
-      break
-    }
-    count += 1
-    budget.remaining -= 1
-    try {
-      result[key] = normalizeValue((value as Record<string, unknown>)[key], seen, budget, depth + 1)
-    } catch {
-      result[key] = '[Unserializable value]'
-    }
-  }
-  return result
 }
 
 const calls = computed(() => {

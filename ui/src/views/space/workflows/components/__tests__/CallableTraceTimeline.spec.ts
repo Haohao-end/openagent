@@ -155,13 +155,20 @@ it('truncates long outputs in a scrollable, safely rendered block', () => {
 it('limits oversized values and safely formats circular or unsupported data', () => {
   const circular: Record<string, unknown> = {}
   circular.self = circular
+  const shared = { label: 'shared value' }
   const broadNestedValue = Array.from({ length: 100 }, () =>
     Array.from({ length: 100 }, () => 'value'),
   )
   const wrapper = mountTimeline([
     trace({
       phase: 'end',
-      outputs: { long: 'x'.repeat(10_000), circular, bigInt: 123n, broadNestedValue },
+      outputs: {
+        long: 'x'.repeat(10_000),
+        circular,
+        bigInt: 123n,
+        aliases: [shared, shared],
+        broadNestedValue,
+      },
     }),
   ])
 
@@ -170,5 +177,6 @@ it('limits oversized values and safely formats circular or unsupported data', ()
   expect(output).toContain('[truncated]')
   expect(output).toContain('[Circular]')
   expect(output).toContain('123n')
+  expect(output.match(/"label": "shared value"/g)).toHaveLength(2)
   wrapper.unmount()
 })
