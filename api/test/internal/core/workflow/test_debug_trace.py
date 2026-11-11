@@ -40,7 +40,8 @@ def test_metadata_is_complete_bounded_and_validated():
 
 def test_redacts_secret_fields_credentials_and_exception_text():
     secret = "top-secret-token-value"
-    payload = json.loads(debug_trace.serialize_trace(event(inputs={"api_key": secret, "message": "access_token=" + secret}, error=ValueError(secret))))
+    message = f"access_token={secret}; Authorization: Bearer {secret}; Cookie: session={secret}"
+    payload = json.loads(debug_trace.serialize_trace(event(inputs={"api_key": secret, "message": message}, error=ValueError(secret))))
     assert secret not in json.dumps(payload)
     assert payload["inputs"]["api_key"] == "[REDACTED]"
     assert payload["error"] == "[error details redacted]"
@@ -74,6 +75,7 @@ def test_unknown_objects_are_not_stringified_and_output_obeys_byte_limit():
 
         __repr__ = __str__
 
-    payload = debug_trace.serialize_trace(event(inputs={"object": Unsafe(), "huge": "x" * 100000}, outputs="y" * 100000))
+    payload = debug_trace.serialize_trace(event(inputs={"object": Unsafe(), "huge": "x" * 100000, "integer": 10**10000}, outputs="y" * 100000))
     assert len(payload.encode("utf-8")) <= debug_trace.MAX_JSON_BYTES
     assert "[unsupported:Unsafe]" in payload
+    assert "[integer truncated]" in payload

@@ -14,7 +14,11 @@ MAX_ID_LENGTH = 128
 _REDACTED = "[REDACTED]"
 _TRUNCATED = "[TRUNCATED]"
 _SENSITIVE = re.compile(r"password|secret|token|api.?key|authorization|cookie|credential", re.I)
-_CREDENTIAL = re.compile(r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[:=]\s*[^\s,;]+")
+_CREDENTIAL = re.compile(
+    r"(?i)\b(authorization|proxy-authorization)\s*[:=]\s*[^,\r\n]+"
+    r"|\b(cookie|set-cookie)\s*[:=]\s*[^\r\n]+"
+    r"|\b(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[:=]\s*[^\s,;]+"
+)
 _RUN_TYPES = {"chain", "llm", "chat_model", "tool", "retriever", "prompt", "parser"}
 _PHASES = {"start", "end", "error"}
 _STATUSES = {"running", "success", "error"}
@@ -23,7 +27,11 @@ _REQUIRED = ("schema_version", "event_id", "run_id", "parent_run_id", "run_type"
 
 def _clean_text(value: Any, limit: int) -> str:
     suffix = _TRUNCATED if len(value) > limit else ""
-    return _CREDENTIAL.sub(r"\1=[REDACTED]", value[:limit - len(suffix)]) + suffix
+    def redact(match: re.Match) -> str:
+        label = next(group for group in match.groups() if group is not None)
+        return f"{label}=[REDACTED]"
+
+    return _CREDENTIAL.sub(redact, value[:limit - len(suffix)]) + suffix
 
 
 def _safe(value: Any, depth: int = 0, seen: set[int] | None = None, key: str = "") -> Any:
@@ -31,8 +39,10 @@ def _safe(value: Any, depth: int = 0, seen: set[int] | None = None, key: str = "
         return _REDACTED
     if depth >= MAX_DEPTH:
         return _TRUNCATED
-    if value is None or isinstance(value, (bool, int)):
+    if value is None or isinstance(value, bool):
         return value
+    if isinstance(value, int):
+        return value if value.bit_length() <= 1024 else "[integer truncated]"
     if isinstance(value, float):
         return value if math.isfinite(value) else None
     if isinstance(value, str):
