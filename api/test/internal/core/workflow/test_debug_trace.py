@@ -117,6 +117,25 @@ def test_redacts_credentials_from_mapping_keys_and_names():
     assert "[REDACTED]" in payload["inputs"]
 
 
+def test_redacts_sensitive_header_pairs_and_private_keys():
+    payload = debug_trace.serialize_trace(event(inputs={
+        "headers": [
+            ("Authorization", "Bearer AUTH-SECRET"),
+            ("Cookie", "session=COOKIE-SECRET"),
+            ("password", "PAIR-SECRET"),
+            ("ordinary", "visible"),
+        ],
+        "private_key": "PRIVATE-FIELD-SECRET",
+        "message": "-----BEGIN PRIVATE KEY-----\nPEM-SECRET\n-----END PRIVATE KEY-----",
+    }))
+    assert "AUTH-SECRET" not in payload
+    assert "COOKIE-SECRET" not in payload
+    assert "PAIR-SECRET" not in payload
+    assert "PRIVATE-FIELD-SECRET" not in payload
+    assert "PEM-SECRET" not in payload
+    assert '"ordinary","visible"' in payload
+
+
 def test_unknown_mapping_key_types_redact_associated_values():
     payload = json.loads(debug_trace.serialize_trace(event(inputs={b"password": "hunter2", 1: "secret-value"})))
     assert "hunter2" not in json.dumps(payload)

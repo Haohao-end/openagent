@@ -14,8 +14,18 @@ MAX_DEPTH = 8
 MAX_ID_LENGTH = 128
 _REDACTED = "[REDACTED]"
 _TRUNCATED = "[TRUNCATED]"
-_SENSITIVE = re.compile(r"password|secret|token|api.?key|authorization|cookie|credential", re.I)
-_SENSITIVE_LABEL = r"[^\"'\r\n,;:=]*(?:password|secret|token|api.?key|authorization|cookie|credential)[^\"'\r\n,;:=]*"
+_SENSITIVE = re.compile(
+    r"password|secret|token|api.?key|authorization|cookie|credential|private.?key|signing.?key|ssh.?key",
+    re.I,
+)
+_SENSITIVE_LABEL = (
+    r"[^\"'\r\n,;:=]*(?:password|secret|token|api.?key|authorization|cookie|credential|"
+    r"private.?key|signing.?key|ssh.?key)[^\"'\r\n,;:=]*"
+)
+_PRIVATE_KEY_BLOCK = re.compile(
+    r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----.*?(?:-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----|$)",
+    re.S,
+)
 _CREDENTIAL = re.compile(
     r"(?i)(?:([\"']" + _SENSITIVE_LABEL + r"[\"']\s*:\s*)"
     r"(\"(?:\\.|[^\"\\])*(?:\"|$)|'(?:\\.|[^'\\])*(?:'|$)|[^,\r\n}\]]+)"
@@ -37,6 +47,7 @@ def _clean_text(value: Any, limit: int) -> str:
 
     truncated = len(value) > limit
     source = value[:limit] if truncated else value
+    source = _PRIVATE_KEY_BLOCK.sub(_REDACTED, source)
     cleaned = _CREDENTIAL.sub(redact, source)
     return cleaned[: limit - len(_TRUNCATED)] + _TRUNCATED if truncated else cleaned
 
@@ -100,6 +111,12 @@ def _safe(
                 except Exception:
                     result["_unavailable"] = True
                 return result
+            if isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], str):
+                label, child = value
+                return [
+                    _clean_text(label, MAX_STRING_LENGTH),
+                    _safe(child, depth + 1, seen, label, budget),
+                ]
             result = []
             try:
                 iterator = iter(value)
