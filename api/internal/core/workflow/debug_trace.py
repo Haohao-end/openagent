@@ -111,7 +111,7 @@ def _safe(
                 except Exception:
                     result["_unavailable"] = True
                 return result
-            if isinstance(value, tuple) and len(value) == 2 and isinstance(value[0], str):
+            if isinstance(value, (list, tuple)) and len(value) == 2 and isinstance(value[0], str):
                 label, child = value
                 return [
                     _clean_text(label, MAX_STRING_LENGTH),

@@ -122,6 +122,7 @@ def test_redacts_sensitive_header_pairs_and_private_keys():
         "headers": [
             ("Authorization", "Bearer AUTH-SECRET"),
             ("Cookie", "session=COOKIE-SECRET"),
+            ["X-Api-Key", "LIST-SECRET"],
             ("password", "PAIR-SECRET"),
             ("ordinary", "visible"),
         ],
@@ -130,6 +131,7 @@ def test_redacts_sensitive_header_pairs_and_private_keys():
     }))
     assert "AUTH-SECRET" not in payload
     assert "COOKIE-SECRET" not in payload
+    assert "LIST-SECRET" not in payload
     assert "PAIR-SECRET" not in payload
     assert "PRIVATE-FIELD-SECRET" not in payload
     assert "PEM-SECRET" not in payload
