@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick, reactive } from 'vue'
 import DebugModal from '@/views/space/workflows/components/DebugModal.vue'
 import { copyTextToClipboard } from '@/utils/clipboard'
 
@@ -271,6 +272,37 @@ describe('DebugModal node outputs', () => {
     expect(state.nodeResults).toHaveLength(nodeResults.length)
     expect(mocks.canvas.nodes.map(({ class: className }) => className)).toEqual(previousNodeClasses)
     expect(mocks.handleDebugWorkflow).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
+
+  it('does not submit values for workflow inputs removed while debugging', async () => {
+    const startNode = reactive({
+      id: 'start-1',
+      type: 'start',
+      data: {
+        inputs: [
+          { name: 'removed', type: 'string' },
+          { name: 'current', type: 'string' },
+        ],
+      },
+    })
+    mocks.canvas.nodes = [startNode]
+    mocks.handleDebugWorkflow.mockResolvedValueOnce(undefined)
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+    const state = (wrapper.vm as any).$.setupState
+    state.form = { removed: 'stale value', current: 'current value' }
+
+    startNode.data.inputs = [{ name: 'current', type: 'string' }]
+    await nextTick()
+    await state.onSubmit({ errors: undefined })
+
+    expect(mocks.handleDebugWorkflow).toHaveBeenCalledWith(
+      'workflow-1',
+      { current: 'current value' },
+      expect.any(Function),
+    )
     wrapper.unmount()
   })
 
