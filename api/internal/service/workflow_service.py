@@ -1,5 +1,7 @@
 import json
 import logging
+import queue
+import threading
 import time
 import uuid
 from collections import deque
@@ -7,11 +9,12 @@ from dataclasses import dataclass
 from datetime import datetime, UTC
 from typing import Any, Generator
 from uuid import UUID
-from flask import request
+from flask import current_app, has_app_context, request
 from injector import inject
 from sqlalchemy import desc
 from internal.core.tools.builtin_tools.providers import BuiltinProviderManager
 from internal.core.workflow import Workflow as WorkflowTool
+from internal.core.workflow.debug_trace_callback import DebugTraceCallbackHandler
 from internal.core.workflow.entities.edge_entity import BaseEdgeData
 from internal.core.workflow.entities.node_entity import NodeType, BaseNodeData
 from internal.core.workflow.entities.workflow_entity import WorkflowConfig
@@ -41,6 +44,9 @@ from .icon_generator_service import IconGeneratorService
 
 
 logger = logging.getLogger(__name__)
+_DEBUG_STREAM_SLOTS = threading.BoundedSemaphore(8)
+_DEBUG_STREAM_QUEUE_SIZE = 16
+_DEBUG_STREAM_POLL_INTERVAL = 0.05
 
 
 @inject
@@ -340,10 +346,78 @@ class WorkflowService(BaseService):
                 "status": WorkflowResultStatus.RUNNING.value,
             })
 
-            # 4.调用stream服务获取工具信息
+            # 4.桥接同步 Workflow.stream 与 SSE，允许 callback 事件先于节点结果发送。
             start_at = time.perf_counter()
+            callback = DebugTraceCallbackHandler()
+            stream_events: queue.Queue[tuple[str, Any]] = queue.Queue(maxsize=_DEBUG_STREAM_QUEUE_SIZE)
+            cancelled = threading.Event()
+            app = current_app._get_current_object() if has_app_context() else None
+            worker = None
+            slot_acquired = False
+            worker_done = False
+
+            def enqueue(kind: str, value: Any = None) -> bool:
+                while not cancelled.is_set():
+                    try:
+                        stream_events.put((kind, value), timeout=_DEBUG_STREAM_POLL_INTERVAL)
+                        return True
+                    except queue.Full:
+                        continue
+                return False
+
+            def consume_workflow() -> None:
+                stream = workflow_tool.stream(inputs, config={"callbacks": [callback]})
+                iterator = iter(stream)
+                try:
+                    for chunk in iterator:
+                        if cancelled.is_set() or not enqueue("workflow", chunk):
+                            break
+                finally:
+                    close = getattr(iterator, "close", None)
+                    if callable(close):
+                        close()
+
+            def run_workflow() -> None:
+                try:
+                    if app is None:
+                        consume_workflow()
+                    else:
+                        with app.app_context():
+                            consume_workflow()
+                except BaseException as error:  # noqa: BLE001
+                    enqueue("error", error)
+                finally:
+                    enqueue("done")
+                    _DEBUG_STREAM_SLOTS.release()
+
             try:
-                for chunk in workflow_tool.stream(inputs):
+                if not _DEBUG_STREAM_SLOTS.acquire(blocking=False):
+                    raise RuntimeError("Too many workflow debug streams are active")
+                slot_acquired = True
+                worker = threading.Thread(
+                    target=run_workflow,
+                    name="workflow-debug-stream",
+                    daemon=True,
+                )
+                worker.start()
+                slot_acquired = False
+
+                while not worker_done:
+                    trace_event = callback.get_event()
+                    if trace_event is not None:
+                        yield f"event: callable_trace\ndata: {trace_event}\n\n"
+                        continue
+                    try:
+                        event_type, payload = stream_events.get(timeout=_DEBUG_STREAM_POLL_INTERVAL)
+                    except queue.Empty:
+                        continue
+                    if event_type == "done":
+                        worker_done = True
+                        continue
+                    if event_type == "error":
+                        raise payload
+
+                    chunk = payload
                     # 5.chunk的格式为:{"node_name": WorkflowState}，所以需要取出节点响应结构的第1个key
                     first_key = next(iter(chunk))
 
@@ -363,6 +437,10 @@ class WorkflowService(BaseService):
                     node_type = node_result_dict.get("node_data", {}).get("node_type")
                     logging.info("节点类型: %s", node_type)
 
+                # Worker 完成后，先发送它结束前已排入队列的 Trace。
+                for trace_event in callback.drain():
+                    yield f"event: callable_trace\ndata: {trace_event}\n\n"
+
                 # 9.流式输出完毕后，将结果存储到数据库中
                 # A conditional branch can finish at LangGraph END without emitting an end-node event.
                 self.update(workflow_result, **{
@@ -374,6 +452,9 @@ class WorkflowService(BaseService):
                 self.db.session.add(workflow)
                 self.db.session.commit()
             except GeneratorExit:
+                cancelled.set()
+                if worker is not None and worker.is_alive():
+                    worker.join(timeout=_DEBUG_STREAM_POLL_INTERVAL)
                 try:
                     self.update(workflow_result, **{
                         "status": WorkflowResultStatus.FAILED.value,
@@ -386,6 +467,7 @@ class WorkflowService(BaseService):
                     )
                 raise
             except Exception as e:
+                cancelled.set()
                 logging.error("工作流调试失败: error_type=%s", type(e).__name__)
                 self.update(workflow_result, **{
                     "status": WorkflowResultStatus.FAILED.value,
@@ -394,6 +476,13 @@ class WorkflowService(BaseService):
                 })
                 # 将异常交给 compact_generate_response，转为可被前端读取的 SSE error/timeout 事件。
                 raise
+            finally:
+                if not worker_done:
+                    cancelled.set()
+                if worker is not None and worker.is_alive():
+                    worker.join(timeout=_DEBUG_STREAM_POLL_INTERVAL)
+                if slot_acquired:
+                    _DEBUG_STREAM_SLOTS.release()
 
         return handle_stream()
 
