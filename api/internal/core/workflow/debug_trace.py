@@ -19,7 +19,7 @@ _CREDENTIAL = re.compile(
     r"|\b(cookie|set-cookie)\s*[:=]\s*[^\r\n]+"
     r"|\b(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[:=]\s*[^\s,;]+"
 )
-_RUN_TYPES = {"chain", "llm", "chat_model", "tool", "retriever", "prompt", "parser"}
+_RUN_TYPES = {"chain", "llm", "tool"}
 _PHASES = {"start", "end", "error"}
 _STATUSES = {"running", "success", "error"}
 _REQUIRED = ("schema_version", "event_id", "run_id", "parent_run_id", "run_type", "phase", "name", "status", "inputs", "outputs", "error", "latency_ms")
@@ -61,16 +61,21 @@ def _safe(value: Any, depth: int = 0, seen: set[int] | None = None, key: str = "
                 result = {}
                 try:
                     iterator = iter(value.items())
-                    for index in range(MAX_COLLECTION_ITEMS):
+                    for _ in range(MAX_COLLECTION_ITEMS):
                         try:
                             child_key, child = next(iterator)
                         except StopIteration:
                             break
                         # Never call str/repr on arbitrary mapping keys.
                         safe_key = child_key[:MAX_ID_LENGTH] if isinstance(child_key, str) else "[key]"
-                        result[safe_key] = _safe(child, depth + 1, seen, safe_key)
+                        result[safe_key] = _safe(child, depth + 1, seen, child_key if isinstance(child_key, str) else "")
                     else:
-                        result["_truncated"] = True
+                        try:
+                            next(iterator)
+                        except StopIteration:
+                            pass
+                        else:
+                            result["_truncated"] = True
                 except Exception:
                     result["_unavailable"] = True
                 return result
@@ -84,7 +89,12 @@ def _safe(value: Any, depth: int = 0, seen: set[int] | None = None, key: str = "
                         break
                     result.append(_safe(item, depth + 1, seen))
                 else:
-                    result.append(_TRUNCATED)
+                    try:
+                        next(iterator)
+                    except StopIteration:
+                        pass
+                    else:
+                        result.append(_TRUNCATED)
             except Exception:
                 result.append("[unavailable]")
             return result
@@ -108,6 +118,10 @@ def serialize_trace(event: Mapping[str, Any]) -> str:
         raise ValueError("invalid phase")
     if not isinstance(status, str) or status not in _STATUSES:
         raise ValueError("invalid trace metadata")
+    for identifier in ("event_id", "run_id"):
+        value = event.get(identifier)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"invalid {identifier}")
     if latency is not None and (isinstance(latency, bool) or not isinstance(latency, (int, float)) or not math.isfinite(latency) or latency < 0):
         raise ValueError("invalid latency_ms")
 

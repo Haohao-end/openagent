@@ -33,7 +33,7 @@ def test_metadata_is_complete_bounded_and_validated():
     assert set(payload) == set(debug_trace._REQUIRED)
     assert len(payload["event_id"]) == len(payload["run_id"]) == 128
     assert len(payload["name"]) == 256
-    for field, invalid in (("schema_version", True), ("run_type", "unknown"), ("phase", "other"), ("status", [])):
+    for field, invalid in (("schema_version", True), ("run_type", "chat_model"), ("phase", "other"), ("status", []), ("run_id", ""), ("event_id", None)):
         with __import__("pytest").raises(ValueError):
             debug_trace.serialize_trace(event(**{field: invalid}))
 
@@ -53,6 +53,18 @@ def test_bounds_large_mapping_array_and_strings():
     assert payload["inputs"]["items"][-1] == "[TRUNCATED]"
     assert payload["inputs"]["mapping"]["_truncated"] is True
     assert len(payload["inputs"]["text"]) <= 2050
+
+
+def test_exact_collection_limit_is_not_marked_truncated():
+    payload = json.loads(debug_trace.serialize_trace(event(inputs={"array": list(range(100)), "mapping": {str(i): i for i in range(100)}})))
+    assert len(payload["inputs"]["array"]) == 100
+    assert "_truncated" not in payload["inputs"]["mapping"]
+
+
+def test_long_sensitive_mapping_key_is_redacted_before_truncation():
+    key = "x" * 128 + "password"
+    payload = json.loads(debug_trace.serialize_trace(event(inputs={key: "credential-value"})))
+    assert "credential-value" not in json.dumps(payload)
 
 
 def test_handles_self_reference_deep_values_nan_and_infinity():
