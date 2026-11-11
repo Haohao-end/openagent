@@ -355,6 +355,7 @@ class WorkflowService(BaseService):
             worker = None
             slot_acquired = False
             worker_done = False
+            pending_stream_event = None
 
             def enqueue(kind: str, value: Any = None) -> bool:
                 while not cancelled.is_set():
@@ -407,13 +408,25 @@ class WorkflowService(BaseService):
                     if trace_event is not None:
                         yield f"event: callable_trace\ndata: {trace_event}\n\n"
                         continue
-                    try:
-                        event_type, payload = stream_events.get(timeout=_DEBUG_STREAM_POLL_INTERVAL)
-                    except queue.Empty:
-                        continue
+                    if pending_stream_event is not None:
+                        event_type, payload = pending_stream_event
+                        pending_stream_event = None
+                    else:
+                        try:
+                            event_type, payload = stream_events.get(timeout=_DEBUG_STREAM_POLL_INTERVAL)
+                        except queue.Empty:
+                            continue
                     if event_type == "done":
                         worker_done = True
                         continue
+                    if event_type in {"workflow", "error"}:
+                        # A callback can enqueue end/error just before the worker sends
+                        # the corresponding node or exception to this queue.
+                        trace_event = callback.get_event()
+                        if trace_event is not None:
+                            pending_stream_event = (event_type, payload)
+                            yield f"event: callable_trace\ndata: {trace_event}\n\n"
+                            continue
                     if event_type == "error":
                         raise payload
 
