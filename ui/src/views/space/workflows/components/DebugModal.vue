@@ -114,9 +114,13 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
 
   // 6.4 处理成功节点和流式失败事件；错误载荷不能作为节点结果或执行路径处理。
   try {
+    const currentInputNames = new Set(inputs.value.map((input) => input.name))
+    const inputValues = Object.fromEntries(
+      Object.entries(form.value).filter(([name]) => currentInputNames.has(name)),
+    )
     await handleDebugWorkflow(
       props.workflow_id,
-      form.value,
+      inputValues,
       (event_response: Record<string, unknown>) => {
         if (requestId !== debugRunGeneration) return
         const eventName = typeof event_response.event === 'string' ? event_response.event : ''
