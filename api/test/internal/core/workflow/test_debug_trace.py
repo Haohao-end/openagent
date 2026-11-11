@@ -41,6 +41,10 @@ def test_metadata_is_complete_bounded_and_validated():
     with __import__("pytest").raises(ValueError):
         debug_trace.serialize_trace(event(run_id="prefix" + "x" * 128))
     with __import__("pytest").raises(ValueError):
+        debug_trace.serialize_trace(event(run_id="token=first"))
+    with __import__("pytest").raises(ValueError):
+        debug_trace.serialize_trace(event(event_id="credential=second"))
+    with __import__("pytest").raises(ValueError):
         debug_trace.serialize_trace(event(latency_ms=10**10000))
 
 
@@ -92,6 +96,13 @@ def test_redacts_credentials_from_mapping_keys_and_names():
     assert secret not in json.dumps(payload)
     assert payload["name"] == "Authorization: [REDACTED]"
     assert "[REDACTED]" in payload["inputs"]
+
+
+def test_unknown_mapping_key_types_redact_associated_values():
+    payload = json.loads(debug_trace.serialize_trace(event(inputs={b"password": "hunter2", 1: "secret-value"})))
+    assert "hunter2" not in json.dumps(payload)
+    assert "secret-value" not in json.dumps(payload)
+    assert payload["inputs"]["[key]"] == "[REDACTED]"
 
 
 def test_handles_self_reference_deep_values_nan_and_infinity():

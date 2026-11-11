@@ -87,13 +87,10 @@ def _safe(
                             _REDACTED if _SENSITIVE.search(child_key)
                             else _clean_text(child_key, MAX_ID_LENGTH)
                         ) if isinstance(child_key, str) else "[key]"
-                        result[safe_key] = _safe(
-                            child,
-                            depth + 1,
-                            seen,
-                            child_key if isinstance(child_key, str) else "",
-                            budget,
-                        )
+                        if isinstance(child_key, str):
+                            result[safe_key] = _safe(child, depth + 1, seen, child_key, budget)
+                        else:
+                            result[safe_key] = _safe(_REDACTED, depth + 1, seen, budget=budget)
                     else:
                         try:
                             next(iterator)
@@ -145,11 +142,21 @@ def serialize_trace(event: Mapping[str, Any]) -> str:
         raise ValueError("invalid trace metadata")
     for identifier in ("event_id", "run_id"):
         value = event.get(identifier)
-        if not isinstance(value, str) or not value.strip() or len(value) > MAX_ID_LENGTH:
+        if (
+            not isinstance(value, str)
+            or not value.strip()
+            or len(value) > MAX_ID_LENGTH
+            or _SENSITIVE.search(value)
+            or _CREDENTIAL.search(value)
+        ):
             raise ValueError(f"invalid {identifier}")
     parent_run_id = event.get("parent_run_id")
     if parent_run_id is not None and (
-        not isinstance(parent_run_id, str) or not parent_run_id.strip() or len(parent_run_id) > MAX_ID_LENGTH
+        not isinstance(parent_run_id, str)
+        or not parent_run_id.strip()
+        or len(parent_run_id) > MAX_ID_LENGTH
+        or _SENSITIVE.search(parent_run_id)
+        or _CREDENTIAL.search(parent_run_id)
     ):
         raise ValueError("invalid parent_run_id")
     if latency is not None:
@@ -177,8 +184,8 @@ def serialize_trace(event: Mapping[str, Any]) -> str:
     }
     for key in ("event_id", "run_id", "parent_run_id", "name"):
         value = payload[key]
-        limit = MAX_ID_LENGTH if key != "name" else 256
-        payload[key] = _clean_text(value, limit) if isinstance(value, str) else None
+        limit = 256 if key == "name" else MAX_ID_LENGTH
+        payload[key] = _clean_text(value, limit) if key == "name" and isinstance(value, str) else value
     budget = [MAX_TOTAL_ITEMS]
     safe = {
         key: _safe(value, key=key, budget=budget) if key in {"inputs", "outputs", "error"} else value
