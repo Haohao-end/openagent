@@ -58,6 +58,10 @@ def test_redacts_secret_fields_credentials_and_exception_text():
     assert "two" not in json.dumps(payload)
     assert payload["inputs"]["[REDACTED]"] == "[REDACTED]"
     assert payload["error"] == "[error details redacted]"
+    for label in ("client_secret", "github_token", "x-api-key"):
+        value = f'{{"{label}": "PRODSECRET"}}'
+        cleaned = json.loads(debug_trace.serialize_trace(event(inputs={"message": value})))
+        assert "PRODSECRET" not in json.dumps(cleaned)
 
 
 def test_bounds_large_mapping_array_and_strings():
@@ -105,6 +109,13 @@ def test_unknown_mapping_key_types_redact_associated_values():
     assert payload["inputs"]["[key]"] == "[REDACTED]"
 
 
+def test_truncated_mapping_keys_do_not_overwrite_entries():
+    prefix = "generated-parameter-" + "x" * 130
+    payload = json.loads(debug_trace.serialize_trace(event(inputs={prefix + "A": 1, prefix + "B": 2})))
+    assert len(payload["inputs"]) == 2
+    assert sorted(payload["inputs"].values()) == [1, 2]
+
+
 def test_handles_self_reference_deep_values_nan_and_infinity():
     circular = []
     circular.append(circular)
@@ -136,3 +147,8 @@ def test_large_error_is_truncated_without_losing_trace_identifiers():
     assert payload["event_id"] == "event-1"
     assert payload["run_id"] == "run-1"
     assert payload["error"] == "[TRUNCATED]"
+
+
+def test_non_string_trace_name_is_rejected():
+    with __import__("pytest").raises(ValueError):
+        debug_trace.serialize_trace(event(name=["too", "large", "to", "encode"] * 10000))

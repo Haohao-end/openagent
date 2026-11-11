@@ -15,13 +15,13 @@ MAX_ID_LENGTH = 128
 _REDACTED = "[REDACTED]"
 _TRUNCATED = "[TRUNCATED]"
 _SENSITIVE = re.compile(r"password|secret|token|api.?key|authorization|cookie|credential", re.I)
+_SENSITIVE_LABEL = r"[a-z0-9_.-]*(?:password|secret|token|api.?key|authorization|cookie|credential)[a-z0-9_.-]*"
 _CREDENTIAL = re.compile(
-    r"(?i)(?:([\"'](?:authorization|proxy-authorization|cookie|set-cookie|api[_-]?key|"
-    r"access[_-]?token|refresh[_-]?token|password|secret|token|credential)[\"']\s*:\s*)"
+    r"(?i)(?:([\"']" + _SENSITIVE_LABEL + r"[\"']\s*:\s*)"
     r"(\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^,\r\n}\]]+)"
     r"|((?:authorization|proxy-authorization|cookie|set-cookie)\s*[:=]\s*)"
     r"([^\r\n]+)"
-    r"|((?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|token|credential)\s*[:=]\s*)"
+    r"|(" + _SENSITIVE_LABEL + r"\s*[:=]\s*)"
     r"([^\s,;]+))"
 )
 _RUN_TYPES = {"chain", "llm", "tool"}
@@ -35,8 +35,10 @@ def _clean_text(value: Any, limit: int) -> str:
         prefix = next(group for group in (1, 3, 5) if match.group(group) is not None)
         return match.group(prefix) + ('"[REDACTED]"' if prefix == 1 else "[REDACTED]")
 
-    cleaned = _CREDENTIAL.sub(redact, value)
-    return cleaned[: limit - len(_TRUNCATED)] + _TRUNCATED if len(cleaned) > limit else cleaned
+    truncated = len(value) > limit
+    source = value[:limit] if truncated else value
+    cleaned = _CREDENTIAL.sub(redact, source)
+    return cleaned[: limit - len(_TRUNCATED)] + _TRUNCATED if truncated else cleaned
 
 
 def _safe(
@@ -83,10 +85,7 @@ def _safe(
                         except StopIteration:
                             break
                         # Never call str/repr on arbitrary mapping keys.
-                        safe_key = (
-                            _REDACTED if _SENSITIVE.search(child_key)
-                            else _clean_text(child_key, MAX_ID_LENGTH)
-                        ) if isinstance(child_key, str) else "[key]"
+                        safe_key = _safe_mapping_key(child_key, result)
                         if isinstance(child_key, str):
                             result[safe_key] = _safe(child, depth + 1, seen, child_key, budget)
                         else:
@@ -125,6 +124,22 @@ def _safe(
     return f"[unsupported:{type(value).__name__[:64]}]"
 
 
+def _safe_mapping_key(key: Any, result: dict[str, Any]) -> str:
+    if not isinstance(key, str):
+        base = "[key]"
+    elif _SENSITIVE.search(key):
+        base = _REDACTED
+    else:
+        base = _clean_text(key, MAX_ID_LENGTH)
+    candidate = base
+    suffix_index = 2
+    while candidate in result:
+        suffix = f"~{suffix_index}"
+        candidate = base[: MAX_ID_LENGTH - len(suffix)] + suffix
+        suffix_index += 1
+    return candidate
+
+
 def serialize_trace(event: Mapping[str, Any]) -> str:
     """Serialize a trace event as redacted JSON, bounded to 32 KiB."""
     if not isinstance(event, Mapping):
@@ -140,6 +155,9 @@ def serialize_trace(event: Mapping[str, Any]) -> str:
         raise ValueError("invalid phase")
     if not isinstance(status, str) or status not in _STATUSES:
         raise ValueError("invalid trace metadata")
+    name = event.get("name", "")
+    if not isinstance(name, str):
+        raise ValueError("invalid name")
     for identifier in ("event_id", "run_id"):
         value = event.get(identifier)
         if (
@@ -175,7 +193,7 @@ def serialize_trace(event: Mapping[str, Any]) -> str:
         "parent_run_id": event.get("parent_run_id"),
         "run_type": run_type,
         "phase": phase,
-        "name": event.get("name", ""),
+        "name": name,
         "status": status,
         "inputs": event.get("inputs"),
         "outputs": event.get("outputs"),
