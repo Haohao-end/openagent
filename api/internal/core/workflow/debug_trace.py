@@ -112,8 +112,18 @@ def _safe(
                 except Exception:
                     result["_unavailable"] = True
                 return result
-            if isinstance(value, (list, tuple)) and len(value) == 2 and isinstance(value[0], str):
-                label, child = value
+            if (
+                isinstance(value, (list, tuple))
+                and len(value) == 2
+                and isinstance(value[0], (str, bytes))
+            ):
+                raw_label, child = value
+                if isinstance(raw_label, bytes):
+                    if len(raw_label) > MAX_ID_LENGTH:
+                        return [_REDACTED, _REDACTED]
+                    label = raw_label.decode("utf-8", errors="replace")
+                else:
+                    label = raw_label
                 return [
                     _clean_text(label, MAX_STRING_LENGTH),
                     _safe(child, depth + 1, seen, label, budget),
