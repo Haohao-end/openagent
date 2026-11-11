@@ -15,9 +15,10 @@ _REDACTED = "[REDACTED]"
 _TRUNCATED = "[TRUNCATED]"
 _SENSITIVE = re.compile(r"password|secret|token|api.?key|authorization|cookie|credential", re.I)
 _CREDENTIAL = re.compile(
-    r"(?i)\b(authorization|proxy-authorization)\s*[:=]\s*[^,\r\n]+"
+    r"(?i)(?:\b(authorization|proxy-authorization)\s*[:=]\s*[^,\r\n]+"
     r"|\b(cookie|set-cookie)\s*[:=]\s*[^\r\n]+"
     r"|\b(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[:=]\s*[^\s,;]+"
+    r"|[\"']?(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)[\"']?\s*:\s*(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s,;}]+))"
 )
 _RUN_TYPES = {"chain", "llm", "tool"}
 _PHASES = {"start", "end", "error"}
@@ -123,8 +124,13 @@ def serialize_trace(event: Mapping[str, Any]) -> str:
         raise ValueError("invalid trace metadata")
     for identifier in ("event_id", "run_id"):
         value = event.get(identifier)
-        if not isinstance(value, str) or not value.strip():
+        if not isinstance(value, str) or not value.strip() or len(value) > MAX_ID_LENGTH:
             raise ValueError(f"invalid {identifier}")
+    parent_run_id = event.get("parent_run_id")
+    if parent_run_id is not None and (
+        not isinstance(parent_run_id, str) or not parent_run_id.strip() or len(parent_run_id) > MAX_ID_LENGTH
+    ):
+        raise ValueError("invalid parent_run_id")
     if latency is not None:
         if isinstance(latency, bool) or not isinstance(latency, (int, float)) or latency < 0:
             raise ValueError("invalid latency_ms")

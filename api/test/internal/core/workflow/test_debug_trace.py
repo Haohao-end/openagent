@@ -29,7 +29,7 @@ def event(**updates):
 
 
 def test_metadata_is_complete_bounded_and_validated():
-    payload = json.loads(debug_trace.serialize_trace(event(event_id="e" * 1000, run_id="r" * 1000, name="n" * 1000)))
+    payload = json.loads(debug_trace.serialize_trace(event(event_id="e" * 128, run_id="r" * 128, name="n" * 1000)))
     assert set(payload) == set(debug_trace._REQUIRED)
     assert len(payload["event_id"]) == len(payload["run_id"]) == 128
     assert len(payload["name"]) == 256
@@ -37,14 +37,19 @@ def test_metadata_is_complete_bounded_and_validated():
         with __import__("pytest").raises(ValueError):
             debug_trace.serialize_trace(event(**{field: invalid}))
     with __import__("pytest").raises(ValueError):
+        debug_trace.serialize_trace(event(event_id="x" * 129))
+    with __import__("pytest").raises(ValueError):
+        debug_trace.serialize_trace(event(run_id="prefix" + "x" * 128))
+    with __import__("pytest").raises(ValueError):
         debug_trace.serialize_trace(event(latency_ms=10**10000))
 
 
 def test_redacts_secret_fields_credentials_and_exception_text():
     secret = "top-secret-token-value"
-    message = f"access_token={secret}; Authorization: Bearer {secret}; Cookie: session={secret}"
+    message = f'{{"password": "hunter two", "access_token": "{secret}"}} Authorization: Bearer {secret}; Cookie: session={secret}'
     payload = json.loads(debug_trace.serialize_trace(event(inputs={"api_key": secret, "message": message}, error=ValueError(secret))))
     assert secret not in json.dumps(payload)
+    assert "hunter two" not in json.dumps(payload)
     assert payload["inputs"]["[REDACTED]"] == "[REDACTED]"
     assert payload["error"] == "[error details redacted]"
 
