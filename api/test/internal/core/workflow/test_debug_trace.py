@@ -62,6 +62,10 @@ def test_redacts_secret_fields_credentials_and_exception_text():
         value = f'{{"{label}": "PRODSECRET"}}'
         cleaned = json.loads(debug_trace.serialize_trace(event(inputs={"message": value})))
         assert "PRODSECRET" not in json.dumps(cleaned)
+    for value in ('password="hunter two"', "password=hunter two"):
+        cleaned = json.loads(debug_trace.serialize_trace(event(inputs={"message": value})))
+        assert "hunter" not in json.dumps(cleaned)
+        assert "two" not in json.dumps(cleaned)
 
 
 def test_bounds_large_mapping_array_and_strings():

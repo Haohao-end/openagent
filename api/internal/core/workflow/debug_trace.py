@@ -22,7 +22,7 @@ _CREDENTIAL = re.compile(
     r"|((?:authorization|proxy-authorization|cookie|set-cookie)\s*[:=]\s*)"
     r"([^\r\n]+)"
     r"|(" + _SENSITIVE_LABEL + r"\s*[:=]\s*)"
-    r"([^\s,;]+))"
+    r"(\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^;\r\n,]+))"
 )
 _RUN_TYPES = {"chain", "llm", "tool"}
 _PHASES = {"start", "end", "error"}
