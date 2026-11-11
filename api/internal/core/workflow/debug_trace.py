@@ -5,6 +5,7 @@ import math
 import re
 from collections.abc import Mapping
 from typing import Any
+from urllib.parse import unquote
 
 MAX_JSON_BYTES = 32 * 1024
 MAX_STRING_LENGTH = 2048
@@ -22,23 +23,35 @@ _SENSITIVE = re.compile(
 )
 _SENSITIVE_KEY_NAMES = {
     "access_token", "apikey", "auth", "authorization", "client_secret", "cookie", "key", "password",
-    "awsaccesskeyid", "credential", "googleaccessid", "refresh_token", "secret", "security_token",
+    "awsaccesskeyid", "credential", "googleaccessid", "private_key", "refresh_token", "secret", "security_token",
+    "signing_key", "ssh_key",
     "sig", "signature", "token", "x_api_key", "api_token", "oauth_token", "x_auth_token", "x_mcp_token",
     "x_amz_credential", "x_amz_security_token", "x_amz_signature", "x_goog_credential", "x_goog_signature",
 }
 _SENSITIVE_KEY_NAMES_NORMALIZED = {key.replace("_", "").replace("-", "") for key in _SENSITIVE_KEY_NAMES}
+_BENIGN_TOKEN_KEYS = {
+    "maxtokens", "tokencount", "tokenization", "prompttokens", "completiontokens", "totaltokens",
+    "inputtokens", "outputtokens",
+}
 _SENSITIVE_LABEL = (
-    r"[^\"'\r\n,;:=]*(?:password|secret|token|api.?key|authorization|cookie|credential|"
-    r"private.?key|signing.?key|ssh.?key|signature|awsaccesskeyid|googleaccessid|"
+    r"[^\"'\r\n,;:=]*(?:(?<![A-Za-z0-9])(?:password|secret|token|api.?key|authorization|cookie|credential|"
+    r"private.?key|signing.?key|ssh.?key|signature|awsaccesskeyid|googleaccessid)(?![A-Za-z0-9])|"
     r"(?<![A-Za-z0-9])(?:auth|sig|key)(?![A-Za-z0-9]))[^\"'\r\n,;:=]*"
 )
 _CREDENTIAL_HINT = re.compile(
-    r"(?i)(?:password|secret|token|api.?key|authorization|cookie|credential|private.?key|signing.?key|"
-    r"ssh.?key|signature|awsaccesskeyid|googleaccessid|(?<![a-z0-9])(?:auth|sig|key)(?![a-z0-9]))"
+    r"(?i)(?<![a-z0-9])(?:password|secret|token|api.?key|authorization|cookie|credential|private.?key|signing.?key|"
+    r"ssh.?key|signature|awsaccesskeyid|googleaccessid|auth|sig|key)(?![a-z0-9])"
     r"[^\"'\r\n,;:=]{0,128}[\"']?\s*[:=]"
 )
 _URL_CREDENTIAL = re.compile(r"(?i)([a-z][a-z0-9+.-]*://)[^/\s?#]+@")
 _URL_CREDENTIAL_PREFIX = re.compile(r"(?i)([a-z][a-z0-9+.-]*://)[^/\s?#]*$")
+_URL_QUERY_PARAMETER = re.compile(r"(?i)([?&#])([^&#\s]+)")
+_HEADER_OBJECT = re.compile(
+    r"(?P<prefix>[\"']key[\"']\s*:\s*)(?P<label_quote>[\"'])(?P<label>[^\"'\r\n]{1,128})"
+    r"(?P=label_quote)(?P<middle>\s*,\s*[\"']value[\"']\s*:\s*)"
+    r"(?P<value>\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*')",
+    re.I,
+)
 _PRIVATE_KEY_BLOCK = re.compile(
     r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----.*?(?:-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----|$)",
     re.S,
@@ -59,8 +72,16 @@ _REQUIRED = ("schema_version", "event_id", "run_id", "parent_run_id", "run_type"
 
 def _clean_text(value: Any, limit: int) -> str:
     def redact(match: re.Match) -> str:
-        prefix = next(group for group in (1, 3, 5) if match.group(group) is not None)
-        return match.group(prefix) + ('"[REDACTED]"' if prefix == 1 else "[REDACTED]")
+        group = next(index for index in (1, 3, 5) if match.group(index) is not None)
+        prefix = match.group(group)
+        label = prefix.strip()
+        if label[:1] in {'"', "'"}:
+            label = label[1:].split(label[0], 1)[0]
+        else:
+            label = label.rsplit(":", 1)[0].rsplit("=", 1)[0].strip()
+        if label.lower().replace("_", "").replace("-", "") in _BENIGN_TOKEN_KEYS:
+            return match.group(0)
+        return prefix + ('"[REDACTED]"' if group == 1 else "[REDACTED]")
 
     truncated = len(value) > limit
     source = value[:limit] if truncated else value
@@ -68,23 +89,62 @@ def _clean_text(value: Any, limit: int) -> str:
     source = _URL_CREDENTIAL.sub(r"\1[REDACTED]@", source)
     if truncated:
         source = _URL_CREDENTIAL_PREFIX.sub(r"\1[REDACTED]", source)
+    source = _URL_QUERY_PARAMETER.sub(_redact_url_query_parameter, source)
+    source = _HEADER_OBJECT.sub(_redact_header_object, source)
     cleaned = _CREDENTIAL.sub(redact, source) if _CREDENTIAL_HINT.search(source) else source
     return cleaned[: limit - len(_TRUNCATED)] + _TRUNCATED if truncated else cleaned
 
 
 def _is_sensitive_key(key: str) -> bool:
     normalized = key.lower().replace("_", "").replace("-", "")
-    return bool(_SENSITIVE.search(key)) or normalized in _SENSITIVE_KEY_NAMES_NORMALIZED
+    if normalized in _BENIGN_TOKEN_KEYS:
+        return False
+    if normalized in _SENSITIVE_KEY_NAMES_NORMALIZED:
+        return True
+    parts = re.findall(r"[A-Za-z0-9]+", key)
+    if any(part.lower().replace("_", "").replace("-", "") in _SENSITIVE_KEY_NAMES_NORMALIZED for part in parts):
+        return True
+    return bool(re.search(r"password|secret|api.?key|authorization|cookie|credential|private.?key|signing.?key|ssh.?key|signature", key, re.I))
 
 
 def _is_sensitive_pair_label(label: str) -> bool:
     normalized = label.lower().replace("_", "").replace("-", "") if len(label) <= MAX_ID_LENGTH else ""
+    if normalized in _BENIGN_TOKEN_KEYS:
+        return False
     if normalized in _SENSITIVE_KEY_NAMES_NORMALIZED:
         return True
     sample = label if len(label) <= MAX_ID_LENGTH else label[:MAX_ID_LENGTH] + " " + label[-MAX_ID_LENGTH:]
     return any(
         part.lower().replace("_", "").replace("-", "") in _SENSITIVE_KEY_NAMES_NORMALIZED
         for part in re.findall(r"[A-Za-z0-9]+", sample)
+    )
+
+
+def _redact_url_query_parameter(match: re.Match) -> str:
+    prefix, parameter = match.group(1), match.group(2)
+    decoded = unquote(parameter)
+    raw_key, separator, _ = parameter.partition("=")
+    decoded_key = unquote(raw_key) if separator else decoded.partition("=")[0]
+    if not _is_sensitive_key(decoded_key):
+        return match.group(0)
+    if not separator:
+        return prefix + "[REDACTED]"
+    return prefix + raw_key + "=[REDACTED]"
+
+
+def _redact_header_object(match: re.Match) -> str:
+    if not _is_sensitive_pair_label(match.group("label")):
+        return match.group(0)
+    quote = match.group("value")[0]
+    return (
+        match.group("prefix")
+        + match.group("label_quote")
+        + match.group("label")
+        + match.group("label_quote")
+        + match.group("middle")
+        + quote
+        + _REDACTED
+        + quote
     )
 
 

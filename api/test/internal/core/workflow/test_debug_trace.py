@@ -97,6 +97,15 @@ def test_redacts_credentials_in_url_userinfo():
     assert "http://localhost:8080" in payload
 
 
+def test_redacts_percent_encoded_sensitive_url_query_names():
+    payload = debug_trace.serialize_trace(event(inputs={
+        "first_url": "https://host/cb?api%2Dkey=ENCODED-SECRET",
+        "second_url": "https://host/cb?password%3DVALUE-SECRET",
+    }))
+    assert "ENCODED-SECRET" not in payload
+    assert "VALUE-SECRET" not in payload
+
+
 def test_plain_text_skips_credential_regex(monkeypatch):
     class UnexpectedRegexUse:
         @staticmethod
@@ -186,6 +195,23 @@ def test_redacts_sensitive_header_pairs_and_private_keys():
     assert "PRIVATE-FIELD-SECRET" not in payload
     assert "PEM-SECRET" not in payload
     assert '"ordinary","visible"' in payload
+
+
+def test_redacts_stringified_key_value_header_objects():
+    payload = debug_trace.serialize_trace(event(inputs={
+        "message": '{"key":"Authorization","value":"Bearer STRING-SECRET"}',
+    }))
+    assert "STRING-SECRET" not in payload
+
+
+def test_preserves_benign_token_usage_metadata():
+    fields = {"max_tokens": 512, "token_count": 12, "tokenization": "subword"}
+    payload = json.loads(debug_trace.serialize_trace(event(inputs=fields)))
+    assert payload["inputs"] == fields
+    text_payload = json.loads(debug_trace.serialize_trace(event(inputs={
+        "message": '{"max_tokens":512,"token_count":12,"tokenization":"subword"}',
+    })))
+    assert text_payload["inputs"]["message"] == '{"max_tokens":512,"token_count":12,"tokenization":"subword"}'
 
 
 def test_unknown_mapping_key_types_redact_associated_values():
