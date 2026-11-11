@@ -1,0 +1,79 @@
+import importlib.util
+import json
+from pathlib import Path
+
+
+_MODULE_PATH = Path(__file__).parents[4] / "internal/core/workflow/debug_trace.py"
+_SPEC = importlib.util.spec_from_file_location("debug_trace_under_test", _MODULE_PATH)
+debug_trace = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(debug_trace)
+
+
+def event(**updates):
+    value = {
+        "schema_version": 1,
+        "event_id": "event-1",
+        "run_id": "run-1",
+        "parent_run_id": None,
+        "run_type": "llm",
+        "phase": "start",
+        "name": "model",
+        "status": "running",
+        "inputs": {},
+        "outputs": None,
+        "error": None,
+        "latency_ms": None,
+    }
+    value.update(updates)
+    return value
+
+
+def test_metadata_is_complete_bounded_and_validated():
+    payload = json.loads(debug_trace.serialize_trace(event(event_id="e" * 1000, run_id="r" * 1000, name="n" * 1000)))
+    assert set(payload) == set(debug_trace._REQUIRED)
+    assert len(payload["event_id"]) == len(payload["run_id"]) == 128
+    assert len(payload["name"]) == 256
+    for field, invalid in (("schema_version", True), ("run_type", "unknown"), ("phase", "other"), ("status", [])):
+        with __import__("pytest").raises(ValueError):
+            debug_trace.serialize_trace(event(**{field: invalid}))
+
+
+def test_redacts_secret_fields_credentials_and_exception_text():
+    secret = "top-secret-token-value"
+    payload = json.loads(debug_trace.serialize_trace(event(inputs={"api_key": secret, "message": "access_token=" + secret}, error=ValueError(secret))))
+    assert secret not in json.dumps(payload)
+    assert payload["inputs"]["api_key"] == "[REDACTED]"
+    assert payload["error"] == "[error details redacted]"
+
+
+def test_bounds_large_mapping_array_and_strings():
+    payload = json.loads(debug_trace.serialize_trace(event(inputs={"items": list(range(10000)), "mapping": {str(i): i for i in range(10000)}, "text": "x" * 5000})))
+    assert len(payload["inputs"]["items"]) == 101
+    assert payload["inputs"]["items"][-1] == "[TRUNCATED]"
+    assert payload["inputs"]["mapping"]["_truncated"] is True
+    assert len(payload["inputs"]["text"]) <= 2050
+
+
+def test_handles_self_reference_deep_values_nan_and_infinity():
+    circular = []
+    circular.append(circular)
+    nested = current = {}
+    for _ in range(20):
+        current["next"] = {}
+        current = current["next"]
+    payload = json.loads(debug_trace.serialize_trace(event(inputs={"cycle": circular, "deep": nested, "nan": float("nan"), "inf": float("inf")})))
+    assert payload["inputs"]["cycle"] == ["[CIRCULAR]"]
+    assert payload["inputs"]["nan"] is payload["inputs"]["inf"] is None
+    assert "[TRUNCATED]" in json.dumps(payload["inputs"]["deep"])
+
+
+def test_unknown_objects_are_not_stringified_and_output_obeys_byte_limit():
+    class Unsafe:
+        def __str__(self):
+            raise AssertionError("must not call str")
+
+        __repr__ = __str__
+
+    payload = debug_trace.serialize_trace(event(inputs={"object": Unsafe(), "huge": "x" * 100000}, outputs="y" * 100000))
+    assert len(payload.encode("utf-8")) <= debug_trace.MAX_JSON_BYTES
+    assert "[unsupported:Unsafe]" in payload
