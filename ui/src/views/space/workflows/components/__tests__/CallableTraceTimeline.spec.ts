@@ -141,12 +141,31 @@ it('accepts events without optional fields and ignores malformed or unsupported 
   wrapper.unmount()
 })
 
-it('keeps long outputs available in a scrollable, safely rendered block', () => {
+it('truncates long outputs in a scrollable, safely rendered block', () => {
   const longOutput = 'trace-output-'.repeat(1500)
   const wrapper = mountTimeline([trace({ phase: 'end', status: 'succeeded', outputs: longOutput })])
   const output = wrapper.get('[data-testid="callable-trace-output"]')
 
   expect(output.classes()).toContain('overflow-auto')
-  expect(output.text()).toBe(longOutput)
+  expect(output.text().length).toBeLessThan(longOutput.length)
+  expect(output.text()).toContain('[truncated]')
+  wrapper.unmount()
+})
+
+it('limits oversized values and safely formats circular or unsupported data', () => {
+  const circular: Record<string, unknown> = {}
+  circular.self = circular
+  const wrapper = mountTimeline([
+    trace({
+      phase: 'end',
+      outputs: { long: 'x'.repeat(10_000), circular, bigInt: 123n },
+    }),
+  ])
+
+  const output = wrapper.get('[data-testid="callable-trace-output"]').text()
+  expect(output.length).toBeLessThan(5_000)
+  expect(output).toContain('[truncated]')
+  expect(output).toContain('[Circular]')
+  expect(output).toContain('123n')
   wrapper.unmount()
 })

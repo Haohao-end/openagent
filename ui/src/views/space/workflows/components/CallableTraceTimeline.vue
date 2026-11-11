@@ -71,6 +71,42 @@ const parseEvent = (value: unknown): CallableTrace | undefined => {
   return event
 }
 
+const MAX_VALUE_LENGTH = 4000
+const MAX_STRING_LENGTH = 1000
+const MAX_COLLECTION_ITEMS = 100
+const MAX_VALUE_DEPTH = 8
+
+const normalizeValue = (value: unknown, seen: WeakSet<object>, depth = 0): unknown => {
+  if (typeof value === 'string') {
+    return value.length > MAX_STRING_LENGTH
+      ? `${value.slice(0, MAX_STRING_LENGTH)} [truncated]`
+      : value
+  }
+  if (typeof value === 'bigint') return `${value}n`
+  if (typeof value === 'function' || typeof value === 'symbol') return '[Unsupported value]'
+  if (value === null || typeof value !== 'object') return value
+  if (depth >= MAX_VALUE_DEPTH) return '[Maximum depth reached]'
+  if (seen.has(value)) return '[Circular]'
+  seen.add(value)
+  if (Array.isArray(value)) {
+    const items = value
+      .slice(0, MAX_COLLECTION_ITEMS)
+      .map((item) => normalizeValue(item, seen, depth + 1))
+    if (value.length > MAX_COLLECTION_ITEMS) items.push('[truncated]')
+    return items
+  }
+  const result: Record<string, unknown> = {}
+  for (const key of Object.keys(value).slice(0, MAX_COLLECTION_ITEMS)) {
+    try {
+      result[key] = normalizeValue((value as Record<string, unknown>)[key], seen, depth + 1)
+    } catch {
+      result[key] = '[Unserializable value]'
+    }
+  }
+  if (Object.keys(value).length > MAX_COLLECTION_ITEMS) result._truncated = true
+  return result
+}
+
 const calls = computed(() => {
   const byRunId = new Map<string, CallableTrace>()
   const seenEventIds = new Set<string>()
@@ -110,11 +146,17 @@ const depthOf = (call: CallableTrace) => {
   return Math.min(depth, 8)
 }
 const formatValue = (value: unknown) => {
-  if (typeof value === 'string') return value
+  const seen = new WeakSet<object>()
   try {
-    return JSON.stringify(value, null, 2) ?? String(value)
+    const normalized = normalizeValue(value, seen)
+    const formatted =
+      typeof normalized === 'string' ? normalized : JSON.stringify(normalized, null, 2)
+    if (!formatted) return 'null'
+    return formatted.length > MAX_VALUE_LENGTH
+      ? `${formatted.slice(0, MAX_VALUE_LENGTH)}\n[truncated]`
+      : formatted
   } catch {
-    return String(value)
+    return '[Unserializable value]'
   }
 }
 const runTypeLabel = (type: TraceRunType) => t(`workflowEditor.callableTrace.types.${type}`)
