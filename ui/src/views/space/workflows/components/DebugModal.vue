@@ -18,6 +18,7 @@ import {
   markWorkflowDebugEdgeSucceeded as markDebugEdge,
   markWorkflowDebugNodeSucceeded as markDebugNode,
 } from '@/views/space/workflows/utils/debug-visualization'
+import CallableTraceTimeline from '@/views/space/workflows/components/CallableTraceTimeline.vue'
 
 type WorkflowInput = {
   name: string
@@ -44,6 +45,7 @@ const copyNodeError = async (error: string) => {
 }
 const form = ref<Record<string, string | number | boolean>>({})
 const nodeResults = ref<DebugNodeResult[]>([])
+const callableTraceEvents = ref<unknown[]>([])
 const succeededNodeIds = ref<Set<string>>(new Set())
 const activatedTab = ref('input')
 let debugRunGeneration = 0
@@ -72,6 +74,7 @@ const hasOutputs = computed(() => outputs.value !== null && outputs.value !== un
 const clearDebugRunState = () => {
   debugWorkflowError.value = ''
   nodeResults.value = []
+  callableTraceEvents.value = []
   succeededNodeIds.value = new Set()
   clearDebugCanvas(nodes.value, edges.value)
 }
@@ -118,6 +121,11 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
         if (requestId !== debugRunGeneration) return
         const eventName = typeof event_response.event === 'string' ? event_response.event : ''
         const payload = event_response.data
+
+        if (eventName === 'callable_trace') {
+          callableTraceEvents.value = [...callableTraceEvents.value, payload]
+          return
+        }
 
         if (eventName === 'error' || eventName === 'timeout') {
           const failurePayload =
@@ -329,6 +337,7 @@ onUnmounted(() => {
           <!-- 运行结果 -->
           <div v-if="hasOutputs" class="bg-gray-700 rounded-lg p-3 text-white">{{ outputs }}</div>
         </div>
+        <CallableTraceTimeline :events="callableTraceEvents" />
         <section v-if="nodeResults.length > 0" class="mt-4 flex flex-col gap-2" data-testid="workflow-node-results">
           <h3 class="text-sm font-semibold text-gray-700">{{ t('workflowEditor.nodeResults') }}</h3>
           <article
