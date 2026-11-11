@@ -75,8 +75,14 @@ const MAX_VALUE_LENGTH = 4000
 const MAX_STRING_LENGTH = 1000
 const MAX_COLLECTION_ITEMS = 100
 const MAX_VALUE_DEPTH = 8
+const MAX_TOTAL_ITEMS = 500
 
-const normalizeValue = (value: unknown, seen: WeakSet<object>, depth = 0): unknown => {
+const normalizeValue = (
+  value: unknown,
+  seen: WeakSet<object>,
+  budget: { remaining: number },
+  depth = 0,
+): unknown => {
   if (typeof value === 'string') {
     return value.length > MAX_STRING_LENGTH
       ? `${value.slice(0, MAX_STRING_LENGTH)} [truncated]`
@@ -89,21 +95,31 @@ const normalizeValue = (value: unknown, seen: WeakSet<object>, depth = 0): unkno
   if (seen.has(value)) return '[Circular]'
   seen.add(value)
   if (Array.isArray(value)) {
-    const items = value
-      .slice(0, MAX_COLLECTION_ITEMS)
-      .map((item) => normalizeValue(item, seen, depth + 1))
-    if (value.length > MAX_COLLECTION_ITEMS) items.push('[truncated]')
+    const count = Math.min(value.length, MAX_COLLECTION_ITEMS, budget.remaining)
+    const items = []
+    for (let index = 0; index < count; index += 1) {
+      budget.remaining -= 1
+      items.push(normalizeValue(value[index], seen, budget, depth + 1))
+    }
+    if (value.length > count) items.push('[truncated]')
     return items
   }
   const result: Record<string, unknown> = {}
-  for (const key of Object.keys(value).slice(0, MAX_COLLECTION_ITEMS)) {
+  let count = 0
+  for (const key in value) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) continue
+    if (count >= MAX_COLLECTION_ITEMS || budget.remaining <= 0) {
+      result._truncated = true
+      break
+    }
+    count += 1
+    budget.remaining -= 1
     try {
-      result[key] = normalizeValue((value as Record<string, unknown>)[key], seen, depth + 1)
+      result[key] = normalizeValue((value as Record<string, unknown>)[key], seen, budget, depth + 1)
     } catch {
       result[key] = '[Unserializable value]'
     }
   }
-  if (Object.keys(value).length > MAX_COLLECTION_ITEMS) result._truncated = true
   return result
 }
 
@@ -148,7 +164,7 @@ const depthOf = (call: CallableTrace) => {
 const formatValue = (value: unknown) => {
   const seen = new WeakSet<object>()
   try {
-    const normalized = normalizeValue(value, seen)
+    const normalized = normalizeValue(value, seen, { remaining: MAX_TOTAL_ITEMS })
     const formatted =
       typeof normalized === 'string' ? normalized : JSON.stringify(normalized, null, 2)
     if (!formatted) return 'null'
