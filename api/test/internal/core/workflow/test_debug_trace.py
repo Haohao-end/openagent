@@ -69,6 +69,13 @@ def test_exact_collection_limit_is_not_marked_truncated():
     assert "_truncated" not in payload["inputs"]["mapping"]
 
 
+def test_shared_nested_values_obey_global_traversal_budget():
+    shared = [list(range(20)) for _ in range(20)]
+    payload = debug_trace.serialize_trace(event(inputs=[shared] * 100))
+    assert len(payload.encode("utf-8")) <= debug_trace.MAX_JSON_BYTES
+    assert "[TRUNCATED]" in payload
+
+
 def test_long_sensitive_mapping_key_is_redacted_before_truncation():
     key = "x" * 128 + "password"
     payload = json.loads(debug_trace.serialize_trace(event(inputs={key: "credential-value"})))

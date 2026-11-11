@@ -9,6 +9,7 @@ from typing import Any
 MAX_JSON_BYTES = 32 * 1024
 MAX_STRING_LENGTH = 2048
 MAX_COLLECTION_ITEMS = 100
+MAX_TOTAL_ITEMS = 2048
 MAX_DEPTH = 8
 MAX_ID_LENGTH = 128
 _REDACTED = "[REDACTED]"
@@ -35,11 +36,22 @@ def _clean_text(value: Any, limit: int) -> str:
     return _CREDENTIAL.sub(redact, value[:limit - len(suffix)]) + suffix
 
 
-def _safe(value: Any, depth: int = 0, seen: set[int] | None = None, key: str = "") -> Any:
+def _safe(
+    value: Any,
+    depth: int = 0,
+    seen: set[int] | None = None,
+    key: str = "",
+    budget: list[int] | None = None,
+) -> Any:
     if _SENSITIVE.search(key):
         return _REDACTED
     if depth >= MAX_DEPTH:
         return _TRUNCATED
+    if budget is None:
+        budget = [MAX_TOTAL_ITEMS]
+    if budget[0] <= 0:
+        return _TRUNCATED
+    budget[0] -= 1
     if value is None or isinstance(value, bool):
         return value
     if isinstance(value, int):
@@ -72,7 +84,13 @@ def _safe(value: Any, depth: int = 0, seen: set[int] | None = None, key: str = "
                             _REDACTED if _SENSITIVE.search(child_key)
                             else _clean_text(child_key, MAX_ID_LENGTH)
                         ) if isinstance(child_key, str) else "[key]"
-                        result[safe_key] = _safe(child, depth + 1, seen, child_key if isinstance(child_key, str) else "")
+                        result[safe_key] = _safe(
+                            child,
+                            depth + 1,
+                            seen,
+                            child_key if isinstance(child_key, str) else "",
+                            budget,
+                        )
                     else:
                         try:
                             next(iterator)
@@ -91,7 +109,7 @@ def _safe(value: Any, depth: int = 0, seen: set[int] | None = None, key: str = "
                         item = next(iterator)
                     except StopIteration:
                         break
-                    result.append(_safe(item, depth + 1, seen))
+                    result.append(_safe(item, depth + 1, seen, budget=budget))
                 else:
                     try:
                         next(iterator)
@@ -159,7 +177,11 @@ def serialize_trace(event: Mapping[str, Any]) -> str:
         limit = MAX_ID_LENGTH if key != "name" else 256
         payload[key] = _clean_text(value, limit) if isinstance(value, str) else None
     payload["error"] = _safe(payload["error"])
-    safe = {key: _safe(value, key=key) if key in {"inputs", "outputs"} else value for key, value in payload.items()}
+    budget = [MAX_TOTAL_ITEMS]
+    safe = {
+        key: _safe(value, key=key, budget=budget) if key in {"inputs", "outputs"} else value
+        for key, value in payload.items()
+    }
     result = json.dumps(safe, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
     if len(result.encode("utf-8")) > MAX_JSON_BYTES:
         safe["inputs"] = _TRUNCATED
