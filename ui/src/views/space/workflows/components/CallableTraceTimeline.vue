@@ -71,6 +71,67 @@ const parseEvent = (value: unknown): CallableTrace | undefined => {
   return event
 }
 
+const MAX_VALUE_LENGTH = 4000
+const MAX_STRING_LENGTH = 1000
+const MAX_COLLECTION_ITEMS = 100
+const MAX_VALUE_DEPTH = 8
+const MAX_TOTAL_ITEMS = 500
+
+const normalizeValue = (
+  value: unknown,
+  seen: WeakSet<object>,
+  budget: { remaining: number },
+  depth = 0,
+): unknown => {
+  if (typeof value === 'string') {
+    return value.length > MAX_STRING_LENGTH
+      ? `${value.slice(0, MAX_STRING_LENGTH)} [truncated]`
+      : value
+  }
+  if (typeof value === 'bigint') return `${value}n`
+  if (typeof value === 'function' || typeof value === 'symbol') return '[Unsupported value]'
+  if (value === null || typeof value !== 'object') return value
+  if (depth >= MAX_VALUE_DEPTH) return '[Maximum depth reached]'
+  if (seen.has(value)) return '[Circular]'
+  seen.add(value)
+  try {
+    if (Array.isArray(value)) {
+      const count = Math.min(value.length, MAX_COLLECTION_ITEMS, budget.remaining)
+      const items = []
+      for (let index = 0; index < count; index += 1) {
+        budget.remaining -= 1
+        items.push(normalizeValue(value[index], seen, budget, depth + 1))
+      }
+      if (value.length > count) items.push('[truncated]')
+      return items
+    }
+    const result: Record<string, unknown> = {}
+    let count = 0
+    for (const key in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, key)) continue
+      if (count >= MAX_COLLECTION_ITEMS || budget.remaining <= 0) {
+        result._truncated = true
+        break
+      }
+      count += 1
+      budget.remaining -= 1
+      try {
+        result[key] = normalizeValue(
+          (value as Record<string, unknown>)[key],
+          seen,
+          budget,
+          depth + 1,
+        )
+      } catch {
+        result[key] = '[Unserializable value]'
+      }
+    }
+    return result
+  } finally {
+    seen.delete(value)
+  }
+}
+
 const calls = computed(() => {
   const byRunId = new Map<string, CallableTrace>()
   const seenEventIds = new Set<string>()
@@ -110,11 +171,17 @@ const depthOf = (call: CallableTrace) => {
   return Math.min(depth, 8)
 }
 const formatValue = (value: unknown) => {
-  if (typeof value === 'string') return value
+  const seen = new WeakSet<object>()
   try {
-    return JSON.stringify(value, null, 2) ?? String(value)
+    const normalized = normalizeValue(value, seen, { remaining: MAX_TOTAL_ITEMS })
+    const formatted =
+      typeof normalized === 'string' ? normalized : JSON.stringify(normalized, null, 2)
+    if (!formatted) return 'null'
+    return formatted.length > MAX_VALUE_LENGTH
+      ? `${formatted.slice(0, MAX_VALUE_LENGTH)}\n[truncated]`
+      : formatted
   } catch {
-    return String(value)
+    return '[Unserializable value]'
   }
 }
 const runTypeLabel = (type: TraceRunType) => t(`workflowEditor.callableTrace.types.${type}`)
