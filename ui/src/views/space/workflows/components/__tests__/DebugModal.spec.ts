@@ -222,6 +222,40 @@ describe('DebugModal node outputs', () => {
     ])
   })
 
+  it('renders callable traces separately and clears them for the next run', async () => {
+    const trace = {
+      schema_version: 1,
+      event_id: 'trace-1',
+      run_id: 'llm-1',
+      parent_run_id: null,
+      run_type: 'llm',
+      phase: 'start',
+      name: 'ChatOpenAI',
+      status: 'running',
+      inputs: { prompt: 'hello' },
+      outputs: null,
+      error: null,
+      latency_ms: null,
+    }
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_id, _inputs, onData) => {
+      onData({ event: 'callable_trace', data: trace })
+    })
+    mocks.handleDebugWorkflow.mockImplementationOnce(async () => undefined)
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="callable-trace-call"]').text()).toContain('ChatOpenAI')
+    expect(wrapper.findAll('[data-testid="workflow-node-result"]')).toHaveLength(0)
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="callable-trace-timeline"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('keeps the last run results when a new submission fails validation', async () => {
     const wrapper = mount(DebugModal, {
       props: { visible: true, workflow_id: 'workflow-1' },
