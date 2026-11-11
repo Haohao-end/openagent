@@ -106,6 +106,13 @@ def test_long_sensitive_mapping_key_is_redacted_before_truncation():
     assert "credential-value" not in json.dumps(payload)
 
 
+def test_oversized_mapping_keys_are_bounded_and_redacted():
+    key = "Authorization: Bearer KEY-SECRET" + "x" * 1_000_000
+    payload = debug_trace.serialize_trace(event(inputs={key: "KEY-VALUE-SECRET"}))
+    assert "KEY-SECRET" not in payload
+    assert "KEY-VALUE-SECRET" not in payload
+
+
 def test_redacts_credentials_from_mapping_keys_and_names():
     secret = "secret-value-123"
     payload = json.loads(debug_trace.serialize_trace(event(
@@ -149,7 +156,15 @@ def test_truncated_mapping_keys_do_not_overwrite_entries():
     prefix = "generated-parameter-" + "x" * 130
     payload = json.loads(debug_trace.serialize_trace(event(inputs={prefix + "A": 1, prefix + "B": 2})))
     assert len(payload["inputs"]) == 2
-    assert sorted(payload["inputs"].values()) == [1, 2]
+    assert sorted(payload["inputs"].values()) == ["[REDACTED]", "[REDACTED]"]
+
+
+def test_truncation_marker_does_not_overwrite_user_mapping_key():
+    inputs = {"_truncated": "user value"}
+    inputs.update({str(index): index for index in range(100)})
+    payload = json.loads(debug_trace.serialize_trace(event(inputs=inputs)))
+    assert payload["inputs"]["_truncated"] == "user value"
+    assert payload["inputs"]["_truncated~2"] is True
 
 
 def test_handles_self_reference_deep_values_nan_and_infinity():

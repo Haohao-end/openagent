@@ -59,7 +59,7 @@ def _safe(
     key: str = "",
     budget: list[int] | None = None,
 ) -> Any:
-    if _SENSITIVE.search(key):
+    if key and (len(key) > MAX_ID_LENGTH or _SENSITIVE.search(key)):
         return _REDACTED
     if depth >= MAX_DEPTH:
         return _TRUNCATED
@@ -107,7 +107,8 @@ def _safe(
                         except StopIteration:
                             pass
                         else:
-                            result["_truncated"] = True
+                            marker = _safe_mapping_key("_truncated", result)
+                            result[marker] = True
                 except Exception:
                     result["_unavailable"] = True
                 return result
@@ -144,6 +145,9 @@ def _safe(
 def _safe_mapping_key(key: Any, result: dict[str, Any]) -> str:
     if not isinstance(key, str):
         base = "[key]"
+    elif len(key) > MAX_ID_LENGTH:
+        # Only inspect the bounded prefix; the associated value is redacted separately.
+        base = _clean_text(key[:MAX_ID_LENGTH], MAX_ID_LENGTH)
     elif _SENSITIVE.search(key):
         base = _REDACTED
     else:
