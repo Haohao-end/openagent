@@ -36,6 +36,8 @@ def test_metadata_is_complete_bounded_and_validated():
     for field, invalid in (("schema_version", True), ("run_type", "chat_model"), ("phase", "other"), ("status", []), ("run_id", ""), ("event_id", None)):
         with __import__("pytest").raises(ValueError):
             debug_trace.serialize_trace(event(**{field: invalid}))
+    with __import__("pytest").raises(ValueError):
+        debug_trace.serialize_trace(event(latency_ms=10**10000))
 
 
 def test_redacts_secret_fields_credentials_and_exception_text():
@@ -43,7 +45,7 @@ def test_redacts_secret_fields_credentials_and_exception_text():
     message = f"access_token={secret}; Authorization: Bearer {secret}; Cookie: session={secret}"
     payload = json.loads(debug_trace.serialize_trace(event(inputs={"api_key": secret, "message": message}, error=ValueError(secret))))
     assert secret not in json.dumps(payload)
-    assert payload["inputs"]["api_key"] == "[REDACTED]"
+    assert payload["inputs"]["[REDACTED]"] == "[REDACTED]"
     assert payload["error"] == "[error details redacted]"
 
 
@@ -65,6 +67,17 @@ def test_long_sensitive_mapping_key_is_redacted_before_truncation():
     key = "x" * 128 + "password"
     payload = json.loads(debug_trace.serialize_trace(event(inputs={key: "credential-value"})))
     assert "credential-value" not in json.dumps(payload)
+
+
+def test_redacts_credentials_from_mapping_keys_and_names():
+    secret = "secret-value-123"
+    payload = json.loads(debug_trace.serialize_trace(event(
+        name=f"Authorization: Bearer {secret}",
+        inputs={f"Authorization: Bearer {secret}": True},
+    )))
+    assert secret not in json.dumps(payload)
+    assert payload["name"] == "Authorization=[REDACTED]"
+    assert "[REDACTED]" in payload["inputs"]
 
 
 def test_handles_self_reference_deep_values_nan_and_infinity():

@@ -67,7 +67,10 @@ def _safe(value: Any, depth: int = 0, seen: set[int] | None = None, key: str = "
                         except StopIteration:
                             break
                         # Never call str/repr on arbitrary mapping keys.
-                        safe_key = child_key[:MAX_ID_LENGTH] if isinstance(child_key, str) else "[key]"
+                        safe_key = (
+                            _REDACTED if _SENSITIVE.search(child_key)
+                            else _clean_text(child_key, MAX_ID_LENGTH)
+                        ) if isinstance(child_key, str) else "[key]"
                         result[safe_key] = _safe(child, depth + 1, seen, child_key if isinstance(child_key, str) else "")
                     else:
                         try:
@@ -122,8 +125,14 @@ def serialize_trace(event: Mapping[str, Any]) -> str:
         value = event.get(identifier)
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"invalid {identifier}")
-    if latency is not None and (isinstance(latency, bool) or not isinstance(latency, (int, float)) or not math.isfinite(latency) or latency < 0):
-        raise ValueError("invalid latency_ms")
+    if latency is not None:
+        if isinstance(latency, bool) or not isinstance(latency, (int, float)) or latency < 0:
+            raise ValueError("invalid latency_ms")
+        if isinstance(latency, int):
+            if latency.bit_length() > 53:
+                raise ValueError("invalid latency_ms")
+        elif not math.isfinite(latency):
+            raise ValueError("invalid latency_ms")
 
     payload = {
         "schema_version": schema_version,
@@ -141,7 +150,8 @@ def serialize_trace(event: Mapping[str, Any]) -> str:
     }
     for key in ("event_id", "run_id", "parent_run_id", "name"):
         value = payload[key]
-        payload[key] = value[:MAX_ID_LENGTH if key != "name" else 256] if isinstance(value, str) else None
+        limit = MAX_ID_LENGTH if key != "name" else 256
+        payload[key] = _clean_text(value, limit) if isinstance(value, str) else None
     payload["error"] = _safe(payload["error"])
     safe = {key: _safe(value, key=key) if key in {"inputs", "outputs"} else value for key, value in payload.items()}
     result = json.dumps(safe, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
