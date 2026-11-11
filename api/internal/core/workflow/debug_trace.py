@@ -17,8 +17,8 @@ _SENSITIVE = re.compile(r"password|secret|token|api.?key|authorization|cookie|cr
 _CREDENTIAL = re.compile(
     r"(?i)(?:\b(authorization|proxy-authorization)\s*[:=]\s*[^,\r\n]+"
     r"|\b(cookie|set-cookie)\s*[:=]\s*[^\r\n]+"
-    r"|\b(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[:=]\s*[^\s,;]+"
-    r"|[\"']?(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)[\"']?\s*:\s*(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s,;}]+))"
+    r"|[\"']?(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)[\"']?\s*:\s*(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s,;}]+)"
+    r"|\b(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[:=]\s*[^\s,;]+)"
 )
 _RUN_TYPES = {"chain", "llm", "tool"}
 _PHASES = {"start", "end", "error"}

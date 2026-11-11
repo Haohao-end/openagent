@@ -50,6 +50,7 @@ def test_redacts_secret_fields_credentials_and_exception_text():
     payload = json.loads(debug_trace.serialize_trace(event(inputs={"api_key": secret, "message": message}, error=ValueError(secret))))
     assert secret not in json.dumps(payload)
     assert "hunter two" not in json.dumps(payload)
+    assert "two" not in json.dumps(payload)
     assert payload["inputs"]["[REDACTED]"] == "[REDACTED]"
     assert payload["error"] == "[error details redacted]"
 
