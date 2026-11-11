@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { expect, it } from 'vitest'
+import { createTestI18n } from '@/i18n'
 import CallableTraceTimeline from '@/views/space/workflows/components/CallableTraceTimeline.vue'
 
 const trace = (overrides: Record<string, unknown> = {}) => ({
@@ -94,6 +95,34 @@ it('shows error phase details and error status', () => {
   )
   expect(wrapper.text()).toContain('Provider timed out')
   expect(wrapper.text()).toContain('partial')
+  wrapper.unmount()
+})
+
+it.each(['', '   '])('shows the localized fallback when error details are blank', (error) => {
+  const wrapper = mountTimeline([trace({ phase: 'error', status: 'failed', error })])
+
+  expect(wrapper.get('[data-testid="callable-trace-error"]').text()).toBe(
+    '调用失败，暂无错误详情。',
+  )
+  wrapper.unmount()
+})
+
+it('shows the English fallback for a trace error without details', () => {
+  const wrapper = mount(CallableTraceTimeline, {
+    props: { events: [trace({ phase: 'error', status: 'failed', error: ' ' })] },
+    global: { plugins: [createTestI18n('en-US')] },
+  })
+
+  expect(wrapper.get('[data-testid="callable-trace-error"]').text()).toBe(
+    'This call failed without error details.',
+  )
+  wrapper.unmount()
+})
+
+it('preserves empty string outputs instead of rendering them as null', () => {
+  const wrapper = mountTimeline([trace({ phase: 'end', status: 'succeeded', outputs: '' })])
+
+  expect(wrapper.get('[data-testid="callable-trace-output"]').text()).toBe('')
   wrapper.unmount()
 })
 
