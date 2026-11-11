@@ -69,6 +69,13 @@ const outputs = computed(() => {
 })
 const hasOutputs = computed(() => outputs.value !== null && outputs.value !== undefined)
 
+const clearDebugRunState = () => {
+  debugWorkflowError.value = ''
+  nodeResults.value = []
+  succeededNodeIds.value = new Set()
+  clearDebugCanvas(nodes.value, edges.value)
+}
+
 // 4.定义整个工作流的响应耗时
 const latency = computed(() => {
   return sumWorkflowLatency(nodeResults.value)
@@ -95,10 +102,7 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   if (errors) return
 
   // 6.1 运行前先将历史运行清空
-  nodeResults.value = []
-  debugWorkflowError.value = ''
-  succeededNodeIds.value = new Set()
-  clearDebugCanvas(nodes.value, edges.value)
+  clearDebugRunState()
 
   const requestId = ++debugRunGeneration
 
@@ -164,14 +168,18 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
 
 // 7.监听调试模态窗的显示或隐藏
 watch(
-  () => props.visible,
-  (newValue) => {
-    if (newValue) {
+  () => [props.visible, props.workflow_id] as const,
+  ([newValue, workflowId], [, previousWorkflowId]) => {
+    const workflowChanged = workflowId !== previousWorkflowId
+    if (workflowChanged) {
       debugRunGeneration += 1
-      debugWorkflowError.value = ''
-      nodeResults.value = []
-      succeededNodeIds.value = new Set()
-      clearDebugCanvas(nodes.value, edges.value)
+      cancelDebugWorkflow()
+      clearDebugRunState()
+      activatedTab.value = 'input'
+      form.value = {}
+    } else if (newValue) {
+      debugRunGeneration += 1
+      clearDebugRunState()
       activatedTab.value = 'input'
       form.value = {}
     } else {
