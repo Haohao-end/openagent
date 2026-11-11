@@ -83,8 +83,14 @@ def test_redacts_secret_fields_credentials_and_exception_text():
 def test_redacts_credentials_in_url_userinfo():
     payload = debug_trace.serialize_trace(event(inputs={
         "url": "postgresql://alice:URL-SECRET@db.example/app",
+        "redis": "redis://:EMPTY-USER-SECRET@cache.example/0",
+        "long": "redis://user:" + "LONGPASS" * 300 + "@cache.example/0",
+        "port": "http://localhost:8080",
     }))
     assert "URL-SECRET" not in payload
+    assert "EMPTY-USER-SECRET" not in payload
+    assert "LONGPASS" not in payload
+    assert "http://localhost:8080" in payload
 
 
 def test_plain_text_skips_credential_regex(monkeypatch):
@@ -224,7 +230,47 @@ def test_large_error_is_truncated_without_losing_trace_identifiers():
     payload = json.loads(debug_trace.serialize_trace(event(error={"diagnostic": ["x" * 2000 for _ in range(100)]})))
     assert payload["event_id"] == "event-1"
     assert payload["run_id"] == "run-1"
-    assert payload["error"] == "[TRUNCATED]"
+    assert payload["error"]["diagnostic"][-1] == "[TRUNCATED]"
+
+
+def test_byte_budget_limits_escaped_strings_before_json_encoding(monkeypatch):
+    original_dumps = json.dumps
+
+    def encoded_size(value):
+        if isinstance(value, str):
+            return debug_trace._json_string_size(value)
+        if value is None:
+            return 4
+        if isinstance(value, bool):
+            return 5 if value else 4
+        if isinstance(value, (int, float)):
+            return len(str(value))
+        if isinstance(value, dict):
+            return 2 + sum(
+                debug_trace._json_string_size(key) + 1 + encoded_size(child) + (index > 0)
+                for index, (key, child) in enumerate(value.items())
+            )
+        if isinstance(value, list):
+            return 2 + sum(encoded_size(child) + (index > 0) for index, child in enumerate(value))
+        raise AssertionError(f"unexpected unsafe value type: {type(value).__name__}")
+
+    def checked_dumps(value, **kwargs):
+        assert encoded_size(value) <= debug_trace.MAX_JSON_BYTES
+        return original_dumps(value, **kwargs)
+
+    monkeypatch.setattr(debug_trace.json, "dumps", checked_dumps)
+    large_value = "🌍" * debug_trace.MAX_STRING_LENGTH
+    inputs = [[large_value] * debug_trace.MAX_COLLECTION_ITEMS for _ in range(20)]
+    encoded = debug_trace.serialize_trace(event(inputs=inputs))
+    assert len(encoded.encode("utf-8")) <= debug_trace.MAX_JSON_BYTES
+    assert "[TRUNCATED]" in encoded
+
+
+def test_two_item_prompt_sequence_is_not_mistaken_for_sensitive_pair():
+    prompt = "tokenization details and ordinary context " * 10
+    payload = json.loads(debug_trace.serialize_trace(event(inputs=[[prompt, {"option": "preserved"}]])))
+    assert payload["inputs"][0][0] == prompt
+    assert payload["inputs"][0][1]["option"] == "preserved"
 
 
 def test_non_string_trace_name_is_rejected():

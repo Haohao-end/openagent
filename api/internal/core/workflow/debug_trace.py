@@ -12,6 +12,8 @@ MAX_COLLECTION_ITEMS = 100
 MAX_TOTAL_ITEMS = 2048
 MAX_DEPTH = 8
 MAX_ID_LENGTH = 128
+_MAX_VALUE_BYTES = MAX_JSON_BYTES - 8 * 1024 - 2 * 1024
+_MIN_CHILD_BYTES = 2 * 1024
 _REDACTED = "[REDACTED]"
 _TRUNCATED = "[TRUNCATED]"
 _SENSITIVE = re.compile(
@@ -19,7 +21,7 @@ _SENSITIVE = re.compile(
     re.I,
 )
 _SENSITIVE_KEY_NAMES = {
-    "access_token", "apikey", "auth", "authorization", "client_secret", "key", "password",
+    "access_token", "apikey", "auth", "authorization", "client_secret", "cookie", "key", "password",
     "awsaccesskeyid", "credential", "googleaccessid", "refresh_token", "secret", "security_token",
     "sig", "signature", "token", "x_api_key", "api_token", "oauth_token", "x_auth_token", "x_mcp_token",
     "x_amz_credential", "x_amz_security_token", "x_amz_signature", "x_goog_credential", "x_goog_signature",
@@ -35,7 +37,8 @@ _CREDENTIAL_HINT = re.compile(
     r"ssh.?key|signature|awsaccesskeyid|googleaccessid|(?<![a-z0-9])(?:auth|sig|key)(?![a-z0-9]))"
     r"[^\"'\r\n,;:=]{0,128}[\"']?\s*[:=]"
 )
-_URL_CREDENTIAL = re.compile(r"(?i)([a-z][a-z0-9+.-]*://[^/@\s:?#]+:)[^/@\s?#]+@")
+_URL_CREDENTIAL = re.compile(r"(?i)([a-z][a-z0-9+.-]*://[^/@\s:?#\"']*:)[^/@\s?#\"']+@")
+_URL_CREDENTIAL_PREFIX = re.compile(r"(?i)([a-z][a-z0-9+.-]*://[^/@\s:?#\"']*:)[^/@\s?#\"']+$")
 _PRIVATE_KEY_BLOCK = re.compile(
     r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----.*?(?:-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----|$)",
     re.S,
@@ -63,6 +66,8 @@ def _clean_text(value: Any, limit: int) -> str:
     source = value[:limit] if truncated else value
     source = _PRIVATE_KEY_BLOCK.sub(_REDACTED, source)
     source = _URL_CREDENTIAL.sub(r"\1[REDACTED]@", source)
+    if truncated:
+        source = _URL_CREDENTIAL_PREFIX.sub(r"\1[REDACTED]", source)
     cleaned = _CREDENTIAL.sub(redact, source) if _CREDENTIAL_HINT.search(source) else source
     return cleaned[: limit - len(_TRUNCATED)] + _TRUNCATED if truncated else cleaned
 
@@ -72,38 +77,105 @@ def _is_sensitive_key(key: str) -> bool:
     return bool(_SENSITIVE.search(key)) or normalized in _SENSITIVE_KEY_NAMES_NORMALIZED
 
 
+def _is_sensitive_pair_label(label: str) -> bool:
+    normalized = label.lower().replace("_", "").replace("-", "") if len(label) <= MAX_ID_LENGTH else ""
+    if normalized in _SENSITIVE_KEY_NAMES_NORMALIZED:
+        return True
+    sample = label if len(label) <= MAX_ID_LENGTH else label[:MAX_ID_LENGTH] + " " + label[-MAX_ID_LENGTH:]
+    return any(
+        part.lower().replace("_", "").replace("-", "") in _SENSITIVE_KEY_NAMES_NORMALIZED
+        for part in re.findall(r"[A-Za-z0-9]+", sample)
+    )
+
+
+def _json_char_size(char: str) -> int:
+    codepoint = ord(char)
+    if char in {'"', "\\"}:
+        return 2
+    if 32 <= codepoint < 127:
+        return 1
+    return 6 if codepoint <= 0xFFFF else 12
+
+
+def _json_string_size(value: str) -> int:
+    return 2 + sum(_json_char_size(char) for char in value)
+
+
+def _take_bytes(size_budget: list[int], size: int) -> bool:
+    if size > size_budget[0]:
+        return False
+    size_budget[0] -= size
+    return True
+
+
+def _bounded_text(value: str, size_budget: list[int]) -> str:
+    if _take_bytes(size_budget, _json_string_size(value)):
+        return value
+    suffix_size = _json_string_size(_TRUNCATED)
+    available = size_budget[0] - suffix_size
+    if available < 2:
+        return _TRUNCATED
+    prefix = []
+    used = 2
+    for char in value:
+        char_size = _json_char_size(char)
+        if used + char_size > available:
+            break
+        prefix.append(char)
+        used += char_size
+    truncated = "".join(prefix) + _TRUNCATED
+    if _take_bytes(size_budget, _json_string_size(truncated)):
+        return truncated
+    return _TRUNCATED
+
+
+def _marker(value: str, size_budget: list[int]) -> str:
+    if _take_bytes(size_budget, _json_string_size(value)):
+        return value
+    return _TRUNCATED
+
+
 def _safe(
     value: Any,
     depth: int = 0,
     seen: set[int] | None = None,
     key: str = "",
     budget: list[int] | None = None,
+    size_budget: list[int] | None = None,
 ) -> Any:
-    if key and (len(key) > MAX_ID_LENGTH or _is_sensitive_key(key)):
-        return _REDACTED
-    if depth >= MAX_DEPTH:
-        return _TRUNCATED
     if budget is None:
         budget = [MAX_TOTAL_ITEMS]
+    if size_budget is None:
+        size_budget = [_MAX_VALUE_BYTES]
+    if key and (len(key) > MAX_ID_LENGTH or _is_sensitive_key(key)):
+        return _marker(_REDACTED, size_budget)
+    if depth >= MAX_DEPTH:
+        return _marker(_TRUNCATED, size_budget)
     if budget[0] <= 0:
-        return _TRUNCATED
+        return _marker(_TRUNCATED, size_budget)
     budget[0] -= 1
     if value is None or isinstance(value, bool):
-        return value
+        return value if _take_bytes(size_budget, 5 if value is True else 4) else _TRUNCATED
     if isinstance(value, int):
-        return value if value.bit_length() <= 1024 else "[integer truncated]"
+        if value.bit_length() > 1024:
+            return _marker("[integer truncated]", size_budget)
+        return value if _take_bytes(size_budget, len(str(value))) else _TRUNCATED
     if isinstance(value, float):
-        return value if math.isfinite(value) else None
+        if not math.isfinite(value):
+            return None if _take_bytes(size_budget, 4) else _TRUNCATED
+        return value if _take_bytes(size_budget, len(repr(value))) else _TRUNCATED
     if isinstance(value, str):
-        return _clean_text(value, MAX_STRING_LENGTH)
+        return _bounded_text(_clean_text(value, MAX_STRING_LENGTH), size_budget)
     if isinstance(value, BaseException):
-        return "[error details redacted]"
+        return _marker("[error details redacted]", size_budget)
     if seen is None:
         seen = set()
     if isinstance(value, Mapping) or isinstance(value, (list, tuple)):
         identity = id(value)
         if identity in seen:
-            return "[CIRCULAR]"
+            return _marker("[CIRCULAR]", size_budget)
+        if not _take_bytes(size_budget, 2):
+            return _TRUNCATED
         seen.add(identity)
         try:
             if isinstance(value, Mapping):
@@ -111,73 +183,94 @@ def _safe(
                 try:
                     iterator = iter(value.items())
                     for _ in range(MAX_COLLECTION_ITEMS):
+                        if budget[0] <= 0 or size_budget[0] < _MIN_CHILD_BYTES:
+                            _add_mapping_marker(result, "_truncated", True, size_budget)
+                            break
                         try:
                             child_key, child = next(iterator)
                         except StopIteration:
                             break
                         # Never call str/repr on arbitrary mapping keys.
-                        safe_key = _safe_mapping_key(child_key, result)
+                        safe_key = _safe_mapping_key(child_key, result, size_budget)
+                        if safe_key is None:
+                            _add_mapping_marker(result, "_truncated", True, size_budget)
+                            break
                         if isinstance(child_key, str):
-                            result[safe_key] = _safe(child, depth + 1, seen, child_key, budget)
+                            result[safe_key] = _safe(child, depth + 1, seen, child_key, budget, size_budget)
                         else:
-                            result[safe_key] = _safe(_REDACTED, depth + 1, seen, budget=budget)
+                            result[safe_key] = _safe(
+                                _REDACTED, depth + 1, seen, budget=budget, size_budget=size_budget
+                            )
                     else:
                         try:
                             next(iterator)
                         except StopIteration:
                             pass
                         else:
-                            marker = _safe_mapping_key("_truncated", result)
-                            result[marker] = True
+                            _add_mapping_marker(result, "_truncated", True, size_budget)
                 except Exception:
-                    result["_unavailable"] = True
+                    _add_mapping_marker(result, "_unavailable", True, size_budget)
                 return result
-            if (
-                isinstance(value, (list, tuple))
-                and len(value) == 2
-                and isinstance(value[0], (str, bytes))
-            ):
+            if type(value) in (list, tuple) and len(value) == 2 and isinstance(value[0], (str, bytes)):
                 raw_label, child = value
                 if isinstance(raw_label, bytes):
                     if len(raw_label) > MAX_ID_LENGTH:
-                        return [_REDACTED, _REDACTED]
+                        if not _take_bytes(size_budget, 1):
+                            return _TRUNCATED
+                        return [_marker(_REDACTED, size_budget), _marker(_REDACTED, size_budget)]
                     label = raw_label.decode("utf-8", errors="replace")
                 else:
                     label = raw_label
-                return [
-                    _clean_text(label, MAX_STRING_LENGTH),
-                    _safe(child, depth + 1, seen, label, budget),
-                ]
+                is_header_label = _is_sensitive_pair_label(label)
+                if is_header_label:
+                    if not _take_bytes(size_budget, 1):
+                        return _TRUNCATED
+                    return [
+                        _bounded_text(_clean_text(label, MAX_STRING_LENGTH), size_budget),
+                        _safe(child, depth + 1, seen, label, budget, size_budget),
+                    ]
             result = []
             try:
                 iterator = iter(value)
                 for _ in range(MAX_COLLECTION_ITEMS):
+                    if budget[0] <= 0 or size_budget[0] < _MIN_CHILD_BYTES:
+                        if result:
+                            _take_bytes(size_budget, 1)
+                        result.append(_marker(_TRUNCATED, size_budget))
+                        break
                     try:
                         item = next(iterator)
                     except StopIteration:
                         break
-                    result.append(_safe(item, depth + 1, seen, budget=budget))
+                    if result and not _take_bytes(size_budget, 1):
+                        result.append(_TRUNCATED)
+                        break
+                    result.append(_safe(item, depth + 1, seen, budget=budget, size_budget=size_budget))
                 else:
                     try:
                         next(iterator)
                     except StopIteration:
                         pass
                     else:
-                        result.append(_TRUNCATED)
+                        if result:
+                            _take_bytes(size_budget, 1)
+                        result.append(_marker(_TRUNCATED, size_budget))
             except Exception:
-                result.append("[unavailable]")
+                if result:
+                    _take_bytes(size_budget, 1)
+                result.append(_bounded_text("[unavailable]", size_budget))
             return result
         finally:
             seen.remove(identity)
-    return f"[unsupported:{type(value).__name__[:64]}]"
+    return _bounded_text(f"[unsupported:{type(value).__name__[:64]}]", size_budget)
 
 
-def _safe_mapping_key(key: Any, result: dict[str, Any]) -> str:
+def _safe_mapping_key(key: Any, result: dict[str, Any], size_budget: list[int]) -> str | None:
     if not isinstance(key, str):
         base = "[key]"
     elif len(key) > MAX_ID_LENGTH:
-        # Only inspect the bounded prefix; the associated value is redacted separately.
-        base = _clean_text(key[:MAX_ID_LENGTH], MAX_ID_LENGTH)
+        # _clean_text slices before scanning; long-key values are redacted in _safe.
+        base = _clean_text(key, MAX_ID_LENGTH)
     elif _is_sensitive_key(key):
         base = _REDACTED
     else:
@@ -188,7 +281,16 @@ def _safe_mapping_key(key: Any, result: dict[str, Any]) -> str:
         suffix = f"~{suffix_index}"
         candidate = base[: MAX_ID_LENGTH - len(suffix)] + suffix
         suffix_index += 1
+    separator_size = 1 if result else 0
+    if not _take_bytes(size_budget, _json_string_size(candidate) + 1 + separator_size):
+        return None
     return candidate
+
+
+def _add_mapping_marker(result: dict[str, Any], key: str, value: Any, size_budget: list[int]) -> None:
+    safe_key = _safe_mapping_key(key, result, size_budget)
+    if safe_key is not None and _take_bytes(size_budget, 4):
+        result[safe_key] = value
 
 
 def serialize_trace(event: Mapping[str, Any]) -> str:
@@ -256,8 +358,11 @@ def serialize_trace(event: Mapping[str, Any]) -> str:
         limit = 256 if key == "name" else MAX_ID_LENGTH
         payload[key] = _clean_text(value, limit) if key == "name" and isinstance(value, str) else value
     budget = [MAX_TOTAL_ITEMS]
+    size_budget = [_MAX_VALUE_BYTES]
     safe = {
-        key: _safe(value, key=key, budget=budget) if key in {"inputs", "outputs", "error"} else value
+        key: _safe(value, key=key, budget=budget, size_budget=size_budget)
+        if key in {"inputs", "outputs", "error"}
+        else value
         for key, value in payload.items()
     }
     result = json.dumps(safe, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
