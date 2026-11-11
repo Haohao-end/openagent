@@ -71,6 +71,31 @@ def test_redacts_secret_fields_credentials_and_exception_text():
         cleaned = json.loads(debug_trace.serialize_trace(event(inputs={"message": value})))
         assert "hunter" not in json.dumps(cleaned)
         assert "two" not in json.dumps(cleaned)
+    for key in ("auth", "sig", "signature", "AWSAccessKeyId", "google_access_id"):
+        cleaned = debug_trace.serialize_trace(event(inputs={key: secret}))
+        assert secret not in cleaned
+    for value in ("auth=AUTH-SECRET", "sig=SIG-SECRET", "signature=SIGNATURE-SECRET", "AWSAccessKeyId=AWS-SECRET"):
+        cleaned = debug_trace.serialize_trace(event(inputs={"message": value}))
+        assert "SECRET" not in cleaned
+        assert "AWS-SECRET" not in cleaned
+
+
+def test_redacts_credentials_in_url_userinfo():
+    payload = debug_trace.serialize_trace(event(inputs={
+        "url": "postgresql://alice:URL-SECRET@db.example/app",
+    }))
+    assert "URL-SECRET" not in payload
+
+
+def test_plain_text_skips_credential_regex(monkeypatch):
+    class UnexpectedRegexUse:
+        @staticmethod
+        def sub(*_args, **_kwargs):
+            raise AssertionError("ordinary strings must use the fast path")
+
+    monkeypatch.setattr(debug_trace, "_CREDENTIAL", UnexpectedRegexUse())
+    ordinary = "the design document assigns this value " * 100
+    assert debug_trace._clean_text(ordinary, debug_trace.MAX_STRING_LENGTH) == ordinary[:debug_trace.MAX_STRING_LENGTH - len(debug_trace._TRUNCATED)] + debug_trace._TRUNCATED
 
 
 def test_bounds_large_mapping_array_and_strings():

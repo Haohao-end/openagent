@@ -15,13 +15,27 @@ MAX_ID_LENGTH = 128
 _REDACTED = "[REDACTED]"
 _TRUNCATED = "[TRUNCATED]"
 _SENSITIVE = re.compile(
-    r"password|secret|token|api.?key|authorization|cookie|credential|private.?key|signing.?key|ssh.?key",
+    r"password|secret|token|api.?key|authorization|cookie|credential|private.?key|signing.?key|ssh.?key|signature",
     re.I,
 )
+_SENSITIVE_KEY_NAMES = {
+    "access_token", "apikey", "auth", "authorization", "client_secret", "key", "password",
+    "awsaccesskeyid", "credential", "googleaccessid", "refresh_token", "secret", "security_token",
+    "sig", "signature", "token", "x_api_key", "api_token", "oauth_token", "x_auth_token", "x_mcp_token",
+    "x_amz_credential", "x_amz_security_token", "x_amz_signature", "x_goog_credential", "x_goog_signature",
+}
+_SENSITIVE_KEY_NAMES_NORMALIZED = {key.replace("_", "").replace("-", "") for key in _SENSITIVE_KEY_NAMES}
 _SENSITIVE_LABEL = (
     r"[^\"'\r\n,;:=]*(?:password|secret|token|api.?key|authorization|cookie|credential|"
-    r"private.?key|signing.?key|ssh.?key)[^\"'\r\n,;:=]*"
+    r"private.?key|signing.?key|ssh.?key|signature|awsaccesskeyid|googleaccessid|"
+    r"(?<![A-Za-z0-9])(?:auth|sig|key)(?![A-Za-z0-9]))[^\"'\r\n,;:=]*"
 )
+_CREDENTIAL_HINT = re.compile(
+    r"(?i)(?:password|secret|token|api.?key|authorization|cookie|credential|private.?key|signing.?key|"
+    r"ssh.?key|signature|awsaccesskeyid|googleaccessid|(?<![a-z0-9])(?:auth|sig|key)(?![a-z0-9]))"
+    r"[^\"'\r\n,;:=]{0,128}[\"']?\s*[:=]"
+)
+_URL_CREDENTIAL = re.compile(r"(?i)([a-z][a-z0-9+.-]*://[^/@\s:?#]+:)[^/@\s?#]+@")
 _PRIVATE_KEY_BLOCK = re.compile(
     r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----.*?(?:-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----|$)",
     re.S,
@@ -48,8 +62,14 @@ def _clean_text(value: Any, limit: int) -> str:
     truncated = len(value) > limit
     source = value[:limit] if truncated else value
     source = _PRIVATE_KEY_BLOCK.sub(_REDACTED, source)
-    cleaned = _CREDENTIAL.sub(redact, source)
+    source = _URL_CREDENTIAL.sub(r"\1[REDACTED]@", source)
+    cleaned = _CREDENTIAL.sub(redact, source) if _CREDENTIAL_HINT.search(source) else source
     return cleaned[: limit - len(_TRUNCATED)] + _TRUNCATED if truncated else cleaned
+
+
+def _is_sensitive_key(key: str) -> bool:
+    normalized = key.lower().replace("_", "").replace("-", "")
+    return bool(_SENSITIVE.search(key)) or normalized in _SENSITIVE_KEY_NAMES_NORMALIZED
 
 
 def _safe(
@@ -59,7 +79,7 @@ def _safe(
     key: str = "",
     budget: list[int] | None = None,
 ) -> Any:
-    if key and (len(key) > MAX_ID_LENGTH or _SENSITIVE.search(key)):
+    if key and (len(key) > MAX_ID_LENGTH or _is_sensitive_key(key)):
         return _REDACTED
     if depth >= MAX_DEPTH:
         return _TRUNCATED
@@ -158,7 +178,7 @@ def _safe_mapping_key(key: Any, result: dict[str, Any]) -> str:
     elif len(key) > MAX_ID_LENGTH:
         # Only inspect the bounded prefix; the associated value is redacted separately.
         base = _clean_text(key[:MAX_ID_LENGTH], MAX_ID_LENGTH)
-    elif _SENSITIVE.search(key):
+    elif _is_sensitive_key(key):
         base = _REDACTED
     else:
         base = _clean_text(key, MAX_ID_LENGTH)
