@@ -15,10 +15,10 @@ MAX_ID_LENGTH = 128
 _REDACTED = "[REDACTED]"
 _TRUNCATED = "[TRUNCATED]"
 _SENSITIVE = re.compile(r"password|secret|token|api.?key|authorization|cookie|credential", re.I)
-_SENSITIVE_LABEL = r"[a-z0-9_.-]*(?:password|secret|token|api.?key|authorization|cookie|credential)[a-z0-9_.-]*"
+_SENSITIVE_LABEL = r"[^\"'\r\n,;:=]*(?:password|secret|token|api.?key|authorization|cookie|credential)[^\"'\r\n,;:=]*"
 _CREDENTIAL = re.compile(
     r"(?i)(?:([\"']" + _SENSITIVE_LABEL + r"[\"']\s*:\s*)"
-    r"(\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^,\r\n}\]]+)"
+    r"(\"(?:\\.|[^\"\\])*(?:\"|$)|'(?:\\.|[^'\\])*(?:'|$)|[^,\r\n}\]]+)"
     r"|((?:authorization|proxy-authorization|cookie|set-cookie)\s*[:=]\s*)"
     r"([^\r\n]+)"
     r"|(" + _SENSITIVE_LABEL + r"\s*[:=]\s*)"

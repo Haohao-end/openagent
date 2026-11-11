@@ -62,6 +62,11 @@ def test_redacts_secret_fields_credentials_and_exception_text():
         value = f'{{"{label}": "PRODSECRET"}}'
         cleaned = json.loads(debug_trace.serialize_trace(event(inputs={"message": value})))
         assert "PRODSECRET" not in json.dumps(cleaned)
+    for label in ("database/password", "database password"):
+        value = f'{{"{label}": "HUNTER TWO"}}'
+        cleaned = json.loads(debug_trace.serialize_trace(event(inputs={"message": value})))
+        assert "HUNTER" not in json.dumps(cleaned)
+        assert "TWO" not in json.dumps(cleaned)
     for value in ('password="hunter two"', "password=hunter two"):
         cleaned = json.loads(debug_trace.serialize_trace(event(inputs={"message": value})))
         assert "hunter" not in json.dumps(cleaned)
@@ -74,6 +79,12 @@ def test_bounds_large_mapping_array_and_strings():
     assert payload["inputs"]["items"][-1] == "[TRUNCATED]"
     assert payload["inputs"]["mapping"]["_truncated"] is True
     assert len(payload["inputs"]["text"]) <= 2050
+
+
+def test_sensitive_quoted_value_crossing_string_limit_is_fully_redacted():
+    value = '{"password":"' + "x" * 2025 + ",LEAKED-SECRET-value-that-continues"
+    payload = json.loads(debug_trace.serialize_trace(event(inputs={"message": value})))
+    assert "LEAKED" not in json.dumps(payload)
 
 
 def test_exact_collection_limit_is_not_marked_truncated():
