@@ -46,7 +46,8 @@ def test_metadata_is_complete_bounded_and_validated():
 
 def test_redacts_secret_fields_credentials_and_exception_text():
     secret = "top-secret-token-value"
-    message = f'{{"password": "hunter two", "access_token": "{secret}"}} Authorization: Bearer {secret}; Cookie: session={secret}'
+    quoted_headers = f'{{"Authorization": "Bearer {secret}", "Cookie": "session={secret}", "token": "{secret}"}}'
+    message = f'{{"password": "hunter two", "access_token": "{secret}"}} Authorization: Bearer {secret}; Cookie: session={secret}; {quoted_headers}; credential={secret}'
     payload = json.loads(debug_trace.serialize_trace(event(inputs={"api_key": secret, "message": message}, error=ValueError(secret))))
     assert secret not in json.dumps(payload)
     assert "hunter two" not in json.dumps(payload)
@@ -89,7 +90,7 @@ def test_redacts_credentials_from_mapping_keys_and_names():
         inputs={f"Authorization: Bearer {secret}": True},
     )))
     assert secret not in json.dumps(payload)
-    assert payload["name"] == "Authorization=[REDACTED]"
+    assert payload["name"] == "Authorization: [REDACTED]"
     assert "[REDACTED]" in payload["inputs"]
 
 
@@ -117,3 +118,10 @@ def test_unknown_objects_are_not_stringified_and_output_obeys_byte_limit():
     assert len(payload.encode("utf-8")) <= debug_trace.MAX_JSON_BYTES
     assert "[unsupported:Unsafe]" in payload
     assert "[integer truncated]" in payload
+
+
+def test_large_error_is_truncated_without_losing_trace_identifiers():
+    payload = json.loads(debug_trace.serialize_trace(event(error={"diagnostic": ["x" * 2000 for _ in range(100)]})))
+    assert payload["event_id"] == "event-1"
+    assert payload["run_id"] == "run-1"
+    assert payload["error"] == "[TRUNCATED]"

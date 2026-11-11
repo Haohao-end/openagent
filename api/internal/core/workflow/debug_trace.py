@@ -16,10 +16,13 @@ _REDACTED = "[REDACTED]"
 _TRUNCATED = "[TRUNCATED]"
 _SENSITIVE = re.compile(r"password|secret|token|api.?key|authorization|cookie|credential", re.I)
 _CREDENTIAL = re.compile(
-    r"(?i)(?:\b(authorization|proxy-authorization)\s*[:=]\s*[^,\r\n]+"
-    r"|\b(cookie|set-cookie)\s*[:=]\s*[^\r\n]+"
-    r"|[\"']?(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)[\"']?\s*:\s*(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s,;}]+)"
-    r"|\b(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[:=]\s*[^\s,;]+)"
+    r"(?i)(?:([\"'](?:authorization|proxy-authorization|cookie|set-cookie|api[_-]?key|"
+    r"access[_-]?token|refresh[_-]?token|password|secret|token|credential)[\"']\s*:\s*)"
+    r"(\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^,\r\n}\]]+)"
+    r"|((?:authorization|proxy-authorization|cookie|set-cookie)\s*[:=]\s*)"
+    r"([^\r\n]+)"
+    r"|((?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|token|credential)\s*[:=]\s*)"
+    r"([^\s,;]+))"
 )
 _RUN_TYPES = {"chain", "llm", "tool"}
 _PHASES = {"start", "end", "error"}
@@ -28,12 +31,12 @@ _REQUIRED = ("schema_version", "event_id", "run_id", "parent_run_id", "run_type"
 
 
 def _clean_text(value: Any, limit: int) -> str:
-    suffix = _TRUNCATED if len(value) > limit else ""
     def redact(match: re.Match) -> str:
-        label = next(group for group in match.groups() if group is not None)
-        return f"{label}=[REDACTED]"
+        prefix = next(group for group in (1, 3, 5) if match.group(group) is not None)
+        return match.group(prefix) + ('"[REDACTED]"' if prefix == 1 else "[REDACTED]")
 
-    return _CREDENTIAL.sub(redact, value[:limit - len(suffix)]) + suffix
+    cleaned = _CREDENTIAL.sub(redact, value)
+    return cleaned[: limit - len(_TRUNCATED)] + _TRUNCATED if len(cleaned) > limit else cleaned
 
 
 def _safe(
@@ -176,21 +179,16 @@ def serialize_trace(event: Mapping[str, Any]) -> str:
         value = payload[key]
         limit = MAX_ID_LENGTH if key != "name" else 256
         payload[key] = _clean_text(value, limit) if isinstance(value, str) else None
-    payload["error"] = _safe(payload["error"])
     budget = [MAX_TOTAL_ITEMS]
     safe = {
-        key: _safe(value, key=key, budget=budget) if key in {"inputs", "outputs"} else value
+        key: _safe(value, key=key, budget=budget) if key in {"inputs", "outputs", "error"} else value
         for key, value in payload.items()
     }
     result = json.dumps(safe, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
     if len(result.encode("utf-8")) > MAX_JSON_BYTES:
         safe["inputs"] = _TRUNCATED
         safe["outputs"] = _TRUNCATED
-        result = json.dumps(safe, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
-    if len(result.encode("utf-8")) > MAX_JSON_BYTES:
-        # All variable metadata is bounded; this is only reachable for future schema additions.
-        safe = {key: safe[key] for key in _REQUIRED}
-        safe.update(event_id="", run_id="", parent_run_id=None, name="", inputs=_TRUNCATED, outputs=_TRUNCATED, error=None)
+        safe["error"] = _TRUNCATED
         result = json.dumps(safe, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
     if len(result.encode("utf-8")) > MAX_JSON_BYTES:
         raise ValueError("trace exceeds size limit")
