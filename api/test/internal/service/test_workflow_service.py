@@ -581,6 +581,9 @@ class TestWorkflowService:
         assert start_data["run_id"] == end_data["run_id"]
         assert updates[0][1]["status"] == WorkflowResultStatus.SUCCEEDED.value
         assert workflow_results
+        deadline = time.monotonic() + 1
+        while any(thread.ident in worker_ids for thread in threading.enumerate()) and time.monotonic() < deadline:
+            time.sleep(0.01)
         assert not any(thread.ident in worker_ids for thread in threading.enumerate())
 
     def test_debug_workflow_callable_trace_error_precedes_worker_failure(self, monkeypatch):
@@ -712,6 +715,9 @@ class TestWorkflowService:
             release.set()
             events.close()
 
+        deadline = time.monotonic() + 1
+        while any(thread.ident in worker_ids for thread in threading.enumerate()) and time.monotonic() < deadline:
+            time.sleep(0.01)
         assert not any(thread.ident in worker_ids for thread in threading.enumerate())
         assert callbacks[0].drain() == []
         assert len(updates) == 1
