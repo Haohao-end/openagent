@@ -456,7 +456,9 @@ class WorkflowService(BaseService):
 
                     # 6.取出各个节点的运行结果
                     node_result = chunk[first_key]["node_results"][0]
-                    node_result_dict = convert_model_to_dict(node_result)
+                    node_result_dict = _normalize_json_value(
+                        convert_model_to_dict(node_result)
+                    )
                     node_results.append(node_result_dict)
 
                     # 7.组装响应数据并流式事件输出
