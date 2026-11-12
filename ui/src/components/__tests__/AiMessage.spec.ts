@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { QueueEvent } from '@/config'
+import { createTestI18n } from '@/i18n'
 
 import AiMessage from '../AiMessage.vue'
 
@@ -38,6 +39,7 @@ describe('AiMessage.vue', () => {
         ...props,
       },
       global: {
+        plugins: [createTestI18n('zh-CN')],
         stubs: {
           AgentThought: true,
           DotFlashing: true,
@@ -120,6 +122,79 @@ describe('AiMessage.vue', () => {
     expect(wrapper.find('.deep-agent-timeline').exists()).toBe(true)
     expect(wrapper.text()).toContain('拆解任务')
     expect(wrapper.text()).toContain('已规划任务：收集景点 / 规划行程')
+  })
+
+  it('renders callable traces in regular agent messages with hierarchy and expandable details', async () => {
+    const wrapper = mountAiMessage({
+      callable_trace_events: [
+        {
+          schema_version: 1,
+          event_id: 'chain-start',
+          run_id: 'chain-1',
+          run_type: 'chain',
+          phase: 'start',
+          name: 'AgentChain',
+          status: 'running',
+          inputs: { query: 'find a place' },
+        },
+        {
+          schema_version: 1,
+          event_id: 'llm-end',
+          run_id: 'llm-1',
+          parent_run_id: 'chain-1',
+          run_type: 'llm',
+          phase: 'end',
+          name: 'ChatOpenAI',
+          status: 'succeeded',
+          outputs: { answer: 'done' },
+          latency_ms: 42,
+        },
+        {
+          schema_version: 1,
+          event_id: 'tool-error',
+          run_id: 'tool-1',
+          parent_run_id: 'chain-1',
+          run_type: 'tool',
+          phase: 'error',
+          name: 'Search',
+          status: 'failed',
+          error: 'Search timed out',
+        },
+        {
+          schema_version: 1,
+          event_id: 'retriever-end',
+          run_id: 'retriever-1',
+          parent_run_id: 'chain-1',
+          run_type: 'retriever',
+          phase: 'end',
+          name: 'VectorRetriever',
+          status: 'succeeded',
+          latency_ms: 18,
+        },
+      ],
+    })
+
+    const timeline = wrapper.get('[data-testid="callable-trace-timeline"]')
+    const calls = wrapper.findAll('[data-testid="callable-trace-call"]')
+    expect(timeline.text()).toContain('Callable 调用时间线')
+    expect(calls).toHaveLength(4)
+    expect(calls[0].text()).toContain('Chain')
+    expect(calls[0].attributes('data-status')).toBe('running')
+    expect(calls[1].text()).toContain('LLM')
+    expect(calls[1].attributes('data-parent-run-id')).toBe('chain-1')
+    expect(calls[1].text()).toContain('42 ms')
+    expect(calls[2].text()).toContain('Tool')
+    expect(calls[2].attributes('data-status')).toBe('failed')
+    expect(calls[3].text()).toContain('检索器')
+
+    const inputDetails = calls[0].get('details')
+    await inputDetails.get('summary').trigger('click')
+    expect((inputDetails.element as HTMLDetailsElement).open).toBe(true)
+    expect(inputDetails.text()).toContain('find a place')
+    expect(calls[1].get('[data-testid="callable-trace-output"]').text()).toContain('done')
+    expect(calls[2].get('[data-testid="callable-trace-error"]').text()).toContain(
+      'Search timed out',
+    )
   })
 
   it('renders image previews inside the deep agent timeline for image artifacts', () => {

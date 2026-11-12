@@ -17,6 +17,9 @@ const dynamicScrollerItemStub = {
 
 describe('ChatMessageTimeline', () => {
   it('passes layout-sensitive size dependencies to the virtual scroller items', async () => {
+    const traceEvents = [
+      { event_id: 'trace-1', run_id: 'run-1', phase: 'start', inputs: { prompt: 'trace' } },
+    ]
     const wrapper = shallowMount(ChatMessageTimeline, {
       props: {
         messages: [
@@ -29,6 +32,7 @@ describe('ChatMessageTimeline', () => {
             answer: '第一版回答',
             answer_parts: [{ type: 'text', text: '第一版回答' }],
             artifacts: [{ name: 'plan.docx', url: 'https://example.com/plan.docx' }],
+            callable_trace_events: traceEvents,
             total_token_count: 12,
             latency: 1.2,
             agent_thoughts: [
@@ -67,7 +71,10 @@ describe('ChatMessageTimeline', () => {
           'dynamic-scroller': dynamicScrollerStub,
           'dynamic-scroller-item': dynamicScrollerItemStub,
           'human-message': true,
-          'ai-message': true,
+          'ai-message': {
+            props: ['callable_trace_events'],
+            template: '<div class="ai-message-stub" :data-traces="JSON.stringify(callable_trace_events)" />',
+          },
         },
       },
     })
@@ -77,13 +84,17 @@ describe('ChatMessageTimeline', () => {
     )
 
     expect(wrapper.get('.dynamic-scroller-stub').attributes('data-key-field')).toBe('render_id')
-    expect(sizeDependencies).toHaveLength(8)
+    expect(sizeDependencies).toHaveLength(9)
     expect(sizeDependencies[0]).toBe('请总结这张图')
     expect(sizeDependencies[1]).toContain('https://example.com/image-a.png')
     expect(sizeDependencies[2]).toBe('第一版回答')
     expect(sizeDependencies[4]).toContain('plan.docx')
     expect(sizeDependencies[5]).toContain('正在整理步骤')
-    expect(sizeDependencies[6]).toContain('继续')
-    expect(sizeDependencies[7]).toBe(0)
+    expect(sizeDependencies[6]).not.toContain('trace')
+    expect(sizeDependencies[7]).toContain('继续')
+    expect(sizeDependencies[8]).toBe(0)
+    expect(JSON.parse(wrapper.get('.ai-message-stub').attributes('data-traces') || '[]')).toEqual(
+      traceEvents,
+    )
   })
 })
