@@ -16,6 +16,7 @@ import type { PromptCompareChatRequest } from '@/models/app'
 import PromptCompareModelConfigTrigger from './components/PromptCompareModelConfigTrigger.vue'
 import {
   applyChatStreamEvent,
+  type CallableTraceEvent,
   type ChatThought,
   type StreamState,
 } from '@/views/shared/chat-stream'
@@ -36,6 +37,7 @@ type CompareMessage = {
   errorType?: 'error' | 'timeout'
   latency: number
   agent_thoughts: ChatThought[]
+  callable_trace_events: CallableTraceEvent[]
   suggested_questions: string[]
   created_at: number
 }
@@ -114,6 +116,7 @@ const createCompareMessage = (value: string): CompareMessage => {
     total_token_count: 0,
     latency: 0,
     agent_thoughts: [],
+    callable_trace_events: [],
     suggested_questions: [],
     created_at: Date.now(),
   }

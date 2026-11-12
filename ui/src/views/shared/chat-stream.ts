@@ -5,7 +5,22 @@ import {
   mergeChatArtifacts,
 } from './chat-output'
 
-type StreamEventData = {
+export type CallableTraceEvent = {
+  schema_version?: number
+  event_id?: string
+  run_id?: string
+  parent_run_id?: string | null
+  phase?: string
+  run_type?: string
+  name?: string
+  status?: string
+  inputs?: unknown
+  outputs?: unknown
+  error?: unknown
+  latency_ms?: number | null
+}
+
+type StreamEventData = CallableTraceEvent & {
   id?: string
   message_id?: string
   task_id?: string
@@ -47,6 +62,7 @@ export type StreamMessage = {
   latency: number
   total_token_count: number
   agent_thoughts: ChatThought[]
+  callable_trace_events?: CallableTraceEvent[]
 }
 
 export type RenderableStreamMessage = StreamMessage & {
@@ -188,6 +204,15 @@ export const applyChatStreamEvent = (
   const event = String(eventResponse?.event ?? '')
   const data = eventResponse?.data ?? {}
   const nextState: StreamState = { ...currentState }
+
+  if (event === QueueEvent.callableTrace) {
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const traceEvents = message.callable_trace_events ?? []
+      if (!message.callable_trace_events) message.callable_trace_events = traceEvents
+      traceEvents.push(data as CallableTraceEvent)
+    }
+    return { state: nextState, didUpdate: false }
+  }
 
   if (nextState.message_id === '' && data.message_id) {
     nextState.task_id = String(data.task_id ?? '')
