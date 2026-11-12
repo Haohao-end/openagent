@@ -105,7 +105,7 @@ const normalizeValue = (
       if (value.length > count) items.push('[truncated]')
       return items
     }
-    const result: Record<string, unknown> = {}
+    const result: Record<string, unknown> = Object.create(null)
     let count = 0
     for (const key in value) {
       if (!Object.prototype.hasOwnProperty.call(value, key)) continue

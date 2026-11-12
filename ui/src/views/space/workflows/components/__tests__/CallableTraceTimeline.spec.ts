@@ -181,6 +181,17 @@ it('truncates long outputs in a scrollable, safely rendered block', () => {
   wrapper.unmount()
 })
 
+it('preserves JSON object fields named __proto__ while formatting trace values', () => {
+  const outputs = JSON.parse('{"__proto__":{"safe":"kept"},"answer":"done"}')
+  const wrapper = mountTimeline([trace({ phase: 'end', status: 'succeeded', outputs })])
+
+  const renderedOutput = JSON.parse(wrapper.get('[data-testid="callable-trace-output"]').text())
+  expect(Object.prototype.hasOwnProperty.call(renderedOutput, '__proto__')).toBe(true)
+  expect(renderedOutput.__proto__.safe).toBe('kept')
+  expect(renderedOutput.answer).toBe('done')
+  wrapper.unmount()
+})
+
 it('limits oversized values and safely formats circular or unsupported data', () => {
   const circular: Record<string, unknown> = {}
   circular.self = circular
