@@ -10,6 +10,7 @@ class QueueEvent(str, Enum):
     AGENT_MESSAGE = "agent_message"  # 智能体消息事件
     AGENT_ACTION = "agent_action"  # 智能体动作
     DATASET_RETRIEVAL = "dataset_retrieval"  # 知识库检索事件
+    CALLABLE_TRACE = "callable_trace"  # LangChain调用级Trace事件
     DEEP_THINKING = "deep_thinking"  # 深度思考规划事件（DeepAgent 专用）
     DEEP_STEP = "deep_step"  # 深度思考时间线步骤事件
     DEEP_COMPLETE = "deep_complete"  # 深度思考执行完成事件

@@ -19,6 +19,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from internal.core.agent.agents import FunctionCallAgent, AgentQueueManager, ReACTAgent, DeepThinkingAgent
 from internal.core.agent.entities.agent_entity import AgentConfig
 from internal.core.agent.entities.queue_entity import QueueEvent
+from internal.core.agent.trace_context import AgentTraceContext
 from internal.core.agent.usage_utils import summarize_agent_thoughts
 from internal.core.language_model import LanguageModelManager
 from internal.core.memory import TokenBufferMemory
@@ -1507,51 +1508,74 @@ class AppService(BaseService):
             language_model_service=self.language_model_service,
         )
         agent_thoughts = agent_thoughts if agent_thoughts is not None else {}
-
-        for agent_thought in agent.stream({
+        task_id = uuid4()
+        agent_state = {
             "messages": [llm.convert_to_human_message(query, image_urls)],
             "history": history,
             "long_term_memory": long_term_memory,
-        }):
-            event_id = str(agent_thought.id)
+        }
+        trace_context = None
+        if getattr(agent, "agent_queue_manager", None) is not None:
+            trace_context = AgentTraceContext(agent.agent_queue_manager, task_id)
+            agent_state["task_id"] = task_id
 
-            if agent_thought.event != QueueEvent.PING.value:
-                if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
-                    if event_id not in agent_thoughts:
-                        agent_thoughts[event_id] = agent_thought
+        stream = None
+        try:
+            stream = (
+                agent.stream(agent_state, config=trace_context.runnable_config)
+                if trace_context is not None
+                else agent.stream(agent_state)
+            )
+            for agent_thought in stream:
+                if agent_thought.event == QueueEvent.CALLABLE_TRACE:
+                    yield f"event: callable_trace\ndata:{agent_thought.observation}\n\n"
+                    continue
+
+                event_id = str(agent_thought.id)
+
+                if agent_thought.event != QueueEvent.PING.value:
+                    if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
+                        if event_id not in agent_thoughts:
+                            agent_thoughts[event_id] = agent_thought
+                        else:
+                            agent_thoughts[event_id] = agent_thoughts[event_id].model_copy(update={
+                                "thought": agent_thoughts[event_id].thought + agent_thought.thought,
+                                "message": agent_thought.message,
+                                "message_token_count": agent_thought.message_token_count,
+                                "message_unit_price": agent_thought.message_unit_price,
+                                "message_price_unit": agent_thought.message_price_unit,
+                                "answer": agent_thoughts[event_id].answer + agent_thought.answer,
+                                "answer_token_count": agent_thought.answer_token_count,
+                                "answer_unit_price": agent_thought.answer_unit_price,
+                                "answer_price_unit": agent_thought.answer_price_unit,
+                                "total_token_count": agent_thought.total_token_count,
+                                "total_price": agent_thought.total_price,
+                                "latency": agent_thought.latency,
+                            })
                     else:
-                        agent_thoughts[event_id] = agent_thoughts[event_id].model_copy(update={
-                            "thought": agent_thoughts[event_id].thought + agent_thought.thought,
-                            "message": agent_thought.message,
-                            "message_token_count": agent_thought.message_token_count,
-                            "message_unit_price": agent_thought.message_unit_price,
-                            "message_price_unit": agent_thought.message_price_unit,
-                            "answer": agent_thoughts[event_id].answer + agent_thought.answer,
-                            "answer_token_count": agent_thought.answer_token_count,
-                            "answer_unit_price": agent_thought.answer_unit_price,
-                            "answer_price_unit": agent_thought.answer_price_unit,
-                            "total_token_count": agent_thought.total_token_count,
-                            "total_price": agent_thought.total_price,
-                            "latency": agent_thought.latency,
-                        })
-                else:
-                    agent_thoughts[event_id] = agent_thought
+                        agent_thoughts[event_id] = agent_thought
 
-            usage_summary = summarize_agent_thoughts(agent_thoughts.values())
-            data = {
-                **agent_thought.model_dump(include={
-                    "event", "thought", "observation", "tool", "tool_input", "answer",
-                    "total_token_count", "total_price", "latency",
-                }),
-                "aggregate_total_token_count": usage_summary.total_token_count,
-                "aggregate_total_price": usage_summary.total_price,
-                "aggregate_latency": usage_summary.latency,
-                "id": event_id,
-                "conversation_id": conversation_id,
-                "message_id": message_id,
-                "task_id": str(agent_thought.task_id),
-            }
-            yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
+                usage_summary = summarize_agent_thoughts(agent_thoughts.values())
+                data = {
+                    **agent_thought.model_dump(include={
+                        "event", "thought", "observation", "tool", "tool_input", "answer",
+                        "total_token_count", "total_price", "latency",
+                    }),
+                    "aggregate_total_token_count": usage_summary.total_token_count,
+                    "aggregate_total_price": usage_summary.total_price,
+                    "aggregate_latency": usage_summary.latency,
+                    "id": event_id,
+                    "conversation_id": conversation_id,
+                    "message_id": message_id,
+                    "task_id": str(agent_thought.task_id),
+                }
+                yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
+        finally:
+            if trace_context is not None:
+                trace_context.close()
+            close_stream = getattr(stream, "close", None)
+            if callable(close_stream):
+                close_stream()
 
 
     def debug_chat(self, app_id: UUID, req: DebugChatReq, account: Account) -> Generator:

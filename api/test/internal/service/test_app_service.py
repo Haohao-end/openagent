@@ -2004,13 +2004,35 @@ class TestAppService:
                 copied.__dict__.update(update)
                 return copied
 
+        class _AgentQueueManager:
+            def __init__(self):
+                self.published = []
+
+            def publish(self, _task_id, thought):
+                self.published.append(thought)
+
+        agents = []
+
         class _Agent:
             def __init__(self, **_kwargs):
-                pass
+                self.agent_queue_manager = _AgentQueueManager()
+                self.stream_closed = False
+                agents.append(self)
 
-            @staticmethod
-            def stream(_payload):
-                return [_Thought()]
+            def stream(self, payload, config=None):
+                assert payload["task_id"]
+                callback = config["callbacks"][0]
+                callback.on_llm_start(
+                    {"name": "fake-model"},
+                    ["PRIVATE PROMPT"],
+                    run_id=uuid4(),
+                    parent_run_id=uuid4(),
+                )
+                try:
+                    yield from self.agent_queue_manager.published
+                    yield _Thought()
+                finally:
+                    self.stream_closed = True
 
         llm = SimpleNamespace(
             features=["tool_call"],
@@ -2036,8 +2058,12 @@ class TestAppService:
 
         events = list(service.debug_chat(app_id, req, account))
 
-        assert len(events) == 1
-        assert events[0].startswith("event: agent_message")
+        assert len(events) == 2
+        assert events[0].startswith("event: callable_trace")
+        trace_payload = json.loads(events[0].split("data:", 1)[1])
+        assert trace_payload["parent_run_id"]
+        assert "PRIVATE PROMPT" not in events[0]
+        assert events[1].startswith("event: agent_message")
         assert save_calls[0]["app_id"] == app_id
         assert save_calls[0]["message_id"] == message.id
         assert len(save_calls[0]["agent_thoughts"]) == 1
@@ -2045,8 +2071,10 @@ class TestAppService:
         save_calls.clear()
         events = service.debug_chat(app_id, req, account)
         next(events)
+        next(events)
         events.close()
 
+        assert agents[-1].stream_closed is True
         assert len(save_calls[0]["agent_thoughts"]) == 1
 
         def fail_save(**_kwargs):
@@ -2054,6 +2082,7 @@ class TestAppService:
 
         service.conversation_service.save_agent_thoughts = fail_save
         events = service.debug_chat(app_id, req, account)
+        next(events)
         next(events)
         events.close()
         assert "error_type=RuntimeError" in caplog.text

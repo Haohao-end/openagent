@@ -3,7 +3,7 @@
 import queue
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -15,10 +15,17 @@ from .debug_trace import serialize_trace
 class DebugTraceCallbackHandler(BaseCallbackHandler):
     """Collect compact trace events without retaining prompts or model tokens."""
 
-    def __init__(self, max_queue_size: int = 1000):
+    def __init__(
+        self,
+        max_queue_size: int = 1000,
+        *,
+        event_sink: Callable[[str], None] | None = None,
+    ):
         if isinstance(max_queue_size, bool) or not isinstance(max_queue_size, int) or max_queue_size < 1:
             raise ValueError("max_queue_size must be a positive integer")
         self._events: queue.Queue[str] = queue.Queue(maxsize=max_queue_size)
+        self._event_sink = event_sink
+        self._sink_event_count = 0
         self._lock = threading.Lock()
         self._started_at: dict[str, tuple[float, str, str, Any]] = {}
         self._dropped_events = 0
@@ -140,6 +147,17 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
             return
         with self._lock:
             if self._closed:
+                return
+            if self._event_sink is not None:
+                if self._sink_event_count >= self._events.maxsize:
+                    self._dropped_events += 1
+                    return
+                try:
+                    self._event_sink(serialized)
+                except Exception:
+                    self._dropped_events += 1
+                else:
+                    self._sink_event_count += 1
                 return
             try:
                 self._events.put_nowait(serialized)

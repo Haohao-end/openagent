@@ -178,6 +178,29 @@ def test_close_discards_queued_events_and_ignores_late_callbacks():
     assert handler.dropped_events == 0
 
 
+def test_event_sink_receives_serialized_events_without_retaining_a_second_queue_copy():
+    received = []
+    handler = DebugTraceCallbackHandler(event_sink=received.append)
+    run_id = uuid4()
+
+    handler.on_chain_start({"name": "agent-chain"}, {"input": "private"}, run_id=run_id)
+    handler.on_chain_end({"answer": "private"}, run_id=run_id)
+
+    assert [json.loads(item)["phase"] for item in received] == ["start", "end"]
+    assert handler.drain() == []
+
+
+def test_event_sink_respects_the_configured_event_limit():
+    received = []
+    handler = DebugTraceCallbackHandler(max_queue_size=1, event_sink=received.append)
+
+    handler.on_chain_start({"name": "first"}, {}, run_id=uuid4())
+    handler.on_chain_start({"name": "second"}, {}, run_id=uuid4())
+
+    assert len(received) == 1
+    assert handler.dropped_events == 1
+
+
 def test_retriever_callbacks_record_query_shape_and_document_count_only():
     handler = DebugTraceCallbackHandler()
     run_id, parent_run_id = uuid4(), uuid4()

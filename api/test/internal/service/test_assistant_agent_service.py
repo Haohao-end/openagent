@@ -948,8 +948,9 @@ class TestAssistantAgentService:
         assert service._get_cached_introduction(uuid4(), "fingerprint") is None
 
     def test_chat_should_stream_events_and_save_aggregated_agent_thoughts(
-        self, monkeypatch, app, caplog
+        self, monkeypatch, caplog
     ):
+        app = Flask(__name__)
         assistant_agent_id = uuid4()
         app.config["ASSISTANT_AGENT_ID"] = assistant_agent_id
         conversation = SimpleNamespace(id=uuid4(), summary="历史摘要")
@@ -1044,14 +1045,36 @@ class TestAssistantAgentService:
         ]
         agent_capture = {}
 
+        class _AgentQueueManager:
+            def __init__(self):
+                self.published = []
+
+            def publish(self, task_id, thought):
+                assert task_id == agent_capture["state"]["task_id"]
+                self.published.append(thought)
+
         class _FakeFunctionCallAgent:
             def __init__(self, llm, agent_config):
                 agent_capture["llm"] = llm
                 agent_capture["agent_config"] = agent_config
+                agent_capture["agent"] = self
+                self.agent_queue_manager = _AgentQueueManager()
+                self.stream_closed = False
 
-            def stream(self, state):
+            def stream(self, state, config=None):
                 agent_capture["state"] = state
-                return iter(stream_events)
+                callback = config["callbacks"][0]
+                callback.on_tool_start(
+                    {"name": "private-tool"},
+                    "PRIVATE TOOL INPUT",
+                    run_id=uuid4(),
+                    parent_run_id=uuid4(),
+                )
+                try:
+                    yield from self.agent_queue_manager.published
+                    yield from stream_events
+                finally:
+                    self.stream_closed = True
 
         # AgentConfig 的 tools 字段会校验 BaseTool；这里仅验证服务编排逻辑，使用轻量对象替代。
         monkeypatch.setattr(
@@ -1090,9 +1113,15 @@ class TestAssistantAgentService:
         ]
         assert agent_capture["state"]["history"] == ["历史消息"]
         assert agent_capture["state"]["long_term_memory"] == "历史摘要"
-        assert len(events) == 4
-        assert events[0].startswith("event: ping")
-        first_payload = json.loads(events[1].split("data:", 1)[1].strip())
+        assert len(events) == 5
+        assert events[0].startswith("event: callable_trace")
+        trace_payload = json.loads(events[0].split("data:", 1)[1].strip())
+        assert trace_payload["run_type"] == "tool"
+        assert trace_payload["parent_run_id"]
+        assert "PRIVATE TOOL INPUT" not in events[0]
+        assert events[1].startswith("event: ping")
+        first_payload = json.loads(events[2].split("data:", 1)[1].strip())
+        assert agent_capture["state"]["task_id"]
         assert first_payload["id"] == str(shared_event_id)
         assert save_payload["account_id"] == account.id
         assert save_payload["app_id"] == assistant_agent_id
@@ -1112,8 +1141,10 @@ class TestAssistantAgentService:
             events = service.chat(req, account)
             next(events)
             next(events)
+            next(events)
             events.close()
 
+        assert agent_capture["agent"].stream_closed is True
         assert save_payload["agent_thoughts"][0].answer == "A"
 
         def fail_save(**_kwargs):

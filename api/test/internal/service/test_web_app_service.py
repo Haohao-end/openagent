@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -384,12 +385,36 @@ class TestWebAppService:
         captured_agent_factory = {}
 
         class _FakeAgent:
-            def stream(self, _state):
-                return iter(stream_events)
+            def __init__(self):
+                self.agent_queue_manager = SimpleNamespace(published=[])
+                self.stream_closed = False
+
+                def publish(task_id, thought):
+                    assert task_id == self._task_id
+                    self.agent_queue_manager.published.append(thought)
+
+                self.agent_queue_manager.publish = publish
+
+            def stream(self, state, config=None):
+                self._task_id = state["task_id"]
+                callback = config["callbacks"][0]
+                callback.on_tool_start(
+                    {"name": "fake-tool"},
+                    "PRIVATE TOOL INPUT",
+                    run_id=uuid4(),
+                    parent_run_id=uuid4(),
+                )
+                try:
+                    yield from self.agent_queue_manager.published
+                    yield from stream_events
+                finally:
+                    self.stream_closed = True
 
         def _fake_create_runtime_agent(**kwargs):
+            agent = _FakeAgent()
             captured_agent_factory.update(kwargs)
-            return _FakeAgent()
+            captured_agent_factory["agent"] = agent
+            return agent
 
         monkeypatch.setattr(
             "internal.service.web_app_service.AppService._create_runtime_agent",
@@ -405,8 +430,13 @@ class TestWebAppService:
 
         assert created[0][0] is Conversation
         assert created[1][0] is Message
-        assert len(events) == 4
-        assert events[0].startswith("event: ping")
+        assert len(events) == 5
+        assert events[0].startswith("event: callable_trace")
+        trace_payload = json.loads(events[0].split("data:", 1)[1])
+        assert trace_payload["run_type"] == "tool"
+        assert trace_payload["parent_run_id"]
+        assert "PRIVATE TOOL INPUT" not in events[0]
+        assert events[1].startswith("event: ping")
         assert len(captured_agent_factory["tools"]) == 3
         assert captured_agent_factory["enable_deep_thinking"] is True
         assert captured_agent_factory["invoke_from"] == InvokeFrom.WEB_APP.value
@@ -420,8 +450,10 @@ class TestWebAppService:
             events = service.web_app_chat("public-token", req, account)
             next(events)
             next(events)
+            next(events)
             events.close()
 
+        assert captured_agent_factory["agent"].stream_closed is True
         assert save_payload["agent_thoughts"][0].answer == "A"
 
         def fail_save(**_kwargs):
