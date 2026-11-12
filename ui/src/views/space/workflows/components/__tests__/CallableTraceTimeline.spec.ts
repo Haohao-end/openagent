@@ -21,6 +21,27 @@ const trace = (overrides: Record<string, unknown> = {}) => ({
 
 const mountTimeline = (events: unknown[]) => mount(CallableTraceTimeline, { props: { events } })
 
+it('keeps the timeline hidden when there are no trace events', () => {
+  const wrapper = mountTimeline([])
+
+  expect(wrapper.find('[data-testid="callable-trace-timeline"]').exists()).toBe(false)
+  expect(wrapper.text()).toBe('')
+  wrapper.unmount()
+})
+
+it('ignores an all-malformed trace stream without rendering an empty timeline', () => {
+  const wrapper = mountTimeline([
+    '{not json',
+    null,
+    [],
+    { schema_version: 1, run_id: '', run_type: 'llm', phase: 'start' },
+  ])
+
+  expect(wrapper.find('[data-testid="callable-trace-timeline"]').exists()).toBe(false)
+  expect(wrapper.findAll('[data-testid="callable-trace-call"]')).toHaveLength(0)
+  wrapper.unmount()
+})
+
 it('renders a running LLM call with safe input and null output', () => {
   const wrapper = mountTimeline([trace()])
 
