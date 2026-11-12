@@ -71,6 +71,18 @@ const outputs = computed(() => {
   return findWorkflowOutputs(nodeResults.value)
 })
 const hasOutputs = computed(() => outputs.value !== null && outputs.value !== undefined)
+const formattedOutputs = computed(() =>
+  hasOutputs.value ? formatDebugNodeOutputs(outputs.value) : '',
+)
+const formattedNodeOutputCache = new WeakMap<DebugNodeResult, string>()
+const formatNodeResultOutputs = (nodeResult: DebugNodeResult): string => {
+  const cached = formattedNodeOutputCache.get(nodeResult)
+  if (cached !== undefined) return cached
+
+  const formatted = formatDebugNodeOutputs(nodeResult.outputs)
+  formattedNodeOutputCache.set(nodeResult, formatted)
+  return formatted
+}
 
 const clearDebugRunState = () => {
   debugWorkflowError.value = ''
@@ -350,7 +362,11 @@ onUnmounted(() => {
             </div>
           </div>
           <!-- 运行结果 -->
-          <div v-if="hasOutputs" class="bg-gray-700 rounded-lg p-3 text-white">{{ outputs }}</div>
+          <div
+            v-if="hasOutputs"
+            class="bg-gray-700 rounded-lg p-3 text-white"
+            data-testid="workflow-final-output"
+          >{{ formattedOutputs }}</div>
         </div>
         <CallableTraceTimeline :events="callableTraceEvents" />
         <section v-if="nodeResults.length > 0" class="mt-4 flex flex-col gap-2" data-testid="workflow-node-results">
@@ -384,7 +400,7 @@ onUnmounted(() => {
               </div>
               <pre class="whitespace-pre-wrap break-words text-xs text-red-700">{{ nodeResult.error?.trim() || t('workflowEditor.runFailed') }}</pre>
             </div>
-            <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs text-gray-600" data-testid="workflow-node-output">{{ formatDebugNodeOutputs(nodeResult.outputs) }}</pre>
+            <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs text-gray-600" data-testid="workflow-node-output">{{ formatNodeResultOutputs(nodeResult) }}</pre>
           </article>
         </section>
         <!-- 空数据状态 -->
