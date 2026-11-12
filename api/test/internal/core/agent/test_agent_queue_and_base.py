@@ -1,3 +1,4 @@
+import json
 from contextlib import nullcontext
 from concurrent.futures import ThreadPoolExecutor
 import threading
@@ -16,6 +17,7 @@ from internal.core.agent.agents.base_agent import BaseAgent
 from internal.core.agent.entities.agent_entity import AgentConfig
 from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
 from internal.core.agent.failure_utils import build_failure_observation, classify_failure_event
+from internal.core.agent.trace_context import AgentTraceContext
 from internal.core.language_model.entities.model_entity import BaseLanguageModel
 from internal.entity.conversation_entity import InvokeFrom
 from internal.exception import FailException
@@ -218,6 +220,11 @@ def test_agent_queue_manager_listen_should_emit_timeout_and_stop(monkeypatch):
     emitted = []
 
     monkeypatch.setattr(manager, "publish", lambda _task_id, thought: emitted.append(thought.event))
+    monkeypatch.setattr(
+        manager,
+        "publish_terminal_now",
+        lambda _task_id, thought: emitted.append(thought.event),
+    )
     monkeypatch.setattr(manager, "_is_stopped", lambda _task_id: True)
     timeline = iter([0, 601])
     monkeypatch.setattr("internal.core.agent.agents.agent_queue_manager.time.time", lambda: next(timeline))
@@ -380,6 +387,90 @@ def test_base_agent_stream_should_forward_runnable_config(monkeypatch):
     list(agent.stream(state, config=run_config))
 
     assert calls[0] == (state, run_config)
+
+
+@pytest.mark.parametrize(
+    "terminal_event,callback_phase",
+    [(QueueEvent.AGENT_END, "end"), (QueueEvent.ERROR, "error")],
+)
+def test_base_agent_stream_should_deliver_final_chain_trace_before_terminal_event(
+    monkeypatch, terminal_event, callback_phase
+):
+    redis_client = _FakeRedis()
+    monkeypatch.setattr("app.http.module.injector", _FakeInjector(redis_client))
+
+    class _FakeThread:
+        def __init__(self, target, args=()):
+            self.target = target
+            self.args = args
+
+        def start(self):
+            self.target(*self.args)
+
+    monkeypatch.setattr("internal.core.agent.agents.base_agent.Thread", _FakeThread)
+    agent = _DummyAgent(llm=_DummyLLM(features=[]), agent_config=AgentConfig(user_id=uuid4()))
+    task_id, run_id, parent_run_id = uuid4(), uuid4(), uuid4()
+    trace_context = AgentTraceContext(agent.agent_queue_manager, task_id)
+
+    def invoke(_payload, config=None):
+        trace_handler = config["callbacks"][0]
+        trace_handler.on_chain_start(
+            {"name": "root-agent"},
+            {"prompt": "PRIVATE"},
+            run_id=run_id,
+            parent_run_id=parent_run_id,
+        )
+        agent.agent_queue_manager.publish(
+            task_id,
+            AgentThought(id=uuid4(), task_id=task_id, event=terminal_event),
+        )
+        if callback_phase == "end":
+            trace_handler.on_chain_end({}, run_id=run_id, parent_run_id=parent_run_id)
+        else:
+            trace_handler.on_chain_error(
+                RuntimeError("token=PRIVATE"), run_id=run_id, parent_run_id=parent_run_id
+            )
+
+    agent._agent = SimpleNamespace(invoke=invoke)
+    state = {"messages": [HumanMessage(content="hi")], "task_id": task_id}
+    thoughts = list(agent.stream(state, config=trace_context.runnable_config))
+    trace_context.close()
+
+    assert [thought.event for thought in thoughts] == [
+        QueueEvent.CALLABLE_TRACE,
+        QueueEvent.CALLABLE_TRACE,
+        terminal_event,
+    ]
+    start_payload = json.loads(thoughts[0].observation)
+    finish_payload = json.loads(thoughts[1].observation)
+    assert start_payload["phase"] == "start"
+    assert finish_payload["phase"] == callback_phase
+    assert finish_payload["run_id"] == str(run_id)
+    assert finish_payload["parent_run_id"] == str(parent_run_id)
+    assert "PRIVATE" not in thoughts[0].observation
+    assert "PRIVATE" not in thoughts[1].observation
+
+
+def test_agent_queue_manager_cancel_should_drop_pending_terminal_and_late_events(monkeypatch):
+    redis_client = _FakeRedis()
+    monkeypatch.setattr("app.http.module.injector", _FakeInjector(redis_client))
+    manager = AgentQueueManager(user_id=uuid4(), invoke_from=InvokeFrom.WEB_APP)
+    task_id = uuid4()
+    trace_context = AgentTraceContext(manager, task_id)
+    callback = trace_context.runnable_config["callbacks"][0]
+
+    callback.on_chain_start({"name": "root-agent"}, {}, run_id=uuid4())
+    manager.publish(
+        task_id,
+        AgentThought(id=uuid4(), task_id=task_id, event=QueueEvent.AGENT_END),
+    )
+    trace_context.close()
+    manager.publish(
+        task_id,
+        AgentThought(id=uuid4(), task_id=task_id, event=QueueEvent.AGENT_END),
+    )
+
+    assert manager.queue(task_id).empty()
 
 
 def test_base_agent_stream_should_enter_runtime_flask_app_context_in_worker_thread(monkeypatch):
