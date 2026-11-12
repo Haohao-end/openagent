@@ -47,6 +47,7 @@ const form = ref<Record<string, string | number | boolean>>({})
 const nodeResults = ref<DebugNodeResult[]>([])
 const callableTraceEvents = ref<unknown[]>([])
 const succeededNodeIds = ref<Set<string>>(new Set())
+const debugRunSucceeded = ref(false)
 const activatedTab = ref('input')
 let debugRunGeneration = 0
 const {
@@ -76,6 +77,7 @@ const clearDebugRunState = () => {
   nodeResults.value = []
   callableTraceEvents.value = []
   succeededNodeIds.value = new Set()
+  debugRunSucceeded.value = false
   clearDebugCanvas(nodes.value, edges.value)
 }
 
@@ -164,6 +166,14 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
         }
       },
     )
+    if (
+      requestId === debugRunGeneration &&
+      !debugWorkflowError.value &&
+      nodeResults.value.length > 0 &&
+      nodeResults.value.every((nodeResult) => nodeResult.status === 'succeeded')
+    ) {
+      debugRunSucceeded.value = true
+    }
   } catch (error: unknown) {
     if (requestId === debugRunGeneration) {
       const errorMessage = error instanceof Error ? error.message : String(error || '')
@@ -172,8 +182,8 @@ const onSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | u
   }
 
   if (requestId !== debugRunGeneration) return
-  // 6.5 如果调试成功（没有错误且有输出结果），触发 debug-success 事件
-  if (!debugWorkflowError.value && hasOutputs.value) {
+  // 6.5 如果调试成功且有节点结果，触发 debug-success 事件
+  if (!debugWorkflowError.value && debugRunSucceeded.value) {
     emits('debug-success')
   }
 }
@@ -314,8 +324,9 @@ onUnmounted(() => {
           </div>
           <!-- 运行成功UI -->
           <div
-            v-if="hasOutputs && !debugWorkflowError"
+            v-if="debugRunSucceeded && !debugWorkflowError"
             class="flex flex-col gap-2 bg-green-100 p-3 rounded-lg border border-green-500"
+            data-testid="workflow-run-success"
           >
             <!-- 状态统计 -->
             <div class="flex items-center gap-2 text-green-500">

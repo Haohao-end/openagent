@@ -333,6 +333,36 @@ describe('DebugModal node outputs', () => {
     wrapper.unmount()
   })
 
+  it('reports a successful conditional run that ends without an end-node event', async () => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
+      ;[
+        {
+          node_data: { id: 'start-1', node_type: 'start', title: 'Start' },
+          status: 'succeeded',
+          outputs: { query: 'weather' },
+          latency: 0.02,
+        },
+        {
+          node_data: { id: 'condition-1', node_type: 'if_else', title: 'Condition' },
+          status: 'succeeded',
+          outputs: { result: true },
+          latency: 0.01,
+        },
+      ].forEach((data) => onData({ event: 'workflow', data }))
+    })
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-testid="workflow-node-result"]')).toHaveLength(2)
+    expect(wrapper.find('[data-testid="workflow-run-success"]').exists()).toBe(true)
+    expect(wrapper.emitted('debug-success')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('clears prior node and edge markers before a new debug run', async () => {
     const wrapper = mount(DebugModal, {
       props: { visible: true, workflow_id: 'workflow-1' },
