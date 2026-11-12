@@ -138,6 +138,45 @@ const normalizeValue = (
   }
 }
 
+const orderCallsByParent = (calls: CallableTrace[]) => {
+  const callById = new Map(calls.map((call) => [call.run_id, call]))
+  const childrenByParent = new Map<string, CallableTrace[]>()
+  const roots: CallableTrace[] = []
+
+  calls.forEach((call) => {
+    const parentId = call.parent_run_id
+    if (!parentId || parentId === call.run_id || !callById.has(parentId)) {
+      roots.push(call)
+      return
+    }
+    const children = childrenByParent.get(parentId) ?? []
+    children.push(call)
+    childrenByParent.set(parentId, children)
+  })
+
+  const ordered: CallableTrace[] = []
+  const visited = new Set<string>()
+  const appendTree = (root: CallableTrace) => {
+    const pending = [root]
+    while (pending.length > 0) {
+      const call = pending.pop()!
+      if (visited.has(call.run_id)) continue
+      visited.add(call.run_id)
+      ordered.push(call)
+      const children = childrenByParent.get(call.run_id) ?? []
+      for (let index = children.length - 1; index >= 0; index -= 1) {
+        pending.push(children[index])
+      }
+    }
+  }
+
+  roots.forEach(appendTree)
+  calls.forEach((call) => {
+    if (!visited.has(call.run_id)) appendTree(call)
+  })
+  return ordered
+}
+
 const calls = computed(() => {
   const byRunId = new Map<string, CallableTrace>()
   const seenEventIds = new Set<string>()
@@ -161,7 +200,7 @@ const calls = computed(() => {
         : {}),
     })
   }
-  return [...byRunId.values()]
+  return orderCallsByParent([...byRunId.values()])
 })
 
 const callById = computed(() => new Map(calls.value.map((call) => [call.run_id, call])))
