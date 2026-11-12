@@ -68,6 +68,9 @@ from ..core.language_model.providers.deepseek.chat import Chat
 from ..entity.workflow_entity import WorkflowStatus
 
 
+MAX_AUTO_CREATE_SELECTED_TOOLS = 5
+
+
 class AutoCreateToolSelection(BaseModel):
     """Strict structured output for automatic tool selection."""
 
@@ -75,7 +78,7 @@ class AutoCreateToolSelection(BaseModel):
 
     tool_ids: list[StrictStr] = Field(
         ...,
-        max_length=53,
+        max_length=MAX_AUTO_CREATE_SELECTED_TOOLS,
         description="IDs copied exactly from the supplied tool catalog; use an empty list if none are needed.",
     )
 
@@ -246,7 +249,7 @@ class AppService(BaseService):
         prompt = ChatPromptTemplate.from_messages([
             (
                 "system",
-                "为新Agent选择真正需要的工具。只返回候选列表中原样出现的id；"
+                "为新Agent选择真正需要的工具，最多选择5个。只返回候选列表中原样出现的id；"
                 "不要创建、推断或选择列表之外的工具。没有工具需要时返回空tool_ids。",
             ),
             (

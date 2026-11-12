@@ -379,6 +379,23 @@ class TestAppService:
             {"tool_ids": ["known-id"], "extra": "not allowed"}, candidates
         ) == AppService.AUTO_CREATE_DEFAULT_TOOLS
 
+        too_many_candidates = [
+            {
+                "id": f"api_tool:owned-provider:tool_{index}",
+                "config": {
+                    "type": "api_tool",
+                    "provider_id": "owned-provider",
+                    "tool_id": f"tool_{index}",
+                    "params": {},
+                },
+            }
+            for index in range(6)
+        ]
+        assert AppService._validated_auto_create_tool_selection(
+            {"tool_ids": [candidate["id"] for candidate in too_many_candidates]},
+            too_many_candidates,
+        ) == AppService.AUTO_CREATE_DEFAULT_TOOLS
+
     def test_auto_create_tool_selection_uses_structured_output(self, monkeypatch):
         account_id = uuid4()
         candidate = {
