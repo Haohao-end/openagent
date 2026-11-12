@@ -147,6 +147,32 @@ it('shows nested calls under their parent run', () => {
   wrapper.unmount()
 })
 
+it('renders a late parent before its child after out-of-order trace events', () => {
+  const wrapper = mountTimeline([
+    trace({
+      event_id: 'child-event',
+      run_id: 'llm-child',
+      parent_run_id: 'chain-parent',
+      run_type: 'llm',
+      name: 'ChildLLM',
+    }),
+    trace({
+      event_id: 'parent-event',
+      run_id: 'chain-parent',
+      parent_run_id: null,
+      run_type: 'chain',
+      name: 'ParentChain',
+    }),
+  ])
+
+  const calls = wrapper.findAll('[data-testid="callable-trace-call"]')
+  expect(calls).toHaveLength(2)
+  expect(calls[0].text()).toContain('ParentChain')
+  expect(calls[1].text()).toContain('ChildLLM')
+  expect(calls[1].attributes('style')).toContain('margin-inline-start: 16px')
+  wrapper.unmount()
+})
+
 it('accepts events without optional fields and ignores malformed or unsupported events', () => {
   const wrapper = mountTimeline([
     trace({
