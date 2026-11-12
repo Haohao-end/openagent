@@ -110,7 +110,13 @@ const normalizeValue = (
     for (const key in value) {
       if (!Object.prototype.hasOwnProperty.call(value, key)) continue
       if (count >= MAX_COLLECTION_ITEMS || budget.remaining <= 0) {
-        result._truncated = true
+        let markerKey = '_truncated'
+        let markerIndex = 1
+        while (Object.prototype.hasOwnProperty.call(value, markerKey)) {
+          markerKey = `_truncated_${markerIndex}`
+          markerIndex += 1
+        }
+        result[markerKey] = true
         break
       }
       count += 1

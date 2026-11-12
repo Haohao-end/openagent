@@ -192,6 +192,21 @@ it('preserves JSON object fields named __proto__ while formatting trace values',
   wrapper.unmount()
 })
 
+it('does not overwrite user fields when marking a truncated object', () => {
+  const outputs: Record<string, unknown> = {
+    _truncated: 'user marker',
+    _truncated_1: 'second user marker',
+  }
+  for (let index = 0; index < 99; index += 1) outputs[`field${index}`] = index
+  const wrapper = mountTimeline([trace({ phase: 'end', status: 'succeeded', outputs })])
+
+  const renderedOutput = JSON.parse(wrapper.get('[data-testid="callable-trace-output"]').text())
+  expect(renderedOutput._truncated).toBe('user marker')
+  expect(renderedOutput._truncated_1).toBe('second user marker')
+  expect(renderedOutput._truncated_2).toBe(true)
+  wrapper.unmount()
+})
+
 it('limits oversized values and safely formats circular or unsupported data', () => {
   const circular: Record<string, unknown> = {}
   circular.self = circular
