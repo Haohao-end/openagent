@@ -118,7 +118,7 @@ class TestWorkflowService:
             draft_graph={"nodes": [], "edges": []},
         )
         account = SimpleNamespace(id=uuid4())
-        service, _workflow_results, _updates = _prepare_debug_workflow(monkeypatch, {workflow.id: workflow})
+        service, workflow_results, updates = _prepare_debug_workflow(monkeypatch, {workflow.id: workflow})
         monkeypatch.setattr(
             "internal.service.workflow_service.convert_model_to_dict",
             lambda _node_result: {
@@ -151,6 +151,12 @@ class TestWorkflowService:
             parse_constant=reject_non_standard_constant,
         )
         assert data["outputs"] == {"score": None, "bounds": [None, None]}
+
+        assert len(updates) == 1
+        assert updates[0][0] is workflow_results[0]
+        state = updates[0][1]["state"]
+        assert state[0]["outputs"] == {"score": None, "bounds": [None, None]}
+        assert json.dumps(state, allow_nan=False)
 
     def test_create_workflow_should_raise_when_tool_call_name_duplicated(self):
         service = _build_service()
