@@ -161,6 +161,8 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
                 except queue.Full:
                     self._dropped_events += 1
                 return
+        if event_sink is None:
+            return
         try:
             event_sink(serialized)
         except Exception:
