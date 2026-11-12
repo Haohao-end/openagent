@@ -416,11 +416,13 @@ class AssistantAgentService(BaseService):
                         )
                     raise
         finally:
-            if trace_context is not None:
-                trace_context.close()
             close_stream = getattr(stream, "close", None)
-            if callable(close_stream):
-                close_stream()
+            try:
+                if callable(close_stream):
+                    close_stream()
+            finally:
+                if trace_context is not None:
+                    trace_context.close()
 
         # 14.将消息以及推理过程添加到数据库
         save_agent_thoughts()

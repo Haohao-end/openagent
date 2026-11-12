@@ -1739,11 +1739,13 @@ class AppService(BaseService):
                 }
                 yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
         finally:
-            if trace_context is not None:
-                trace_context.close()
             close_stream = getattr(stream, "close", None)
-            if callable(close_stream):
-                close_stream()
+            try:
+                if callable(close_stream):
+                    close_stream()
+            finally:
+                if trace_context is not None:
+                    trace_context.close()
 
 
     def debug_chat(self, app_id: UUID, req: DebugChatReq, account: Account) -> Generator:
