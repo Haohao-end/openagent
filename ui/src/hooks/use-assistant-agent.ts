@@ -12,7 +12,7 @@ import type {
   GetAssistantAgentConversationsResponse,
   GetAssistantAgentMessagesWithPageResponse,
 } from '@/models/assistant-agent'
-import { mergeChatHistoryMessages } from '@/views/shared/chat-stream'
+import { mergeChatHistoryMessages, type CallableTraceEvent } from '@/views/shared/chat-stream'
 import { Message } from '@arco-design/web-vue'
 export const useAssistantAgentChat = () => {
   // 1.定义自定义hooks所需数据
@@ -105,6 +105,7 @@ export const useGetAssistantAgentMessagesWithPage = () => {
   let latestRequest = 0
   type AssistantAgentMessage = GetAssistantAgentMessagesWithPageResponse['data']['list'][number] & {
     render_id: string
+    callable_trace_events?: CallableTraceEvent[]
   }
   const messages = ref<AssistantAgentMessage[]>([])
   const created_at = ref(0)

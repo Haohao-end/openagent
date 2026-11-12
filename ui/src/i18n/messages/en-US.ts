@@ -1099,6 +1099,17 @@ export default {
     },
   },
   chat: {
+    callableTrace: {
+      title: 'Callable trace',
+      types: { chain: 'Chain', llm: 'LLM', tool: 'Tool', retriever: 'Retriever' },
+      phases: { start: 'Start', end: 'End', error: 'Error' },
+      status: { running: 'Running', succeeded: 'Succeeded', failed: 'Failed' },
+      inputs: 'Inputs',
+      outputs: 'Outputs',
+      error: 'Error details',
+      errorMissing: 'This call failed without error details.',
+      parent: 'Parent call: {id}',
+    },
     composer: {
       placeholder: 'Send a message',
       uploadDisabled: 'Image upload is not supported here',
