@@ -363,6 +363,34 @@ describe('DebugModal node outputs', () => {
     wrapper.unmount()
   })
 
+  it('bounds the final workflow output rendered separately from node results', async () => {
+    mocks.handleDebugWorkflow.mockImplementationOnce(async (_workflowId, _inputs, onData) => {
+      onData({
+        event: 'workflow',
+        data: {
+          node_data: { id: 'end-1', node_type: 'end', title: 'End' },
+          status: 'succeeded',
+          outputs: 'x'.repeat(5000),
+          latency: 0.02,
+        },
+      })
+    })
+    const wrapper = mount(DebugModal, {
+      props: { visible: true, workflow_id: 'workflow-1' },
+    })
+
+    await wrapper.find('a-form').trigger('submit')
+    await flushPromises()
+
+    const finalOutput = wrapper.get('[data-testid="workflow-final-output"]').text()
+    expect(finalOutput.length).toBeLessThanOrEqual(4012)
+    expect(finalOutput.endsWith('\n[truncated]')).toBe(true)
+    const nodeOutput = wrapper.get('[data-testid="workflow-node-output"]').text()
+    expect(nodeOutput.length).toBeLessThanOrEqual(4012)
+    expect(nodeOutput.endsWith('\n[truncated]')).toBe(true)
+    wrapper.unmount()
+  })
+
   it('clears prior node and edge markers before a new debug run', async () => {
     const wrapper = mount(DebugModal, {
       props: { visible: true, workflow_id: 'workflow-1' },

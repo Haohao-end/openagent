@@ -64,6 +64,21 @@ describe('debug-metrics', () => {
     expect(formatted.endsWith('\n[truncated]')).toBe(true)
   })
 
+  it('limits structured collections before serializing them', () => {
+    let itemReads = 0
+    const values = new Proxy(Array.from({ length: 1000 }, (_, index) => index), {
+      get(target, property, receiver) {
+        if (typeof property === 'string' && /^\d+$/.test(property)) itemReads += 1
+        return Reflect.get(target, property, receiver)
+      },
+    })
+
+    const formatted = formatDebugNodeOutputs({ values })
+
+    expect(itemReads).toBeLessThanOrEqual(100)
+    expect(formatted).toContain('[truncated]')
+  })
+
   it('returns end node outputs', () => {
     expect(findWorkflowOutputs(mockNodeResults)).toEqual({ text: 'done' })
   })
