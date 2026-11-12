@@ -218,6 +218,33 @@ def test_event_sink_failure_is_swallowed_and_counts_toward_limit():
     assert handler.drain() == []
 
 
+def test_event_sink_can_call_handler_methods_without_deadlocking():
+    import threading
+
+    received = []
+    handler_ref = []
+
+    def sink(event):
+        handler = handler_ref[0]
+        assert handler.dropped_events == 0
+        handler.close()
+        received.append(event)
+
+    handler = DebugTraceCallbackHandler(event_sink=sink)
+    handler_ref.append(handler)
+    worker = threading.Thread(
+        target=lambda: handler.on_chain_start({}, {}, run_id=uuid4()),
+        daemon=True,
+    )
+    worker.start()
+    worker.join(timeout=1)
+
+    assert not worker.is_alive(), "event_sink deadlocked while calling handler methods"
+    assert len(received) == 1
+    handler.on_chain_start({}, {}, run_id=uuid4())
+    assert len(received) == 1
+
+
 def test_retriever_callbacks_record_query_shape_and_document_count_only():
     handler = DebugTraceCallbackHandler()
     run_id, parent_run_id = uuid4(), uuid4()

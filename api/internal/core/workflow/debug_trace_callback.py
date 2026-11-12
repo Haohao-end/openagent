@@ -145,6 +145,7 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
         except Exception:
             self._drop_event()
             return
+        event_sink = None
         with self._lock:
             if self._closed:
                 return
@@ -153,15 +154,19 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
                     self._dropped_events += 1
                     return
                 self._sink_event_count += 1
+                event_sink = self._event_sink
+            else:
                 try:
-                    self._event_sink(serialized)
-                except Exception:
+                    self._events.put_nowait(serialized)
+                except queue.Full:
                     self._dropped_events += 1
                 return
-            try:
-                self._events.put_nowait(serialized)
-            except queue.Full:
-                self._dropped_events += 1
+        try:
+            event_sink(serialized)
+        except Exception:
+            with self._lock:
+                if not self._closed:
+                    self._dropped_events += 1
 
     def _drop_event(self) -> None:
         with self._lock:
