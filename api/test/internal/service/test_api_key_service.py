@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 import base64
@@ -247,6 +248,7 @@ class TestApiKeyService:
         req = SimpleNamespace(
             is_active=SimpleNamespace(data=True),
             remark=SimpleNamespace(data="for-ci"),
+            expires_at=SimpleNamespace(data=1_900_000_000),
         )
         monkeypatch.setattr(service, "generate_api_key", lambda: "llmops-v1/mock-key")
 
@@ -263,6 +265,7 @@ class TestApiKeyService:
         assert captures[0][1]["account_id"] == account.id
         assert captures[0][1]["remark"] == "for-ci"
         assert captures[0][1]["api_key"] == ApiKeyService.hash_api_key("llmops-v1/mock-key")
+        assert captures[0][1]["expires_at"] == datetime.fromtimestamp(1_900_000_000, UTC).replace(tzinfo=None)
 
     def test_update_api_key_should_delegate_update(self, monkeypatch):
         service = self._build_service()
@@ -276,10 +279,32 @@ class TestApiKeyService:
             lambda target, **kwargs: updates.append((target, kwargs)) or target,
         )
 
-        result = service.update_api_key(api_key.id, account, remark="updated")
+        result = service.update_api_key(api_key.id, account, remark="updated", expires_at=1_900_000_000)
 
         assert result is api_key
-        assert updates == [(api_key, {"remark": "updated"})]
+        assert updates == [(
+            api_key,
+            {
+                "remark": "updated",
+                "expires_at": datetime.fromtimestamp(1_900_000_000, UTC).replace(tzinfo=None),
+            },
+        )]
+
+    def test_update_api_key_should_clear_expiration(self, monkeypatch):
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        api_key = SimpleNamespace(id=uuid4(), account_id=account.id)
+        monkeypatch.setattr(service, "get_api_key", lambda *_args, **_kwargs: api_key)
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        service.update_api_key(api_key.id, account, expires_at=None)
+
+        assert updates == [(api_key, {"expires_at": None})]
 
     def test_generate_api_key_should_keep_prefix(self):
         key = ApiKeyService.generate_api_key("prefix/")

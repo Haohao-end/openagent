@@ -1,5 +1,6 @@
 import secrets
 import hashlib
+from datetime import UTC, datetime
 from uuid import UUID
 from injector import inject
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from .base_service import BaseService
 from internal.schema.api_key_schema import CreateApiKeyReq
 from internal.model import Account, ApiKey
 from internal.exception import ForbiddenException
+from internal.lib.helper import ensure_utc_naive
 from pkg.paginator import PaginatorReq, Paginator
 
 @inject
@@ -28,6 +30,7 @@ class ApiKeyService(BaseService):
             api_key=self.hash_api_key(raw_api_key),
             is_active=req.is_active.data,
             remark=req.remark.data,
+            expires_at=self._normalize_expires_at(req.expires_at.data),
         )
         api_key_record_id = getattr(api_key_record, "id", None)
         return {
@@ -65,8 +68,23 @@ class ApiKeyService(BaseService):
     def update_api_key(self, api_key_id: UUID, account: Account, **kwargs) -> ApiKey:
         """根据传递的信息更新API密钥"""
         api_key = self.get_api_key(api_key_id, account)
+        if "expires_at" in kwargs:
+            kwargs["expires_at"] = self._normalize_expires_at(kwargs["expires_at"])
         self.update(api_key, **kwargs)
         return api_key
+
+    @staticmethod
+    def _normalize_expires_at(value: int | datetime | None) -> datetime | None:
+        """Convert API timestamps to the naive UTC value used by database columns."""
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            raise ValueError("API key expiration must be a Unix timestamp")
+        if isinstance(value, int):
+            value = datetime.fromtimestamp(value, UTC)
+        if not isinstance(value, datetime):
+            raise ValueError("API key expiration must be a Unix timestamp")
+        return ensure_utc_naive(value)
 
     def delete_api_key(self, api_key_id: UUID, account: Account) -> ApiKey:
         """根据传递的id删除API密钥"""
