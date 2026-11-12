@@ -362,10 +362,13 @@ export const useDebugWorkflow = (getFallbackErrorMessage: () => string) => {
       const resp = await debugWorkflow(workflow_id, inputs, onData, controller.signal)
 
       // 2.1 判断响应内容是否存在，如果存在则表示该接口为非流式输出，意味着接口出错
-      if (typeof resp === 'object' && resp !== null && 'message' in resp) {
-        const message = resp.message
+      if (typeof resp === 'object' && resp !== null) {
+        const message = 'message' in resp ? resp.message : undefined
         if (requestId === latestRequest) {
-          error.value = typeof message === 'string' ? message : getFallbackErrorMessage()
+          error.value =
+            typeof message === 'string' && message.trim()
+              ? message
+              : getFallbackErrorMessage()
         }
       }
     } finally {
