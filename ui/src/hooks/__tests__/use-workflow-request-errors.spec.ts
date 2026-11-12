@@ -150,6 +150,21 @@ describe('use-workflow request hooks', () => {
     expect(getFallbackErrorMessage).toHaveBeenCalledOnce()
     expect(error.value).toBe('Workflow debug failed')
   })
+
+  it.each([
+    ['no message field', {}],
+    ['an empty message', { message: '' }],
+    ['a blank message', { message: '   ' }],
+  ])('uses the localized fallback when a non-stream response has %s', async (_case, response) => {
+    mocks.debugWorkflow.mockResolvedValueOnce(response)
+    const getFallbackErrorMessage = vi.fn(() => 'Workflow debug failed')
+    const { error, handleDebugWorkflow } = useDebugWorkflow(getFallbackErrorMessage)
+
+    await handleDebugWorkflow('workflow-1', {}, () => {})
+
+    expect(getFallbackErrorMessage).toHaveBeenCalledOnce()
+    expect(error.value).toBe('Workflow debug failed')
+  })
 })
 
 describe('useGetWorkflowsWithPage', () => {
