@@ -110,6 +110,48 @@ def _build_create_req(tool_call_name: str = "wf_tool"):
 
 
 class TestWorkflowService:
+    def test_debug_workflow_sse_encodes_non_finite_node_outputs_as_null(self, monkeypatch):
+        workflow = SimpleNamespace(
+            id=uuid4(),
+            tool_call_name="non_finite_wf",
+            description="desc",
+            draft_graph={"nodes": [], "edges": []},
+        )
+        account = SimpleNamespace(id=uuid4())
+        service, _workflow_results, _updates = _prepare_debug_workflow(monkeypatch, {workflow.id: workflow})
+        monkeypatch.setattr(
+            "internal.service.workflow_service.convert_model_to_dict",
+            lambda _node_result: {
+                "node_id": "code-node",
+                "status": "succeeded",
+                "node_data": {"node_type": "code"},
+                "outputs": {
+                    "score": float("nan"),
+                    "bounds": [float("inf"), float("-inf")],
+                },
+            },
+        )
+
+        class _WorkflowTool:
+            def __init__(self, workflow_config):
+                self.workflow_config = workflow_config
+
+            def stream(self, _inputs, config=None):
+                yield {"node_1": {"node_results": [SimpleNamespace(node_id="code-node")]}}
+
+        monkeypatch.setattr("internal.service.workflow_service.WorkflowTool", _WorkflowTool)
+        events = list(service.debug_workflow(workflow.id, {}, account))
+        event = next(item for item in events if item.startswith("event: workflow\n"))
+
+        def reject_non_standard_constant(value):
+            raise ValueError(f"non-standard JSON constant: {value}")
+
+        data = json.loads(
+            event.split("data:", 1)[1],
+            parse_constant=reject_non_standard_constant,
+        )
+        assert data["outputs"] == {"score": None, "bounds": [None, None]}
+
     def test_create_workflow_should_raise_when_tool_call_name_duplicated(self):
         service = _build_service()
         service.db.session.query_result = SimpleNamespace(id=uuid4())

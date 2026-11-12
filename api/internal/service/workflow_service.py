@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import queue
 import threading
 import time
@@ -47,6 +48,17 @@ logger = logging.getLogger(__name__)
 _DEBUG_STREAM_SLOTS = threading.BoundedSemaphore(8)
 _DEBUG_STREAM_QUEUE_SIZE = 16
 _DEBUG_STREAM_POLL_INTERVAL = 0.05
+
+
+def _normalize_json_value(value: Any) -> Any:
+    """Replace non-finite numbers so SSE payloads remain valid JSON."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _normalize_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_normalize_json_value(item) for item in value]
+    return value
 
 
 @inject
@@ -452,7 +464,7 @@ class WorkflowService(BaseService):
                         "id": str(uuid.uuid4()),
                         **node_result_dict,
                     }
-                    yield f"event: workflow\ndata: {json.dumps(data)}\n\n"
+                    yield f"event: workflow\ndata: {json.dumps(_normalize_json_value(data), allow_nan=False)}\n\n"
 
                     # 8.检查是否是最后一个节点（end节点）
                     node_type = node_result_dict.get("node_data", {}).get("node_type")
