@@ -5,6 +5,7 @@ type ChatMessageSizeSource = {
   answer_parts?: unknown[]
   artifacts?: unknown[]
   agent_thoughts?: unknown[]
+  callable_trace_events?: unknown[]
   suggested_questions?: string[]
 }
 
@@ -16,6 +17,41 @@ const toStableJson = (value: unknown) => {
   } catch {
     return String(value ?? '')
   }
+}
+
+const callableTraceLayoutSignature = (events: unknown) => {
+  if (!Array.isArray(events) || events.length === 0) return ''
+  const layoutEvents = events.map((value) => {
+    let event = value
+    if (typeof event === 'string') {
+      try {
+        event = JSON.parse(event)
+      } catch {
+        return ['malformed', event.length]
+      }
+    }
+    if (!event || typeof event !== 'object' || Array.isArray(event)) return null
+    const fields = event as Record<string, unknown>
+    return [
+      fields.event_id,
+      fields.run_id,
+      fields.parent_run_id,
+      fields.phase,
+      fields.run_type,
+      fields.name,
+      fields.status,
+      fields.latency_ms,
+      'inputs' in fields,
+      'outputs' in fields,
+      'error' in fields && fields.error !== null && fields.error !== '',
+    ]
+  })
+  const serialized = toStableJson(layoutEvents)
+  let hash = 2166136261
+  for (let index = 0; index < serialized.length; index += 1) {
+    hash = Math.imul(hash ^ serialized.charCodeAt(index), 16777619)
+  }
+  return `${events.length}:${serialized.length}:${hash >>> 0}`
 }
 
 const normalizeImageUrls = (value: unknown) => {
@@ -45,6 +81,7 @@ export const buildChatMessageSizeDependencies = (
     toStableJson(message.answer_parts ?? []),
     toStableJson(message.artifacts ?? []),
     toStableJson(message.agent_thoughts ?? []),
+    callableTraceLayoutSignature(message.callable_trace_events),
     toStableJson(message.suggested_questions ?? []),
     loading ? 1 : 0,
   ]

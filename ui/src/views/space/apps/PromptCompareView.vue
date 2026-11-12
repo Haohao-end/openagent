@@ -441,6 +441,7 @@ onUnmounted(() => activeStreamControllers.forEach((controller) => controller.abo
                     :latency="message.latency"
                     :total_token_count="message.total_token_count"
                     :agent_thoughts="message.agent_thoughts"
+                    :callable_trace_events="message.callable_trace_events || []"
                     :show_agent_thought="true"
                     :agent_thought_default_visible="false"
                     :agent_thought_follow_latest="false"

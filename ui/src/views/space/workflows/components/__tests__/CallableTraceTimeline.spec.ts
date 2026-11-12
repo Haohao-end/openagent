@@ -208,12 +208,14 @@ it('accepts events without optional fields and ignores malformed or unsupported 
     '{not json',
     trace({ schema_version: 2, run_id: 'unsupported-version' }),
     trace({ run_id: '', event_id: 'missing-run-id' }),
-    trace({ run_type: 'retriever', event_id: 'unsupported-type' }),
+    trace({ run_id: 'retriever-1', run_type: 'retriever', event_id: 'retriever-event', name: 'VectorRetriever' }),
+    trace({ run_id: 'tool-retriever-1', run_type: 'tool', event_id: 'tool-retriever-event', name: 'Retriever' }),
     trace({ phase: 'progress', event_id: 'unsupported-phase' }),
   ])
 
-  expect(wrapper.findAll('[data-testid="callable-trace-call"]')).toHaveLength(1)
+  expect(wrapper.findAll('[data-testid="callable-trace-call"]')).toHaveLength(3)
   expect(wrapper.text()).toContain('run-1')
+  expect(wrapper.text()).toContain('检索器')
   wrapper.unmount()
 })
 

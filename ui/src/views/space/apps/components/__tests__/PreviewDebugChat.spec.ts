@@ -312,6 +312,9 @@ describe('PreviewDebugChat', () => {
         answer: '第一版回答',
         answer_parts: [{ type: 'text', text: '第一版回答' }],
         artifacts: [{ name: 'plan.docx', url: 'https://example.com/plan.docx' }],
+        callable_trace_events: [
+          { event_id: 'trace-1', run_id: 'run-1', phase: 'start', inputs: { prompt: 'trace' } },
+        ],
         total_token_count: 12,
         latency: 1.2,
         agent_thoughts: [
@@ -341,14 +344,15 @@ describe('PreviewDebugChat', () => {
     const sizeDependencies = JSON.parse(scrollerItem.attributes('data-size-dependencies') || '[]')
 
     expect(wrapper.get('.dynamic-scroller-stub').attributes('data-key-field')).toBe('render_id')
-    expect(sizeDependencies).toHaveLength(8)
+    expect(sizeDependencies).toHaveLength(9)
     expect(sizeDependencies[0]).toBe('请总结这张图')
     expect(sizeDependencies[1]).toContain('https://example.com/image-a.png')
     expect(sizeDependencies[2]).toBe('第一版回答')
     expect(sizeDependencies[4]).toContain('plan.docx')
     expect(sizeDependencies[5]).toContain('正在整理步骤')
-    expect(sizeDependencies[6]).toContain('继续')
-    expect(sizeDependencies[7]).toBe(0)
+    expect(sizeDependencies[6]).not.toContain('trace')
+    expect(sizeDependencies[7]).toContain('继续')
+    expect(sizeDependencies[8]).toBe(0)
   })
 
   it('loads older pages until the route message becomes available', async () => {

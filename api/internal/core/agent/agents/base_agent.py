@@ -152,6 +152,15 @@ class BaseAgent(Serializable, Runnable):
                         error,
                         context="智能体执行异常",
                     )
+                finally:
+                    finish_terminal = getattr(
+                        self._agent_queue_manager, "finish_deferred_terminal", None
+                    )
+                    if callable(finish_terminal):
+                        try:
+                            finish_terminal(input["task_id"], cancelled=cancel_event.is_set())
+                        except Exception:
+                            logging.exception("Agent终态事件暂未发布，等待队列监听器重试")
 
         thread = Thread(target=_invoke_agent)
         thread.start()
@@ -161,6 +170,9 @@ class BaseAgent(Serializable, Runnable):
             yield from self._agent_queue_manager.listen(input["task_id"])
         finally:
             cancel_event.set()
+            cancel_task = getattr(self._agent_queue_manager, "cancel_task", None)
+            if callable(cancel_task):
+                cancel_task(input["task_id"])
             is_alive = getattr(thread, "is_alive", None)
             if callable(is_alive) and is_alive():
                 join = getattr(thread, "join", None)

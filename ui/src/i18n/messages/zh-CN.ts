@@ -1081,6 +1081,17 @@ export default {
     },
   },
   chat: {
+    callableTrace: {
+      title: 'Callable 调用时间线',
+      types: { chain: 'Chain', llm: 'LLM', tool: 'Tool', retriever: '检索器' },
+      phases: { start: '开始', end: '结束', error: '异常' },
+      status: { running: '运行中', succeeded: '成功', failed: '失败' },
+      inputs: '输入参数',
+      outputs: '输出结果',
+      error: '错误详情',
+      errorMissing: '调用失败，暂无错误详情。',
+      parent: '父级调用：{id}',
+    },
     composer: {
       placeholder: '发送消息',
       uploadDisabled: '当前不支持图片上传',
