@@ -18,6 +18,7 @@ const createMessage = (): StreamMessage => ({
   latency: 0,
   total_token_count: 0,
   agent_thoughts: [],
+  callable_trace_events: [],
 })
 
 const createState = (): StreamState => ({
@@ -28,6 +29,32 @@ const createState = (): StreamState => ({
 })
 
 describe('chat-stream', () => {
+  it('stores callable traces separately without updating regular chat state', () => {
+    const message = createMessage()
+    const state = createState()
+    const trace = {
+      schema_version: 1,
+      event_id: 'trace-event-1',
+      run_id: 'trace-run-1',
+      parent_run_id: 'trace-parent-1',
+      phase: 'end',
+      run_type: 'llm',
+      latency_ms: 34.5,
+    }
+
+    const result = applyChatStreamEvent(
+      message,
+      { event: QueueEvent.callableTrace, data: trace } as StreamEventResponse,
+      state,
+    )
+
+    expect(result.didUpdate).toBe(false)
+    expect(result.state).toEqual(state)
+    expect(message.callable_trace_events).toEqual([trace])
+    expect(message.agent_thoughts).toEqual([])
+    expect(message.answer).toBe('')
+  })
+
   it('appends agent message content and initializes ids', () => {
     const message = createMessage()
     const state = createState()

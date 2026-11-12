@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 
 import PublicPreviewDebugChat from '@/views/store/public-apps/components/PublicPreviewDebugChat.vue'
 
@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   }),
   sendPublicAppA2aMessage: vi.fn().mockResolvedValue(undefined),
   messageError: vi.fn(),
+  scrollToBottom: vi.fn(),
   triggerFileInput: vi.fn(),
   handleFileChange: vi.fn(),
   uploadImage: vi.fn(),
@@ -101,7 +102,7 @@ let mountedWrapper: ReturnType<typeof shallowMount> | undefined
 
 const mountPreview = () => (mountedWrapper = shallowMount(PublicPreviewDebugChat, {
   props: { app: {}, suggested_after_answer: { enable: true }, opening_statement: '', opening_questions: [], text_to_speech: { enable: false } },
-  global: { stubs: { ChatComposer: chatComposerStub, ChatConversationSkeleton: true, ChatMessageTimeline: defineComponent({ name: 'ChatMessageTimeline', props: { messages: Array }, template: '<div />' }), HumanMessage: true, 'a-avatar': true } },
+  global: { stubs: { ChatComposer: chatComposerStub, ChatConversationSkeleton: true, ChatMessageTimeline: defineComponent({ name: 'ChatMessageTimeline', props: { messages: Array }, setup: (_, { expose }) => { expose({ scrollToBottom: mocks.scrollToBottom }); return () => h('div') } }), HumanMessage: true, 'a-avatar': true } },
 }))
 
 const beginStream = (wrapper: ReturnType<typeof shallowMount>, query: string) => {
@@ -110,7 +111,13 @@ const beginStream = (wrapper: ReturnType<typeof shallowMount>, query: string) =>
   mocks.sendPublicAppA2aMessage.mockImplementationOnce((...args: unknown[]) => { event = args[4] as typeof event; signal = args[5] as AbortSignal; return pending })
   mocks.queryRef!.value = query
   wrapper.getComponent(chatComposerStub).vm.$emit('submit')
-  return { finish, fail, signal: () => signal, emit: (id: string) => event({ event: 'agent_message', data: { message_id: id, conversation_id: id } }) }
+  return {
+    finish,
+    fail,
+    signal: () => signal,
+    emit: (id: string) => event({ event: 'agent_message', data: { message_id: id, conversation_id: id } }),
+    emitEvent: (eventName: string, data: unknown) => event({ event: eventName, data }),
+  }
 }
 
 describe('PublicPreviewDebugChat', () => {
@@ -165,6 +172,35 @@ describe('PublicPreviewDebugChat', () => {
     expect(composer.props('showImagePreviews')).toBe(true)
     expect(composer.props('uploadDisabled')).toBe(true)
     expect(composer.props('showVoiceButton')).toBe(false)
+  })
+
+  it('stores callable traces without adding thoughts or scrolling the chat', async () => {
+    const wrapper = mountPreview()
+    await flushPromises()
+    const stream = beginStream(wrapper, 'show trace')
+    await flushPromises()
+    mocks.scrollToBottom.mockClear()
+
+    const trace = {
+      schema_version: 1,
+      event_id: 'trace-event-1',
+      run_id: 'trace-run-1',
+      parent_run_id: 'trace-parent-1',
+      phase: 'end',
+      run_type: 'tool',
+      latency_ms: 18,
+    }
+    stream.emitEvent('callable_trace', trace)
+    await nextTick()
+
+    const currentMessage = wrapper.findComponent({ name: 'ChatMessageTimeline' }).props('messages')[0]
+    expect(currentMessage.callable_trace_events).toEqual([trace])
+    expect(currentMessage.agent_thoughts).toEqual([])
+    expect(mocks.scrollToBottom).not.toHaveBeenCalled()
+
+    stream.emit('message-1')
+    expect(mocks.scrollToBottom).toHaveBeenCalledOnce()
+    stream.finish()
   })
 
   it('restores the submitted question when sending fails before a stream event', async () => {

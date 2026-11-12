@@ -155,6 +155,7 @@ export const QueueEvent = {
   deepStep: 'deep_step',
   deepComplete: 'deep_complete',
   deepArtifactCreated: 'deep_artifact_created',
+  callableTrace: 'callable_trace',
   agentEnd: 'agent_end',
   stop: 'stop',
   error: 'error',
