@@ -2,6 +2,7 @@ import json
 import logging
 import random
 import threading
+import time
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -511,7 +512,7 @@ class TestWorkflowService:
         events.close()
 
         assert len(updates) == 1
-        assert updates[0][1]["status"] == WorkflowResultStatus.FAILED.value
+        assert updates[0][1]["status"] == WorkflowResultStatus.CANCELLED.value
         assert updates[0][1]["state"] == [{
             "node_id": "node_1",
             "status": "succeeded",
@@ -527,7 +528,7 @@ class TestWorkflowService:
         events.close()
         assert "error_type=RuntimeError" in caplog.text
 
-    def test_debug_workflow_sends_llm_trace_start_before_blocking_stream_finishes(self, monkeypatch):
+    def test_debug_workflow_callable_trace_start_precedes_blocking_stream_completion(self, monkeypatch):
         workflow = SimpleNamespace(
             id=uuid4(),
             tool_call_name="blocking_wf",
@@ -538,6 +539,7 @@ class TestWorkflowService:
         service, workflow_results, updates = _prepare_debug_workflow(monkeypatch, {workflow.id: workflow})
         started = threading.Event()
         release = threading.Event()
+        worker_ids = []
 
         class _BlockingWorkflowTool:
             def __init__(self, workflow_config):
@@ -545,6 +547,7 @@ class TestWorkflowService:
 
             def stream(self, _inputs, config=None):
                 callback = config["callbacks"][0]
+                worker_ids.append(threading.get_ident())
                 run_id = uuid4()
                 callback.on_llm_start({"name": "blocking-fake"}, ["PRIVATE PROMPT"], run_id=run_id)
                 started.set()
@@ -578,8 +581,9 @@ class TestWorkflowService:
         assert start_data["run_id"] == end_data["run_id"]
         assert updates[0][1]["status"] == WorkflowResultStatus.SUCCEEDED.value
         assert workflow_results
+        assert not any(thread.ident in worker_ids for thread in threading.enumerate())
 
-    def test_debug_workflow_sends_llm_error_trace_before_propagating_failure(self, monkeypatch):
+    def test_debug_workflow_callable_trace_error_precedes_worker_failure(self, monkeypatch):
         workflow = SimpleNamespace(
             id=uuid4(),
             tool_call_name="failing_wf",
@@ -650,7 +654,7 @@ class TestWorkflowService:
         assert len(events) == 1
         assert events[0].startswith("event: workflow\n")
 
-    def test_debug_workflow_disconnect_cancels_and_closes_worker_iterator(self, monkeypatch):
+    def test_debug_workflow_callable_trace_disconnect_closes_worker_after_block_releases(self, monkeypatch):
         workflow = SimpleNamespace(
             id=uuid4(),
             tool_call_name="cancel_wf",
@@ -662,6 +666,10 @@ class TestWorkflowService:
         entered = threading.Event()
         release = threading.Event()
         iterator_closed = threading.Event()
+        worker_ids = []
+        callbacks = []
+        slots = threading.BoundedSemaphore(1)
+        monkeypatch.setattr("internal.service.workflow_service._DEBUG_STREAM_SLOTS", slots)
 
         class _CancelableWorkflowTool:
             def __init__(self, workflow_config):
@@ -669,10 +677,14 @@ class TestWorkflowService:
 
             def stream(self, _inputs, config=None):
                 callback = config["callbacks"][0]
-                callback.on_llm_start({"name": "cancelable-fake"}, [], run_id=uuid4())
+                callbacks.append(callback)
+                run_id = uuid4()
+                worker_ids.append(threading.get_ident())
+                callback.on_llm_start({"name": "cancelable-fake"}, [], run_id=run_id)
                 try:
                     entered.set()
                     release.wait(timeout=3)
+                    callback.on_llm_end(object(), run_id=run_id)
                     yield {"node_1": {"node_results": [SimpleNamespace(node_id="node_1", status="succeeded")]}}
                 finally:
                     iterator_closed.set()
@@ -684,14 +696,28 @@ class TestWorkflowService:
             assert first.startswith("event: callable_trace\n")
             assert entered.wait(timeout=1)
             events.close()
+            assert not iterator_closed.wait(timeout=0.1)
+            assert not slots.acquire(blocking=False)
+            release.set()
+            assert iterator_closed.wait(timeout=1)
+
+            deadline = time.monotonic() + 1
+            acquired = slots.acquire(blocking=False)
+            while not acquired and time.monotonic() < deadline:
+                time.sleep(0.01)
+                acquired = slots.acquire(blocking=False)
+            assert acquired
+            slots.release()
         finally:
             release.set()
             events.close()
 
-        assert iterator_closed.wait(timeout=1)
-        assert updates[0][1]["status"] == WorkflowResultStatus.FAILED.value
+        assert not any(thread.ident in worker_ids for thread in threading.enumerate())
+        assert callbacks[0].drain() == []
+        assert len(updates) == 1
+        assert updates[0][1]["status"] == WorkflowResultStatus.CANCELLED.value
 
-    def test_debug_workflow_keeps_trace_queues_isolated_per_user_and_workflow(self, monkeypatch):
+    def test_debug_workflow_callable_trace_queues_are_isolated_per_user_and_workflow(self, monkeypatch):
         workflows = {
             workflow_id: SimpleNamespace(
                 id=workflow_id,

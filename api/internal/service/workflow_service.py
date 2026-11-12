@@ -370,7 +370,14 @@ class WorkflowService(BaseService):
                 stream = workflow_tool.stream(inputs, config={"callbacks": [callback]})
                 iterator = iter(stream)
                 try:
-                    for chunk in iterator:
+                    # Workflow.stream is synchronous. A disconnect cannot preempt a
+                    # node already inside next(); once it returns, discard that chunk
+                    # and close the iterator here, on its owning worker thread.
+                    while not cancelled.is_set():
+                        try:
+                            chunk = next(iterator)
+                        except StopIteration:
+                            break
                         if cancelled.is_set() or not enqueue("workflow", chunk):
                             break
                 finally:
@@ -388,7 +395,8 @@ class WorkflowService(BaseService):
                 except BaseException as error:  # noqa: BLE001
                     enqueue("error", error)
                 finally:
-                    enqueue("done")
+                    if not cancelled.is_set():
+                        enqueue("done")
                     _DEBUG_STREAM_SLOTS.release()
 
             try:
@@ -466,11 +474,12 @@ class WorkflowService(BaseService):
                 self.db.session.commit()
             except GeneratorExit:
                 cancelled.set()
+                callback.close()
                 if worker is not None and worker.is_alive():
                     worker.join(timeout=_DEBUG_STREAM_POLL_INTERVAL)
                 try:
                     self.update(workflow_result, **{
-                        "status": WorkflowResultStatus.FAILED.value,
+                        "status": WorkflowResultStatus.CANCELLED.value,
                         "state": node_results,
                         "latency": (time.perf_counter() - start_at),
                     })
@@ -481,6 +490,7 @@ class WorkflowService(BaseService):
                 raise
             except Exception as e:
                 cancelled.set()
+                callback.close()
                 logging.error("工作流调试失败: error_type=%s", type(e).__name__)
                 self.update(workflow_result, **{
                     "status": WorkflowResultStatus.FAILED.value,
@@ -492,6 +502,7 @@ class WorkflowService(BaseService):
             finally:
                 if not worker_done:
                     cancelled.set()
+                    callback.close()
                 if worker is not None and worker.is_alive():
                     worker.join(timeout=_DEBUG_STREAM_POLL_INTERVAL)
                 if slot_acquired:

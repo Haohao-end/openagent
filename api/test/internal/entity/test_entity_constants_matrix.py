@@ -107,7 +107,7 @@ def test_dataset_entity_should_keep_expected_rule_shape_and_enums():
 
 def test_workflow_entity_should_keep_expected_defaults_and_enums():
     assert _enum_values(WorkflowStatus) == ["draft", "published"]
-    assert _enum_values(WorkflowResultStatus) == ["running", "succeeded", "failed"]
+    assert _enum_values(WorkflowResultStatus) == ["running", "succeeded", "failed", "cancelled"]
     assert DEFAULT_WORKFLOW_CONFIG == {
         "graph": {},
         "draft_graph": {"nodes": [], "edges": []},

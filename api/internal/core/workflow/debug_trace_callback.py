@@ -22,6 +22,7 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
         self._lock = threading.Lock()
         self._started_at: dict[str, tuple[float, str, str, Any]] = {}
         self._dropped_events = 0
+        self._closed = False
 
     @property
     def dropped_events(self) -> int:
@@ -35,17 +36,30 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
         except queue.Empty:
             return None
 
-    def drain(self, limit: int = 100) -> list[str]:
-        """Remove at most ``limit`` queued events without blocking."""
-        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 0:
+    def drain(self, limit: int | None = None) -> list[str]:
+        """Remove all currently queued events, or at most ``limit`` if supplied."""
+        if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit < 0):
             raise ValueError("limit must be a non-negative integer")
         events = []
-        for _ in range(limit):
+        while limit is None or len(events) < limit:
             event = self.get_event()
             if event is None:
                 break
             events.append(event)
         return events
+
+    def close(self) -> None:
+        """Stop accepting events and discard queued data after stream cancellation."""
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            self._started_at.clear()
+            while True:
+                try:
+                    self._events.get_nowait()
+                except queue.Empty:
+                    break
 
     @staticmethod
     def _id(value: Any) -> str | None:
@@ -102,6 +116,9 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
         if safe_run_id is None:
             self._drop_event()
             return
+        with self._lock:
+            if self._closed:
+                return
         event = {
             "schema_version": 1,
             "event_id": uuid4().hex,
@@ -118,13 +135,21 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
         }
         try:
             serialized = serialize_trace(event)
-            self._events.put_nowait(serialized)
         except Exception:
             self._drop_event()
+            return
+        with self._lock:
+            if self._closed:
+                return
+            try:
+                self._events.put_nowait(serialized)
+            except queue.Full:
+                self._dropped_events += 1
 
     def _drop_event(self) -> None:
         with self._lock:
-            self._dropped_events += 1
+            if not self._closed:
+                self._dropped_events += 1
 
     def _start(self, run_type: str, name: str, run_id: Any, parent_run_id: Any, inputs: Any) -> None:
         safe_run_id = self._id(run_id)
@@ -132,6 +157,8 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
             self._drop_event()
             return
         with self._lock:
+            if self._closed:
+                return
             if len(self._started_at) >= self._events.maxsize:
                 self._started_at.pop(next(iter(self._started_at)))
             self._started_at[safe_run_id] = (time.monotonic(), run_type, name, inputs)
@@ -152,6 +179,8 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
             self._drop_event()
             return
         with self._lock:
+            if self._closed:
+                return
             run_state = self._started_at.pop(safe_run_id, None)
         if run_state is None:
             latency_ms = None
