@@ -123,6 +123,7 @@ export function getPublicAppA2aConversationMessages(appId: string, conversationI
     artifacts: Array<Record<string, unknown>>
     total_token_count: number
     latency: number
+    agent_thoughts?: Array<Record<string, unknown>>
     suggested_questions: string[]
   }>>>(`/public/apps/${appId}/a2a/conversations/${conversationId}/messages`)
 }
