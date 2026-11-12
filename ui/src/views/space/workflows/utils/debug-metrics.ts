@@ -11,14 +11,22 @@ export type DebugNodeResult = {
   latency: number
 }
 
+const MAX_DEBUG_NODE_OUTPUT_LENGTH = 4000
+
+const boundDebugNodeOutput = (value: string): string => {
+  return value.length > MAX_DEBUG_NODE_OUTPUT_LENGTH
+    ? `${value.slice(0, MAX_DEBUG_NODE_OUTPUT_LENGTH)}\n[truncated]`
+    : value
+}
+
 export const formatDebugNodeOutputs = (outputs: unknown): string => {
   if (outputs === undefined) return '—'
-  if (typeof outputs === 'string') return outputs
+  if (typeof outputs === 'string') return boundDebugNodeOutput(outputs)
 
   try {
-    return JSON.stringify(outputs, null, 2) ?? String(outputs)
+    return boundDebugNodeOutput(JSON.stringify(outputs, null, 2) ?? String(outputs))
   } catch {
-    return String(outputs)
+    return boundDebugNodeOutput(String(outputs))
   }
 }
 

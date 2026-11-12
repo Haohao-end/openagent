@@ -54,6 +54,16 @@ describe('debug-metrics', () => {
     expect(formatDebugNodeOutputs('Sunny, 22°C')).toBe('Sunny, 22°C')
   })
 
+  it.each([
+    ['long text', 'x'.repeat(5000)],
+    ['large structured output', { values: Array.from({ length: 1000 }, (_, index) => index) }],
+  ])('bounds %s before rendering', (_label, output) => {
+    const formatted = formatDebugNodeOutputs(output)
+
+    expect(formatted.length).toBeLessThanOrEqual(4012)
+    expect(formatted.endsWith('\n[truncated]')).toBe(true)
+  })
+
   it('returns end node outputs', () => {
     expect(findWorkflowOutputs(mockNodeResults)).toEqual({ text: 'done' })
   })
