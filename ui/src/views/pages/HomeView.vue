@@ -1122,6 +1122,7 @@ const handleSubmit = async () => {
         total_token_count: 0,
         latency: 0,
         agent_thoughts: [],
+        callable_trace_events: [],
         suggested_questions: [],
         created_at: 0,
       },

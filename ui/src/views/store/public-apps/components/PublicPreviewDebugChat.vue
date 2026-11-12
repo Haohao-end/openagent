@@ -15,6 +15,7 @@ import { Message } from '@arco-design/web-vue'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
+import { QueueEvent } from '@/config'
 import {
   applyChatStreamEvent,
   withChatRenderId,
@@ -127,6 +128,7 @@ const createStreamMessage = (queryText: string): PublicStreamMessage =>
       latency: 0,
       total_token_count: 0,
       agent_thoughts: [],
+      callable_trace_events: [],
       query: queryText,
       image_urls: [...image_urls.value],
       suggested_questions: [],
@@ -163,6 +165,7 @@ const loadPublicConversationMessages = async (conversationId: string) => {
         latency: Number(item.latency || 0),
         total_token_count: Number(item.total_token_count || 0),
         agent_thoughts: [],
+        callable_trace_events: [],
         query: item.query || '',
         image_urls: item.image_urls || [],
         suggested_questions: item.suggested_questions || [],
@@ -246,7 +249,9 @@ const handleSubmit = async () => {
           chatContextId.value = streamState.conversation_id
           saveContextId(streamState.conversation_id)
         }
-        void timelineRef.value?.scrollToBottom?.()
+        if (eventResponse.event !== QueueEvent.callableTrace) {
+          void timelineRef.value?.scrollToBottom?.()
+        }
       },
       abortController.signal,
     )

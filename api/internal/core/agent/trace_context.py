@@ -12,6 +12,9 @@ class AgentTraceContext:
     def __init__(self, queue_manager, task_id: UUID | None = None):
         self.task_id = task_id if task_id is not None else uuid4()
         self._queue_manager = queue_manager
+        defer_terminal = getattr(queue_manager, "defer_terminal", None)
+        if callable(defer_terminal):
+            defer_terminal(self.task_id)
         self.handler = DebugTraceCallbackHandler(event_sink=self._publish)
 
     @property
@@ -33,3 +36,6 @@ class AgentTraceContext:
     def close(self) -> None:
         """Stop callbacks from publishing after the response stream closes."""
         self.handler.close()
+        cancel_task = getattr(self._queue_manager, "cancel_task", None)
+        if callable(cancel_task):
+            cancel_task(self.task_id)
