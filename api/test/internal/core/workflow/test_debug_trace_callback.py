@@ -154,10 +154,11 @@ def test_retriever_callbacks_record_query_shape_and_document_count_only():
     handler = DebugTraceCallbackHandler()
     run_id, parent_run_id = uuid4(), uuid4()
     handler.on_retriever_start(
-        {"name": "vector-search"},
+        None,
         "PRIVATE RETRIEVAL QUERY",
         run_id=run_id,
         parent_run_id=parent_run_id,
+        name="vector-search",
     )
     started = read_event(handler)
     assert (started["run_type"], started["phase"], started["name"]) == (

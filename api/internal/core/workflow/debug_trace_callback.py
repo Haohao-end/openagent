@@ -222,9 +222,12 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
     def on_retriever_start(self, serialized, query, *, run_id, parent_run_id=None, **kwargs):
         # Keep the existing trace schema/UI contract while exposing retriever runs
         # as tool-like calls. Query text can contain user data, so retain only shape.
+        name = kwargs.get("name")
+        if not isinstance(name, str) or not name.strip():
+            name = "retriever"
         self._start(
             "tool",
-            self._name(serialized, "retriever"),
+            self._name(serialized, name),
             run_id,
             parent_run_id,
             {"query": self._summary(query)},
