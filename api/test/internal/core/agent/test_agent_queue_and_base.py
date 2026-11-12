@@ -473,6 +473,35 @@ def test_agent_queue_manager_cancel_should_drop_pending_terminal_and_late_events
     assert manager.queue(task_id).empty()
 
 
+def test_agent_queue_manager_terminal_flush_should_retry_after_queue_registration_failure(monkeypatch):
+    class _FailOnceRedis(_FakeRedis):
+        failed_once = False
+
+        def setex(self, key, ttl, value):
+            if not self.failed_once:
+                self.failed_once = True
+                raise ConnectionError("temporary Redis outage")
+            super().setex(key, ttl, value)
+
+    redis_client = _FailOnceRedis()
+    monkeypatch.setattr("app.http.module.injector", _FakeInjector(redis_client))
+    manager = AgentQueueManager(user_id=uuid4(), invoke_from=InvokeFrom.WEB_APP)
+    task_id = uuid4()
+    trace_context = AgentTraceContext(manager, task_id)
+    terminal = AgentThought(id=uuid4(), task_id=task_id, event=QueueEvent.AGENT_END)
+    manager.publish(task_id, terminal)
+
+    with pytest.raises(ConnectionError, match="temporary Redis outage"):
+        manager.finish_deferred_terminal(task_id)
+
+    assert manager._pending_terminal_events[str(task_id)] is terminal
+    assert manager._ready_terminal_tasks == {str(task_id)}
+    assert list(manager.listen(task_id)) == [terminal]
+    task_queue = manager.queue(task_id)
+    assert task_queue.empty()
+    trace_context.close()
+
+
 def test_base_agent_stream_should_enter_runtime_flask_app_context_in_worker_thread(monkeypatch):
     class _FakeQueueManager:
         def __init__(self, user_id, invoke_from):

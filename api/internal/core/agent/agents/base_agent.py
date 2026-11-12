@@ -157,7 +157,10 @@ class BaseAgent(Serializable, Runnable):
                         self._agent_queue_manager, "finish_deferred_terminal", None
                     )
                     if callable(finish_terminal):
-                        finish_terminal(input["task_id"], cancelled=cancel_event.is_set())
+                        try:
+                            finish_terminal(input["task_id"], cancelled=cancel_event.is_set())
+                        except Exception:
+                            logging.exception("Agent终态事件暂未发布，等待队列监听器重试")
 
         thread = Thread(target=_invoke_agent)
         thread.start()
