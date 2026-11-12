@@ -18,7 +18,6 @@ import { useRoute } from 'vue-router'
 import { QueueEvent } from '@/config'
 import {
   applyChatStreamEvent,
-  extractCallableTraceHistory,
   withChatRenderId,
   type StreamEventResponse,
   type StreamMessage,
@@ -155,9 +154,8 @@ const loadPublicConversationMessages = async (conversationId: string) => {
   const res = await getPublicAppA2aConversationMessages(String(route.params?.app_id), conversationId)
   if (generation !== contextGeneration) return
   const history = [...(res.data || [])].reverse()
-  messages.value = history.map((item) => {
-    const { callableTraceEvents } = extractCallableTraceHistory(item.agent_thoughts)
-    return withChatRenderId(
+  messages.value = history.map((item) =>
+    withChatRenderId(
       {
         id: item.id,
         conversation_id: item.conversation_id,
@@ -167,14 +165,14 @@ const loadPublicConversationMessages = async (conversationId: string) => {
         latency: Number(item.latency || 0),
         total_token_count: Number(item.total_token_count || 0),
         agent_thoughts: [],
-        callable_trace_events: callableTraceEvents,
+        callable_trace_events: [],
         query: item.query || '',
         image_urls: item.image_urls || [],
         suggested_questions: item.suggested_questions || [],
       },
       'public-app',
-    )
-  })
+    ),
+  )
 }
 
 const loadConversationFromRoute = async () => {

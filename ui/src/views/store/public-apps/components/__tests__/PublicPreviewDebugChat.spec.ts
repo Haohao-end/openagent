@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { defineComponent, h, nextTick } from 'vue'
-import { QueueEvent } from '@/config'
 
 import PublicPreviewDebugChat from '@/views/store/public-apps/components/PublicPreviewDebugChat.vue'
 
@@ -173,40 +172,6 @@ describe('PublicPreviewDebugChat', () => {
     expect(composer.props('showImagePreviews')).toBe(true)
     expect(composer.props('uploadDisabled')).toBe(true)
     expect(composer.props('showVoiceButton')).toBe(false)
-  })
-
-  it('restores callable traces from public conversation history', async () => {
-    const trace = {
-      schema_version: 1,
-      event_id: 'history-trace-1',
-      run_id: 'history-run-1',
-      phase: 'end',
-      run_type: 'llm',
-      latency_ms: 23,
-    }
-    mocks.routeProxy!.query = { conversation_id: 'conversation-1' }
-    mocks.getPublicAppA2aConversationMessages.mockResolvedValueOnce({
-      data: [
-        {
-          id: 'message-1',
-          conversation_id: 'conversation-1',
-          agent_thoughts: [
-            {
-              event: QueueEvent.callableTrace,
-              observation: JSON.stringify(trace),
-            },
-          ],
-        },
-      ],
-    })
-
-    const wrapper = mountPreview()
-    await flushPromises()
-
-    const timeline = wrapper.findComponent({ name: 'ChatMessageTimeline' })
-    const messages = timeline.props('messages') as Array<Record<string, unknown>>
-    expect(messages[0].callable_trace_events).toEqual([trace])
-    expect(messages[0].agent_thoughts).toEqual([])
   })
 
   it('stores callable traces without adding thoughts or scrolling the chat', async () => {
