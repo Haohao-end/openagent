@@ -16,7 +16,7 @@ from internal.entity.audio_entity import ALLOWED_AUDIO_VOICES
 from internal.core.language_model.entities.model_entity import ModelParameterType
 from internal.exception import FailException, ForbiddenException, NotFoundException, ValidateErrorException
 from internal.model import ApiTool, Workflow, Dataset
-from internal.service.app_service import AppService
+from internal.service.app_service import AppService, AutoCreateToolSelection
 
 
 class _DummyQuery:
@@ -196,6 +196,13 @@ class TestAppService:
             builtin_provider_manager=SimpleNamespace(),
             icon_generator_service=mock_icon_generator,
         )
+        selected_tools = [{
+            "type": "api_tool",
+            "provider_id": "owned-provider",
+            "tool_id": "owned_tool",
+            "params": {},
+        }]
+        service._select_auto_create_tools = Mock(return_value=selected_tools)
 
         service.auto_create_app(" 智能助手 ", " 负责回答问题 ", account.id)
 
@@ -206,9 +213,12 @@ class TestAppService:
         assert app_record.description == "负责回答问题"
         assert app_record.icon == "https://cos.example.com/icons/demo.png"
         assert draft_config.preset_prompt == "你是一个专业助手"
-        assert draft_config.tools == AppService.AUTO_CREATE_DEFAULT_TOOLS
-        assert draft_config.tools[2]["provider_id"] == "qwen"
-        assert draft_config.tools[2]["tool_id"] == "qwen_image_text_to_image"
+        assert draft_config.tools == selected_tools
+        service._select_auto_create_tools.assert_called_once()
+        selector_args = service._select_auto_create_tools.call_args.kwargs
+        assert selector_args["name"] == "智能助手"
+        assert selector_args["description"] == "负责回答问题"
+        assert selector_args["account_id"] == account.id
         assert draft_config.opening_statement == "负责回答问题"
         assert draft_config.opening_questions == ["你好", "问题2", "问题3"]
         assert draft_config.speech_to_text["enable"] is True
@@ -217,6 +227,235 @@ class TestAppService:
             name="智能助手",
             description="负责回答问题",
         )
+
+    def test_auto_create_tool_candidates_only_include_tools_owned_by_account(self):
+        account_id = uuid4()
+        other_account_id = uuid4()
+        provider_id = uuid4()
+
+        rows = [
+            SimpleNamespace(
+                account_id=account_id,
+                provider_id=provider_id,
+                name="owned_tool",
+                description="owned description",
+                provider=SimpleNamespace(account_id=account_id, name="owned-provider"),
+            ),
+            SimpleNamespace(
+                account_id=other_account_id,
+                provider_id=uuid4(),
+                name="other_tool",
+                description="not allowed",
+                provider=SimpleNamespace(account_id=other_account_id, name="other-provider"),
+            ),
+            SimpleNamespace(
+                account_id=account_id,
+                provider_id=uuid4(),
+                name="foreign_provider_tool",
+                description="provider belongs to another account",
+                provider=SimpleNamespace(account_id=other_account_id, name="foreign-provider"),
+            ),
+        ]
+
+        class _ToolQuery:
+            def filter(self, _condition):
+                return self
+
+            def order_by(self, _column):
+                return self
+
+            def limit(self, value):
+                assert value == AppService.MAX_AUTO_CREATE_API_TOOLS
+                return self
+
+            def all(self):
+                return rows
+
+        service = _build_service()
+        service.db = SimpleNamespace(session=SimpleNamespace(query=lambda _model: _ToolQuery()))
+
+        candidates = service._build_auto_create_tool_candidates(account_id)
+        api_candidates = [item for item in candidates if item["config"]["type"] == "api_tool"]
+
+        assert len(api_candidates) == 1
+        assert api_candidates[0]["name"] == "owned-provider/owned_tool"
+        assert api_candidates[0]["config"] == {
+            "type": "api_tool",
+            "provider_id": str(provider_id),
+            "tool_id": "owned_tool",
+            "params": {},
+        }
+        assert "headers" not in json.dumps(api_candidates[0])
+
+    def test_auto_create_tool_candidates_omit_unregistered_builtin_tools(self):
+        class _Provider:
+            provider_entity = SimpleNamespace(label="Google")
+
+            @staticmethod
+            def get_tool_entity(tool_name):
+                if tool_name == "google_serper":
+                    return SimpleNamespace(
+                        name=tool_name,
+                        label="Web search",
+                        description="Search the web",
+                    )
+                return None
+
+            @staticmethod
+            def get_tool(tool_name):
+                return object() if tool_name == "google_serper" else None
+
+        class _ToolQuery:
+            def filter(self, _condition):
+                return self
+
+            def order_by(self, _column):
+                return self
+
+            def limit(self, _value):
+                return self
+
+            @staticmethod
+            def all():
+                return []
+
+        service = _build_service()
+        service.builtin_provider_manager = SimpleNamespace(
+            get_provider=lambda provider_id: _Provider() if provider_id == "google" else None
+        )
+        service.db = SimpleNamespace(session=SimpleNamespace(query=lambda _model: _ToolQuery()))
+
+        candidates = service._build_auto_create_tool_candidates(uuid4())
+
+        assert [candidate["id"] for candidate in candidates] == [
+            "builtin_tool:google:google_serper"
+        ]
+        assert candidates[0]["name"] == "Web search"
+
+    def test_auto_create_tool_selection_validates_and_filters_model_ids(self):
+        candidates = [
+            {
+                "id": "builtin_tool:google:google_serper",
+                "name": "web search",
+                "description": "search the web",
+                "config": AppService.AUTO_CREATE_DEFAULT_TOOLS[0],
+            },
+            {
+                "id": "api_tool:owned-provider:owned_tool",
+                "name": "owned tool",
+                "description": "account-owned API",
+                "config": {
+                    "type": "api_tool",
+                    "provider_id": "owned-provider",
+                    "tool_id": "owned_tool",
+                    "params": {},
+                },
+            },
+        ]
+
+        selected = AppService._validated_auto_create_tool_selection(
+            {
+                "tool_ids": [
+                    "api_tool:owned-provider:owned_tool",
+                    "missing:tool",
+                    "api_tool:owned-provider:owned_tool",
+                ]
+            },
+            candidates,
+        )
+        assert len(selected) == 1
+        assert selected[0]["tool_id"] == "owned_tool"
+
+        assert AppService._validated_auto_create_tool_selection(
+            {"tool_ids": []}, candidates
+        ) == []
+        assert AppService._validated_auto_create_tool_selection(
+            {"tool_ids": ["missing:tool"]}, candidates
+        ) == AppService.AUTO_CREATE_DEFAULT_TOOLS
+        assert AppService._validated_auto_create_tool_selection(
+            {"tool_ids": [123]}, candidates
+        ) == AppService.AUTO_CREATE_DEFAULT_TOOLS
+        assert AppService._validated_auto_create_tool_selection(
+            {"tool_ids": ["known-id"], "extra": "not allowed"}, candidates
+        ) == AppService.AUTO_CREATE_DEFAULT_TOOLS
+
+        too_many_candidates = [
+            {
+                "id": f"api_tool:owned-provider:tool_{index}",
+                "config": {
+                    "type": "api_tool",
+                    "provider_id": "owned-provider",
+                    "tool_id": f"tool_{index}",
+                    "params": {},
+                },
+            }
+            for index in range(6)
+        ]
+        assert AppService._validated_auto_create_tool_selection(
+            {"tool_ids": [candidate["id"] for candidate in too_many_candidates]},
+            too_many_candidates,
+        ) == AppService.AUTO_CREATE_DEFAULT_TOOLS
+
+    def test_auto_create_tool_selection_uses_structured_output(self, monkeypatch):
+        account_id = uuid4()
+        candidate = {
+            "id": "builtin_tool:google:google_serper",
+            "name": "web search",
+            "description": "search the web",
+            "config": AppService.AUTO_CREATE_DEFAULT_TOOLS[0],
+        }
+        service = _build_service()
+        service._build_auto_create_tool_candidates = lambda _account_id: [candidate]
+        captured = {}
+
+        class _SelectionChain:
+            def invoke(self, payload):
+                captured["payload"] = payload
+                return {"tool_ids": [candidate["id"]]}
+
+        class _Prompt:
+            def __or__(self, structured_llm):
+                captured["structured_llm"] = structured_llm
+                return _SelectionChain()
+
+        class _LLM:
+            def with_structured_output(self, schema):
+                assert schema is AutoCreateToolSelection
+                return "structured-model"
+
+        monkeypatch.setattr(
+            "internal.service.app_service.ChatPromptTemplate.from_messages",
+            lambda _messages: _Prompt(),
+        )
+
+        selected = service._select_auto_create_tools(
+            _LLM(), "Agent name", "Agent purpose", account_id
+        )
+
+        assert selected == [candidate["config"]]
+        assert captured["structured_llm"] == "structured-model"
+        assert '"id": "builtin_tool:google:google_serper"' in captured["payload"]["available_tools"]
+        assert "headers" not in captured["payload"]["available_tools"]
+
+    def test_auto_create_tool_selection_falls_back_when_model_call_fails(self, monkeypatch):
+        candidate = {
+            "id": "builtin_tool:google:google_serper",
+            "name": "web search",
+            "description": "search the web",
+            "config": AppService.AUTO_CREATE_DEFAULT_TOOLS[0],
+        }
+        service = _build_service()
+        service._build_auto_create_tool_candidates = lambda _account_id: [candidate]
+
+        class _FailingLLM:
+            def with_structured_output(self, _schema):
+                raise RuntimeError("structured output is unavailable")
+
+        selected = service._select_auto_create_tools(
+            _FailingLLM(), "Agent name", "Agent purpose", uuid4()
+        )
+
+        assert selected == AppService.AUTO_CREATE_DEFAULT_TOOLS
 
     def test_normalize_opening_questions_should_filter_invalid_and_fill_fallback(self):
         questions = AppService._normalize_opening_questions([123, " ", "问题A", "问题A"])
