@@ -54,7 +54,7 @@ const {
   loading: debugWorkflowLoading,
   handleDebugWorkflow,
   cancelDebugWorkflow,
-} = useDebugWorkflow()
+} = useDebugWorkflow(() => t('workflowEditor.runFailed'))
 
 // 2.输入变量列表动态计算函数
 const inputs = computed<WorkflowInput[]>(() => {

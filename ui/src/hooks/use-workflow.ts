@@ -340,7 +340,7 @@ export const useCancelPublishWorkflow = () => {
   return { loading, handleCancelPublish }
 }
 
-export const useDebugWorkflow = () => {
+export const useDebugWorkflow = (getFallbackErrorMessage: () => string) => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const error = ref('')
@@ -364,7 +364,9 @@ export const useDebugWorkflow = () => {
       // 2.1 判断响应内容是否存在，如果存在则表示该接口为非流式输出，意味着接口出错
       if (typeof resp === 'object' && resp !== null && 'message' in resp) {
         const message = resp.message
-        if (requestId === latestRequest) error.value = typeof message === 'string' ? message : '工作流调试失败'
+        if (requestId === latestRequest) {
+          error.value = typeof message === 'string' ? message : getFallbackErrorMessage()
+        }
       }
     } finally {
       if (requestId === latestRequest) {

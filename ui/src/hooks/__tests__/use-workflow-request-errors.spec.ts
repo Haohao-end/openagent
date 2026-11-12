@@ -129,13 +129,26 @@ describe('use-workflow request hooks', () => {
         signal = requestSignal
         requestSignal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true })
       }))
-    const { loading, handleDebugWorkflow, cancelDebugWorkflow } = useDebugWorkflow()
+    const { loading, handleDebugWorkflow, cancelDebugWorkflow } = useDebugWorkflow(
+      () => 'Workflow debug failed',
+    )
     const pending = handleDebugWorkflow('workflow-1', {}, () => {})
     cancelDebugWorkflow()
 
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
     expect(signal!.aborted).toBe(true)
     expect(loading.value).toBe(false)
+  })
+
+  it('uses the current localized fallback for a non-string debug response message', async () => {
+    mocks.debugWorkflow.mockResolvedValueOnce({ message: null })
+    const getFallbackErrorMessage = vi.fn(() => 'Workflow debug failed')
+    const { error, handleDebugWorkflow } = useDebugWorkflow(getFallbackErrorMessage)
+
+    await handleDebugWorkflow('workflow-1', {}, () => {})
+
+    expect(getFallbackErrorMessage).toHaveBeenCalledOnce()
+    expect(error.value).toBe('Workflow debug failed')
   })
 })
 
