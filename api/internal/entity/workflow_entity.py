@@ -12,6 +12,7 @@ class WorkflowResultStatus(str, Enum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 # 工作流默认配置信息，默认添加一个空的工作流

@@ -1,10 +1,13 @@
+import json
 import logging
+import random
+import threading
+import time
 from types import SimpleNamespace
 from uuid import uuid4
-import random
 
 import pytest
-from flask import Flask
+from flask import Flask, current_app
 
 from internal.core.workflow.entities.node_entity import NodeType
 from internal.entity.workflow_entity import WorkflowStatus, WorkflowResultStatus
@@ -64,6 +67,34 @@ def _build_service() -> _WorkflowService:
         db=_DummyDB(),
         builtin_provider_manager=SimpleNamespace(),
     )
+
+
+def _prepare_debug_workflow(monkeypatch, workflows):
+    service = _build_service()
+    monkeypatch.setattr(service, "get_workflow", lambda workflow_id, _account: workflows[workflow_id])
+    monkeypatch.setattr(
+        "internal.service.workflow_service.WorkflowConfig",
+        lambda **kwargs: SimpleNamespace(**kwargs),
+    )
+    monkeypatch.setattr(
+        "internal.service.workflow_service.convert_model_to_dict",
+        lambda node_result: {
+            "node_id": node_result.node_id,
+            "status": node_result.status,
+            "node_data": {"node_type": "llm"},
+        },
+    )
+    workflow_results = []
+    updates = []
+
+    def create(*_args, **_kwargs):
+        result = SimpleNamespace(id=uuid4())
+        workflow_results.append(result)
+        return result
+
+    monkeypatch.setattr(service, "create", create)
+    monkeypatch.setattr(service, "update", lambda target, **kwargs: updates.append((target, kwargs)) or target)
+    return service, workflow_results, updates
 
 
 def _build_create_req(tool_call_name: str = "wf_tool"):
@@ -433,7 +464,7 @@ class TestWorkflowService:
                 self.workflow_config = workflow_config
 
             @staticmethod
-            def stream(_inputs):
+            def stream(_inputs, config=None):
                 yield {"node_1": {"node_results": [SimpleNamespace(
                     node_id="node_1",
                     status="succeeded",
@@ -481,7 +512,7 @@ class TestWorkflowService:
         events.close()
 
         assert len(updates) == 1
-        assert updates[0][1]["status"] == WorkflowResultStatus.FAILED.value
+        assert updates[0][1]["status"] == WorkflowResultStatus.CANCELLED.value
         assert updates[0][1]["state"] == [{
             "node_id": "node_1",
             "status": "succeeded",
@@ -496,6 +527,253 @@ class TestWorkflowService:
         next(events)
         events.close()
         assert "error_type=RuntimeError" in caplog.text
+
+    def test_debug_workflow_callable_trace_start_precedes_blocking_stream_completion(self, monkeypatch):
+        workflow = SimpleNamespace(
+            id=uuid4(),
+            tool_call_name="blocking_wf",
+            description="desc",
+            draft_graph={"nodes": [], "edges": []},
+        )
+        account = SimpleNamespace(id=uuid4())
+        service, workflow_results, updates = _prepare_debug_workflow(monkeypatch, {workflow.id: workflow})
+        started = threading.Event()
+        release = threading.Event()
+        worker_ids = []
+
+        class _BlockingWorkflowTool:
+            def __init__(self, workflow_config):
+                self.workflow_config = workflow_config
+
+            def stream(self, _inputs, config=None):
+                callback = config["callbacks"][0]
+                worker_ids.append(threading.get_ident())
+                run_id = uuid4()
+                callback.on_llm_start({"name": "blocking-fake"}, ["PRIVATE PROMPT"], run_id=run_id)
+                started.set()
+                if not release.wait(timeout=3):
+                    raise TimeoutError("fake LLM was not released")
+                callback.on_llm_end(object(), run_id=run_id)
+                yield {"node_1": {"node_results": [SimpleNamespace(node_id="node_1", status="succeeded")]}}
+
+        monkeypatch.setattr("internal.service.workflow_service.WorkflowTool", _BlockingWorkflowTool)
+        events = service.debug_workflow(workflow.id, {"prompt": "do not trace"}, account)
+        try:
+            first = next(events)
+            assert started.wait(timeout=1)
+            assert first.startswith("event: callable_trace\n")
+            start_data = json.loads(first.split("data:", 1)[1])
+            assert (start_data["phase"], start_data["status"]) == ("start", "running")
+            assert "PRIVATE PROMPT" not in first
+
+            release.set()
+            rest = list(events)
+        finally:
+            release.set()
+            events.close()
+
+        assert [item.split("\n", 1)[0] for item in rest] == [
+            "event: callable_trace",
+            "event: workflow",
+        ]
+        end_data = json.loads(rest[0].split("data:", 1)[1])
+        assert (end_data["phase"], end_data["status"]) == ("end", "success")
+        assert start_data["run_id"] == end_data["run_id"]
+        assert updates[0][1]["status"] == WorkflowResultStatus.SUCCEEDED.value
+        assert workflow_results
+        deadline = time.monotonic() + 1
+        while any(thread.ident in worker_ids for thread in threading.enumerate()) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert not any(thread.ident in worker_ids for thread in threading.enumerate())
+
+    def test_debug_workflow_callable_trace_error_precedes_worker_failure(self, monkeypatch):
+        workflow = SimpleNamespace(
+            id=uuid4(),
+            tool_call_name="failing_wf",
+            description="desc",
+            draft_graph={"nodes": [], "edges": []},
+        )
+        account = SimpleNamespace(id=uuid4())
+        service, _workflow_results, updates = _prepare_debug_workflow(monkeypatch, {workflow.id: workflow})
+        release = threading.Event()
+
+        class _FailingWorkflowTool:
+            def __init__(self, workflow_config):
+                self.workflow_config = workflow_config
+
+            def stream(self, _inputs, config=None):
+                callback = config["callbacks"][0]
+                run_id = uuid4()
+                callback.on_llm_start({"name": "failing-fake"}, ["PRIVATE PROMPT"], run_id=run_id)
+                release.wait(timeout=3)
+                error = RuntimeError("api_key=PRIVATE-ERROR")
+                callback.on_llm_error(error, run_id=run_id)
+                raise error
+                yield  # pragma: no cover
+
+        monkeypatch.setattr("internal.service.workflow_service.WorkflowTool", _FailingWorkflowTool)
+        events = service.debug_workflow(workflow.id, {}, account)
+        try:
+            first = next(events)
+            assert first.startswith("event: callable_trace\n")
+            release.set()
+            failure = next(events)
+            assert failure.startswith("event: callable_trace\n")
+            error_data = json.loads(failure.split("data:", 1)[1])
+            assert (error_data["phase"], error_data["status"]) == ("error", "error")
+            assert error_data["error"] == "[error details redacted]"
+            assert "PRIVATE-ERROR" not in failure
+            with pytest.raises(RuntimeError, match="PRIVATE-ERROR"):
+                next(events)
+        finally:
+            release.set()
+            events.close()
+
+        assert updates[0][1]["status"] == WorkflowResultStatus.FAILED.value
+
+    def test_debug_workflow_worker_uses_flask_app_context(self, monkeypatch):
+        workflow = SimpleNamespace(
+            id=uuid4(),
+            tool_call_name="context_wf",
+            description="desc",
+            draft_graph={"nodes": [], "edges": []},
+        )
+        account = SimpleNamespace(id=uuid4())
+        service, _workflow_results, _updates = _prepare_debug_workflow(monkeypatch, {workflow.id: workflow})
+        app = Flask("workflow-sse-worker-test")
+
+        class _ContextWorkflowTool:
+            def __init__(self, workflow_config):
+                self.workflow_config = workflow_config
+
+            def stream(self, _inputs, config=None):
+                assert current_app.name == app.name
+                yield {"node_1": {"node_results": [SimpleNamespace(node_id="node_1", status="succeeded")]}}
+
+        monkeypatch.setattr("internal.service.workflow_service.WorkflowTool", _ContextWorkflowTool)
+        with app.app_context():
+            events = list(service.debug_workflow(workflow.id, {}, account))
+
+        assert len(events) == 1
+        assert events[0].startswith("event: workflow\n")
+
+    def test_debug_workflow_callable_trace_disconnect_closes_worker_after_block_releases(self, monkeypatch):
+        workflow = SimpleNamespace(
+            id=uuid4(),
+            tool_call_name="cancel_wf",
+            description="desc",
+            draft_graph={"nodes": [], "edges": []},
+        )
+        account = SimpleNamespace(id=uuid4())
+        service, _workflow_results, updates = _prepare_debug_workflow(monkeypatch, {workflow.id: workflow})
+        entered = threading.Event()
+        release = threading.Event()
+        iterator_closed = threading.Event()
+        worker_ids = []
+        callbacks = []
+        slots = threading.BoundedSemaphore(1)
+        monkeypatch.setattr("internal.service.workflow_service._DEBUG_STREAM_SLOTS", slots)
+
+        class _CancelableWorkflowTool:
+            def __init__(self, workflow_config):
+                self.workflow_config = workflow_config
+
+            def stream(self, _inputs, config=None):
+                callback = config["callbacks"][0]
+                callbacks.append(callback)
+                run_id = uuid4()
+                worker_ids.append(threading.get_ident())
+                callback.on_llm_start({"name": "cancelable-fake"}, [], run_id=run_id)
+                try:
+                    entered.set()
+                    release.wait(timeout=3)
+                    callback.on_llm_end(object(), run_id=run_id)
+                    yield {"node_1": {"node_results": [SimpleNamespace(node_id="node_1", status="succeeded")]}}
+                finally:
+                    iterator_closed.set()
+
+        monkeypatch.setattr("internal.service.workflow_service.WorkflowTool", _CancelableWorkflowTool)
+        events = service.debug_workflow(workflow.id, {}, account)
+        try:
+            first = next(events)
+            assert first.startswith("event: callable_trace\n")
+            assert entered.wait(timeout=1)
+            events.close()
+            assert not iterator_closed.wait(timeout=0.1)
+            assert not slots.acquire(blocking=False)
+            release.set()
+            assert iterator_closed.wait(timeout=1)
+
+            deadline = time.monotonic() + 1
+            acquired = slots.acquire(blocking=False)
+            while not acquired and time.monotonic() < deadline:
+                time.sleep(0.01)
+                acquired = slots.acquire(blocking=False)
+            assert acquired
+            slots.release()
+        finally:
+            release.set()
+            events.close()
+
+        deadline = time.monotonic() + 1
+        while any(thread.ident in worker_ids for thread in threading.enumerate()) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert not any(thread.ident in worker_ids for thread in threading.enumerate())
+        assert callbacks[0].drain() == []
+        assert len(updates) == 1
+        assert updates[0][1]["status"] == WorkflowResultStatus.CANCELLED.value
+
+    def test_debug_workflow_callable_trace_queues_are_isolated_per_user_and_workflow(self, monkeypatch):
+        workflows = {
+            workflow_id: SimpleNamespace(
+                id=workflow_id,
+                tool_call_name=name,
+                description="desc",
+                draft_graph={"nodes": [], "edges": []},
+            )
+            for workflow_id, name in ((uuid4(), "wf_one"), (uuid4(), "wf_two"))
+        }
+        accounts = [SimpleNamespace(id=uuid4()), SimpleNamespace(id=uuid4())]
+        service, _workflow_results, _updates = _prepare_debug_workflow(monkeypatch, workflows)
+        release = threading.Event()
+        entered = {workflow.tool_call_name: threading.Event() for workflow in workflows.values()}
+
+        class _IsolatedWorkflowTool:
+            def __init__(self, workflow_config):
+                self.workflow_config = workflow_config
+
+            def stream(self, _inputs, config=None):
+                callback = config["callbacks"][0]
+                run_id = uuid4()
+                callback.on_llm_start({"name": self.workflow_config.name}, [], run_id=run_id)
+                entered[self.workflow_config.name].set()
+                release.wait(timeout=3)
+                callback.on_llm_end(object(), run_id=run_id)
+                yield {"node_1": {"node_results": [SimpleNamespace(node_id="node_1", status="succeeded")]}}
+
+        monkeypatch.setattr("internal.service.workflow_service.WorkflowTool", _IsolatedWorkflowTool)
+        streams = [service.debug_workflow(workflow.id, {}, account) for workflow, account in zip(workflows.values(), accounts)]
+        try:
+            starts = [next(stream) for stream in streams]
+            assert all(entered[name].wait(timeout=1) for name in entered)
+            start_events = [json.loads(item.split("data:", 1)[1]) for item in starts]
+            assert {item["name"] for item in start_events} == {"wf_one", "wf_two"}
+            assert start_events[0]["run_id"] != start_events[1]["run_id"]
+            release.set()
+            remaining = [list(stream) for stream in streams]
+        finally:
+            release.set()
+            for stream in streams:
+                stream.close()
+
+        for start_event, events in zip(start_events, remaining):
+            trace_events = [
+                json.loads(item.split("data:", 1)[1])
+                for item in events
+                if item.startswith("event: callable_trace\n")
+            ]
+            assert len(trace_events) == 1
+            assert trace_events[0]["run_id"] == start_event["run_id"]
 
     @pytest.mark.parametrize(
         ("failure", "event_name"),
@@ -531,7 +809,7 @@ class TestWorkflowService:
                 self.workflow_config = workflow_config
 
             @staticmethod
-            def stream(_inputs):
+            def stream(_inputs, config=None):
                 yield from ()
                 raise failure
 
@@ -765,7 +1043,7 @@ class TestWorkflowService:
                 self.workflow_config = workflow_config
 
             @staticmethod
-            def stream(_inputs):
+            def stream(_inputs, config=None):
                 raise RuntimeError("stream-error")
                 yield  # pragma: no cover
 
@@ -839,7 +1117,7 @@ class TestWorkflowService:
                 self.workflow_config = workflow_config
 
             @staticmethod
-            def stream(_inputs):
+            def stream(_inputs, config=None):
                 yield {"node_1": {"node_results": [SimpleNamespace(node_id="node_1", status="succeeded")]}}
 
         monkeypatch.setattr("internal.service.workflow_service.WorkflowTool", _WorkflowTool)
@@ -1593,7 +1871,7 @@ class TestWorkflowService:
                 self.workflow_config = workflow_config
 
             @staticmethod
-            def stream(_inputs):
+            def stream(_inputs, config=None):
                 yield {"terminal_node": {"node_results": [
                     SimpleNamespace(node_id="terminal-1", status="succeeded")
                 ]}}

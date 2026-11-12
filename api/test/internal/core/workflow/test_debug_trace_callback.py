@@ -150,6 +150,34 @@ def test_queue_is_bounded_nonblocking_and_thread_safe():
     assert bounded.dropped_events == 1
 
 
+def test_drain_without_limit_returns_all_more_than_150_pending_events():
+    handler = DebugTraceCallbackHandler()
+    for _ in range(175):
+        run_id = uuid4()
+        handler.on_chain_start({}, {}, run_id=run_id)
+        handler.on_chain_end({}, run_id=run_id)
+
+    events = [json.loads(item) for item in handler.drain()]
+    assert len(events) == 350
+    assert [event["phase"] for event in events] == ["start", "end"] * 175
+    assert handler.dropped_events == 0
+    assert handler.drain() == []
+
+
+def test_close_discards_queued_events_and_ignores_late_callbacks():
+    handler = DebugTraceCallbackHandler()
+    run_id = uuid4()
+    handler.on_chain_start({}, {}, run_id=run_id)
+    handler.on_chain_end({}, run_id=run_id)
+
+    handler.close()
+    handler.on_chain_start({}, {}, run_id=uuid4())
+    handler.on_chain_end({}, run_id=run_id)
+
+    assert handler.drain() == []
+    assert handler.dropped_events == 0
+
+
 def test_retriever_callbacks_record_query_shape_and_document_count_only():
     handler = DebugTraceCallbackHandler()
     run_id, parent_run_id = uuid4(), uuid4()
