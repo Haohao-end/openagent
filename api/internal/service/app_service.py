@@ -1,5 +1,6 @@
 import json
 import logging
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -11,7 +12,7 @@ from langchain_core.messages import AIMessage, trim_messages
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import BaseTool, tool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, ValidationError
 from internal.entity.audio_entity import ALLOWED_AUDIO_VOICES
 from redis import Redis
 from sqlalchemy import func, desc
@@ -67,6 +68,18 @@ from ..core.language_model.providers.deepseek.chat import Chat
 from ..entity.workflow_entity import WorkflowStatus
 
 
+class AutoCreateToolSelection(BaseModel):
+    """Strict structured output for automatic tool selection."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool_ids: list[StrictStr] = Field(
+        ...,
+        max_length=53,
+        description="IDs copied exactly from the supplied tool catalog; use an empty list if none are needed.",
+    )
+
+
 @inject
 @dataclass
 class AppService(BaseService):
@@ -107,6 +120,161 @@ class AppService(BaseService):
             },
         },
     ]
+    MAX_AUTO_CREATE_API_TOOLS = 50
+
+    @staticmethod
+    def _auto_create_tool_id(tool_config: dict[str, Any]) -> str:
+        """Return an identifier the model can select without changing tool config."""
+        return ":".join(
+            str(tool_config.get(key, ""))
+            for key in ("type", "provider_id", "tool_id")
+        )
+
+    def _build_auto_create_tool_candidates(self, account_id: UUID) -> list[dict[str, Any]]:
+        """Build tool choices from platform defaults and this account's own API tools."""
+        candidates = []
+        for tool_config in self.AUTO_CREATE_DEFAULT_TOOLS:
+            config = deepcopy(tool_config)
+            try:
+                provider_manager = getattr(self, "builtin_provider_manager", None)
+                get_provider = getattr(provider_manager, "get_provider", None)
+                if not callable(get_provider):
+                    continue
+                provider = get_provider(config["provider_id"])
+                if provider is None:
+                    continue
+                tool_entity = provider.get_tool_entity(config["tool_id"])
+                if tool_entity is None or provider.get_tool(config["tool_id"]) is None:
+                    continue
+                name = tool_entity.label or tool_entity.name
+                description = tool_entity.description or ""
+            except Exception:
+                continue
+            candidates.append({
+                "id": self._auto_create_tool_id(config),
+                "name": str(name)[:120],
+                "description": str(description)[:500],
+                "config": config,
+            })
+
+        try:
+            api_tools = (
+                self.db.session.query(ApiTool)
+                .filter(ApiTool.account_id == account_id)
+                .order_by(ApiTool.name)
+                .limit(self.MAX_AUTO_CREATE_API_TOOLS)
+                .all()
+            )
+        except Exception as error:
+            logging.warning(
+                "读取自动创建Agent的API工具失败，使用默认工具: error_type=%s",
+                type(error).__name__,
+            )
+            return candidates
+
+        for api_tool in api_tools:
+            if str(getattr(api_tool, "account_id", "")) != str(account_id):
+                continue
+            provider_id = str(getattr(api_tool, "provider_id", "") or "").strip()
+            tool_name = str(getattr(api_tool, "name", "") or "").strip()
+            try:
+                provider = getattr(api_tool, "provider", None)
+            except Exception:
+                continue
+            if (
+                not provider_id
+                or not tool_name
+                or provider is None
+                or str(getattr(provider, "account_id", "")) != str(account_id)
+            ):
+                continue
+            config = {
+                "type": "api_tool",
+                "provider_id": provider_id,
+                "tool_id": tool_name,
+                "params": {},
+            }
+            candidates.append({
+                "id": self._auto_create_tool_id(config),
+                "name": f"{str(getattr(provider, 'name', '') or '')[:80]}/{tool_name[:120]}",
+                "description": str(getattr(api_tool, "description", "") or "")[:500],
+                "config": config,
+            })
+
+        return candidates
+
+    @classmethod
+    def _validated_auto_create_tool_selection(
+        cls,
+        selection: Any,
+        candidates: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Filter model choices to known candidates; fall back on malformed output."""
+        try:
+            if not isinstance(selection, AutoCreateToolSelection):
+                selection = AutoCreateToolSelection.model_validate(selection)
+        except (ValidationError, TypeError, ValueError):
+            return deepcopy(cls.AUTO_CREATE_DEFAULT_TOOLS)
+
+        requested_ids = set(selection.tool_ids)
+        if not requested_ids:
+            return []
+
+        known_ids = {candidate["id"] for candidate in candidates}
+        selected_ids = requested_ids & known_ids
+        if not selected_ids:
+            return deepcopy(cls.AUTO_CREATE_DEFAULT_TOOLS)
+
+        return [
+            deepcopy(candidate["config"])
+            for candidate in candidates
+            if candidate["id"] in selected_ids
+        ]
+
+    def _select_auto_create_tools(
+        self,
+        llm: Any,
+        name: str,
+        description: str,
+        account_id: UUID,
+    ) -> list[dict[str, Any]]:
+        """Select from allowlisted built-ins and API tools owned by the account."""
+        candidates = self._build_auto_create_tool_candidates(account_id)
+        if not candidates:
+            return deepcopy(self.AUTO_CREATE_DEFAULT_TOOLS)
+
+        prompt = ChatPromptTemplate.from_messages([
+            (
+                "system",
+                "为新Agent选择真正需要的工具。只返回候选列表中原样出现的id；"
+                "不要创建、推断或选择列表之外的工具。没有工具需要时返回空tool_ids。",
+            ),
+            (
+                "human",
+                "Agent名称: {name}\nAgent描述: {description}\n可用工具(JSON): {available_tools}",
+            ),
+        ])
+        try:
+            structured_llm = llm.with_structured_output(AutoCreateToolSelection)
+            selection = (prompt | structured_llm).invoke({
+                "name": name,
+                "description": description,
+                "available_tools": json.dumps(
+                    [
+                        {key: candidate[key] for key in ("id", "name", "description")}
+                        for candidate in candidates
+                    ],
+                    ensure_ascii=False,
+                ),
+            })
+        except Exception as error:
+            logging.warning(
+                "自动创建Agent的工具选择失败，使用默认工具: error_type=%s",
+                type(error).__name__,
+            )
+            return deepcopy(self.AUTO_CREATE_DEFAULT_TOOLS)
+
+        return self._validated_auto_create_tool_selection(selection, candidates)
 
     @classmethod
     def _enqueue_public_app_registry_sync(cls, app_id: UUID) -> None:
@@ -282,15 +450,12 @@ class AppService(BaseService):
         opening_questions = self._normalize_opening_questions(
             opening_questions if isinstance(opening_questions, list) else []
         )
-        default_tools = [
-            {
-                "type": tool["type"],
-                "provider_id": tool["provider_id"],
-                "tool_id": tool["tool_id"],
-                "params": dict(tool["params"]),
-            }
-            for tool in self.AUTO_CREATE_DEFAULT_TOOLS
-        ]
+        default_tools = self._select_auto_create_tools(
+            llm=llm,
+            name=name,
+            description=description,
+            account_id=account_id,
+        )
 
         # 6.使用共享图标服务生成并上传应用图标；图标生成失败不应阻断Agent创建。
         try:
