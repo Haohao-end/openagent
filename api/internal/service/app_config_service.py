@@ -317,7 +317,7 @@ class AppConfigService(BaseService):
         mcp_bindings, validate_mcp_bindings = self._process_and_validate_mcp_bindings(
             getattr(draft_app_config, "mcp_bindings", [])
         )
-        if getattr(draft_app_config, "mcp_bindings", []) != validate_mcp_bindings:
+        if persist_changes and getattr(draft_app_config, "mcp_bindings", []) != validate_mcp_bindings:
             self.update(draft_app_config, mcp_bindings=validate_mcp_bindings)
 
         # 9.读取并规范化 MCP 工具快照
@@ -325,14 +325,14 @@ class AppConfigService(BaseService):
             getattr(draft_app_config, "mcp_tool_snapshots", []),
             validate_mcp_bindings,
         )
-        if getattr(draft_app_config, "mcp_tool_snapshots", []) != validate_mcp_tool_snapshots:
+        if persist_changes and getattr(draft_app_config, "mcp_tool_snapshots", []) != validate_mcp_tool_snapshots:
             self.update(draft_app_config, mcp_tool_snapshots=validate_mcp_tool_snapshots)
 
         # 10.读取并规范化 Skills 绑定列表
         skills, validate_skills = self.skill_service.process_and_validate_skill_bindings(
             getattr(draft_app_config, "skills", [])
         )
-        if getattr(draft_app_config, "skills", []) != validate_skills:
+        if persist_changes and getattr(draft_app_config, "skills", []) != validate_skills:
             self.update(draft_app_config, skills=validate_skills)
 
         # 11.读取并规范化 Agent 绑定列表
@@ -341,7 +341,7 @@ class AppConfigService(BaseService):
             current_account_id=getattr(app, "account_id", None),
             current_app_id=getattr(app, "id", None),
         )
-        if getattr(draft_app_config, "agent_bindings", []) != validate_agent_bindings:
+        if persist_changes and getattr(draft_app_config, "agent_bindings", []) != validate_agent_bindings:
             self.update(draft_app_config, agent_bindings=validate_agent_bindings)
 
         # 12.将数据转换成字典后返回
@@ -408,7 +408,7 @@ class AppConfigService(BaseService):
         mcp_bindings, validate_mcp_bindings = self._process_and_validate_mcp_bindings(
             getattr(app_config, "mcp_bindings", [])
         )
-        if getattr(app_config, "mcp_bindings", []) != validate_mcp_bindings:
+        if persist_changes and getattr(app_config, "mcp_bindings", []) != validate_mcp_bindings:
             self.update(app_config, mcp_bindings=validate_mcp_bindings)
 
         # 9.读取并规范化 MCP 工具快照
@@ -416,14 +416,14 @@ class AppConfigService(BaseService):
             getattr(app_config, "mcp_tool_snapshots", []),
             validate_mcp_bindings,
         )
-        if getattr(app_config, "mcp_tool_snapshots", []) != validate_mcp_tool_snapshots:
+        if persist_changes and getattr(app_config, "mcp_tool_snapshots", []) != validate_mcp_tool_snapshots:
             self.update(app_config, mcp_tool_snapshots=validate_mcp_tool_snapshots)
 
         # 10.读取并规范化 Skills 绑定列表
         skills, validate_skills = self.skill_service.process_and_validate_skill_bindings(
             getattr(app_config, "skills", [])
         )
-        if getattr(app_config, "skills", []) != validate_skills:
+        if persist_changes and getattr(app_config, "skills", []) != validate_skills:
             self.update(app_config, skills=validate_skills)
 
         # 11.读取并规范化 Agent 绑定列表
@@ -432,7 +432,7 @@ class AppConfigService(BaseService):
             current_account_id=getattr(app, "account_id", None),
             current_app_id=getattr(app, "id", None),
         )
-        if getattr(app_config, "agent_bindings", []) != validate_agent_bindings:
+        if persist_changes and getattr(app_config, "agent_bindings", []) != validate_agent_bindings:
             self.update(app_config, agent_bindings=validate_agent_bindings)
 
         # 12.将数据转换成字典后返回

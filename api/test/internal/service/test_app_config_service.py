@@ -535,6 +535,10 @@ class TestAppConfigService:
                 SimpleNamespace(dataset_id=remove_dataset_id),
             ],
             workflows=["wf-legacy"],
+            mcp_bindings=[{"name": "legacy-mcp"}],
+            mcp_tool_snapshots=[{"binding_identity": "legacy-mcp"}],
+            skills=[{"skill_id": "legacy-skill"}],
+            agent_bindings=[{"app_id": "legacy-agent"}],
             dialog_round=3,
             preset_prompt="prompt",
             retrieval_config={"strategy": "semantic"},
@@ -579,6 +583,10 @@ class TestAppConfigService:
                 ["wf-new"],
             ),
         )
+        monkeypatch.setattr(service, "_process_and_validate_mcp_bindings", lambda _bindings: ([], []))
+        monkeypatch.setattr(service, "_process_and_validate_mcp_tool_snapshots", lambda _snapshots, _bindings: ([], []))
+        monkeypatch.setattr(service.skill_service, "process_and_validate_skill_bindings", lambda _skills: ([], []))
+        monkeypatch.setattr(service, "process_and_validate_agent_bindings", lambda _bindings, **_kwargs: ([], []))
 
         updates = []
         monkeypatch.setattr(
@@ -758,6 +766,10 @@ class TestAppConfigService:
             tools=[{"type": "api_tool", "tool_id": "legacy"}],
             datasets=["to-remove", str(keep_dataset_id)],
             workflows=["wf-legacy"],
+            mcp_bindings=[{"name": "legacy-mcp"}],
+            mcp_tool_snapshots=[{"binding_identity": "legacy-mcp"}],
+            skills=[{"skill_id": "legacy-skill"}],
+            agent_bindings=[{"app_id": "legacy-agent"}],
             dialog_round=3,
             preset_prompt="prompt",
             retrieval_config={"strategy": "semantic"},
@@ -802,6 +814,10 @@ class TestAppConfigService:
                 ["wf-new"],
             ),
         )
+        monkeypatch.setattr(service, "_process_and_validate_mcp_bindings", lambda _bindings: ([], []))
+        monkeypatch.setattr(service, "_process_and_validate_mcp_tool_snapshots", lambda _snapshots, _bindings: ([], []))
+        monkeypatch.setattr(service.skill_service, "process_and_validate_skill_bindings", lambda _skills: ([], []))
+        monkeypatch.setattr(service, "process_and_validate_agent_bindings", lambda _bindings, **_kwargs: ([], []))
 
         updates = []
         monkeypatch.setattr(
