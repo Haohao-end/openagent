@@ -176,3 +176,52 @@ def test_close_discards_queued_events_and_ignores_late_callbacks():
 
     assert handler.drain() == []
     assert handler.dropped_events == 0
+
+
+def test_retriever_callbacks_record_query_shape_and_document_count_only():
+    handler = DebugTraceCallbackHandler()
+    run_id, parent_run_id = uuid4(), uuid4()
+    handler.on_retriever_start(
+        None,
+        "PRIVATE RETRIEVAL QUERY",
+        run_id=run_id,
+        parent_run_id=parent_run_id,
+        name="vector-search",
+    )
+    started = read_event(handler)
+    assert (started["run_type"], started["phase"], started["name"]) == (
+        "tool",
+        "start",
+        "vector-search",
+    )
+    assert started["run_id"] == str(run_id)
+    assert started["parent_run_id"] == str(parent_run_id)
+    assert started["inputs"] == {"query": {"type": "string", "size": 23}}
+    assert "PRIVATE RETRIEVAL QUERY" not in json.dumps(started)
+
+    handler.on_retriever_end(
+        ["PRIVATE DOCUMENT", "SECOND"],
+        run_id=run_id,
+        parent_run_id=parent_run_id,
+    )
+    ended = read_event(handler)
+    assert (ended["run_type"], ended["phase"], ended["name"]) == (
+        "tool",
+        "end",
+        "vector-search",
+    )
+    assert ended["outputs"] == {"type": "sequence", "size": 2}
+    assert ended["latency_ms"] >= 0
+    assert "PRIVATE DOCUMENT" not in json.dumps(ended)
+
+    failed_run_id = uuid4()
+    handler.on_retriever_start({"name": "failing-retriever"}, "query", run_id=failed_run_id)
+    read_event(handler)
+    handler.on_retriever_error(
+        RuntimeError("token=PRIVATE-RETRIEVER-ERROR"),
+        run_id=failed_run_id,
+    )
+    failed = read_event(handler)
+    assert (failed["phase"], failed["status"]) == ("error", "error")
+    assert failed["error"] == "[error details redacted]"
+    assert "PRIVATE-RETRIEVER-ERROR" not in json.dumps(failed)

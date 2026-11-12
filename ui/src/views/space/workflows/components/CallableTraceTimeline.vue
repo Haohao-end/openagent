@@ -105,12 +105,18 @@ const normalizeValue = (
       if (value.length > count) items.push('[truncated]')
       return items
     }
-    const result: Record<string, unknown> = {}
+    const result: Record<string, unknown> = Object.create(null)
     let count = 0
     for (const key in value) {
       if (!Object.prototype.hasOwnProperty.call(value, key)) continue
       if (count >= MAX_COLLECTION_ITEMS || budget.remaining <= 0) {
-        result._truncated = true
+        let markerKey = '_truncated'
+        let markerIndex = 1
+        while (Object.prototype.hasOwnProperty.call(value, markerKey)) {
+          markerKey = `_truncated_${markerIndex}`
+          markerIndex += 1
+        }
+        result[markerKey] = true
         break
       }
       count += 1
@@ -176,7 +182,7 @@ const formatValue = (value: unknown) => {
     const normalized = normalizeValue(value, seen, { remaining: MAX_TOTAL_ITEMS })
     const formatted =
       typeof normalized === 'string' ? normalized : JSON.stringify(normalized, null, 2)
-    if (!formatted) return 'null'
+    if (formatted === undefined) return 'null'
     return formatted.length > MAX_VALUE_LENGTH
       ? `${formatted.slice(0, MAX_VALUE_LENGTH)}\n[truncated]`
       : formatted
@@ -184,6 +190,8 @@ const formatValue = (value: unknown) => {
     return '[Unserializable value]'
   }
 }
+const hasErrorDetails = (value: unknown) =>
+  value !== undefined && value !== null && !(typeof value === 'string' && !value.trim())
 const runTypeLabel = (type: TraceRunType) => t(`workflowEditor.callableTrace.types.${type}`)
 const phaseLabel = (phase: TracePhase) => t(`workflowEditor.callableTrace.phases.${phase}`)
 const statusLabel = (status: string) => {
@@ -254,7 +262,7 @@ const statusLabel = (status: string) => {
             >{{ formatValue(call.outputs) }}</pre
           >
         </details>
-        <details v-if="call.error !== undefined && call.error !== null" class="mt-2 text-xs">
+        <details v-if="hasErrorDetails(call.error)" class="mt-2 text-xs">
           <summary class="cursor-pointer text-red-600">
             {{ t('workflowEditor.callableTrace.error') }}
           </summary>

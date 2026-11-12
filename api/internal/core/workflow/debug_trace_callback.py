@@ -247,3 +247,23 @@ class DebugTraceCallbackHandler(BaseCallbackHandler):
 
     def on_tool_error(self, error, *, run_id, parent_run_id=None, **kwargs):
         self._finish("tool", "error", "tool", run_id, parent_run_id, error=error)
+
+    def on_retriever_start(self, serialized, query, *, run_id, parent_run_id=None, **kwargs):
+        # Keep the existing trace schema/UI contract while exposing retriever runs
+        # as tool-like calls. Query text can contain user data, so retain only shape.
+        name = kwargs.get("name")
+        if not isinstance(name, str) or not name.strip():
+            name = "retriever"
+        self._start(
+            "tool",
+            self._name(serialized, name),
+            run_id,
+            parent_run_id,
+            {"query": self._summary(query)},
+        )
+
+    def on_retriever_end(self, documents, *, run_id, parent_run_id=None, **kwargs):
+        self._finish("tool", "end", "retriever", run_id, parent_run_id, outputs=self._summary(documents))
+
+    def on_retriever_error(self, error, *, run_id, parent_run_id=None, **kwargs):
+        self._finish("tool", "error", "retriever", run_id, parent_run_id, error=error)

@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { expect, it } from 'vitest'
+import { createTestI18n } from '@/i18n'
 import CallableTraceTimeline from '@/views/space/workflows/components/CallableTraceTimeline.vue'
 
 const trace = (overrides: Record<string, unknown> = {}) => ({
@@ -97,6 +98,34 @@ it('shows error phase details and error status', () => {
   wrapper.unmount()
 })
 
+it.each(['', '   '])('shows the localized fallback when error details are blank', (error) => {
+  const wrapper = mountTimeline([trace({ phase: 'error', status: 'failed', error })])
+
+  expect(wrapper.get('[data-testid="callable-trace-error"]').text()).toBe(
+    '调用失败，暂无错误详情。',
+  )
+  wrapper.unmount()
+})
+
+it('shows the English fallback for a trace error without details', () => {
+  const wrapper = mount(CallableTraceTimeline, {
+    props: { events: [trace({ phase: 'error', status: 'failed', error: ' ' })] },
+    global: { plugins: [createTestI18n('en-US')] },
+  })
+
+  expect(wrapper.get('[data-testid="callable-trace-error"]').text()).toBe(
+    'This call failed without error details.',
+  )
+  wrapper.unmount()
+})
+
+it('preserves empty string outputs instead of rendering them as null', () => {
+  const wrapper = mountTimeline([trace({ phase: 'end', status: 'succeeded', outputs: '' })])
+
+  expect(wrapper.get('[data-testid="callable-trace-output"]').text()).toBe('')
+  wrapper.unmount()
+})
+
 it('shows nested calls under their parent run', () => {
   const wrapper = mountTimeline([
     trace({ run_id: 'chain-1', run_type: 'chain', phase: 'start', name: 'AgentChain' }),
@@ -149,6 +178,32 @@ it('truncates long outputs in a scrollable, safely rendered block', () => {
   expect(output.classes()).toContain('overflow-auto')
   expect(output.text().length).toBeLessThan(longOutput.length)
   expect(output.text()).toContain('[truncated]')
+  wrapper.unmount()
+})
+
+it('preserves JSON object fields named __proto__ while formatting trace values', () => {
+  const outputs = JSON.parse('{"__proto__":{"safe":"kept"},"answer":"done"}')
+  const wrapper = mountTimeline([trace({ phase: 'end', status: 'succeeded', outputs })])
+
+  const renderedOutput = JSON.parse(wrapper.get('[data-testid="callable-trace-output"]').text())
+  expect(Object.prototype.hasOwnProperty.call(renderedOutput, '__proto__')).toBe(true)
+  expect(renderedOutput.__proto__.safe).toBe('kept')
+  expect(renderedOutput.answer).toBe('done')
+  wrapper.unmount()
+})
+
+it('does not overwrite user fields when marking a truncated object', () => {
+  const outputs: Record<string, unknown> = {
+    _truncated: 'user marker',
+    _truncated_1: 'second user marker',
+  }
+  for (let index = 0; index < 99; index += 1) outputs[`field${index}`] = index
+  const wrapper = mountTimeline([trace({ phase: 'end', status: 'succeeded', outputs })])
+
+  const renderedOutput = JSON.parse(wrapper.get('[data-testid="callable-trace-output"]').text())
+  expect(renderedOutput._truncated).toBe('user marker')
+  expect(renderedOutput._truncated_1).toBe('second user marker')
+  expect(renderedOutput._truncated_2).toBe(true)
   wrapper.unmount()
 })
 
