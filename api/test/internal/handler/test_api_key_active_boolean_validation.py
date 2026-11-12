@@ -104,3 +104,22 @@ def test_update_api_key_preserves_explicit_false_status():
 
     assert response[0].get_json()["code"] == HttpCode.SUCCESS
     assert received == {"is_active": False}
+
+
+def test_update_api_key_allows_clearing_expiration():
+    received = {}
+    service = type("Service", (), {
+        "update_api_key": lambda _self, _id, _user, **values: received.update(values),
+    })()
+    app = Flask(__name__)
+    app.config.update(SECRET_KEY="test", LOGIN_DISABLED=True, WTF_CSRF_ENABLED=False)
+
+    with app.test_request_context(
+        f"/openapi/api-keys/{UUID(int=1)}",
+        method="POST",
+        json={"expires_at": None},
+    ):
+        response = ApiKeyHandler(service).update_api_key(UUID(int=1))
+
+    assert response[0].get_json()["code"] == HttpCode.SUCCESS
+    assert received == {"expires_at": None}

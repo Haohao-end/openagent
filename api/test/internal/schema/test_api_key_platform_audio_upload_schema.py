@@ -93,18 +93,44 @@ def test_api_key_create_and_update_should_keep_boolean_json_status(form_request,
     assert form.is_active.data is is_active
 
 
+@pytest.mark.parametrize("form_cls", [CreateApiKeyReq, UpdateApiKeyReq])
+def test_api_key_expiration_accepts_optional_unix_seconds(form_request, form_cls):
+    timestamp = 1_900_000_000
+    ok, form = _validate_form(form_request, form_cls, json={"expires_at": timestamp})
+    assert ok, form.errors
+    assert form.expires_at.data == timestamp
+
+    ok, form = _validate_form(form_request, form_cls, json={"expires_at": None})
+    assert ok, form.errors
+    assert form.expires_at.data is None
+
+    ok, form = _validate_form(form_request, form_cls, data={"expires_at": str(timestamp)})
+    assert ok, form.errors
+    assert form.expires_at.data == timestamp
+
+
+@pytest.mark.parametrize("form_cls", [CreateApiKeyReq, UpdateApiKeyReq])
+@pytest.mark.parametrize("expires_at", [True, 1.5, "1900000000", 10**100])
+def test_api_key_expiration_rejects_invalid_json_timestamps(form_request, form_cls, expires_at):
+    ok, form = _validate_form(form_request, form_cls, json={"expires_at": expires_at})
+    assert not ok
+    assert "expires_at" in form.errors
+
+
 def test_get_api_keys_with_page_resp_should_dump_expected_fields():
     api_key = ns(
         id=uuid4(),
         api_key="sk-test",
         is_active=True,
         remark="remark",
+        expires_at=utc_dt(2024, 1, 3, 0, 0, 0),
         updated_at=utc_dt(2024, 1, 2, 0, 0, 0),
         created_at=utc_dt(2024, 1, 1, 0, 0, 0),
     )
     data = GetApiKeysWithPageResp().dump(api_key)
     assert data["api_key"] == "****************"
     assert data["is_active"] is True
+    assert data["expires_at"] == int(utc_dt(2024, 1, 3, 0, 0, 0).timestamp())
     assert data["updated_at"] == int(utc_dt(2024, 1, 2, 0, 0, 0).timestamp())
     assert data["created_at"] == int(utc_dt(2024, 1, 1, 0, 0, 0).timestamp())
 

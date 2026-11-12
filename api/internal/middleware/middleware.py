@@ -4,6 +4,7 @@ from flask import Request, g
 from injector import inject
 from internal.model import Account
 from internal.exception import UnauthorizedException
+from internal.lib.helper import ensure_utc_naive, utc_now_naive
 from internal.service import JwtService, AccountService, ApiKeyService
 
 @inject
@@ -38,7 +39,15 @@ class Middleware:
             api_key_record = self.api_key_service.get_api_by_by_credential(api_key)
 
             # 6.判断API密钥记录是否存在/是否被激活 如果不存在则抛出错误
-            if not api_key_record or not api_key_record.is_active:
+            expires_at = getattr(api_key_record, "expires_at", None) if api_key_record else None
+            if (
+                not api_key_record
+                or not api_key_record.is_active
+                or (
+                    expires_at is not None
+                    and ensure_utc_naive(expires_at) <= utc_now_naive()
+                )
+            ):
                 raise UnauthorizedException("该密钥不存在或未激活")
 
             # 7.获取密钥账号信息并返回

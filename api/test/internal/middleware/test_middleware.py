@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -134,6 +135,54 @@ def test_request_loader_should_return_account_when_openapi_api_key_active():
         jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
         api_key_service=SimpleNamespace(
             get_api_by_by_credential=lambda _key: SimpleNamespace(is_active=True, account=expected_account)
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with app.app_context():
+        account = middleware.request_loader(request)
+
+    assert account == expected_account
+
+
+def test_request_loader_should_reject_expired_openapi_api_key():
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: SimpleNamespace(
+                is_active=True,
+                expires_at=datetime(2000, 1, 1),
+                account={"id": "acc-1"},
+            )
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with app.app_context():
+        with pytest.raises(UnauthorizedException, match="不存在或未激活"):
+            middleware.request_loader(request)
+
+
+def test_request_loader_should_accept_unexpired_openapi_api_key():
+    expected_account = {"id": "acc-1"}
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: SimpleNamespace(
+                is_active=True,
+                expires_at=datetime(2999, 1, 1, tzinfo=UTC),
+                account=expected_account,
+            )
         ),
         account_service=SimpleNamespace(get_account=lambda _id: None),
     )
