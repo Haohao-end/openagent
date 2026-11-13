@@ -3,7 +3,7 @@ import type {
   GetConversationMessagesWithPageResponse,
   GetRecentConversationsResponse,
 } from '@/models/conversation'
-import { mergeChatHistoryMessages } from '@/views/shared/chat-stream'
+import { mergeChatHistoryMessages, type CallableTraceEvent } from '@/views/shared/chat-stream'
 import {
   deleteConversation,
   deleteMessage,
@@ -20,6 +20,7 @@ export const useGetConversationMessagesWithPage = () => {
   let latestRequest = 0
   type ConversationMessage = GetConversationMessagesWithPageResponse['data']['list'][number] & {
     render_id: string
+    callable_trace_events?: CallableTraceEvent[]
   }
   const messages = ref<ConversationMessage[]>([])
   const created_at = ref(0)
@@ -66,12 +67,13 @@ export const useGetConversationMessagesWithPage = () => {
 
       // 2.5 追加或者覆盖数据
       if (init) {
-        messages.value = mergeChatHistoryMessages(data.list, 'conversation-history')
+        messages.value = mergeChatHistoryMessages([], data.list, 'conversation-history')
         // Keep a stable snapshot cursor so later page loads continue the same slice.
         created_at.value = messages.value[0]?.created_at ?? 0
       } else {
         messages.value = mergeChatHistoryMessages(
-          [...messages.value, ...data.list],
+          messages.value,
+          data.list,
           'conversation-history',
         )
       }

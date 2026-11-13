@@ -158,12 +158,13 @@ export const useGetAssistantAgentMessagesWithPage = () => {
 
       // 2.5 追加或者覆盖数据
       if (init) {
-        messages.value = mergeChatHistoryMessages(data.list, 'assistant-agent-history')
+        messages.value = mergeChatHistoryMessages([], data.list, 'assistant-agent-history')
         // Keep a stable snapshot cursor so later page loads continue the same slice.
         created_at.value = messages.value[0]?.created_at ?? 0
       } else {
         messages.value = mergeChatHistoryMessages(
-          [...messages.value, ...data.list],
+          messages.value,
+          data.list,
           'assistant-agent-history',
         )
       }
@@ -221,3 +222,4 @@ export const useDeleteAssistantAgentConversation = () => {
 
   return { loading, handleDeleteAssistantAgentConversation }
 }
+

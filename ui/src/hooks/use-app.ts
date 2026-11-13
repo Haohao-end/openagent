@@ -29,7 +29,7 @@ import {
   unshareAppFromSquare,
 } from '@/services/app'
 import { Message, Modal } from '@arco-design/web-vue'
-import { mergeChatHistoryMessages } from '@/views/shared/chat-stream'
+import { mergeChatHistoryMessages, type CallableTraceEvent } from '@/views/shared/chat-stream'
 import type {
   AppVersion,
   CreateAppRequest,
@@ -488,6 +488,7 @@ export const useGetDebugConversationMessagesWithPage = () => {
   let latestRequest = 0
   type DebugConversationMessage = GetDebugConversationMessagesWithPageResponse['data']['list'][number] & {
     render_id: string
+    callable_trace_events?: CallableTraceEvent[]
   }
   const messages = ref<DebugConversationMessage[]>([])
   const created_at = ref(0)
@@ -536,12 +537,13 @@ export const useGetDebugConversationMessagesWithPage = () => {
 
       // 2.5 追加或者覆盖数据
       if (init) {
-        messages.value = mergeChatHistoryMessages(data.list, 'debug-conversation-history')
+        messages.value = mergeChatHistoryMessages([], data.list, 'debug-conversation-history')
         // Keep a stable snapshot cursor so later page loads continue the same slice.
         created_at.value = messages.value[0]?.created_at ?? 0
       } else {
         messages.value = mergeChatHistoryMessages(
-          [...messages.value, ...data.list],
+          messages.value,
+          data.list,
           'debug-conversation-history',
         )
       }

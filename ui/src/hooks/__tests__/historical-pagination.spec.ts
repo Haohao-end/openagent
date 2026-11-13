@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { QueueEvent } from '@/config'
 
 import { useGetAssistantAgentMessagesWithPage } from '@/hooks/use-assistant-agent'
 import {
@@ -66,6 +67,7 @@ type PagedMessage = {
   agent_thoughts: Array<Record<string, any>>
   suggested_questions: string[]
   created_at: number
+  callable_trace_events?: Array<Record<string, any>>
 }
 
 type PaginatorResponse = {
@@ -97,6 +99,44 @@ const buildPage = (list: PagedMessage[], paginator: PaginatorResponse) => ({
     paginator,
   },
 })
+
+const prepareLiveTrace = (message: PagedMessage) => {
+  const callableTraceEvents = [{ event_id: 'live-trace-event', phase: 'end' }]
+  const ordinaryThoughts = [{ id: 'live-thought', event: QueueEvent.agentAction, thought: 'Live thought' }]
+  message.callable_trace_events = callableTraceEvents
+  message.agent_thoughts = ordinaryThoughts
+  return { callableTraceEvents, ordinaryThoughts, renderId: message.id }
+}
+
+const buildOlderTraceMessage = () => {
+  const message = buildMessage('older-with-legacy-trace', 80)
+  message.callable_trace_events = [{ event_id: 'must-not-be-restored' }]
+  message.agent_thoughts = [
+    { id: 'legacy-trace', event: QueueEvent.callableTrace, observation: '{"event_id":"persisted"}' },
+    { id: 'older-thought', event: QueueEvent.agentAction, thought: 'Keep this thought' },
+  ]
+  return message
+}
+
+const expectTracePagination = (
+  messages: Array<PagedMessage & { render_id: string }>,
+  liveTrace: Record<string, any>[],
+  ordinaryThoughts: Record<string, any>[],
+  renderId: string,
+) => {
+  expect(messages.map((message) => message.id)).toEqual([
+    'live-message',
+    'older-with-legacy-trace',
+  ])
+  expect(messages[0].callable_trace_events).toEqual(liveTrace)
+  expect(messages[0].render_id).toBe(renderId)
+  expect(messages[0].agent_thoughts).toEqual(ordinaryThoughts)
+  expect(messages[0].answer).toBe('answer-live-message')
+  expect(messages[1].agent_thoughts).toEqual([
+    { id: 'older-thought', event: QueueEvent.agentAction, thought: 'Keep this thought' },
+  ])
+  expect(messages[1].callable_trace_events).toBeUndefined()
+}
 
 const createDeferred = <T,>() => {
   let resolve!: (value: T) => void
@@ -163,6 +203,31 @@ describe('historical chat pagination', () => {
       'debug-older-2',
       'debug-older-1',
     ])
+  })
+
+  it('preserves live traces while debug conversation history is paginated', async () => {
+    vi.mocked(appService.getDebugConversationMessagesWithPage)
+      .mockResolvedValueOnce(buildPage([buildMessage('live-message', 300)], {
+        current_page: 1, page_size: 5, total_page: 2, total_record: 3,
+      }) as never)
+      .mockResolvedValueOnce(buildPage([
+        { ...buildMessage('live-message', 250), answer: 'stale history copy' },
+        buildOlderTraceMessage(),
+      ], {
+        current_page: 2, page_size: 5, total_page: 2, total_record: 3,
+      }) as never)
+
+    const { messages, loadDebugConversationMessages } = useGetDebugConversationMessagesWithPage()
+    await loadDebugConversationMessages('app-1', true, 'conversation-1')
+    const liveState = prepareLiveTrace(messages.value[0])
+    await loadDebugConversationMessages('app-1', false, 'conversation-1')
+
+    expectTracePagination(
+      messages.value,
+      liveState.callableTraceEvents,
+      liveState.ordinaryThoughts,
+      liveState.renderId,
+    )
   })
 
   it('ignores an older debug conversation response after switching conversations', async () => {
@@ -263,6 +328,31 @@ describe('historical chat pagination', () => {
       'conversation-older-2',
       'conversation-older-1',
     ])
+  })
+
+  it('preserves live traces while conversation history is paginated', async () => {
+    vi.mocked(conversationService.getConversationMessages)
+      .mockResolvedValueOnce(buildPage([buildMessage('live-message', 300)], {
+        current_page: 1, page_size: 5, total_page: 2, total_record: 3,
+      }) as never)
+      .mockResolvedValueOnce(buildPage([
+        { ...buildMessage('live-message', 250), answer: 'stale history copy' },
+        buildOlderTraceMessage(),
+      ], {
+        current_page: 2, page_size: 5, total_page: 2, total_record: 3,
+      }) as never)
+
+    const { messages, loadConversationMessagesWithPage } = useGetConversationMessagesWithPage()
+    await loadConversationMessagesWithPage('conversation-1', true)
+    const liveState = prepareLiveTrace(messages.value[0])
+    await loadConversationMessagesWithPage('conversation-1', false)
+
+    expectTracePagination(
+      messages.value,
+      liveState.callableTraceEvents,
+      liveState.ordinaryThoughts,
+      liveState.renderId,
+    )
   })
 
   it('ignores an older conversation response after switching conversations', async () => {
@@ -402,6 +492,31 @@ describe('historical chat pagination', () => {
       'assistant-older-2',
       'assistant-older-1',
     ])
+  })
+
+  it('preserves live traces while assistant agent history is paginated', async () => {
+    vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage)
+      .mockResolvedValueOnce(buildPage([buildMessage('live-message', 300)], {
+        current_page: 1, page_size: 20, total_page: 2, total_record: 3,
+      }) as never)
+      .mockResolvedValueOnce(buildPage([
+        { ...buildMessage('live-message', 250), answer: 'stale history copy' },
+        buildOlderTraceMessage(),
+      ], {
+        current_page: 2, page_size: 20, total_page: 2, total_record: 3,
+      }) as never)
+
+    const { messages, loadAssistantAgentMessages } = useGetAssistantAgentMessagesWithPage()
+    await loadAssistantAgentMessages(true, 'conversation-1')
+    const liveState = prepareLiveTrace(messages.value[0])
+    await loadAssistantAgentMessages(false, 'conversation-1')
+
+    expectTracePagination(
+      messages.value,
+      liveState.callableTraceEvents,
+      liveState.ordinaryThoughts,
+      liveState.renderId,
+    )
   })
 
   it('ignores an older assistant-agent response after switching conversations', async () => {
