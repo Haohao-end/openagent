@@ -116,6 +116,7 @@ class GetApiKeysWithPageResp(Schema):
     is_active = fields.Boolean(dump_default=False)
     remark = fields.String(dump_default="")
     expires_at = fields.Integer(dump_default=0)
+    last_used_at = fields.Integer(dump_default=0)
     updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
 
@@ -127,6 +128,7 @@ class GetApiKeysWithPageResp(Schema):
             "is_active": data.is_active,
             "remark": data.remark,
             "expires_at": datetime_to_timestamp(getattr(data, "expires_at", None)),
+            "last_used_at": datetime_to_timestamp(getattr(data, "last_used_at", None)),
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),
         }

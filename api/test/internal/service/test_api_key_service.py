@@ -146,6 +146,24 @@ class TestApiKeyService:
     def _build_service(self) -> ApiKeyService:
         return ApiKeyService(db=SimpleNamespace(session=SimpleNamespace()))
 
+    def test_record_last_used_at_should_update_key_with_utc_time(self):
+        api_key_record = SimpleNamespace(last_used_at=None)
+        auto_commit_calls = []
+
+        @contextmanager
+        def auto_commit():
+            auto_commit_calls.append(True)
+            yield
+
+        service = ApiKeyService(db=SimpleNamespace(auto_commit=auto_commit))
+        before = datetime.now(UTC).replace(tzinfo=None)
+
+        service.record_last_used_at(api_key_record)
+
+        after = datetime.now(UTC).replace(tzinfo=None)
+        assert before <= api_key_record.last_used_at <= after
+        assert auto_commit_calls == [True]
+
     def test_get_api_by_by_credential_should_return_query_result(self):
         api_key_record = SimpleNamespace(id=uuid4(), api_key="llmops-v1/demo")
         service = ApiKeyService(

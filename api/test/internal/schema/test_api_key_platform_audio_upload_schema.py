@@ -124,6 +124,7 @@ def test_get_api_keys_with_page_resp_should_dump_expected_fields():
         is_active=True,
         remark="remark",
         expires_at=utc_dt(2024, 1, 3, 0, 0, 0),
+        last_used_at=utc_dt(2024, 1, 2, 12, 30, 0),
         updated_at=utc_dt(2024, 1, 2, 0, 0, 0),
         created_at=utc_dt(2024, 1, 1, 0, 0, 0),
     )
@@ -131,8 +132,26 @@ def test_get_api_keys_with_page_resp_should_dump_expected_fields():
     assert data["api_key"] == "****************"
     assert data["is_active"] is True
     assert data["expires_at"] == int(utc_dt(2024, 1, 3, 0, 0, 0).timestamp())
+    assert data["last_used_at"] == int(utc_dt(2024, 1, 2, 12, 30, 0).timestamp())
     assert data["updated_at"] == int(utc_dt(2024, 1, 2, 0, 0, 0).timestamp())
     assert data["created_at"] == int(utc_dt(2024, 1, 1, 0, 0, 0).timestamp())
+
+
+def test_get_api_keys_with_page_resp_should_return_zero_for_never_used_key():
+    api_key = ns(
+        id=uuid4(),
+        api_key="sk-test",
+        is_active=True,
+        remark="remark",
+        expires_at=None,
+        last_used_at=None,
+        updated_at=utc_dt(2024, 1, 2, 0, 0, 0),
+        created_at=utc_dt(2024, 1, 1, 0, 0, 0),
+    )
+
+    data = GetApiKeysWithPageResp().dump(api_key)
+
+    assert data["last_used_at"] == 0
 
 
 def test_get_wechat_config_resp_should_include_env_prefix(monkeypatch):

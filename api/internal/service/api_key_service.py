@@ -12,7 +12,7 @@ from .base_service import BaseService
 from internal.schema.api_key_schema import CreateApiKeyReq
 from internal.model import Account, ApiKey
 from internal.exception import ForbiddenException
-from internal.lib.helper import ensure_utc_naive
+from internal.lib.helper import ensure_utc_naive, utc_now_naive
 from pkg.paginator import PaginatorReq, Paginator
 
 @inject
@@ -57,6 +57,10 @@ class ApiKeyService(BaseService):
                 self.db.session.commit()
 
         return legacy_api_key_record
+
+    def record_last_used_at(self, api_key_record: ApiKey) -> None:
+        """Persist the time this key successfully authenticated an OpenAPI request."""
+        self.update(api_key_record, last_used_at=utc_now_naive())
 
     def get_api_key(self, api_key_id: UUID, account: Account) -> ApiKey:
         """根据传递的密钥id+账号信息获取记录"""

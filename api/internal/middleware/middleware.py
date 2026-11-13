@@ -50,6 +50,8 @@ class Middleware:
             ):
                 raise UnauthorizedException("该密钥不存在或未激活")
 
+            self.api_key_service.record_last_used_at(api_key_record)
+
             # 7.获取密钥账号信息并返回
             return api_key_record.account
         else:
