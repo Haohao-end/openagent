@@ -9,6 +9,9 @@ describe('chat-message-size', () => {
       answer: '第一版回答',
       answer_parts: [{ type: 'text', text: '第一版回答' }],
       artifacts: [{ name: 'plan.docx', url: 'https://example.com/plan.docx' }],
+      callable_trace_events: [
+        { event_id: 'trace-start', run_id: 'run-1', phase: 'start', inputs: { prompt: 'private' } },
+      ],
       agent_thoughts: [
         {
           id: 'thought-1',
@@ -31,6 +34,9 @@ describe('chat-message-size', () => {
       answer: '第一版回答',
       answer_parts: [{ type: 'text', text: '第一版回答' }],
       artifacts: [{ name: 'plan.docx', url: 'https://example.com/plan.docx' }],
+      callable_trace_events: [
+        { event_id: 'trace-end', run_id: 'run-1', phase: 'end', outputs: { answer: 'done' } },
+      ],
       agent_thoughts: [
         {
           id: 'thought-1',
@@ -47,10 +53,13 @@ describe('chat-message-size', () => {
       suggested_questions: ['继续'],
     })
 
-    expect(base).toHaveLength(8)
-    expect(updated).toHaveLength(8)
+    expect(base).toHaveLength(9)
+    expect(updated).toHaveLength(9)
     expect(base).not.toEqual(updated)
-    expect(base[7]).toBe(0)
-    expect(buildChatMessageSizeDependencies({ query: 'x' }, true)[7]).toBe(1)
+    expect(base[6]).not.toBe(updated[6])
+    expect(base[6]).not.toContain('private')
+    expect(base[7]).toContain('继续')
+    expect(base[8]).toBe(0)
+    expect(buildChatMessageSizeDependencies({ query: 'x' }, true)[8]).toBe(1)
   })
 })
