@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -631,13 +632,50 @@ class TestOpenAPIService:
             ),
         ]
         captured_agent_tools = {}
+        trace_capture = {}
 
         class _FakeFunctionCallAgent:
             def __init__(self, llm, agent_config):
                 captured_agent_tools["tools"] = agent_config.tools
+                queued_events = []
+                self.agent_queue_manager = SimpleNamespace(
+                    events=queued_events,
+                    publish=lambda _task_id, thought: queued_events.append(thought),
+                )
 
-            def stream(self, _agent_state):
-                return iter(stream_events)
+            def stream(self, _agent_state, config=None):
+                if config is None:
+                    return iter(stream_events)
+
+                trace_capture["handler"] = config["callbacks"][0]
+                trace_capture["queue_manager"] = self.agent_queue_manager
+                child_run_id = uuid4()
+                parent_run_id = uuid4()
+                trace_capture["parent_run_id"] = str(parent_run_id)
+                trace_capture["handler"].on_tool_start(
+                    {"name": "search"},
+                    '{"api_key":"private-tool-input"}',
+                    run_id=child_run_id,
+                    parent_run_id=parent_run_id,
+                )
+                trace_capture["handler"].on_tool_end(
+                    {"result": "private-tool-output"},
+                    run_id=child_run_id,
+                    parent_run_id=parent_run_id,
+                )
+
+                def generate_events():
+                    try:
+                        trace_events = self.agent_queue_manager.events
+                        yield trace_events[0]
+                        yield stream_events[0]
+                        yield stream_events[1]
+                        yield trace_events[1]
+                        yield from stream_events[2:]
+                    finally:
+                        trace_capture["stream_closed"] = True
+
+                return generate_events()
 
         # AgentConfig 的 tools 字段要求 BaseTool 实例；这里聚焦服务编排逻辑，因此用轻量对象替代。
         monkeypatch.setattr(
@@ -653,8 +691,16 @@ class TestOpenAPIService:
         with Flask(__name__).app_context():
             events = list(service.chat(req, account))
 
-        assert events[0].startswith("event: ping")
-        assert events[1].startswith("event: agent_message")
+        trace_events = [event for event in events if event.startswith("event: callable_trace")]
+        assert len(trace_events) == 2
+        trace_payload = json.loads(trace_events[0].split("data:", maxsplit=1)[1].strip())
+        assert trace_payload["run_type"] == "tool"
+        assert trace_payload["phase"] == "start"
+        assert trace_payload["parent_run_id"] == trace_capture["parent_run_id"]
+        assert "private-tool-input" not in trace_events[0]
+        assert "private-tool-output" not in trace_events[1]
+        assert events[1].startswith("event: ping")
+        assert events[2].startswith("event: agent_message")
         assert len(captured_agent_tools["tools"]) == 3
         assert retrieval_call["dataset_ids"] == ["dataset-1"]
         assert retrieval_call["account_id"] == account.id
@@ -662,15 +708,24 @@ class TestOpenAPIService:
         assert save_payload["agent_thoughts"][0].thought == "AB"
         assert save_payload["agent_thoughts"][0].answer == "AB"
         assert save_payload["message_id"] == str(message_id)
+        assert all(thought.event != QueueEvent.CALLABLE_TRACE for thought in save_payload["agent_thoughts"])
 
         save_payload.clear()
         with Flask(__name__).app_context():
             events = service.chat(req, account)
             next(events)
             next(events)
+            next(events)
+            next(events)
+            closed_handler = trace_capture["handler"]
+            queue_manager = trace_capture["queue_manager"]
             events.close()
 
         assert save_payload["agent_thoughts"][0].answer == "A"
+        assert trace_capture["stream_closed"] is True
+        queued_event_count = len(queue_manager.events)
+        closed_handler.on_chain_start({"name": "late"}, {}, run_id=uuid4())
+        assert len(queue_manager.events) == queued_event_count
 
         def fail_save(**_kwargs):
             raise RuntimeError("synthetic database failure")
@@ -678,6 +733,8 @@ class TestOpenAPIService:
         service.conversation_service.save_agent_thoughts = fail_save
         with Flask(__name__).app_context():
             events = service.chat(req, account)
+            next(events)
+            next(events)
             next(events)
             next(events)
             events.close()
