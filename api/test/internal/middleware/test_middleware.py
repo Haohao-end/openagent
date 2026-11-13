@@ -6,7 +6,7 @@ import pytest
 from flask import Flask
 from sqlalchemy.exc import SQLAlchemyError
 
-from internal.exception import UnauthorizedException
+from internal.exception import ForbiddenException, UnauthorizedException
 from internal.middleware.middleware import Middleware
 
 
@@ -183,6 +183,63 @@ def test_request_loader_should_continue_if_last_used_update_fails(caplog):
     assert account == expected_account
     assert "api_key_last_used_at_update_failed error_class=SQLAlchemyError" in caplog.text
     assert "DATABASE_ERROR_DETAIL_SECRET" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "scopes"),
+    [
+        ("openapi.chat", []),
+        ("openapi.other", ["openapi:chat"]),
+        ("openapi.chat", ["unsupported:admin"]),
+    ],
+)
+def test_request_loader_should_deny_scoped_key_without_known_endpoint_scope(endpoint, scopes):
+    api_key_record = SimpleNamespace(is_active=True, scopes=scopes, account={"id": "acc-1"})
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: api_key_record,
+            record_last_used_at=lambda _record: None,
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        endpoint=endpoint,
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with app.app_context(), pytest.raises(ForbiddenException, match="没有调用此接口的权限"):
+        middleware.request_loader(request)
+
+
+def test_request_loader_should_allow_scoped_key_for_chat_endpoint():
+    expected_account = {"id": "acc-1"}
+    api_key_record = SimpleNamespace(
+        is_active=True,
+        scopes=["openapi:chat"],
+        account=expected_account,
+    )
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: api_key_record,
+            record_last_used_at=lambda _record: None,
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        endpoint="openapi.chat",
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with app.app_context():
+        account = middleware.request_loader(request)
+
+    assert account == expected_account
 
 
 def test_request_loader_should_reject_expired_openapi_api_key():
