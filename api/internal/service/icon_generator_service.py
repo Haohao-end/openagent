@@ -170,9 +170,7 @@ class IconGeneratorService(BaseService):
             return
 
         self._log_generation_result(provider, model, attempt, "failed", error_class, "stopped")
-        if isinstance(error, IconGenerationRejectedError):
-            raise error
-        raise IconGenerationRejectedError("图标生成请求未通过安全审核", error_class) from error
+        raise IconGenerationRejectedError("图标生成请求未通过安全审核", error_class) from None
 
     def generate_icon(self, name: str, description: str = "") -> str:
         """
@@ -274,7 +272,7 @@ class IconGeneratorService(BaseService):
     def _raise_request_error(self, provider_name: str, error: Exception) -> None:
         """将上游 HTTP 异常转换为统一的业务异常"""
         if isinstance(error, requests.exceptions.Timeout):
-            raise FailException(f"{provider_name} 服务请求超时，请稍后重试")
+            raise FailException(f"{provider_name} 服务请求超时，请稍后重试") from None
 
         if isinstance(error, requests.exceptions.HTTPError):
             status_code = getattr(error.response, "status_code", None)
@@ -289,31 +287,24 @@ class IconGeneratorService(BaseService):
                 raise IconGenerationRejectedError(
                     "图标生成请求未通过安全审核",
                     "safety_rejected",
-                ) from error
-
-            provider_error = error_data.get("error") if isinstance(error_data, dict) else None
-            error_detail = (
-                (provider_error.get("message") if isinstance(provider_error, dict) else provider_error)
-                or (error_data.get("message") if isinstance(error_data, dict) else None)
-                or str(error)
-            )
+                ) from None
 
             response_text = getattr(error.response, "text", None) if error.response is not None else None
             if self._contains_safety_rejection(response_text):
                 raise IconGenerationRejectedError(
                     "图标生成请求未通过安全审核",
                     "safety_rejected",
-                ) from error
+                ) from None
             if status_code == 429:
-                raise FailException(f"{provider_name} 服务请求过于频繁，请稍后重试")
+                raise FailException(f"{provider_name} 服务请求过于频繁，请稍后重试") from None
 
             if status_code:
-                raise FailException(f"{provider_name} 服务请求失败: HTTP {status_code}: {error_detail}")
+                raise FailException(f"{provider_name} 服务请求失败: HTTP {status_code}") from None
 
-            raise FailException(f"{provider_name} 服务请求失败: {error_detail}")
+            raise FailException(f"{provider_name} 服务请求失败，请稍后重试") from None
 
         if isinstance(error, requests.exceptions.RequestException):
-            raise FailException(f"{provider_name} 服务请求失败，请稍后重试")
+            raise FailException(f"{provider_name} 服务请求失败，请稍后重试") from None
 
         raise error
 
