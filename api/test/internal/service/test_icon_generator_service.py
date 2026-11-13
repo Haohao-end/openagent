@@ -9,7 +9,11 @@ import requests
 from PIL import Image
 
 from internal.exception import FailException
-from internal.service.icon_generator_service import IconGeneratorService, IconStorageError
+from internal.service.icon_generator_service import (
+    IconGenerationRejectedError,
+    IconGeneratorService,
+    IconStorageError,
+)
 
 _ORIGINAL_GENERATE_ICON_PROMPT = IconGeneratorService._generate_icon_prompt
 
@@ -562,6 +566,66 @@ class TestIconGeneratorService:
             service._raise_request_error(
                 "Kolors", requests.exceptions.HTTPError("HTTP 503", response=response)
             )
+
+    @pytest.mark.parametrize("status_code", [200, 400])
+    def test_generate_icon_stops_fallback_on_safety_rejection(self, monkeypatch, caplog, status_code):
+        app = Mock()
+        app.config = {"SILICONFLOW_API_KEY": "test-key"}
+        monkeypatch.setattr("internal.service.icon_generator_service.current_app", app)
+
+        provider_response = Mock()
+        provider_response.status_code = status_code
+        provider_response.json.return_value = {
+            "error": {
+                "code": "DataInspectionFailed",
+                "message": "ICON_PROMPT_SECRET",
+            }
+        }
+        provider_response.text = '{"error":{"code":"DataInspectionFailed"}}'
+        if status_code == 400:
+            provider_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
+                "HTTP 400", response=provider_response
+            )
+        monkeypatch.setattr(
+            "internal.service.icon_generator_service.safe_request",
+            lambda *_args, **_kwargs: provider_response,
+        )
+
+        service = _build_service()
+        qwen = Mock(return_value="https://qwen/icon.png")
+        dalle = Mock(return_value="https://dalle/icon.png")
+        monkeypatch.setattr(service, "_generate_with_qwen", qwen)
+        monkeypatch.setattr(service, "_generate_with_dalle", dalle)
+
+        with caplog.at_level(logging.INFO), pytest.raises(IconGenerationRejectedError) as error:
+            service.generate_icon("app", "desc")
+
+        assert error.value.error_class == "safety_rejected"
+        assert "ICON_PROMPT_SECRET" not in str(error.value)
+        assert "ICON_PROMPT_SECRET" not in caplog.text
+        assert "error_class=safety_rejected fallback=stopped" in caplog.text
+        qwen.assert_not_called()
+        dalle.assert_not_called()
+
+    def test_generate_icon_stops_fallback_on_structured_provider_safety_code(self, monkeypatch):
+        service = _build_service()
+
+        class ProviderError(Exception):
+            code = "content_policy_violation"
+
+        monkeypatch.setattr(
+            service,
+            "_generate_with_kolors",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(ProviderError("rejected")),
+        )
+        qwen = Mock(return_value="https://qwen/icon.png")
+        monkeypatch.setattr(service, "_generate_with_qwen", qwen)
+
+        with pytest.raises(IconGenerationRejectedError) as error:
+            service.generate_icon("app", "desc")
+
+        assert error.value.error_class == "safety_rejected"
+        qwen.assert_not_called()
 
     @pytest.mark.parametrize("body,expected", [
         (b'{"error": "quota exceeded"}', "quota exceeded"),

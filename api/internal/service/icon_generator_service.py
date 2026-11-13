@@ -1,4 +1,5 @@
 import logging
+import re
 import uuid
 from dataclasses import dataclass
 from io import BytesIO
@@ -25,10 +26,52 @@ from .cos_service import CosService
 MAX_ICON_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_ICON_IMAGE_PIXELS = 20_000_000
 SUPPORTED_ICON_IMAGE_FORMATS = {"PNG", "JPEG", "WEBP"}
+_SAFETY_REJECTION_MARKERS = {
+    "content filter",
+    "content moderation",
+    "content policy",
+    "data inspection failed",
+    "inappropriate content",
+    "moderation failure",
+    "policy violation",
+    "prompt blocked",
+    "prompt was rejected",
+    "request was rejected by the safety",
+    "responsible ai",
+    "safety filter",
+    "safety policy",
+    "safety refusal",
+    "safety system",
+    "safety violation",
+    "sensitive content",
+    "unsafe content",
+    "unsafe prompt",
+}
+_SAFETY_ERROR_FIELDS = {
+    "code",
+    "detail",
+    "error",
+    "error_code",
+    "error_type",
+    "finish_reason",
+    "message",
+    "policy",
+    "reason",
+    "status",
+    "type",
+}
 
 
 class IconStorageError(FailException):
     """Shared icon storage failure that should not trigger provider fallback."""
+
+
+class IconGenerationRejectedError(FailException):
+    """A provider rejected the request; retrying another model is not allowed."""
+
+    def __init__(self, message: str, error_class: str):
+        super().__init__(message)
+        self.error_class = error_class
 
 
 def _normalize_provider_image_url(value: object) -> Optional[str]:
@@ -73,11 +116,63 @@ class IconGeneratorService(BaseService):
     def _icon_error_class(error: Exception) -> str:
         if isinstance(error, IconStorageError):
             return "shared_storage"
+        if isinstance(error, IconGenerationRejectedError):
+            return error.error_class
         if isinstance(error, requests.exceptions.Timeout):
             return "timeout"
         if isinstance(error, requests.exceptions.RequestException):
             return "network"
         return "provider_error"
+
+    @classmethod
+    def _contains_safety_rejection(cls, value: object, depth: int = 0) -> bool:
+        if depth > 4:
+            return False
+        if isinstance(value, str):
+            spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", value)
+            normalized = " ".join(spaced.casefold().replace("_", " ").replace("-", " ").split())
+            return any(marker in normalized for marker in _SAFETY_REJECTION_MARKERS)
+        if isinstance(value, dict):
+            for field in _SAFETY_ERROR_FIELDS:
+                if field in value and cls._contains_safety_rejection(value[field], depth + 1):
+                    return True
+        elif isinstance(value, (list, tuple)):
+            return any(cls._contains_safety_rejection(item, depth + 1) for item in value[:32])
+        return False
+
+    @classmethod
+    def _is_safety_rejection(cls, error: Exception) -> bool:
+        if isinstance(error, IconGenerationRejectedError):
+            return error.error_class == "safety_rejected"
+        if cls._contains_safety_rejection(type(error).__name__):
+            return True
+        for attribute in ("code", "type", "body", "message"):
+            try:
+                value = getattr(error, attribute, None)
+            except Exception:
+                continue
+            if cls._contains_safety_rejection(value):
+                return True
+        return False
+
+    def _raise_if_safety_rejected(
+        self,
+        provider: str,
+        model: str,
+        attempt: int,
+        error: Exception,
+    ) -> None:
+        if isinstance(error, IconGenerationRejectedError):
+            error_class = error.error_class
+        elif self._is_safety_rejection(error):
+            error_class = "safety_rejected"
+        else:
+            return
+
+        self._log_generation_result(provider, model, attempt, "failed", error_class, "stopped")
+        if isinstance(error, IconGenerationRejectedError):
+            raise error
+        raise IconGenerationRejectedError("图标生成请求未通过安全审核", error_class) from error
 
     def generate_icon(self, name: str, description: str = "") -> str:
         """
@@ -106,6 +201,7 @@ class IconGeneratorService(BaseService):
             self._log_generation_result("Kolors", "Kwai-Kolors/Kolors", 1, "failed", "shared_storage", "stopped")
             raise
         except Exception as error:
+            self._raise_if_safety_rejected("Kolors", "Kwai-Kolors/Kolors", 1, error)
             self._log_generation_result(
                 "Kolors", "Kwai-Kolors/Kolors", 1, "failed", self._icon_error_class(error), "Qwen"
             )
@@ -121,6 +217,7 @@ class IconGeneratorService(BaseService):
             self._log_generation_result("Qwen", "Qwen/Qwen-Image", 2, "failed", "shared_storage", "stopped")
             raise
         except Exception as error:
+            self._raise_if_safety_rejected("Qwen", "Qwen/Qwen-Image", 2, error)
             self._log_generation_result(
                 "Qwen", "Qwen/Qwen-Image", 2, "failed", self._icon_error_class(error), "DALLE"
             )
@@ -136,6 +233,7 @@ class IconGeneratorService(BaseService):
             self._log_generation_result("DALLE", "dall-e-3", 3, "failed", "shared_storage", "stopped")
             raise
         except Exception as error:
+            self._raise_if_safety_rejected("DALLE", "dall-e-3", 3, error)
             self._log_generation_result(
                 "DALLE", "dall-e-3", 3, "failed", self._icon_error_class(error), "none"
             )
@@ -181,17 +279,31 @@ class IconGeneratorService(BaseService):
         if isinstance(error, requests.exceptions.HTTPError):
             status_code = getattr(error.response, "status_code", None)
             error_detail = ""
+            error_data = {}
             try:
                 error_data = error.response.json() if error.response is not None else {}
-                provider_error = error_data.get("error") if isinstance(error_data, dict) else None
-                error_detail = (
-                    (provider_error.get("message") if isinstance(provider_error, dict) else provider_error)
-                    or (error_data.get("message") if isinstance(error_data, dict) else None)
-                    or str(error)
-                )
             except Exception:
-                error_detail = str(error)
+                error_data = {}
 
+            if self._contains_safety_rejection(error_data):
+                raise IconGenerationRejectedError(
+                    "图标生成请求未通过安全审核",
+                    "safety_rejected",
+                ) from error
+
+            provider_error = error_data.get("error") if isinstance(error_data, dict) else None
+            error_detail = (
+                (provider_error.get("message") if isinstance(provider_error, dict) else provider_error)
+                or (error_data.get("message") if isinstance(error_data, dict) else None)
+                or str(error)
+            )
+
+            response_text = getattr(error.response, "text", None) if error.response is not None else None
+            if self._contains_safety_rejection(response_text):
+                raise IconGenerationRejectedError(
+                    "图标生成请求未通过安全审核",
+                    "safety_rejected",
+                ) from error
             if status_code == 429:
                 raise FailException(f"{provider_name} 服务请求过于频繁，请稍后重试")
 
@@ -240,6 +352,11 @@ class IconGeneratorService(BaseService):
             result = response.json()
         except ValueError as exc:
             raise FailException(f"{provider_name} 返回的图片响应格式无效") from exc
+        if self._contains_safety_rejection(result):
+            raise IconGenerationRejectedError(
+                "图标生成请求未通过安全审核",
+                "safety_rejected",
+            )
         if not isinstance(result, dict):
             raise FailException(f"{provider_name} 返回的图片响应格式无效")
         images = result.get("images", [])
