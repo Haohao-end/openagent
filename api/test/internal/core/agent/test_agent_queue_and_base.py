@@ -212,33 +212,38 @@ def test_agent_queue_manager_listen_should_yield_items_and_emit_ping(monkeypatch
     assert emitted == [QueueEvent.PING.value]
 
 
-def test_agent_queue_manager_listen_should_continue_after_transient_redis_stop_check_failure(
+def test_agent_queue_manager_listen_should_limit_warnings_during_redis_stop_check_outage(
     monkeypatch, caplog
 ):
-    class _FailOnceGetRedis(_FakeRedis):
+    class _FailTwiceGetRedis(_FakeRedis):
         def __init__(self):
             super().__init__()
             self.get_calls = 0
 
         def get(self, key):
             self.get_calls += 1
-            if self.get_calls == 1:
+            if self.get_calls <= 2:
                 raise RedisConnectionError("temporary Redis outage")
             return super().get(key)
 
-    redis_client = _FailOnceGetRedis()
+    redis_client = _FailTwiceGetRedis()
     monkeypatch.setattr("app.http.module.injector", _FakeInjector(redis_client))
     manager = AgentQueueManager(user_id=uuid4(), invoke_from=InvokeFrom.WEB_APP)
     task_id = uuid4()
-    payload = AgentThought(id=uuid4(), task_id=task_id, event=QueueEvent.AGENT_MESSAGE)
+    payloads = [
+        AgentThought(id=uuid4(), task_id=task_id, event=QueueEvent.AGENT_MESSAGE)
+        for _ in range(2)
+    ]
     task_queue = manager.queue(task_id)
-    task_queue.put(payload)
+    for payload in payloads:
+        task_queue.put(payload)
     task_queue.put(None)
 
     with caplog.at_level(logging.WARNING):
-        assert list(manager.listen(task_id)) == [payload]
+        assert list(manager.listen(task_id)) == payloads
 
-    assert redis_client.get_calls == 2
+    assert redis_client.get_calls == 3
+    assert sum("agent_queue_stop_check_failed" in record.message for record in caplog.records) == 1
     assert "agent_queue_stop_check_failed error_class=ConnectionError" in caplog.text
     assert "temporary Redis outage" not in caplog.text
 

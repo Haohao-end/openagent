@@ -51,6 +51,7 @@ class AgentQueueManager:
         listen_timeout = self._read_listen_timeout_seconds()
         start_time = time.time()
         last_ping_time = 0
+        stop_check_failure_logged = False
 
         # 2.创建循环队列执行死循环读取数据，直到超时或者数据读取完毕
         while True:
@@ -89,11 +90,14 @@ class AgentQueueManager:
                 try:
                     stopped = self._is_stopped(task_id)
                 except RedisError as error:
-                    logging.warning(
-                        "agent_queue_stop_check_failed error_class=%s",
-                        type(error).__name__,
-                    )
+                    if not stop_check_failure_logged:
+                        logging.warning(
+                            "agent_queue_stop_check_failed error_class=%s",
+                            type(error).__name__,
+                        )
+                        stop_check_failure_logged = True
                 else:
+                    stop_check_failure_logged = False
                     if stopped:
                         self.publish_terminal_now(task_id, AgentThought(
                             id=uuid.uuid4(),
