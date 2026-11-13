@@ -1,4 +1,5 @@
 import logging
+import traceback
 from datetime import datetime
 from io import BytesIO
 from types import SimpleNamespace
@@ -556,16 +557,18 @@ class TestIconGeneratorService:
         with pytest.raises(FailException, match="Qwen 返回的图片URL为空"):
             service._generate_with_qwen("测试应用", "desc")
 
-    def test_http_error_preserves_provider_message_on_failing_response(self):
+    def test_http_error_does_not_return_provider_response_body(self):
         response = requests.Response()
         response.status_code = 503
         response._content = b'{"error": {"message": "provider temporarily offline"}}'
         service = _build_service()
 
-        with pytest.raises(FailException, match="provider temporarily offline"):
+        with pytest.raises(FailException, match="HTTP 503") as error:
             service._raise_request_error(
                 "Kolors", requests.exceptions.HTTPError("HTTP 503", response=response)
             )
+        assert "provider temporarily offline" not in str(error.value)
+        assert error.value.__suppress_context__ is True
 
     @pytest.mark.parametrize("status_code", [200, 400])
     def test_generate_icon_stops_fallback_on_safety_rejection(self, monkeypatch, caplog, status_code):
@@ -616,7 +619,9 @@ class TestIconGeneratorService:
         monkeypatch.setattr(
             service,
             "_generate_with_kolors",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(ProviderError("rejected")),
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                ProviderError("rejected prompt: ICON_PROMPT_SECRET")
+            ),
         )
         qwen = Mock(return_value="https://qwen/icon.png")
         monkeypatch.setattr(service, "_generate_with_qwen", qwen)
@@ -625,22 +630,30 @@ class TestIconGeneratorService:
             service.generate_icon("app", "desc")
 
         assert error.value.error_class == "safety_rejected"
+        assert "ICON_PROMPT_SECRET" not in "".join(
+            traceback.format_exception(error.type, error.value, error.value.__traceback__)
+        )
         qwen.assert_not_called()
 
-    @pytest.mark.parametrize("body,expected", [
-        (b'{"error": "quota exceeded"}', "quota exceeded"),
-        (b'{"message": "service is unavailable"}', "service is unavailable"),
+    @pytest.mark.parametrize("body", [
+        b'{"error": "quota exceeded"}',
+        b'{"message": "service is unavailable"}',
+        b'{"error": {"message": "prompt echo: ICON_PROMPT_SECRET; api_key=PROVIDER_KEY_SECRET"}}',
     ])
-    def test_http_error_preserves_string_or_top_level_provider_message(self, body, expected):
+    def test_http_error_does_not_include_untrusted_provider_details(self, body):
         response = requests.Response()
         response.status_code = 503
         response._content = body
         service = _build_service()
 
-        with pytest.raises(FailException, match=expected):
+        with pytest.raises(FailException, match="HTTP 503") as error:
             service._raise_request_error(
                 "Kolors", requests.exceptions.HTTPError("HTTP 503", response=response)
             )
+        assert "quota exceeded" not in str(error.value)
+        assert "service is unavailable" not in str(error.value)
+        assert "ICON_PROMPT_SECRET" not in str(error.value)
+        assert "PROVIDER_KEY_SECRET" not in str(error.value)
 
     def test_generate_with_kolors_should_raise_when_http_429(self, monkeypatch):
         mock_app = Mock()
