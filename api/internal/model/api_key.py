@@ -4,6 +4,7 @@ from sqlalchemy import (
     String,
     DateTime,
     Boolean,
+    JSON,
     text,
     PrimaryKeyConstraint,
     Index
@@ -12,6 +13,9 @@ from datetime import UTC, datetime
 
 from internal.extension.database_extension import db
 from .account import Account
+
+API_KEY_SCOPE_OPENAPI_CHAT = "openapi:chat"
+API_KEY_SUPPORTED_SCOPES = frozenset({API_KEY_SCOPE_OPENAPI_CHAT})
 
 
 def _utcnow_naive() -> datetime:
@@ -33,6 +37,8 @@ class ApiKey(db.Model):
     remark = Column(String(255), nullable=False, server_default=text("''::character varying"))  # 备注信息
     expires_at = Column(DateTime, nullable=True)  # 可选的失效时间（UTC）
     last_used_at = Column(DateTime, nullable=True)  # 最近一次通过认证的时间（UTC）
+    # NULL keeps existing keys unrestricted; new keys receive an explicit default scope.
+    scopes = Column(JSON, nullable=True)
     updated_at = Column(
         DateTime,
         nullable=False,

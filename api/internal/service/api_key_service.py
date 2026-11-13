@@ -11,6 +11,7 @@ from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
 from internal.schema.api_key_schema import CreateApiKeyReq
 from internal.model import Account, ApiKey
+from internal.model.api_key import API_KEY_SCOPE_OPENAPI_CHAT
 from internal.exception import ForbiddenException
 from internal.lib.helper import ensure_utc_naive, utc_now_naive
 from pkg.paginator import PaginatorReq, Paginator
@@ -24,6 +25,10 @@ class ApiKeyService(BaseService):
     def create_api_key(self, req: CreateApiKeyReq, account: Account) -> dict[str, str]:
         """根据传递的信息创建API密钥，明文只在创建时返回一次。"""
         raw_api_key = self.generate_api_key()
+        scopes_field = getattr(req, "scopes", None)
+        scopes = getattr(scopes_field, "data", None)
+        if scopes is None:
+            scopes = [API_KEY_SCOPE_OPENAPI_CHAT]
         api_key_record = self.create(
             ApiKey,
             account_id=account.id,
@@ -31,6 +36,7 @@ class ApiKeyService(BaseService):
             is_active=req.is_active.data,
             remark=req.remark.data,
             expires_at=self._normalize_expires_at(req.expires_at.data),
+            scopes=scopes,
         )
         api_key_record_id = getattr(api_key_record, "id", None)
         return {

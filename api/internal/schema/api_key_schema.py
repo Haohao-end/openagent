@@ -3,11 +3,12 @@ from datetime import UTC, datetime
 from flask import has_request_context, request
 from flask_wtf import FlaskForm
 from marshmallow import Schema, fields, pre_dump
-from wtforms import BooleanField, IntegerField, StringField
+from wtforms import BooleanField, Field, IntegerField, StringField
 from wtforms.validators import Length, StopValidation, ValidationError
 
 from internal.lib.helper import datetime_to_timestamp
 from internal.model import ApiKey
+from internal.model.api_key import API_KEY_SCOPE_OPENAPI_CHAT, API_KEY_SUPPORTED_SCOPES
 
 
 class ApiKeyExpirationField(IntegerField):
@@ -20,6 +21,19 @@ class ApiKeyExpirationField(IntegerField):
                 self.data = payload[self.name]
                 return
         super().process_formdata(valuelist)
+
+
+class ApiKeyScopesField(Field):
+    """Read an optional string list from JSON or repeated form values."""
+
+    def process_formdata(self, valuelist: list[str]) -> None:
+        if has_request_context() and request.is_json:
+            payload = request.get_json(silent=True)
+            if isinstance(payload, dict) and self.name in payload:
+                self.data = payload[self.name]
+            return
+        if valuelist:
+            self.data = list(valuelist)
 
 
 def _validate_form_boolean(_form, field: BooleanField) -> None:
@@ -77,6 +91,27 @@ def _validate_json_expires_at(_form: FlaskForm, field: IntegerField) -> None:
         raise StopValidation("失效时间超出有效范围")
 
 
+def _validate_api_key_scopes(_form: FlaskForm, field: ApiKeyScopesField) -> None:
+    if has_request_context() and request.is_json:
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ValidationError("请求内容必须为JSON对象")
+        if field.name not in payload:
+            return
+    elif has_request_context() and field.name not in request.form:
+        return
+
+    scopes = field.data
+    if scopes is None:
+        raise ValidationError("API Key权限范围必须为字符串列表")
+    if not isinstance(scopes, list) or any(not isinstance(scope, str) for scope in scopes):
+        raise ValidationError("API Key权限范围必须为字符串列表")
+    if len(scopes) != len(set(scopes)):
+        raise ValidationError("API Key权限范围不能重复")
+    if not set(scopes).issubset(API_KEY_SUPPORTED_SCOPES):
+        raise ValidationError("API Key权限范围不受支持")
+
+
 class CreateApiKeyReq(FlaskForm):
     """创建API秘钥请求"""
     is_active = BooleanField("is_active", validators=[_validate_form_boolean])
@@ -85,6 +120,11 @@ class CreateApiKeyReq(FlaskForm):
         Length(max=100, message="秘钥备注不能超过100个字符")
     ])
     expires_at = ApiKeyExpirationField("expires_at", validators=[_validate_json_expires_at])
+    scopes = ApiKeyScopesField(
+        "scopes",
+        default=lambda: [API_KEY_SCOPE_OPENAPI_CHAT],
+        validators=[_validate_api_key_scopes],
+    )
 
     def validate_is_active(self, field: BooleanField) -> None:
         _validate_json_boolean(field)
@@ -98,6 +138,7 @@ class UpdateApiKeyReq(FlaskForm):
         Length(max=100, message="秘钥备注不能超过100个字符")
     ])
     expires_at = ApiKeyExpirationField("expires_at", validators=[_validate_json_expires_at])
+    scopes = ApiKeyScopesField("scopes", default=None, validators=[_validate_api_key_scopes])
 
     def validate_is_active(self, field: BooleanField) -> None:
         _validate_json_boolean(field)
@@ -117,6 +158,7 @@ class GetApiKeysWithPageResp(Schema):
     remark = fields.String(dump_default="")
     expires_at = fields.Integer(dump_default=0)
     last_used_at = fields.Integer(dump_default=0)
+    scopes = fields.List(fields.String(), allow_none=True, dump_default=None)
     updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
 
@@ -129,6 +171,7 @@ class GetApiKeysWithPageResp(Schema):
             "remark": data.remark,
             "expires_at": datetime_to_timestamp(getattr(data, "expires_at", None)),
             "last_used_at": datetime_to_timestamp(getattr(data, "last_used_at", None)),
+            "scopes": getattr(data, "scopes", None),
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),
         }

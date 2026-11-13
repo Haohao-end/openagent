@@ -117,6 +117,29 @@ def test_api_key_expiration_rejects_invalid_json_timestamps(form_request, form_c
     assert "expires_at" in form.errors
 
 
+@pytest.mark.parametrize("form_cls", [CreateApiKeyReq, UpdateApiKeyReq])
+def test_api_key_scopes_accept_supported_json_list_and_default_omission(form_request, form_cls):
+    ok, form = _validate_form(form_request, form_cls, json={"scopes": ["openapi:chat"]})
+    assert ok, form.errors
+    assert form.scopes.data == ["openapi:chat"]
+
+    ok, form = _validate_form(form_request, form_cls, json={"remark": "legacy"})
+    assert ok, form.errors
+    expected_scopes = ["openapi:chat"] if form_cls is CreateApiKeyReq else None
+    assert form.scopes.data == expected_scopes
+
+
+@pytest.mark.parametrize("form_cls", [CreateApiKeyReq, UpdateApiKeyReq])
+@pytest.mark.parametrize(
+    "scopes",
+    [None, "openapi:chat", ["unsupported:admin"], ["openapi:chat", "openapi:chat"], [None]],
+)
+def test_api_key_scopes_reject_invalid_values(form_request, form_cls, scopes):
+    ok, form = _validate_form(form_request, form_cls, json={"scopes": scopes})
+    assert not ok
+    assert "scopes" in form.errors
+
+
 def test_get_api_keys_with_page_resp_should_dump_expected_fields():
     api_key = ns(
         id=uuid4(),
@@ -125,6 +148,7 @@ def test_get_api_keys_with_page_resp_should_dump_expected_fields():
         remark="remark",
         expires_at=utc_dt(2024, 1, 3, 0, 0, 0),
         last_used_at=utc_dt(2024, 1, 2, 12, 30, 0),
+        scopes=["openapi:chat"],
         updated_at=utc_dt(2024, 1, 2, 0, 0, 0),
         created_at=utc_dt(2024, 1, 1, 0, 0, 0),
     )
@@ -133,6 +157,7 @@ def test_get_api_keys_with_page_resp_should_dump_expected_fields():
     assert data["is_active"] is True
     assert data["expires_at"] == int(utc_dt(2024, 1, 3, 0, 0, 0).timestamp())
     assert data["last_used_at"] == int(utc_dt(2024, 1, 2, 12, 30, 0).timestamp())
+    assert data["scopes"] == ["openapi:chat"]
     assert data["updated_at"] == int(utc_dt(2024, 1, 2, 0, 0, 0).timestamp())
     assert data["created_at"] == int(utc_dt(2024, 1, 1, 0, 0, 0).timestamp())
 

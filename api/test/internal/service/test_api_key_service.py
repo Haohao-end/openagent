@@ -353,6 +353,7 @@ class TestApiKeyService:
             is_active=SimpleNamespace(data=True),
             remark=SimpleNamespace(data="for-ci"),
             expires_at=SimpleNamespace(data=1_900_000_000),
+            scopes=SimpleNamespace(data=[]),
         )
         monkeypatch.setattr(service, "generate_api_key", lambda: "llmops-v1/mock-key")
 
@@ -370,6 +371,27 @@ class TestApiKeyService:
         assert captures[0][1]["remark"] == "for-ci"
         assert captures[0][1]["api_key"] == ApiKeyService.hash_api_key("llmops-v1/mock-key")
         assert captures[0][1]["expires_at"] == datetime.fromtimestamp(1_900_000_000, UTC).replace(tzinfo=None)
+        assert captures[0][1]["scopes"] == []
+
+    def test_create_api_key_should_default_to_chat_scope_when_missing(self, monkeypatch):
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        req = SimpleNamespace(
+            is_active=SimpleNamespace(data=True),
+            remark=SimpleNamespace(data="for-ci"),
+            expires_at=SimpleNamespace(data=None),
+        )
+        monkeypatch.setattr(service, "generate_api_key", lambda: "llmops-v1/mock-key")
+        captures = []
+        monkeypatch.setattr(
+            service,
+            "create",
+            lambda model, **kwargs: captures.append((model, kwargs)) or SimpleNamespace(**kwargs),
+        )
+
+        service.create_api_key(req, account)
+
+        assert captures[0][1]["scopes"] == ["openapi:chat"]
 
     def test_update_api_key_should_delegate_update(self, monkeypatch):
         service = self._build_service()

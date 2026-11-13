@@ -5,9 +5,14 @@ from flask import Request, g
 from injector import inject
 from sqlalchemy.exc import SQLAlchemyError
 from internal.model import Account
-from internal.exception import UnauthorizedException
+from internal.exception import ForbiddenException, UnauthorizedException
 from internal.lib.helper import ensure_utc_naive, utc_now_naive
+from internal.model.api_key import API_KEY_SCOPE_OPENAPI_CHAT, API_KEY_SUPPORTED_SCOPES
 from internal.service import JwtService, AccountService, ApiKeyService
+
+_API_KEY_SCOPE_BY_ENDPOINT = {
+    "openapi.chat": API_KEY_SCOPE_OPENAPI_CHAT,
+}
 
 @inject
 @dataclass
@@ -52,6 +57,10 @@ class Middleware:
             ):
                 raise UnauthorizedException("该密钥不存在或未激活")
 
+            scopes = getattr(api_key_record, "scopes", None)
+            if scopes is not None and not self._api_key_has_scope(scopes, request.endpoint):
+                raise ForbiddenException("该密钥没有调用此接口的权限")
+
             try:
                 self.api_key_service.record_last_used_at(api_key_record)
             except SQLAlchemyError as error:
@@ -84,5 +93,16 @@ class Middleware:
             raise UnauthorizedException("该接口需要授权才能访问 验证格式失败")
 
         return credential
+
+    @staticmethod
+    def _api_key_has_scope(scopes: object, endpoint: Optional[str]) -> bool:
+        if (
+            not isinstance(scopes, list)
+            or any(not isinstance(scope, str) for scope in scopes)
+            or not set(scopes).issubset(API_KEY_SUPPORTED_SCOPES)
+        ):
+            return False
+        required_scope = _API_KEY_SCOPE_BY_ENDPOINT.get(endpoint or "")
+        return required_scope is not None and required_scope in scopes
 
 
