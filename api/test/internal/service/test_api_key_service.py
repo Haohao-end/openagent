@@ -9,6 +9,8 @@ from flask import Flask
 import pytest
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 
 from internal.exception import (
     FailException,
@@ -145,6 +147,62 @@ class _AppDBStub:
 class TestApiKeyService:
     def _build_service(self) -> ApiKeyService:
         return ApiKeyService(db=SimpleNamespace(session=SimpleNamespace()))
+
+    def test_record_last_used_at_should_never_overwrite_a_newer_database_timestamp(
+        self, monkeypatch
+    ):
+        api_key_id = uuid4()
+        later_used_at = datetime(2026, 11, 13, 12, 0, 0)
+        earlier_request_at = datetime(2026, 11, 13, 11, 0, 0)
+        newest_request_at = datetime(2026, 11, 13, 13, 0, 0)
+        engine = create_engine("sqlite://")
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "CREATE TABLE api_key (id CHAR(32) PRIMARY KEY, last_used_at DATETIME)"
+            )
+            connection.execute(
+                text("INSERT INTO api_key (id, last_used_at) VALUES (:id, :last_used_at)"),
+                {"id": api_key_id.hex, "last_used_at": later_used_at.isoformat(sep=" ")},
+            )
+        session = Session(engine)
+
+        @contextmanager
+        def auto_commit():
+            try:
+                yield
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+
+        service = ApiKeyService(db=SimpleNamespace(session=session, auto_commit=auto_commit))
+        monkeypatch.setattr(
+            "internal.service.api_key_service.utc_now_naive",
+            lambda: earlier_request_at,
+        )
+        api_key_record = SimpleNamespace(id=api_key_id)
+
+        service.record_last_used_at(api_key_record)
+
+        stored_timestamp = session.execute(
+            text("SELECT last_used_at FROM api_key WHERE id = :id"),
+            {"id": api_key_id.hex},
+        ).scalar_one()
+        assert datetime.fromisoformat(stored_timestamp) == later_used_at
+
+        monkeypatch.setattr(
+            "internal.service.api_key_service.utc_now_naive",
+            lambda: newest_request_at,
+        )
+        service.record_last_used_at(api_key_record)
+
+        stored_timestamp = session.execute(
+            text("SELECT last_used_at FROM api_key WHERE id = :id"),
+            {"id": api_key_id.hex},
+        ).scalar_one()
+        assert datetime.fromisoformat(stored_timestamp) == newest_request_at
+        session.close()
+        engine.dispose()
 
     def test_get_api_by_by_credential_should_return_query_result(self):
         api_key_record = SimpleNamespace(id=uuid4(), api_key="llmops-v1/demo")

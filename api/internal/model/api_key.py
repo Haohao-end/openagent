@@ -32,6 +32,7 @@ class ApiKey(db.Model):
     is_active = Column(Boolean, nullable=False, server_default=text('false'))  # 是否激活，为true时可以使用
     remark = Column(String(255), nullable=False, server_default=text("''::character varying"))  # 备注信息
     expires_at = Column(DateTime, nullable=True)  # 可选的失效时间（UTC）
+    last_used_at = Column(DateTime, nullable=True)  # 最近一次通过认证的时间（UTC）
     updated_at = Column(
         DateTime,
         nullable=False,
