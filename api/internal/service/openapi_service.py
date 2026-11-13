@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage
 from internal.core.agent.agents import FunctionCallAgent, ReACTAgent
 from internal.core.agent.entities.agent_entity import AgentConfig
 from internal.core.agent.entities.queue_entity import QueueEvent
+from internal.core.agent.trace_context import AgentTraceContext
 from internal.core.memory import TokenBufferMemory
 from internal.entity.app_entity import AppStatus
 from internal.entity.conversation_entity import InvokeFrom, MessageStatus
@@ -187,50 +188,79 @@ class OpenAPIService(BaseService):
                         agent_thoughts=list(agent_thoughts_dict.values()),
                     )
 
-                for agent_thought in agent.stream(agent_state):
-                    # 提取thought以及answer
-                    event_id = str(agent_thought.id)
-
-                    # 将数据填充到agent_thought，便于存储到数据库服务中
-                    if agent_thought.event != QueueEvent.PING.value:
-                        # 除了agent_message数据为叠加，其他均为覆盖
-                        if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
-                            if event_id not in agent_thoughts_dict:
-                                # 初始化智能体消息事件
-                                agent_thoughts_dict[event_id] = agent_thought
-                            else:
-                                # 叠加智能体消息
-                                agent_thoughts_dict[event_id] = agent_thoughts_dict[event_id].model_copy(update={
-                                    "thought": agent_thoughts_dict[event_id].thought + agent_thought.thought,
-                                    "answer": agent_thoughts_dict[event_id].answer + agent_thought.answer,
-                                    "latency": agent_thought.latency,
-                                })
-                        else:
-                            # 处理其他类型事件的消息
-                            agent_thoughts_dict[event_id] = agent_thought
-                    data = {
-                        **agent_thought.model_dump(include={
-                            "event", "thought", "observation", "tool", "tool_input", "answer", "latency",
-                        }),
-                        "id": event_id,
-                        "end_user_id": end_user_id,
-                        "conversation_id": conversation_id,
-                        "message_id": message_id,
-                        "task_id": str(agent_thought.task_id),
-                    }
+                def save_agent_thoughts_on_disconnect():
                     try:
-                        yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
-                    except GeneratorExit:
-                        try:
-                            save_agent_thoughts()
-                        except Exception as error:  # noqa: BLE001
-                            logging.getLogger(__name__).error(
-                                "保存OpenAPI推理过程失败: error_type=%s", type(error).__name__
-                            )
-                        raise
+                        save_agent_thoughts()
+                    except Exception as error:  # noqa: BLE001
+                        logging.getLogger(__name__).error(
+                            "保存OpenAPI推理过程失败: error_type=%s", type(error).__name__
+                        )
 
-                # 22.将消息以及推理过程添加到数据库
-                save_agent_thoughts()
+                trace_context = None
+                agent_stream = None
+                try:
+                    queue_manager = getattr(agent, "agent_queue_manager", None)
+                    if queue_manager is not None:
+                        trace_context = AgentTraceContext(queue_manager)
+                        agent_state["task_id"] = trace_context.task_id
+                        agent_stream = agent.stream(agent_state, config=trace_context.runnable_config)
+                    else:
+                        agent_stream = agent.stream(agent_state)
+
+                    for agent_thought in agent_stream:
+                        if agent_thought.event == QueueEvent.CALLABLE_TRACE.value:
+                            try:
+                                yield f"event: callable_trace\ndata:{agent_thought.observation}\n\n"
+                            except GeneratorExit:
+                                save_agent_thoughts_on_disconnect()
+                                raise
+                            continue
+
+                        # 提取thought以及answer
+                        event_id = str(agent_thought.id)
+
+                        # 将数据填充到agent_thought，便于存储到数据库服务中
+                        if agent_thought.event != QueueEvent.PING.value:
+                            # 除了agent_message数据为叠加，其他均为覆盖
+                            if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
+                                if event_id not in agent_thoughts_dict:
+                                    # 初始化智能体消息事件
+                                    agent_thoughts_dict[event_id] = agent_thought
+                                else:
+                                    agent_thoughts_dict[event_id] = agent_thoughts_dict[event_id].model_copy(update={
+                                        "thought": agent_thoughts_dict[event_id].thought + agent_thought.thought,
+                                        "answer": agent_thoughts_dict[event_id].answer + agent_thought.answer,
+                                        "latency": agent_thought.latency,
+                                    })
+                            else:
+                                # 处理其他类型事件的消息
+                                agent_thoughts_dict[event_id] = agent_thought
+                        data = {
+                            **agent_thought.model_dump(include={
+                                "event", "thought", "observation", "tool", "tool_input", "answer", "latency",
+                            }),
+                            "id": event_id,
+                            "end_user_id": end_user_id,
+                            "conversation_id": conversation_id,
+                            "message_id": message_id,
+                            "task_id": str(agent_thought.task_id),
+                        }
+                        try:
+                            yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
+                        except GeneratorExit:
+                            save_agent_thoughts_on_disconnect()
+                            raise
+
+                    # 22.将消息以及推理过程添加到数据库
+                    save_agent_thoughts()
+                finally:
+                    close_stream = getattr(agent_stream, "close", None)
+                    try:
+                        if callable(close_stream):
+                            close_stream()
+                    finally:
+                        if trace_context is not None:
+                            trace_context.close()
 
             return handle_stream()
 
