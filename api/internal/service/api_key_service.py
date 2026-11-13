@@ -5,7 +5,7 @@ from uuid import UUID
 from injector import inject
 from dataclasses import dataclass
 
-from sqlalchemy import desc
+from sqlalchemy import case, desc, or_
 
 from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
@@ -59,8 +59,22 @@ class ApiKeyService(BaseService):
         return legacy_api_key_record
 
     def record_last_used_at(self, api_key_record: ApiKey) -> None:
-        """Persist the time this key successfully authenticated an OpenAPI request."""
-        self.update(api_key_record, last_used_at=utc_now_naive())
+        """Atomically persist the latest successful authentication time for this key."""
+        used_at = utc_now_naive()
+        latest_used_at = case(
+            (
+                or_(ApiKey.last_used_at.is_(None), ApiKey.last_used_at < used_at),
+                used_at,
+            ),
+            else_=ApiKey.last_used_at,
+        )
+        with self.db.auto_commit():
+            self.db.session.query(ApiKey).filter(
+                ApiKey.id == api_key_record.id,
+            ).update(
+                {ApiKey.last_used_at: latest_used_at},
+                synchronize_session=False,
+            )
 
     def get_api_key(self, api_key_id: UUID, account: Account) -> ApiKey:
         """根据传递的密钥id+账号信息获取记录"""
