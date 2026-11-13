@@ -204,11 +204,12 @@ class TestApiKeyService:
         session.close()
         engine.dispose()
 
-    def test_record_last_used_at_should_write_at_most_once_per_minute(self, monkeypatch):
+    def test_record_last_used_at_should_enforce_a_rolling_one_minute_interval(self, monkeypatch):
         api_key_id = uuid4()
-        first_use = datetime(2026, 11, 13, 10, 5, 10)
-        repeated_use = datetime(2026, 11, 13, 10, 5, 55)
-        next_minute_use = datetime(2026, 11, 13, 10, 6, 5)
+        first_use = datetime(2026, 11, 13, 10, 5, 59)
+        rapid_followup = datetime(2026, 11, 13, 10, 6, 0)
+        before_interval = datetime(2026, 11, 13, 10, 6, 58)
+        next_eligible_use = datetime(2026, 11, 13, 10, 6, 59)
         engine = create_engine("sqlite://")
         with engine.begin() as connection:
             connection.exec_driver_sql(
@@ -235,7 +236,13 @@ class TestApiKeyService:
         service = ApiKeyService(db=SimpleNamespace(session=session, auto_commit=auto_commit))
         api_key_record = SimpleNamespace(id=api_key_id)
 
-        for used_at in (first_use, repeated_use, next_minute_use):
+        expected_by_use = {
+            first_use: first_use,
+            rapid_followup: first_use,
+            before_interval: first_use,
+            next_eligible_use: next_eligible_use,
+        }
+        for used_at, expected_timestamp in expected_by_use.items():
             monkeypatch.setattr(
                 "internal.service.api_key_service.utc_now_naive",
                 lambda used_at=used_at: used_at,
@@ -245,7 +252,6 @@ class TestApiKeyService:
                 text("SELECT last_used_at FROM api_key WHERE id = :id"),
                 {"id": api_key_id.hex},
             ).scalar_one()
-            expected_timestamp = first_use if used_at == repeated_use else used_at
             assert datetime.fromisoformat(stored_timestamp) == expected_timestamp
         session.close()
         engine.dispose()
