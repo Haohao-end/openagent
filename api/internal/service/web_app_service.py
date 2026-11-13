@@ -1,7 +1,7 @@
 import json
 import logging
 from typing import Generator, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 from flask import current_app
 from injector import inject
 from langchain_core.messages import HumanMessage
@@ -14,6 +14,7 @@ from internal.exception import NotFoundException, ForbiddenException
 from dataclasses import dataclass
 from internal.schema.web_app_schema import WebAppChatReq
 from internal.core.agent.entities.queue_entity import QueueEvent
+from internal.core.agent.trace_context import AgentTraceContext
 from internal.core.agent.usage_utils import summarize_agent_thoughts
 from internal.core.language_model.entities.model_entity import ModelFeature
 from internal.core.memory import TokenBufferMemory
@@ -195,67 +196,103 @@ class WebAppService(BaseService):
                 agent_thoughts=list(agent_thoughts.values()),
             )
 
-        for agent_thought in agent.stream({
+        task_id = uuid4()
+        agent_state = {
             "messages": [llm.convert_to_human_message(req.query.data, req.image_urls.data)],
             "history": history,
             "long_term_memory": conversation.summary,
-        }):
-            # 14.提取thought以及answer
-            event_id = str(agent_thought.id)
+        }
+        trace_context = None
+        queue_manager = getattr(agent, "agent_queue_manager", None)
+        if queue_manager is not None:
+            trace_context = AgentTraceContext(queue_manager, task_id)
+            agent_state["task_id"] = task_id
 
-            # 15.将数据填充到agent_thought，便于存储到数据库服务中
-            if agent_thought.event != QueueEvent.PING.value:
-                # 16.除了agent_message数据为叠加，其他均为覆盖
-                if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
-                    if event_id not in agent_thoughts:
-                        # 17.初始化智能体消息事件
-                        agent_thoughts[event_id] = agent_thought
+        stream = None
+        try:
+            stream = (
+                agent.stream(agent_state, config=trace_context.runnable_config)
+                if trace_context is not None
+                else agent.stream(agent_state)
+            )
+            for agent_thought in stream:
+                if agent_thought.event == QueueEvent.CALLABLE_TRACE:
+                    try:
+                        yield f"event: callable_trace\ndata:{agent_thought.observation}\n\n"
+                    except GeneratorExit:
+                        try:
+                            save_agent_thoughts()
+                        except Exception as error:  # noqa: BLE001
+                            logging.getLogger(__name__).error(
+                                "保存WebApp推理过程失败: error_type=%s", type(error).__name__
+                            )
+                        raise
+                    continue
+
+                # 14.提取thought以及answer
+                event_id = str(agent_thought.id)
+
+                # 15.将数据填充到agent_thought，便于存储到数据库服务中
+                if agent_thought.event != QueueEvent.PING.value:
+                    # 16.除了agent_message数据为叠加，其他均为覆盖
+                    if agent_thought.event == QueueEvent.AGENT_MESSAGE.value:
+                        if event_id not in agent_thoughts:
+                            # 17.初始化智能体消息事件
+                            agent_thoughts[event_id] = agent_thought
+                        else:
+                            # 18.叠加智能体消息
+                            agent_thoughts[event_id] = agent_thoughts[event_id].model_copy(update={
+                                "thought": agent_thoughts[event_id].thought + agent_thought.thought,
+                                # 消息相关数据
+                                "message": agent_thought.message,
+                                "message_token_count": agent_thought.message_token_count,
+                                "message_unit_price": agent_thought.message_unit_price,
+                                "message_price_unit": agent_thought.message_price_unit,
+                                # 答案相关数据
+                                "answer": agent_thoughts[event_id].answer + agent_thought.answer,
+                                "answer_token_count": agent_thought.answer_token_count,
+                                "answer_unit_price": agent_thought.answer_unit_price,
+                                "answer_price_unit": agent_thought.answer_price_unit,
+                                # Agent推理统计相关
+                                "total_token_count": agent_thought.total_token_count,
+                                "total_price": agent_thought.total_price,
+                                "latency": agent_thought.latency,
+                            })
                     else:
-                        # 18.叠加智能体消息
-                        agent_thoughts[event_id] = agent_thoughts[event_id].model_copy(update={
-                            "thought": agent_thoughts[event_id].thought + agent_thought.thought,
-                            # 消息相关数据
-                            "message": agent_thought.message,
-                            "message_token_count": agent_thought.message_token_count,
-                            "message_unit_price": agent_thought.message_unit_price,
-                            "message_price_unit": agent_thought.message_price_unit,
-                            # 答案相关数据
-                            "answer": agent_thoughts[event_id].answer + agent_thought.answer,
-                            "answer_token_count": agent_thought.answer_token_count,
-                            "answer_unit_price": agent_thought.answer_unit_price,
-                            "answer_price_unit": agent_thought.answer_price_unit,
-                            # Agent推理统计相关
-                            "total_token_count": agent_thought.total_token_count,
-                            "total_price": agent_thought.total_price,
-                            "latency": agent_thought.latency,
-                        })
-                else:
-                    # 19.处理其他类型事件的消息
-                    agent_thoughts[event_id] = agent_thought
-            usage_summary = summarize_agent_thoughts(agent_thoughts.values())
-            data = {
-                **agent_thought.model_dump(include={
-                    "event", "thought", "observation", "tool", "tool_input", "answer",
-                    "total_token_count", "total_price", "latency",
-                }),
-                "aggregate_total_token_count": usage_summary.total_token_count,
-                "aggregate_total_price": usage_summary.total_price,
-                "aggregate_latency": usage_summary.latency,
-                "id": event_id,
-                "conversation_id": str(conversation.id),
-                "message_id": str(message.id),
-                "task_id": str(agent_thought.task_id),
-            }
-            try:
-                yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
-            except GeneratorExit:
+                        # 19.处理其他类型事件的消息
+                        agent_thoughts[event_id] = agent_thought
+                usage_summary = summarize_agent_thoughts(agent_thoughts.values())
+                data = {
+                    **agent_thought.model_dump(include={
+                        "event", "thought", "observation", "tool", "tool_input", "answer",
+                        "total_token_count", "total_price", "latency",
+                    }),
+                    "aggregate_total_token_count": usage_summary.total_token_count,
+                    "aggregate_total_price": usage_summary.total_price,
+                    "aggregate_latency": usage_summary.latency,
+                    "id": event_id,
+                    "conversation_id": str(conversation.id),
+                    "message_id": str(message.id),
+                    "task_id": str(agent_thought.task_id),
+                }
                 try:
-                    save_agent_thoughts()
-                except Exception as error:  # noqa: BLE001
-                    logging.getLogger(__name__).error(
-                        "保存WebApp推理过程失败: error_type=%s", type(error).__name__
-                    )
-                raise
+                    yield f"event: {agent_thought.event.value}\ndata:{json.dumps(data)}\n\n"
+                except GeneratorExit:
+                    try:
+                        save_agent_thoughts()
+                    except Exception as error:  # noqa: BLE001
+                        logging.getLogger(__name__).error(
+                            "保存WebApp推理过程失败: error_type=%s", type(error).__name__
+                        )
+                    raise
+        finally:
+            close_stream = getattr(stream, "close", None)
+            try:
+                if callable(close_stream):
+                    close_stream()
+            finally:
+                if trace_context is not None:
+                    trace_context.close()
 
         # 20.将消息以及推理过程添加到数据库（同步方式）
         save_agent_thoughts()
