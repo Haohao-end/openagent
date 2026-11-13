@@ -1,6 +1,6 @@
 import secrets
 import hashlib
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 from injector import inject
 from dataclasses import dataclass
@@ -14,6 +14,8 @@ from internal.model import Account, ApiKey
 from internal.exception import ForbiddenException
 from internal.lib.helper import ensure_utc_naive, utc_now_naive
 from pkg.paginator import PaginatorReq, Paginator
+
+_LAST_USED_AT_UPDATE_INTERVAL = timedelta(minutes=1)
 
 @inject
 @dataclass
@@ -61,11 +63,11 @@ class ApiKeyService(BaseService):
     def record_last_used_at(self, api_key_record: ApiKey) -> None:
         """Persist successful use at most once per minute without moving backward."""
         used_at = utc_now_naive()
-        update_after = used_at.replace(second=0, microsecond=0)
+        update_after = used_at - _LAST_USED_AT_UPDATE_INTERVAL
         with self.db.auto_commit():
             self.db.session.query(ApiKey).filter(
                 ApiKey.id == api_key_record.id,
-                or_(ApiKey.last_used_at.is_(None), ApiKey.last_used_at < update_after),
+                or_(ApiKey.last_used_at.is_(None), ApiKey.last_used_at <= update_after),
             ).update(
                 {ApiKey.last_used_at: used_at},
                 synchronize_session=False,
