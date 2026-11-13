@@ -1,5 +1,6 @@
-import queue
+import logging
 import os
+import queue
 import threading
 import time
 import uuid
@@ -7,6 +8,7 @@ from queue import Queue
 from typing import Generator
 from uuid import UUID
 from redis import Redis
+from redis.exceptions import RedisError
 from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
 from internal.core.agent.failure_utils import build_failure_observation, classify_failure_event
 from internal.entity.conversation_entity import InvokeFrom
@@ -84,12 +86,20 @@ class AgentQueueManager:
                     ))
 
                 # 7.检测是否停止，如果已经停止则添加停止事件
-                if self._is_stopped(task_id):
-                    self.publish_terminal_now(task_id, AgentThought(
-                        id=uuid.uuid4(),
-                        task_id=task_id,
-                        event=QueueEvent.STOP.value,
-                    ))
+                try:
+                    stopped = self._is_stopped(task_id)
+                except RedisError as error:
+                    logging.warning(
+                        "agent_queue_stop_check_failed error_class=%s",
+                        type(error).__name__,
+                    )
+                else:
+                    if stopped:
+                        self.publish_terminal_now(task_id, AgentThought(
+                            id=uuid.uuid4(),
+                            task_id=task_id,
+                            event=QueueEvent.STOP.value,
+                        ))
 
     @classmethod
     def _read_listen_timeout_seconds(cls) -> int:

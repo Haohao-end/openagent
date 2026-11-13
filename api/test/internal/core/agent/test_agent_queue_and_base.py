@@ -1,4 +1,5 @@
 import json
+import logging
 from contextlib import nullcontext
 from concurrent.futures import ThreadPoolExecutor
 import threading
@@ -7,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 import queue as py_queue
+from redis.exceptions import ConnectionError as RedisConnectionError
 from langchain_core.messages import HumanMessage
 from langchain_core.outputs import LLMResult
 from pydantic import PrivateAttr
@@ -208,6 +210,37 @@ def test_agent_queue_manager_listen_should_yield_items_and_emit_ping(monkeypatch
 
     assert items == [payload]
     assert emitted == [QueueEvent.PING.value]
+
+
+def test_agent_queue_manager_listen_should_continue_after_transient_redis_stop_check_failure(
+    monkeypatch, caplog
+):
+    class _FailOnceGetRedis(_FakeRedis):
+        def __init__(self):
+            super().__init__()
+            self.get_calls = 0
+
+        def get(self, key):
+            self.get_calls += 1
+            if self.get_calls == 1:
+                raise RedisConnectionError("temporary Redis outage")
+            return super().get(key)
+
+    redis_client = _FailOnceGetRedis()
+    monkeypatch.setattr("app.http.module.injector", _FakeInjector(redis_client))
+    manager = AgentQueueManager(user_id=uuid4(), invoke_from=InvokeFrom.WEB_APP)
+    task_id = uuid4()
+    payload = AgentThought(id=uuid4(), task_id=task_id, event=QueueEvent.AGENT_MESSAGE)
+    task_queue = manager.queue(task_id)
+    task_queue.put(payload)
+    task_queue.put(None)
+
+    with caplog.at_level(logging.WARNING):
+        assert list(manager.listen(task_id)) == [payload]
+
+    assert redis_client.get_calls == 2
+    assert "agent_queue_stop_check_failed error_class=ConnectionError" in caplog.text
+    assert "temporary Redis outage" not in caplog.text
 
 
 def test_agent_queue_manager_listen_should_emit_timeout_and_stop(monkeypatch):
