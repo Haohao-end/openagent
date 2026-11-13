@@ -55,6 +55,82 @@ describe('chat-stream', () => {
     expect(message.answer).toBe('')
   })
 
+  it('restores persisted callable traces from history thoughts without keeping them as thoughts', () => {
+    const trace = {
+      schema_version: 1,
+      event_id: 'trace-event-1',
+      run_id: 'trace-run-1',
+      parent_run_id: 'trace-parent-1',
+      phase: 'end',
+      run_type: 'llm',
+      latency_ms: 34.5,
+    }
+    const message = {
+      ...createMessage(),
+      id: 'history-message-1',
+      agent_thoughts: [
+        {
+          id: 'trace-thought-1',
+          position: 1,
+          event: QueueEvent.callableTrace,
+          thought: '',
+          observation: JSON.stringify(trace),
+          tool: '',
+          tool_input: {},
+          latency: 0,
+          created_at: 0,
+        },
+        {
+          id: 'thought-1',
+          position: 2,
+          event: QueueEvent.agentAction,
+          thought: 'Searching',
+          observation: 'Found results',
+          tool: 'search',
+          tool_input: {},
+          latency: 0,
+          created_at: 0,
+        },
+      ],
+    }
+
+    const [restored] = mergeChatHistoryMessages([message])
+
+    expect(restored.callable_trace_events).toEqual([trace])
+    expect(restored.agent_thoughts).toHaveLength(1)
+    expect(restored.agent_thoughts?.[0].id).toBe('thought-1')
+  })
+
+  it('deduplicates persisted callable trace events by event id', () => {
+    const trace = {
+      schema_version: 1,
+      event_id: 'trace-event-1',
+      run_id: 'trace-run-1',
+      phase: 'start',
+      run_type: 'chain',
+    }
+    const message = {
+      ...createMessage(),
+      id: 'history-message-1',
+      agent_thoughts: [trace, trace].map((event, index) => ({
+        id: `trace-thought-${index}`,
+        position: index + 1,
+        event: QueueEvent.callableTrace,
+        thought: '',
+        observation: JSON.stringify(event),
+        tool: '',
+        tool_input: {},
+        latency: 0,
+        created_at: 0,
+      })),
+    }
+
+    const [restored] = mergeChatHistoryMessages([message])
+
+    expect(restored.callable_trace_events).toEqual([trace])
+    expect(restored.agent_thoughts).toEqual([])
+  })
+
   it('appends agent message content and initializes ids', () => {
     const message = createMessage()
     const state = createState()

@@ -820,6 +820,7 @@ onUnmounted(() => {
                   :message_id="item.id"
                   :enable_text_to_speech="web_app?.app_config?.text_to_speech?.enable"
                   :agent_thoughts="item.agent_thoughts"
+                  :callable_trace_events="item.callable_trace_events || []"
                   :answer="item.answer"
                   :answer_parts="item.answer_parts || []"
                   :artifacts="item.artifacts || []"

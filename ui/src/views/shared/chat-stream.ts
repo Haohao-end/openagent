@@ -106,11 +106,61 @@ export const withChatRenderIds = <T extends { id?: string; render_id?: string }>
   return messages.map((message) => withChatRenderId(message, scope))
 }
 
+export const extractCallableTraceHistory = (agentThoughts: unknown) => {
+  const thoughts = Array.isArray(agentThoughts) ? agentThoughts : []
+  const remainingThoughts: unknown[] = []
+  const callableTraceEvents: CallableTraceEvent[] = []
+
+  for (const thought of thoughts) {
+    if (
+      !thought ||
+      typeof thought !== 'object' ||
+      Array.isArray(thought) ||
+      (thought as Record<string, unknown>).event !== QueueEvent.callableTrace
+    ) {
+      remainingThoughts.push(thought)
+      continue
+    }
+
+    let trace = (thought as Record<string, unknown>).observation
+    if (typeof trace === 'string') {
+      try {
+        trace = JSON.parse(trace)
+      } catch {
+        continue
+      }
+    }
+    if (trace && typeof trace === 'object' && !Array.isArray(trace)) {
+      callableTraceEvents.push(trace as CallableTraceEvent)
+    }
+  }
+
+  return { remainingThoughts, callableTraceEvents }
+}
+
+const mergeCallableTraceEvents = (
+  existingEvents: unknown,
+  recoveredEvents: CallableTraceEvent[],
+) => {
+  const events = Array.isArray(existingEvents) ? existingEvents : []
+  const seenEventIds = new Set<string>()
+  const merged: CallableTraceEvent[] = []
+  for (const event of [...events, ...recoveredEvents]) {
+    if (!event || typeof event !== 'object' || Array.isArray(event)) continue
+    const trace = event as CallableTraceEvent
+    const eventId = String(trace.event_id ?? '').trim()
+    if (eventId && seenEventIds.has(eventId)) continue
+    if (eventId) seenEventIds.add(eventId)
+    merged.push(trace)
+  }
+  return merged
+}
+
 export const mergeChatHistoryMessages = <T extends { id?: string; render_id?: string }>(
   messages: T[],
   scope: string = 'chat',
-): Array<T & { render_id: string }> => {
-  const merged: Array<T & { render_id: string }> = []
+): Array<T & { render_id: string; callable_trace_events?: CallableTraceEvent[] }> => {
+  const merged: Array<T & { render_id: string; callable_trace_events?: CallableTraceEvent[] }> = []
   const seenKeys = new Set<string>()
 
   for (const message of messages) {
@@ -125,10 +175,34 @@ export const mergeChatHistoryMessages = <T extends { id?: string; render_id?: st
       seenKeys.add(identityKey)
     }
 
-    merged.push({
+    const historyMessage = message as T & {
+      agent_thoughts?: unknown
+      callable_trace_events?: unknown
+    }
+    const { remainingThoughts, callableTraceEvents } = extractCallableTraceHistory(
+      historyMessage.agent_thoughts,
+    )
+    const normalizedMessage = {
       ...message,
       render_id: normalizedRenderId || normalizedId || createChatRenderId(scope),
-    })
+    } as T & {
+      render_id: string
+      agent_thoughts?: unknown[]
+      callable_trace_events?: CallableTraceEvent[]
+    }
+    if (
+      Array.isArray(historyMessage.agent_thoughts) &&
+      remainingThoughts.length !== historyMessage.agent_thoughts.length
+    ) {
+      normalizedMessage.agent_thoughts = remainingThoughts
+    }
+    if ('callable_trace_events' in historyMessage || callableTraceEvents.length > 0) {
+      normalizedMessage.callable_trace_events = mergeCallableTraceEvents(
+        historyMessage.callable_trace_events,
+        callableTraceEvents,
+      )
+    }
+    merged.push(normalizedMessage)
   }
 
   return merged

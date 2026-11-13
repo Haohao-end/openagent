@@ -16,6 +16,7 @@ import AgentThought from './AgentThought.vue'
 import ChatImageGallery from './ChatImageGallery.vue'
 import DeepAgentTimeline from './DeepAgentTimeline.vue'
 import DeepThinkingPanel from './DeepThinkingPanel.vue'
+import CallableTraceTimeline from './chat/CallableTraceTimeline.vue'
 import { QueueEvent } from '@/config'
 import 'github-markdown-css'
 import 'highlight.js/styles/github.css'
@@ -62,6 +63,11 @@ const props = defineProps({
     type: Array as PropType<Array<Record<string, unknown>>>,
     default: () => [],
     required: true,
+  },
+  callable_trace_events: {
+    type: Array as PropType<unknown[]>,
+    default: () => [],
+    required: false,
   },
   suggested_questions: { type: Array as PropType<string[]>, default: () => [], required: false },
   message_class: { type: String, default: '!bg-gray-100', required: false },
@@ -266,6 +272,10 @@ const handleMarkdownClick = async (event: MouseEvent) => {
         :thought="String(legacyDeepThinkingThought.thought ?? '')"
         :latency="Number(legacyDeepThinkingThought.latency ?? 0)"
         :loading="props.loading"
+      />
+      <CallableTraceTimeline
+        v-if="props.callable_trace_events.length > 0"
+        :events="props.callable_trace_events"
       />
       <!-- 推理步骤 -->
       <agent-thought
