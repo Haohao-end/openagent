@@ -28,6 +28,14 @@ const createState = (): StreamState => ({
   conversation_id: '',
 })
 
+type TestHistoryMessage = {
+  id: string
+  render_id?: string
+  answer?: string
+  callable_trace_events?: unknown
+  agent_thoughts?: unknown
+}
+
 describe('chat-stream', () => {
   it('stores callable traces separately without updating regular chat state', () => {
     const message = createMessage()
@@ -76,6 +84,7 @@ describe('chat-stream', () => {
     }
     const historyMessage = {
       id: 'history-message-1',
+      callable_trace_events: [trace],
       agent_thoughts: [
         {
           id: 'trace-thought-1',
@@ -92,10 +101,46 @@ describe('chat-stream', () => {
       ],
     }
 
-    const [restored] = mergeChatHistoryMessages([historyMessage])
+    const [restored] = mergeChatHistoryMessages([], [historyMessage])
 
     expect(restored).not.toHaveProperty('callable_trace_events')
     expect(restored.agent_thoughts).toEqual([regularThought])
+    expect(restored.agent_thoughts?.[0]).toBe(regularThought)
+  })
+
+  it('preserves live trace data and render ids when older history is merged', () => {
+    const trace = [{ event_id: 'live-trace-1', phase: 'start' }]
+    const liveMessage: TestHistoryMessage = {
+      id: 'live-message',
+      render_id: 'stable-live-render-id',
+      answer: 'live answer',
+      callable_trace_events: trace,
+      agent_thoughts: [{ id: 'live-thought', thought: 'still here' }],
+    }
+    const olderMessage: TestHistoryMessage = { id: 'older-message', answer: 'older answer' }
+
+    const merged = mergeChatHistoryMessages([liveMessage], [olderMessage], 'chat')
+
+    expect(merged[0].callable_trace_events).toBe(trace)
+    expect(merged[0].render_id).toBe('stable-live-render-id')
+    expect(merged[0].agent_thoughts).toEqual(liveMessage.agent_thoughts)
+    expect(merged.map(({ id }) => id)).toEqual(['live-message', 'older-message'])
+  })
+
+  it('keeps the live message when history contains a duplicate id', () => {
+    const liveMessage: TestHistoryMessage = {
+      id: 'duplicate-message',
+      render_id: 'live-render-id',
+      answer: 'live answer',
+      callable_trace_events: [{ event_id: 'live-trace' }],
+    }
+
+    const [merged] = mergeChatHistoryMessages(
+      [liveMessage],
+      [{ id: 'duplicate-message', render_id: 'history-render-id', answer: 'stale answer' }],
+    )
+
+    expect(merged).toEqual(liveMessage)
   })
 
   it('appends agent message content and initializes ids', () => {
@@ -495,7 +540,7 @@ describe('chat-stream', () => {
       } as StreamMessage & { render_id: string },
     ]
 
-    const merged = mergeChatHistoryMessages([...firstPage, ...overlappingPage], 'debug-chat')
+    const merged = mergeChatHistoryMessages(firstPage, overlappingPage, 'debug-chat')
 
     expect(merged.map((item) => item.id)).toEqual(['message-2', 'message-1', 'message-0'])
     expect(merged.map((item) => item.render_id)).toEqual([

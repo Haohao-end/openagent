@@ -107,52 +107,55 @@ export const withChatRenderIds = <T extends { id?: string; render_id?: string }>
 }
 
 export const mergeChatHistoryMessages = <T extends { id?: string; render_id?: string }>(
-  messages: T[],
+  existingMessages: T[],
+  historyMessages: T[] = [],
   scope: string = 'chat',
-): Array<Omit<T, 'callable_trace_events'> & { render_id: string }> => {
-  const merged: Array<Omit<T, 'callable_trace_events'> & { render_id: string }> = []
+): Array<T & { render_id: string }> => {
+  const merged: Array<T & { render_id: string }> = []
   const seenKeys = new Set<string>()
 
-  for (const message of messages) {
+  const appendMessage = (message: T, isHistory: boolean) => {
     const normalizedId = String(message.id ?? '').trim()
     const normalizedRenderId = String(message.render_id ?? '').trim()
     const identityKey = normalizedId || normalizedRenderId
     if (identityKey && seenKeys.has(identityKey)) {
-      continue
+      return
     }
 
     if (identityKey) {
       seenKeys.add(identityKey)
     }
 
-    const historyMessage = message as T & {
-      agent_thoughts?: unknown
-      callable_trace_events?: unknown
-    }
     const normalizedMessage = {
       ...message,
       render_id: normalizedRenderId || normalizedId || createChatRenderId(scope),
-    } as Omit<T, 'callable_trace_events'> & {
+    } as T & {
       render_id: string
-      agent_thoughts?: unknown[]
+      agent_thoughts?: unknown
+      callable_trace_events?: unknown
     }
-    delete (normalizedMessage as { callable_trace_events?: unknown }).callable_trace_events
+    if (isHistory) {
+      delete normalizedMessage.callable_trace_events
 
-    if (Array.isArray(historyMessage.agent_thoughts)) {
-      const thoughts = historyMessage.agent_thoughts.filter(
-        (thought) =>
-          !thought ||
-          typeof thought !== 'object' ||
-          Array.isArray(thought) ||
-          (thought as Record<string, unknown>).event !== QueueEvent.callableTrace,
-      )
-      if (thoughts.length !== historyMessage.agent_thoughts.length) {
-        normalizedMessage.agent_thoughts = thoughts
+      if (Array.isArray(normalizedMessage.agent_thoughts)) {
+        const thoughts = normalizedMessage.agent_thoughts.filter(
+          (thought) =>
+            !thought ||
+            typeof thought !== 'object' ||
+            Array.isArray(thought) ||
+            (thought as Record<string, unknown>).event !== QueueEvent.callableTrace,
+        )
+        if (thoughts.length !== normalizedMessage.agent_thoughts.length) {
+          normalizedMessage.agent_thoughts = thoughts
+        }
       }
     }
 
     merged.push(normalizedMessage)
   }
+
+  existingMessages.forEach((message) => appendMessage(message, false))
+  historyMessages.forEach((message) => appendMessage(message, true))
 
   return merged
 }
