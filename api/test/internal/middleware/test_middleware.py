@@ -1,8 +1,10 @@
+import logging
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
 from flask import Flask
+from sqlalchemy.exc import SQLAlchemyError
 
 from internal.exception import UnauthorizedException
 from internal.middleware.middleware import Middleware
@@ -152,6 +154,35 @@ def test_request_loader_should_return_account_when_openapi_api_key_active():
 
     assert account == expected_account
     assert recorded_api_keys == [api_key_record]
+
+
+def test_request_loader_should_continue_if_last_used_update_fails(caplog):
+    expected_account = {"id": "acc-1"}
+    api_key_record = SimpleNamespace(is_active=True, account=expected_account)
+
+    def fail_to_record_last_use(_record):
+        raise SQLAlchemyError("DATABASE_ERROR_DETAIL_SECRET")
+
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: api_key_record,
+            record_last_used_at=fail_to_record_last_use,
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with caplog.at_level(logging.WARNING), app.app_context():
+        account = middleware.request_loader(request)
+
+    assert account == expected_account
+    assert "api_key_last_used_at_update_failed error_class=SQLAlchemyError" in caplog.text
+    assert "DATABASE_ERROR_DETAIL_SECRET" not in caplog.text
 
 
 def test_request_loader_should_reject_expired_openapi_api_key():

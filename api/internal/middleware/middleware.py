@@ -1,7 +1,9 @@
+import logging
 from typing import Optional
 from dataclasses import dataclass
 from flask import Request, g
 from injector import inject
+from sqlalchemy.exc import SQLAlchemyError
 from internal.model import Account
 from internal.exception import UnauthorizedException
 from internal.lib.helper import ensure_utc_naive, utc_now_naive
@@ -50,7 +52,14 @@ class Middleware:
             ):
                 raise UnauthorizedException("该密钥不存在或未激活")
 
-            self.api_key_service.record_last_used_at(api_key_record)
+            try:
+                self.api_key_service.record_last_used_at(api_key_record)
+            except SQLAlchemyError as error:
+                # Last-use tracking is best-effort metadata; it must not reject a valid key.
+                logging.warning(
+                    "api_key_last_used_at_update_failed error_class=%s",
+                    type(error).__name__,
+                )
 
             # 7.获取密钥账号信息并返回
             return api_key_record.account
