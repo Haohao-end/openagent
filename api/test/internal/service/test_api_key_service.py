@@ -204,6 +204,52 @@ class TestApiKeyService:
         session.close()
         engine.dispose()
 
+    def test_record_last_used_at_should_write_at_most_once_per_minute(self, monkeypatch):
+        api_key_id = uuid4()
+        first_use = datetime(2026, 11, 13, 10, 5, 10)
+        repeated_use = datetime(2026, 11, 13, 10, 5, 55)
+        next_minute_use = datetime(2026, 11, 13, 10, 6, 5)
+        engine = create_engine("sqlite://")
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "CREATE TABLE api_key (id CHAR(32) PRIMARY KEY, last_used_at DATETIME)"
+            )
+            connection.execute(
+                text("INSERT INTO api_key (id, last_used_at) VALUES (:id, :last_used_at)"),
+                {
+                    "id": api_key_id.hex,
+                    "last_used_at": datetime(2026, 11, 13, 10, 4, 59).isoformat(sep=" "),
+                },
+            )
+        session = Session(engine)
+
+        @contextmanager
+        def auto_commit():
+            try:
+                yield
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+
+        service = ApiKeyService(db=SimpleNamespace(session=session, auto_commit=auto_commit))
+        api_key_record = SimpleNamespace(id=api_key_id)
+
+        for used_at in (first_use, repeated_use, next_minute_use):
+            monkeypatch.setattr(
+                "internal.service.api_key_service.utc_now_naive",
+                lambda used_at=used_at: used_at,
+            )
+            service.record_last_used_at(api_key_record)
+            stored_timestamp = session.execute(
+                text("SELECT last_used_at FROM api_key WHERE id = :id"),
+                {"id": api_key_id.hex},
+            ).scalar_one()
+            expected_timestamp = first_use if used_at == repeated_use else used_at
+            assert datetime.fromisoformat(stored_timestamp) == expected_timestamp
+        session.close()
+        engine.dispose()
+
     def test_get_api_by_by_credential_should_return_query_result(self):
         api_key_record = SimpleNamespace(id=uuid4(), api_key="llmops-v1/demo")
         service = ApiKeyService(

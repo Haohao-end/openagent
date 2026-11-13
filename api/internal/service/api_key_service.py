@@ -5,7 +5,7 @@ from uuid import UUID
 from injector import inject
 from dataclasses import dataclass
 
-from sqlalchemy import case, desc, or_
+from sqlalchemy import desc, or_
 
 from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
@@ -59,20 +59,15 @@ class ApiKeyService(BaseService):
         return legacy_api_key_record
 
     def record_last_used_at(self, api_key_record: ApiKey) -> None:
-        """Atomically persist the latest successful authentication time for this key."""
+        """Persist successful use at most once per minute without moving backward."""
         used_at = utc_now_naive()
-        latest_used_at = case(
-            (
-                or_(ApiKey.last_used_at.is_(None), ApiKey.last_used_at < used_at),
-                used_at,
-            ),
-            else_=ApiKey.last_used_at,
-        )
+        update_after = used_at.replace(second=0, microsecond=0)
         with self.db.auto_commit():
             self.db.session.query(ApiKey).filter(
                 ApiKey.id == api_key_record.id,
+                or_(ApiKey.last_used_at.is_(None), ApiKey.last_used_at < update_after),
             ).update(
-                {ApiKey.last_used_at: latest_used_at},
+                {ApiKey.last_used_at: used_at},
                 synchronize_session=False,
             )
 
