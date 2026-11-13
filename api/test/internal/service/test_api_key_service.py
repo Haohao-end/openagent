@@ -342,6 +342,36 @@ class TestApiKeyService:
         with pytest.raises(ForbiddenException):
             service.get_api_key(uuid4(), account)
 
+    def test_update_api_key_should_reject_updates_from_another_account(self, monkeypatch):
+        service = self._build_service()
+        requester = SimpleNamespace(id=uuid4())
+        api_key = SimpleNamespace(id=uuid4(), account_id=uuid4())
+        updates = []
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: api_key)
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda *args, **kwargs: updates.append((args, kwargs)),
+        )
+
+        with pytest.raises(ForbiddenException):
+            service.update_api_key(api_key.id, requester, remark="changed")
+
+        assert updates == []
+
+    def test_delete_api_key_should_reject_deletion_from_another_account(self, monkeypatch):
+        service = self._build_service()
+        requester = SimpleNamespace(id=uuid4())
+        api_key = SimpleNamespace(id=uuid4(), account_id=uuid4())
+        deleted = []
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: api_key)
+        monkeypatch.setattr(service, "delete", lambda target: deleted.append(target))
+
+        with pytest.raises(ForbiddenException):
+            service.delete_api_key(api_key.id, requester)
+
+        assert deleted == []
+
     def test_get_api_key_should_return_record_when_owned(self, monkeypatch):
         service = self._build_service()
         account = SimpleNamespace(id=uuid4())
