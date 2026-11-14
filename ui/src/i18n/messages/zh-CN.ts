@@ -985,6 +985,10 @@ export default {
       statusDisabledDesc: '密钥将无法访问 API',
       remarkLabel: '密钥备注',
       remarkPlaceholder: '请输入密钥备注信息，例如：生产环境密钥、测试环境密钥等',
+      expiresAtLabel: '失效时间（UTC+8）',
+      expiresAtPlaceholder: '请选择失效日期和时间',
+      expiresAtHint: '留空表示永不过期',
+      invalidExpiresAt: '请选择有效的失效日期和时间。',
       noteTitle: '提示',
       noteDescription: '密钥创建后将只显示一次，请妥善保管。如果遗失，您需要重新创建新的密钥。',
       columns: {

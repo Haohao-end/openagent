@@ -36,6 +36,7 @@ const createOrUpdateApiKeyModalVisible = ref(false)
 const updateApiKeyId = ref('')
 const updateApiKeyIsActive = ref(false)
 const updateApiKeyRemark = ref('')
+const updateApiKeyExpiresAt = ref<number | null>(null)
 const isLoggedIn = computed(() => isCredentialLoggedIn(credentialStore.credential))
 
 const openLoginModal = () => {
@@ -71,6 +72,7 @@ watch(
 
     // 3.1 清空updateApiKeyId
     updateApiKeyId.value = ''
+    updateApiKeyExpiresAt.value = null
 
     // 3.2 显示or隐藏模态窗
     createOrUpdateApiKeyModalVisible.value = Boolean(value)
@@ -325,6 +327,7 @@ watch(
                         updateApiKeyId = record.id
                         updateApiKeyIsActive = record.is_active
                         updateApiKeyRemark = record.remark
+                        updateApiKeyExpiresAt = record.expires_at ?? null
                         createOrUpdateApiKeyModalVisible = true
                       }
                     "
@@ -365,6 +368,7 @@ watch(
       v-model:api_key_id="updateApiKeyId"
       v-model:is_active="updateApiKeyIsActive"
       v-model:remark="updateApiKeyRemark"
+      v-model:expires_at="updateApiKeyExpiresAt"
       @update:visible="(value) => emits('update:create_api_key', value)"
       :callback="async () => await loadApiKeys()"
     />

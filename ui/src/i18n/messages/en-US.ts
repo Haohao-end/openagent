@@ -1003,6 +1003,10 @@ export default {
       statusDisabledDesc: 'The key can no longer access the API',
       remarkLabel: 'Key Remark',
       remarkPlaceholder: 'Enter a remark, for example: production key, test key, etc.',
+      expiresAtLabel: 'Expiration time (UTC+8)',
+      expiresAtPlaceholder: 'Select expiration date and time',
+      expiresAtHint: 'Leave empty for no expiration',
+      invalidExpiresAt: 'Choose a valid expiration date and time.',
       noteTitle: 'Tip',
       noteDescription: 'The key will only be shown once after creation. Keep it safe. If lost, you need to create a new one.',
       columns: {
