@@ -313,6 +313,44 @@ describe('useGetApp', () => {
     await newerRequest
     expect(loading.value).toBe(false)
   })
+
+  it('ignores an older app error after a newer app request succeeds', async () => {
+    const createDeferred = () => {
+      let resolve!: (value: { data: { id: string; name: string } }) => void
+      let reject!: (reason?: unknown) => void
+      const promise = new Promise<{ data: { id: string; name: string } }>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise
+        reject = rejectPromise
+      })
+      return { promise, resolve, reject }
+    }
+    const olderResponse = createDeferred()
+    const newerResponse = createDeferred()
+    vi.mocked(appService.getApp)
+      .mockReturnValueOnce(olderResponse.promise as never)
+      .mockReturnValueOnce(newerResponse.promise as never)
+    const { app, loading, loadApp } = useGetApp()
+
+    const olderRequest = loadApp('app-old')
+    const newerRequest = loadApp('app-new')
+    newerResponse.resolve({ data: { id: 'app-new', name: 'New App' } })
+    await newerRequest
+    olderResponse.reject(new Error('stale app request failed'))
+
+    await expect(olderRequest).resolves.toBeUndefined()
+    expect(app.value).toEqual({ id: 'app-new', name: 'New App' })
+    expect(loading.value).toBe(false)
+  })
+
+  it('reports an error from the latest app request and resets loading', async () => {
+    const originalError = new Error('latest app request failed')
+    vi.mocked(appService.getApp).mockRejectedValueOnce(originalError)
+    const { loading, loadApp } = useGetApp()
+
+    await expect(loadApp('app-current')).rejects.toBe(originalError)
+
+    expect(loading.value).toBe(false)
+  })
 })
 
 describe('useDeleteApp', () => {
