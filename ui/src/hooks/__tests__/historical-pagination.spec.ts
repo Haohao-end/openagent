@@ -603,6 +603,37 @@ describe('historical chat pagination', () => {
     expect(messages.value.map((message) => message.id)).toEqual(['agent-new'])
   })
 
+  it('ignores an older assistant-agent error after switching conversations', async () => {
+    let rejectOlder!: (error: Error) => void
+    const olderResponse = new Promise<ReturnType<typeof buildPage>>((_, reject) => { rejectOlder = reject })
+    const newerResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage)
+      .mockReturnValueOnce(olderResponse as never)
+      .mockReturnValueOnce(newerResponse.promise as never)
+    const { loading, messages, loadAssistantAgentMessages } = useGetAssistantAgentMessagesWithPage()
+
+    const olderRequest = loadAssistantAgentMessages(true, 'conversation-old')
+    const newerRequest = loadAssistantAgentMessages(true, 'conversation-new')
+    newerResponse.resolve(buildPage([buildMessage('agent-new', 200)], {
+      current_page: 1, page_size: 20, total_page: 1, total_record: 1,
+    }))
+    await newerRequest
+    rejectOlder(new Error('stale assistant-agent request failed'))
+
+    await expect(olderRequest).resolves.toBeUndefined()
+    expect(messages.value.map((message) => message.id)).toEqual(['agent-new'])
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates the latest assistant-agent error and resets loading', async () => {
+    const requestError = new Error('current assistant-agent request failed')
+    vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage).mockRejectedValueOnce(requestError)
+    const { loading, loadAssistantAgentMessages } = useGetAssistantAgentMessagesWithPage()
+
+    await expect(loadAssistantAgentMessages(true, 'conversation-1')).rejects.toBe(requestError)
+    expect(loading.value).toBe(false)
+  })
+
   it('does not restore assistant history after logout clears messages', async () => {
     const pendingResponse = createDeferred<ReturnType<typeof buildPage>>()
     vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage)
