@@ -45,10 +45,18 @@ export const useWebAppChat = () => {
     token: string,
     req: WebAppChatRequest,
     onData: (event_response: Record<string, any>) => void,
+    signal?: AbortSignal,
   ) => {
-    await runWithLoading(loading, '发送消息失败，请稍后重试', async () => {
-      await webAppChat(token, req, onData)
-    })
+    try {
+      loading.value = true
+      await webAppChat(token, req, onData, signal)
+    } catch (error: unknown) {
+      if (signal?.aborted) return
+      Message.error(getErrorMessage(error, '发送消息失败，请稍后重试'))
+      throw error
+    } finally {
+      loading.value = false
+    }
   }
 
   return { loading, handleWebAppChat }

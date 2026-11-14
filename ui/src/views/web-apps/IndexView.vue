@@ -85,6 +85,8 @@ let recorder: RecorderLike | null = null // RecordRTC实例
 const message_id = ref('')
 const task_id = ref('')
 let webAppChatGeneration = 0
+let webAppChatAbortController: AbortController | null = null
+const userStoppedWebAppStreams = new WeakSet<AbortSignal>()
 const scroller = ref<ScrollerLike | null>(null)
 const scrollHeight = ref(0)
 const showScrollToBottomButton = ref(false)
@@ -385,6 +387,8 @@ const handleSubmit = async () => {
     return
   }
   const requestGeneration = ++webAppChatGeneration
+  const abortController = new AbortController()
+  webAppChatAbortController = abortController
 
   // 11.3 满足条件，处理正式提问的前置工作，涵盖：清空建议问题、删除消息id、任务id
   clearSuggestedQuestions()
@@ -451,26 +455,33 @@ const handleSubmit = async () => {
       if (streamResult.didUpdate) {
         scroller.value?.scrollToBottom?.()
       }
-    })
-    chatSucceeded = true
+    }, abortController.signal)
+    chatSucceeded = !abortController.signal.aborted || userStoppedWebAppStreams.has(abortController.signal)
   } catch {
     if (requestGeneration !== webAppChatGeneration) return
-    const firstMessage = messages.value[0]
-    let shouldRestoreInput = false
-    if (
-      firstMessage &&
-      firstMessage.id === '' &&
-      firstMessage.answer === '' &&
-      firstMessage.query === humanQuery
-    ) {
-      messages.value.shift()
-      shouldRestoreInput = true
+    if (abortController.signal.aborted) {
+      if (!userStoppedWebAppStreams.has(abortController.signal)) return
+      chatSucceeded = true
+    } else {
+      const firstMessage = messages.value[0]
+      let shouldRestoreInput = false
+      if (
+        firstMessage &&
+        firstMessage.id === '' &&
+        firstMessage.answer === '' &&
+        firstMessage.query === humanQuery
+      ) {
+        messages.value.shift()
+        shouldRestoreInput = true
+      }
+      if (shouldRestoreInput) {
+        query.value = humanQuery
+        image_urls.value = humanImageUrls
+        await nextTick(() => adjustQueryTextareaHeight())
+      }
     }
-    if (shouldRestoreInput) {
-      query.value = humanQuery
-      image_urls.value = humanImageUrls
-      await nextTick(() => adjustQueryTextareaHeight())
-    }
+  } finally {
+    if (webAppChatAbortController === abortController) webAppChatAbortController = null
   }
 
   if (!chatSucceeded || requestGeneration !== webAppChatGeneration) return
@@ -515,11 +526,19 @@ const handleSubmit = async () => {
 
 // 12.定义切换会话处理器
 const changeConversation = async (conversation_id: string) => {
-  if (conversation_id !== selectedConversation.value) webAppChatGeneration += 1
+  const isChangingConversation = conversation_id !== selectedConversation.value
   stopAudioStream()
 
   // 12.1 先暂停并清空会话
-  await handleStop()
+  if (isChangingConversation && task_id.value && webAppChatLoading.value) {
+    await handleStopWebAppChat(String(route.params?.token), task_id.value)
+  }
+
+  if (isChangingConversation) {
+    webAppChatGeneration += 1
+    webAppChatAbortController?.abort()
+    webAppChatAbortController = null
+  }
 
   // 12.2 修改激活选项
   selectedConversation.value = conversation_id
@@ -527,11 +546,16 @@ const changeConversation = async (conversation_id: string) => {
 
 // 13.定义停止会话函数
 const handleStop = async () => {
+  const abortController = webAppChatAbortController
   // 13.1 如果没有任务id或者未在加载中，则直接停止
   if (task_id.value === '' || !webAppChatLoading.value) return
 
   // 13.2 调用api接口中断请求
   await handleStopWebAppChat(String(route.params?.token), task_id.value)
+  if (abortController) {
+    userStoppedWebAppStreams.add(abortController.signal)
+    abortController?.abort()
+  }
 }
 
 // 14.定义问题提交函数
@@ -626,6 +650,8 @@ onMounted(async () => {
 // 18.页面卸载后停止播放
 onUnmounted(() => {
   webAppChatGeneration += 1
+  webAppChatAbortController?.abort()
+  webAppChatAbortController = null
   stopAudioStream()
 })
 </script>

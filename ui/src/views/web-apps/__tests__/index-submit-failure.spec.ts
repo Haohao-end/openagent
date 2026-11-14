@@ -276,6 +276,7 @@ describe('web-app chat submit failure', () => {
         enable_deep_thinking: false,
       }),
       expect.any(Function),
+      expect.any(AbortSignal),
     )
     expect(mocks.state.messages?.value).toEqual([])
     expect(mocks.state.query?.value).toBe('你好')
@@ -333,6 +334,7 @@ describe('web-app chat submit failure', () => {
         enable_deep_thinking: true,
       }),
       expect.any(Function),
+      expect.any(AbortSignal),
     )
   })
 
@@ -421,6 +423,113 @@ describe('web-app chat submit failure', () => {
     expect(mocks.state.messages!.value[0].answer).toBe('history conversation-b')
 
     resolveStream(undefined)
+    await submitPromise
+    wrapper.unmount()
+  })
+
+  it('aborts the active chat stream when the Web App view unmounts', async () => {
+    let streamSignal: AbortSignal | undefined
+    mocks.handleWebAppChat.mockImplementationOnce((_token, _request, _onEvent, signal) => {
+      streamSignal = signal
+      return new Promise((resolve) => {
+        signal.addEventListener('abort', () => resolve(undefined), { once: true })
+      })
+    })
+
+    const wrapper = shallowMount(WebAppsIndexView)
+    await flushPromises()
+    const setupState = (wrapper.vm.$ as any).setupState
+    mocks.state.query!.value = 'show trace events'
+    const submitPromise = setupState.handleSubmit()
+    await flushPromises()
+
+    expect(streamSignal).toBeInstanceOf(AbortSignal)
+    expect(streamSignal?.aborted).toBe(false)
+    wrapper.unmount()
+    expect(streamSignal?.aborted).toBe(true)
+    await submitPromise
+  })
+
+  it('finalizes a new conversation when stopping its stream', async () => {
+    let streamSignal: AbortSignal | undefined
+    mocks.handleWebAppChat.mockImplementationOnce((_token, _request, onEvent, signal) => {
+      streamSignal = signal
+      onEvent({
+        event: 'agent_message',
+        data: {
+          id: 'event-1',
+          event: 'agent_message',
+          message_id: 'message-1',
+          task_id: 'task-1',
+          conversation_id: 'conversation-1',
+          thought: 'partial answer',
+        },
+      })
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('request canceled')), { once: true })
+      })
+    })
+
+    const wrapper = shallowMount(WebAppsIndexView)
+    await flushPromises()
+    const setupState = (wrapper.vm.$ as any).setupState
+    mocks.state.query!.value = 'create and stop'
+    const submitPromise = setupState.handleSubmit()
+    await flushPromises()
+    setupState.webAppChatLoading = true
+
+    await setupState.handleStop()
+    await submitPromise
+
+    expect(mocks.handleStopWebAppChat).toHaveBeenCalledWith('token-1', 'task-1')
+    expect(streamSignal?.aborted).toBe(true)
+    expect(mocks.state.messages?.value[0].answer).toBe('partial answer')
+    expect(mocks.state.unpinnedConversations?.value[0].id).toBe('conversation-1')
+    expect(setupState.selectedConversation).toBe('conversation-1')
+    wrapper.unmount()
+  })
+
+  it('keeps the current stream active when conversation stop fails', async () => {
+    let emitStreamEvent!: (event: unknown) => void
+    let resolveStream!: () => void
+    let streamSignal: AbortSignal | undefined
+    mocks.handleWebAppChat.mockImplementationOnce((_token, _request, onEvent, signal) => {
+      emitStreamEvent = onEvent
+      streamSignal = signal
+      return new Promise((resolve) => { resolveStream = () => resolve(undefined) })
+    })
+    mocks.handleStopWebAppChat.mockRejectedValueOnce(new Error('stop failed'))
+
+    const wrapper = shallowMount(WebAppsIndexView)
+    await flushPromises()
+    const setupState = (wrapper.vm.$ as any).setupState
+    mocks.state.query!.value = 'keep the original stream'
+    const submitPromise = setupState.handleSubmit()
+    await flushPromises()
+    emitStreamEvent({
+      event: 'agent_message',
+      data: {
+        id: 'event-1',
+        event: 'agent_message',
+        message_id: 'message-1',
+        task_id: 'task-1',
+        conversation_id: 'conversation-1',
+        thought: 'partial answer',
+      },
+    })
+    setupState.webAppChatLoading = true
+
+    await expect(setupState.changeConversation('conversation-2')).rejects.toThrow('stop failed')
+
+    expect(streamSignal?.aborted).toBe(false)
+    expect(setupState.selectedConversation).toBe('new_conversation')
+    emitStreamEvent({
+      event: 'agent_message',
+      data: { id: 'event-2', event: 'agent_message', thought: ' still streaming' },
+    })
+    expect(mocks.state.messages?.value[0].answer).toBe('partial answer still streaming')
+
+    resolveStream()
     await submitPromise
     wrapper.unmount()
   })
