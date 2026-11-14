@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  useDeleteDataset,
   useDeleteDocument,
   useDeleteSegment,
   useGetDataset,
@@ -128,6 +129,30 @@ describe('use-dataset action callbacks', () => {
     )
 
     expect(mocks.messageError).not.toHaveBeenCalled()
+  })
+
+  it('only invokes dataset delete callback after a successful delete', async () => {
+    const callback = vi.fn()
+    const { handleDelete } = useDeleteDataset()
+
+    handleDelete('dataset-1', callback)
+    const modalConfig = mocks.modalWarning.mock.calls[0]?.[0]
+    expect(modalConfig).toBeTruthy()
+
+    mocks.deleteDataset.mockResolvedValueOnce({ message: 'deleted' })
+    await modalConfig.onOk()
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(mocks.messageSuccess).toHaveBeenCalledWith('deleted')
+
+    callback.mockClear()
+    mocks.messageSuccess.mockClear()
+    const requestError = new Error('dataset delete failed')
+    mocks.deleteDataset.mockRejectedValueOnce(requestError)
+
+    await expect(modalConfig.onOk()).rejects.toBe(requestError)
+    expect(callback).not.toHaveBeenCalled()
+    expect(mocks.messageSuccess).not.toHaveBeenCalled()
   })
 
   it('only invokes document enabled callback after a successful update', async () => {
