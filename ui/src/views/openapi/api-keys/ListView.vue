@@ -37,6 +37,7 @@ const updateApiKeyId = ref('')
 const updateApiKeyIsActive = ref(false)
 const updateApiKeyRemark = ref('')
 const updateApiKeyExpiresAt = ref<number | null>(null)
+const updateApiKeyScopes = ref<string[] | null>(['openapi:chat'])
 const isLoggedIn = computed(() => isCredentialLoggedIn(credentialStore.credential))
 const currentTime = ref(Date.now())
 let expirationRefreshTimer: ReturnType<typeof setTimeout> | undefined
@@ -96,6 +97,7 @@ watch(
     // 3.1 清空updateApiKeyId
     updateApiKeyId.value = ''
     updateApiKeyExpiresAt.value = null
+    updateApiKeyScopes.value = ['openapi:chat']
 
     // 3.2 显示or隐藏模态窗
     createOrUpdateApiKeyModalVisible.value = Boolean(value)
@@ -357,6 +359,7 @@ watch(
                         updateApiKeyIsActive = record.is_active
                         updateApiKeyRemark = record.remark
                         updateApiKeyExpiresAt = record.expires_at ?? null
+                        updateApiKeyScopes = record.scopes == null ? null : [...record.scopes]
                         createOrUpdateApiKeyModalVisible = true
                       }
                     "
@@ -398,6 +401,7 @@ watch(
       v-model:is_active="updateApiKeyIsActive"
       v-model:remark="updateApiKeyRemark"
       v-model:expires_at="updateApiKeyExpiresAt"
+      v-model:scopes="updateApiKeyScopes"
       @update:visible="(value) => emits('update:create_api_key', value)"
       :callback="async () => await loadApiKeys()"
     />
