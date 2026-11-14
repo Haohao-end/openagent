@@ -350,6 +350,15 @@ class TestPublicWorkflowService:
 
     def test_fork_public_workflow_should_create_copy_and_set_draft_state(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
+        source_graph = {
+            "nodes": [
+                {"id": "node-1", "data": {"config": {"value": "source"}}},
+            ],
+            "edges": [
+                {"id": "edge-1", "metadata": {"value": "source"}},
+            ],
+        }
+        original_graph = deepcopy(source_graph)
         source = SimpleNamespace(
             id=uuid4(),
             is_public=True,
@@ -358,7 +367,7 @@ class TestPublicWorkflowService:
             tool_call_name="public_tool",
             icon="https://icon",
             description="desc",
-            graph={"nodes": [], "edges": []},
+            graph=source_graph,
             tags=[AppCategory.GENERAL.value],
         )
         session = _QueueSession([_Query(one_or_none_result=source)])
@@ -371,10 +380,17 @@ class TestPublicWorkflowService:
         assert copied.original_workflow_id == source.id
         assert copied.status == WorkflowStatus.DRAFT.value
         assert copied.tags == [AppCategory.GENERAL.value]
-        assert copied.draft_graph == source.graph
+        assert copied.draft_graph == original_graph
+        assert copied.draft_graph is not source.graph
+        assert copied.draft_graph["nodes"][0]["data"] is not source.graph["nodes"][0]["data"]
+        assert copied.draft_graph["edges"][0]["metadata"] is not source.graph["edges"][0]["metadata"]
         assert copied.graph == {}
         assert len(session.added) == 1
         assert service.db.auto_commit_calls == 1
+
+        copied.draft_graph["nodes"][0]["data"]["config"]["value"] = "fork"
+        copied.draft_graph["edges"][0]["metadata"]["value"] = "fork"
+        assert source.graph == original_graph
 
     def test_fork_public_workflow_should_raise_when_source_missing(self):
         service = _build_service(session=_QueueSession([_Query(one_or_none_result=None)]))
