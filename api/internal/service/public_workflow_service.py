@@ -187,7 +187,7 @@ class PublicWorkflowService(BaseService):
             "tool_call_name": f"{public_workflow.tool_call_name}_copy_{account.id.hex[:8]}",
             "icon": public_workflow.icon,
             "description": public_workflow.description,
-            "draft_graph": public_workflow.graph,  # 将发布的graph作为草稿
+            "draft_graph": deepcopy(public_workflow.graph),  # 将发布的graph作为草稿
             "graph": {},
             "is_debug_passed": False,
             "status": WorkflowStatus.DRAFT.value,
