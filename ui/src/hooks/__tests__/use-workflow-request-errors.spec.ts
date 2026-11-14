@@ -201,6 +201,41 @@ describe('useGetWorkflowsWithPage', () => {
     expect(workflows.value).toEqual([{ id: 'new-result' }])
   })
 
+  it('ignores a stale workflow search error after a newer search succeeds', async () => {
+    let rejectOlder!: (error: Error) => void
+    const olderResponse = new Promise<WorkflowPageResponse>((_, reject) => { rejectOlder = reject })
+    const newerResponse = createDeferred<WorkflowPageResponse>()
+    mocks.getWorkflowsWithPage
+      .mockReturnValueOnce(olderResponse)
+      .mockReturnValueOnce(newerResponse.promise)
+
+    const { loading, workflows, loadWorkflows } = useGetWorkflowsWithPage()
+    const olderRequest = loadWorkflows('old', '', true)
+    const newerRequest = loadWorkflows('new', '', true)
+    newerResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        list: [{ id: 'new-result' }],
+      },
+    })
+    await newerRequest
+    rejectOlder(new Error('stale workflow search failed'))
+
+    await expect(olderRequest).resolves.toBeUndefined()
+    expect(workflows.value).toEqual([{ id: 'new-result' }])
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates the latest workflow search error and resets loading', async () => {
+    const requestError = new Error('current workflow search failed')
+    mocks.getWorkflowsWithPage.mockRejectedValueOnce(requestError)
+
+    const { loading, loadWorkflows } = useGetWorkflowsWithPage()
+
+    await expect(loadWorkflows('current', '', true)).rejects.toBe(requestError)
+    expect(loading.value).toBe(false)
+  })
+
   it('keeps loading while the newest workflow search is pending', async () => {
     const olderResponse = createDeferred<WorkflowPageResponse>()
     const newerResponse = createDeferred<WorkflowPageResponse>()

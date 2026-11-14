@@ -78,6 +78,8 @@ export const useGetWorkflowsWithPage = () => {
       } else {
         workflows.value.push(...data.list)
       }
+    } catch (error) {
+      if (requestId === latestRequest) throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }
