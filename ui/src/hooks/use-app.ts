@@ -59,6 +59,8 @@ export const useGetApp = () => {
       loading.value = true
       const resp = await getApp(app_id)
       if (requestId === latestRequest) app.value = resp.data
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }

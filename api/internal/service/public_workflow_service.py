@@ -1,5 +1,6 @@
 """公共工作流服务 - 处理工作流广场相关逻辑"""
 import logging
+import re
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -182,6 +183,14 @@ class PublicWorkflowService(BaseService):
 
         account_tool_suffix = f"_copy_{account.id.hex[:8]}"
         max_tool_call_name_length = 64 - len("wf_")
+        source_prefixes = "|".join(
+            re.escape(public_workflow.tool_call_name[:length])
+            for length in range(len(public_workflow.tool_call_name), -1, -1)
+        )
+        fork_name_pattern = (
+            f"^(?:{source_prefixes}){re.escape(account_tool_suffix)}"
+            r"(?:_(?:[2-9]|[1-9][0-9]+))?$"
+        )
 
         # 2.锁定账号后一次读取现有名称，避免并发Fork选中同一个名称或逐个后缀查询。
         with self.db.auto_commit():
@@ -192,6 +201,7 @@ class PublicWorkflowService(BaseService):
                 name
                 for (name,) in self.db.session.query(Workflow.tool_call_name).filter(
                     Workflow.account_id == account.id,
+                    Workflow.tool_call_name.op("~")(fork_name_pattern),
                 ).all()
             }
 

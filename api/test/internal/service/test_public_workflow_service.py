@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from copy import deepcopy
 from datetime import UTC, datetime
+import re
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -97,15 +98,16 @@ class _QueueSession:
     def __init__(self, queries=None):
         self._queries = list(queries or [])
         self.queried_models = []
+        self.queried_queries = []
         self.added = []
         self.deleted = []
         self.commit_calls = 0
 
     def query(self, *model):
         self.queried_models.append(model)
-        if self._queries:
-            return self._queries.pop(0)
-        return _Query()
+        query = self._queries.pop(0) if self._queries else _Query()
+        self.queried_queries.append(query)
+        return query
 
     def add(self, obj):
         self.added.append(obj)
@@ -142,6 +144,9 @@ class _FakeWorkflow:
 
         def startswith(self, *_args, **_kwargs):
             return self
+
+        def op(self, operator, **_kwargs):
+            return lambda value: SimpleNamespace(operator=operator, value=value)
 
         def isnot(self, *_args, **_kwargs):
             return self
@@ -444,6 +449,14 @@ class TestPublicWorkflowService:
         assert first_account_lock.for_update_called
         assert second_account_lock.for_update_called
         assert len(session.queried_models) == 6
+        name_filter = session.queried_queries[2].filter_args[1]
+        assert name_filter.operator == "~"
+        assert name_filter.value.startswith("^(?:public_tool|public_too")
+        assert f"_copy_{account.id.hex[:8]}" in name_filter.value
+        assert name_filter.value.endswith(r"(?:_(?:[2-9]|[1-9][0-9]+))?$")
+        assert re.fullmatch(name_filter.value, base_tool_call_name)
+        assert re.fullmatch(name_filter.value, f"{base_tool_call_name}_23")
+        assert not re.fullmatch(name_filter.value, "unrelated_workflow")
 
     def test_fork_public_workflow_should_keep_function_name_within_provider_limit(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
