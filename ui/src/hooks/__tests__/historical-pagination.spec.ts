@@ -252,6 +252,37 @@ describe('historical chat pagination', () => {
     expect(messages.value.map((message) => message.id)).toEqual(['debug-new'])
   })
 
+  it('ignores an older debug conversation error after switching conversations', async () => {
+    let rejectOlder!: (error: Error) => void
+    const olderResponse = new Promise<ReturnType<typeof buildPage>>((_, reject) => { rejectOlder = reject })
+    const newerResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(appService.getDebugConversationMessagesWithPage)
+      .mockReturnValueOnce(olderResponse as never)
+      .mockReturnValueOnce(newerResponse.promise as never)
+    const { loading, messages, loadDebugConversationMessages } = useGetDebugConversationMessagesWithPage()
+
+    const olderRequest = loadDebugConversationMessages('app-1', true, 'conversation-old')
+    const newerRequest = loadDebugConversationMessages('app-1', true, 'conversation-new')
+    newerResponse.resolve(buildPage([buildMessage('debug-new', 200)], {
+      current_page: 1, page_size: 5, total_page: 1, total_record: 1,
+    }))
+    await newerRequest
+    rejectOlder(new Error('stale history request failed'))
+
+    await expect(olderRequest).resolves.toBeUndefined()
+    expect(messages.value.map((message) => message.id)).toEqual(['debug-new'])
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates the latest debug conversation error and resets loading', async () => {
+    const requestError = new Error('current history request failed')
+    vi.mocked(appService.getDebugConversationMessagesWithPage).mockRejectedValueOnce(requestError)
+    const { loading, loadDebugConversationMessages } = useGetDebugConversationMessagesWithPage()
+
+    await expect(loadDebugConversationMessages('app-1', true, 'conversation-1')).rejects.toBe(requestError)
+    expect(loading.value).toBe(false)
+  })
+
   it('deduplicates overlapping debug history pages by message id', async () => {
     vi.mocked(appService.getDebugConversationMessagesWithPage)
       .mockResolvedValueOnce(
