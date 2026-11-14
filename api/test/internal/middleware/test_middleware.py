@@ -147,7 +147,7 @@ def test_request_loader_should_return_account_when_openapi_api_key_active(includ
         jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
         api_key_service=SimpleNamespace(
             get_api_by_by_credential=lambda _key: api_key_record,
-            record_last_used_at=recorded_api_keys.append,
+            record_api_key_request=recorded_api_keys.append,
         ),
         account_service=SimpleNamespace(get_account=lambda _id: None),
     )
@@ -164,18 +164,18 @@ def test_request_loader_should_return_account_when_openapi_api_key_active(includ
     assert recorded_api_keys == [api_key_record]
 
 
-def test_request_loader_should_continue_if_last_used_update_fails(caplog):
+def test_request_loader_should_continue_if_usage_update_fails(caplog):
     expected_account = {"id": "acc-1"}
     api_key_record = SimpleNamespace(is_active=True, account=expected_account)
 
-    def fail_to_record_last_use(_record):
+    def fail_to_record_usage(_record):
         raise SQLAlchemyError("DATABASE_ERROR_DETAIL_SECRET")
 
     middleware = Middleware(
         jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
         api_key_service=SimpleNamespace(
             get_api_by_by_credential=lambda _key: api_key_record,
-            record_last_used_at=fail_to_record_last_use,
+            record_api_key_request=fail_to_record_usage,
         ),
         account_service=SimpleNamespace(get_account=lambda _id: None),
     )
@@ -189,10 +189,10 @@ def test_request_loader_should_continue_if_last_used_update_fails(caplog):
         account = middleware.request_loader(request)
 
     assert account == expected_account
-    assert "api_key_last_used_at_update_failed error_class=SQLAlchemyError" in caplog.text
+    assert "api_key_usage_update_failed error_class=SQLAlchemyError" in caplog.text
     assert any(
         record.name == "internal.middleware.middleware"
-        and record.getMessage() == "api_key_last_used_at_update_failed error_class=SQLAlchemyError"
+        and record.getMessage() == "api_key_usage_update_failed error_class=SQLAlchemyError"
         for record in caplog.records
     )
     assert "DATABASE_ERROR_DETAIL_SECRET" not in caplog.text
@@ -208,11 +208,12 @@ def test_request_loader_should_continue_if_last_used_update_fails(caplog):
 )
 def test_request_loader_should_deny_scoped_key_without_known_endpoint_scope(endpoint, scopes):
     api_key_record = SimpleNamespace(is_active=True, scopes=scopes, account={"id": "acc-1"})
+    recorded_api_keys = []
     middleware = Middleware(
         jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
         api_key_service=SimpleNamespace(
             get_api_by_by_credential=lambda _key: api_key_record,
-            record_last_used_at=lambda _record: None,
+            record_api_key_request=recorded_api_keys.append,
         ),
         account_service=SimpleNamespace(get_account=lambda _id: None),
     )
@@ -226,6 +227,8 @@ def test_request_loader_should_deny_scoped_key_without_known_endpoint_scope(endp
     with app.app_context(), pytest.raises(ForbiddenException, match="没有调用此接口的权限"):
         middleware.request_loader(request)
 
+    assert recorded_api_keys == []
+
 
 def test_request_loader_should_allow_scoped_key_for_chat_endpoint():
     expected_account = {"id": "acc-1"}
@@ -238,7 +241,7 @@ def test_request_loader_should_allow_scoped_key_for_chat_endpoint():
         jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
         api_key_service=SimpleNamespace(
             get_api_by_by_credential=lambda _key: api_key_record,
-            record_last_used_at=lambda _record: None,
+            record_api_key_request=lambda _record: None,
         ),
         account_service=SimpleNamespace(get_account=lambda _id: None),
     )
@@ -290,7 +293,7 @@ def test_request_loader_should_accept_unexpired_openapi_api_key():
         jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
         api_key_service=SimpleNamespace(
             get_api_by_by_credential=lambda _key: api_key_record,
-            record_last_used_at=recorded_api_keys.append,
+            record_api_key_request=recorded_api_keys.append,
         ),
         account_service=SimpleNamespace(get_account=lambda _id: None),
     )
