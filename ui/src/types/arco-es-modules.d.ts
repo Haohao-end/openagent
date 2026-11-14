@@ -28,6 +28,11 @@ declare module '@arco-design/web-vue/es/collapse' {
   export default component
 }
 
+declare module '@arco-design/web-vue/es/date-picker' {
+  const component: any
+  export default component
+}
+
 declare module '@arco-design/web-vue/es/divider' {
   const component: any
   export default component
