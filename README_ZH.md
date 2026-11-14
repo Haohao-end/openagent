@@ -224,6 +224,8 @@ npm run test:unit -- --run
 - 沙箱与产物输出：支持脚本执行、代码处理、文件生成和附件导出，适合需要实际产出的任务。
 - 调试与结果验证：右侧调试区用于发起真实对话，查看深入思考轨迹、任务状态、生成产物和最终结果。
 
+Callable 执行轨迹随实时运行事件到达，不会从历史消息中恢复。事件生命周期和持久化行为请参阅[Trace 文档](docs/trace.zh-CN.md)。
+
 ### 3. 可视化工作流编辑器
 
 <img width="2560" height="1599" alt="OpenAgent Workflow Editor" src="https://github.com/user-attachments/assets/23b510e2-1232-4f52-9262-812a7523ae21" />
