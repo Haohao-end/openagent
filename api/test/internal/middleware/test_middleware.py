@@ -131,9 +131,17 @@ def test_request_loader_should_raise_when_openapi_api_key_inactive():
             middleware.request_loader(request)
 
 
-def test_request_loader_should_return_account_when_openapi_api_key_active():
+@pytest.mark.parametrize(
+    "include_null_scopes",
+    [False, True],
+    ids=["legacy-missing-scope-field", "legacy-null-scopes"],
+)
+def test_request_loader_should_return_account_when_openapi_api_key_active(include_null_scopes):
     expected_account = {"id": "acc-1"}
-    api_key_record = SimpleNamespace(is_active=True, account=expected_account)
+    api_key_fields = {"is_active": True, "account": expected_account}
+    if include_null_scopes:
+        api_key_fields["scopes"] = None
+    api_key_record = SimpleNamespace(**api_key_fields)
     recorded_api_keys = []
     middleware = Middleware(
         jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
