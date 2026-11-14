@@ -1022,6 +1022,8 @@ export default {
       copyHint: 'The full key is only shown when created',
       active: 'Available',
       disabledStatus: 'Disabled',
+      expiredStatus: 'Expired',
+      noRecordedUse: 'No use recorded',
       legacyScopes: 'Unrestricted (legacy)',
       noScopes: 'No scopes',
       editRemark: 'Edit remark',

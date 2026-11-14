@@ -1,7 +1,9 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { flushPromises, shallowMount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, shallowMount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import ApiKeysListView from '@/views/openapi/api-keys/ListView.vue'
+
+enableAutoUnmount(afterEach)
 
 const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
@@ -116,7 +118,7 @@ describe('openapi api-keys credential state', () => {
     expect(mocks.loadApiKeys).toHaveBeenCalledTimes(2)
   })
 
-  it('displays API key metadata with fallbacks for unset values', async () => {
+  it('displays metadata, expired status, and keys without recorded use', async () => {
     const wrapper = shallowMount(ApiKeysListView, {
       props: { create_api_key: false },
       global: {
@@ -141,15 +143,42 @@ describe('openapi api-keys credential state', () => {
       { id: 'scoped', is_active: true, expires_at: 1893456000, last_used_at: 1893542400, scopes: ['openapi:chat'] },
       { id: 'legacy', is_active: true, expires_at: 0, last_used_at: 0, scopes: null },
       { id: 'no-scopes', is_active: true, scopes: [] },
+      { id: 'expired', is_active: true, expires_at: 1, last_used_at: 0 },
     ]
     await flushPromises()
 
     expect(wrapper.text()).toContain('2030-01-01')
     expect(wrapper.text()).toContain('2030-01-02 08:00')
-    expect(wrapper.text().match(/—/g)).toHaveLength(4)
+    expect(wrapper.text().match(/—/g)).toHaveLength(2)
     expect(wrapper.text()).toContain('openapi:chat')
     expect(wrapper.text()).toContain('无限制（旧密钥）')
     expect(wrapper.text()).toContain('无权限范围')
+    expect(wrapper.text()).toContain('已过期')
+    expect(wrapper.text()).toContain('暂无使用记录')
+  })
+
+  it('updates an active key to expired when its expiration time arrives', async () => {
+    vi.useFakeTimers()
+    const expiresAt = 1893456000
+    vi.setSystemTime(expiresAt * 1000 - 1000)
+    mocks.credentialState.credential = { access_token: 'token', expire_at: 4102444800 }
+    const wrapper = shallowMount(ApiKeysListView, {
+      props: { create_api_key: false },
+      global: { stubs: { 'a-table': tableStub, 'a-table-column': tableColumnStub, 'a-switch': switchStub } },
+    })
+
+    try {
+      mocks.apiKeys.value = [{ id: 'expires-soon', is_active: true, expires_at: expiresAt }]
+      await flushPromises()
+      expect(wrapper.text()).toContain('可用')
+
+      await vi.advanceTimersByTimeAsync(1000)
+      await flushPromises()
+      expect(wrapper.text()).toContain('已过期')
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
   })
 
   it('does not apply a late toggle result to the next account row', async () => {

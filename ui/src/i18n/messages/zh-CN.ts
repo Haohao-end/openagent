@@ -1004,6 +1004,8 @@ export default {
       copyHint: '仅创建时展示完整密钥',
       active: '可用',
       disabledStatus: '已禁用',
+      expiredStatus: '已过期',
+      noRecordedUse: '暂无使用记录',
       legacyScopes: '无限制（旧密钥）',
       noScopes: '无权限范围',
       editRemark: '编辑备注',

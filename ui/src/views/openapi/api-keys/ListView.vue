@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   useDeleteApiKey,
@@ -38,6 +38,29 @@ const updateApiKeyIsActive = ref(false)
 const updateApiKeyRemark = ref('')
 const updateApiKeyExpiresAt = ref<number | null>(null)
 const isLoggedIn = computed(() => isCredentialLoggedIn(credentialStore.credential))
+const currentTime = ref(Date.now())
+let expirationRefreshTimer: ReturnType<typeof setTimeout> | undefined
+
+const isApiKeyExpired = (expiresAt?: number | null) => Boolean(expiresAt && expiresAt > 0 && expiresAt * 1000 <= currentTime.value)
+
+function scheduleExpirationRefresh() {
+  if (expirationRefreshTimer !== undefined) clearTimeout(expirationRefreshTimer)
+  currentTime.value = Date.now()
+  const nextExpiration = api_keys.value
+    .map((apiKey) => apiKey.expires_at)
+    .filter((expiresAt): expiresAt is number => typeof expiresAt === 'number' && expiresAt > 0 && expiresAt * 1000 > currentTime.value)
+    .reduce((soonest, expiresAt) => Math.min(soonest, expiresAt * 1000), Number.POSITIVE_INFINITY)
+  if (!Number.isFinite(nextExpiration)) return
+
+  expirationRefreshTimer = setTimeout(() => {
+    scheduleExpirationRefresh()
+  }, Math.min(nextExpiration - currentTime.value, 2_147_000_000))
+}
+
+watch(api_keys, scheduleExpirationRefresh, { deep: true })
+onUnmounted(() => {
+  if (expirationRefreshTimer !== undefined) clearTimeout(expirationRefreshTimer)
+})
 
 const openLoginModal = () => {
   if (typeof window === 'undefined') return
@@ -205,7 +228,13 @@ watch(
           >
             <template #cell="{ record }">
               <div
-                v-if="record.is_active"
+                v-if="isApiKeyExpired(record.expires_at)"
+                class="inline-flex items-center gap-2 px-2.5 py-1 bg-red-50 border border-red-200 rounded text-red-700 text-sm font-medium whitespace-nowrap"
+              >
+                {{ t('openapi.apiKeys.expiredStatus') }}
+              </div>
+              <div
+                v-else-if="record.is_active"
                 class="inline-flex items-center gap-2 px-2.5 py-1 bg-green-50 border border-green-200 rounded text-green-700 text-sm font-medium whitespace-nowrap"
               >
                 <div class="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
@@ -256,7 +285,7 @@ watch(
           >
             <template #cell="{ record }">
               <span class="text-sm text-gray-600 whitespace-nowrap">
-                {{ formatTimestamp(record.last_used_at, 'YYYY-MM-DD HH:mm') || '—' }}
+                {{ record.last_used_at && record.last_used_at > 0 ? formatTimestamp(record.last_used_at, 'YYYY-MM-DD HH:mm') : t('openapi.apiKeys.noRecordedUse') }}
               </span>
             </template>
           </a-table-column>
