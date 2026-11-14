@@ -276,6 +276,7 @@ describe('web-app chat submit failure', () => {
         enable_deep_thinking: false,
       }),
       expect.any(Function),
+      expect.any(AbortSignal),
     )
     expect(mocks.state.messages?.value).toEqual([])
     expect(mocks.state.query?.value).toBe('你好')
@@ -333,6 +334,7 @@ describe('web-app chat submit failure', () => {
         enable_deep_thinking: true,
       }),
       expect.any(Function),
+      expect.any(AbortSignal),
     )
   })
 
@@ -423,5 +425,28 @@ describe('web-app chat submit failure', () => {
     resolveStream(undefined)
     await submitPromise
     wrapper.unmount()
+  })
+
+  it('aborts the active chat stream when the Web App view unmounts', async () => {
+    let streamSignal: AbortSignal | undefined
+    mocks.handleWebAppChat.mockImplementationOnce((_token, _request, _onEvent, signal) => {
+      streamSignal = signal
+      return new Promise((resolve) => {
+        signal.addEventListener('abort', () => resolve(undefined), { once: true })
+      })
+    })
+
+    const wrapper = shallowMount(WebAppsIndexView)
+    await flushPromises()
+    const setupState = (wrapper.vm.$ as any).setupState
+    mocks.state.query!.value = 'show trace events'
+    const submitPromise = setupState.handleSubmit()
+    await flushPromises()
+
+    expect(streamSignal).toBeInstanceOf(AbortSignal)
+    expect(streamSignal?.aborted).toBe(false)
+    wrapper.unmount()
+    expect(streamSignal?.aborted).toBe(true)
+    await submitPromise
   })
 })
