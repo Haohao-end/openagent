@@ -126,12 +126,9 @@ export const useDeleteApiToolProvider = () => {
       content: '删除工具是不可逆的。AI应用将无法再访问您的工具',
       hideCancel: false,
       onOk: async () => {
-        try {
-          const resp = await deleteApiToolProvider(provider_id)
-          Message.success(resp.message)
-        } finally {
-          success_callback && success_callback()
-        }
+        const resp = await deleteApiToolProvider(provider_id)
+        Message.success(resp.message)
+        success_callback && success_callback()
       },
     })
   }

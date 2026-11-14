@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Modal } from '@arco-design/web-vue'
 import { createRequestError } from '@/utils/error'
 import {
   useCreateApiToolProvider,
+  useDeleteApiToolProvider,
   useUpdateApiToolProvider,
   useGetApiTool,
   useGetApiToolProvidersWithPage,
@@ -133,6 +135,35 @@ describe('use-tool request feedback', () => {
 
     expect(result).toBe(false)
     expect(messageErrorMock).toHaveBeenCalledWith('URL解析到不允许的地址: 127.0.0.1')
+    expect(messageSuccessMock).not.toHaveBeenCalled()
+  })
+
+  it('calls the API tool provider delete callback only after success', async () => {
+    mocks.deleteApiToolProvider.mockResolvedValueOnce({ message: 'deleted' })
+    const warningSpy = vi.spyOn(Modal, 'warning').mockImplementation(() => undefined as never)
+    const callback = vi.fn()
+    const { handleDelete } = useDeleteApiToolProvider()
+
+    handleDelete('provider-1', callback)
+    const onOk = warningSpy.mock.calls[0][0].onOk as () => Promise<void>
+    await onOk()
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(messageSuccessMock).toHaveBeenCalledWith('deleted')
+  })
+
+  it('does not call the API tool provider delete callback when deletion fails', async () => {
+    const requestError = new Error('delete failed')
+    mocks.deleteApiToolProvider.mockRejectedValueOnce(requestError)
+    const warningSpy = vi.spyOn(Modal, 'warning').mockImplementation(() => undefined as never)
+    const callback = vi.fn()
+    const { handleDelete } = useDeleteApiToolProvider()
+
+    handleDelete('provider-1', callback)
+    const onOk = warningSpy.mock.calls[0][0].onOk as () => Promise<void>
+    await expect(onOk()).rejects.toBe(requestError)
+
+    expect(callback).not.toHaveBeenCalled()
     expect(messageSuccessMock).not.toHaveBeenCalled()
   })
 
