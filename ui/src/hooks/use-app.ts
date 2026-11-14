@@ -787,9 +787,9 @@ export const useUnshareAppFromSquare = () => {
           loading.value = true
           await unshareAppFromSquare(app_id)
           Message.success(t('appStudio.published.square.unsharedSuccess'))
+          callback && callback()
         } finally {
           loading.value = false
-          callback && callback()
         }
       },
     })

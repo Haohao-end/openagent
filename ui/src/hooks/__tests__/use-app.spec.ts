@@ -11,6 +11,7 @@ import {
   useGetPublishedConfig,
   useGetVersions,
   useShareAppToSquare,
+  useUnshareAppFromSquare,
   useUpdateDraftAppConfig,
 } from '@/hooks/use-app'
 import * as appService from '@/services/app'
@@ -24,6 +25,7 @@ vi.mock('@/services/app', async () => {
     cancelPublish: vi.fn(),
     deleteApp: vi.fn(),
     shareAppToSquare: vi.fn(),
+    unshareAppFromSquare: vi.fn(),
     getDraftAppConfig: vi.fn(),
     updateDraftAppConfig: vi.fn(),
     getPublishedConfig: vi.fn(),
@@ -478,6 +480,55 @@ describe('useShareAppToSquare', () => {
     await expect(handleShareAppToSquare('app-1', 'agents', callback)).rejects.toBe(originalError)
 
     expect(callback).not.toHaveBeenCalled()
+    expect(loading.value).toBe(false)
+  })
+})
+
+describe('useUnshareAppFromSquare', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const openUnshareConfirmation = async () => {
+    const warningSpy = vi.spyOn(Modal, 'warning').mockImplementation(() => undefined as never)
+    const callback = vi.fn()
+    const { loading, handleUnshareAppFromSquare } = useUnshareAppFromSquare()
+
+    await handleUnshareAppFromSquare('app-1', callback)
+
+    return { callback, loading, onOk: warningSpy.mock.calls[0][0].onOk as () => Promise<void> }
+  }
+
+  it('calls the callback after unsharing succeeds and resets loading', async () => {
+    vi.mocked(appService.unshareAppFromSquare).mockResolvedValueOnce({ message: 'Unshared' } as never)
+    const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+    const { callback, loading, onOk } = await openUnshareConfirmation()
+
+    const unshareRequest = onOk()
+    expect(loading.value).toBe(true)
+    await unshareRequest
+
+    expect(callback).toHaveBeenCalledTimes(1)
+    expect(successSpy).toHaveBeenCalledOnce()
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not call the callback when unsharing fails and resets loading', async () => {
+    const originalError = new Error('unshare failed')
+    vi.mocked(appService.unshareAppFromSquare).mockRejectedValueOnce(originalError)
+    const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+    const { callback, loading, onOk } = await openUnshareConfirmation()
+
+    const unshareRequest = onOk()
+    expect(loading.value).toBe(true)
+    await expect(unshareRequest).rejects.toBe(originalError)
+
+    expect(callback).not.toHaveBeenCalled()
+    expect(successSpy).not.toHaveBeenCalled()
     expect(loading.value).toBe(false)
   })
 })
