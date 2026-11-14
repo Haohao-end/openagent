@@ -411,6 +411,10 @@ describe('useCancelPublish', () => {
 })
 
 describe('useGetAppsWithPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('ignores an older search response after a newer search completes', async () => {
     const deferred = <T,>() => {
       let resolve!: (value: T) => void
@@ -435,5 +439,46 @@ describe('useGetAppsWithPage', () => {
     await oldRequest
 
     expect(apps.value.map((app) => app.id)).toEqual(['new'])
+  })
+
+  it('ignores an older search error after a newer search completes', async () => {
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      let reject!: (reason?: unknown) => void
+      const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise
+        reject = rejectPromise
+      })
+      return { promise, resolve, reject }
+    }
+    const response = (id: string) => ({
+      data: { list: [{ id }], paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 } },
+    })
+    const olderResponse = deferred<ReturnType<typeof response>>()
+    const newerResponse = deferred<ReturnType<typeof response>>()
+    vi.mocked(appService.getAppsWithPage)
+      .mockReturnValueOnce(olderResponse.promise as never)
+      .mockReturnValueOnce(newerResponse.promise as never)
+    const { apps, loading, loadApps } = useGetAppsWithPage()
+
+    const olderRequest = loadApps(true, 'old')
+    const newerRequest = loadApps(true, 'new')
+    newerResponse.resolve(response('new'))
+    await newerRequest
+    olderResponse.reject(new Error('stale search failed'))
+
+    await expect(olderRequest).resolves.toBeUndefined()
+    expect(apps.value.map((app) => app.id)).toEqual(['new'])
+    expect(loading.value).toBe(false)
+  })
+
+  it('reports an error from the latest search and resets loading', async () => {
+    const originalError = new Error('latest search failed')
+    vi.mocked(appService.getAppsWithPage).mockRejectedValueOnce(originalError)
+    const { loading, loadApps } = useGetAppsWithPage()
+
+    await expect(loadApps(true, 'latest')).rejects.toBe(originalError)
+
+    expect(loading.value).toBe(false)
   })
 })
