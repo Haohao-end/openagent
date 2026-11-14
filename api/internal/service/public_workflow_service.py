@@ -180,37 +180,51 @@ class PublicWorkflowService(BaseService):
         if not public_workflow:
             raise NotFoundException("公共工作流不存在或未公开")
 
-        base_tool_call_name = f"{public_workflow.tool_call_name}_copy_{account.id.hex[:8]}"
-        existing_tool_call_names = {
-            name
-            for (name,) in self.db.session.query(Workflow.tool_call_name).filter(
-                Workflow.account_id == account.id,
-                Workflow.tool_call_name.startswith(base_tool_call_name, autoescape=True),
-            ).all()
-        }
-        tool_call_name = base_tool_call_name
-        suffix = 2
-        while tool_call_name in existing_tool_call_names:
-            tool_call_name = f"{base_tool_call_name}_{suffix}"
-            suffix += 1
+        account_tool_suffix = f"_copy_{account.id.hex[:8]}"
+        max_tool_call_name_length = 64 - len("wf_")
 
-        # 2.复制工作流基础信息
-        workflow_dict = {
-            "account_id": account.id,
-            "name": f"{public_workflow.name} (副本)",
-            "tool_call_name": tool_call_name,
-            "icon": public_workflow.icon,
-            "description": public_workflow.description,
-            "draft_graph": deepcopy(public_workflow.graph),  # 将发布的graph作为草稿
-            "graph": {},
-            "is_debug_passed": False,
-            "status": WorkflowStatus.DRAFT.value,
-            "tags": self._resolve_public_workflow_tags(public_workflow),
-            "original_workflow_id": public_workflow.id,
-        }
-
-        # 3.创建新工作流
+        # 2.锁定账号后一次读取现有名称，避免并发Fork选中同一个名称或逐个后缀查询。
         with self.db.auto_commit():
+            self.db.session.query(Account).filter(
+                Account.id == account.id,
+            ).with_for_update().first()
+            existing_tool_call_names = {
+                name
+                for (name,) in self.db.session.query(Workflow.tool_call_name).filter(
+                    Workflow.account_id == account.id,
+                ).all()
+            }
+
+            suffix = 1
+            while True:
+                numeric_suffix = "" if suffix == 1 else f"_{suffix}"
+                source_name_length = max_tool_call_name_length - len(account_tool_suffix) - len(numeric_suffix)
+                if source_name_length < 0:
+                    raise FailException("无法生成可用的工作流工具名称")
+                tool_call_name = (
+                    f"{public_workflow.tool_call_name[:source_name_length]}"
+                    f"{account_tool_suffix}{numeric_suffix}"
+                )
+                if tool_call_name not in existing_tool_call_names:
+                    break
+                suffix += 1
+
+            # 3.复制工作流基础信息
+            workflow_dict = {
+                "account_id": account.id,
+                "name": f"{public_workflow.name} (副本)",
+                "tool_call_name": tool_call_name,
+                "icon": public_workflow.icon,
+                "description": public_workflow.description,
+                "draft_graph": deepcopy(public_workflow.graph),  # 将发布的graph作为草稿
+                "graph": {},
+                "is_debug_passed": False,
+                "status": WorkflowStatus.DRAFT.value,
+                "tags": self._resolve_public_workflow_tags(public_workflow),
+                "original_workflow_id": public_workflow.id,
+            }
+
+            # 4.创建新工作流
             new_workflow = Workflow(**workflow_dict)
             self.db.session.add(new_workflow)
             self.db.session.flush()

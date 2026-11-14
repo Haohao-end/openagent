@@ -116,6 +116,8 @@ export const useGetAppsWithPage = () => {
       } else {
         apps.value.push(...data.list)
       }
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }
