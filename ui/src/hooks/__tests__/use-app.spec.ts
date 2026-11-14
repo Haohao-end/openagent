@@ -96,6 +96,25 @@ describe('useGetVersions', () => {
     expect(versions.value.map((version) => version.id)).toEqual(['new-version'])
   })
 
+  it('ignores stale request errors after a newer app version request succeeds', async () => {
+    let rejectOlder!: (error: Error) => void
+    let resolveNewer!: (value: { data: { list: Array<{ id: string }> } }) => void
+    const older = new Promise<{ data: { list: Array<{ id: string }> } }>((_, reject) => { rejectOlder = reject })
+    const newer = new Promise<{ data: { list: Array<{ id: string }> } }>((resolve) => { resolveNewer = resolve })
+    vi.mocked(appService.getVersions).mockReturnValueOnce(older as never).mockReturnValueOnce(newer as never)
+    const { loading, versions, loadVersions } = useGetVersions()
+
+    const oldRequest = loadVersions('app-old')
+    const newRequest = loadVersions('app-new')
+    resolveNewer({ data: { list: [{ id: 'new-version' }] } })
+    await newRequest
+    rejectOlder(new Error('stale request failed'))
+
+    await expect(oldRequest).resolves.toBeUndefined()
+    expect(versions.value.map((version) => version.id)).toEqual(['new-version'])
+    expect(loading.value).toBe(false)
+  })
+
   it('loads draft capabilities with the draft app config', async () => {
     vi.mocked(appService.getDraftAppConfig).mockResolvedValue({
       data: {
