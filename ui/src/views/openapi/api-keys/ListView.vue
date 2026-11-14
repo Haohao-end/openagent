@@ -246,6 +246,19 @@ watch(
             </template>
           </a-table-column>
           <a-table-column
+            :title="t('openapi.apiKeys.columns.lastUsedAt')"
+            data-index="last_used_at"
+            :width="150"
+            header-cell-class="!bg-gray-50 !text-gray-900 !font-semibold !border-b !border-gray-200"
+            cell-class="!py-4"
+          >
+            <template #cell="{ record }">
+              <span class="text-sm text-gray-600 whitespace-nowrap">
+                {{ formatTimestampDate(record.last_used_at) || '—' }}
+              </span>
+            </template>
+          </a-table-column>
+          <a-table-column
             :title="t('openapi.apiKeys.columns.remark')"
             data-index="remark"
             :width="280"
