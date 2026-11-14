@@ -86,6 +86,7 @@ const message_id = ref('')
 const task_id = ref('')
 let webAppChatGeneration = 0
 let webAppChatAbortController: AbortController | null = null
+const userStoppedWebAppStreams = new WeakSet<AbortSignal>()
 const scroller = ref<ScrollerLike | null>(null)
 const scrollHeight = ref(0)
 const showScrollToBottomButton = ref(false)
@@ -455,24 +456,29 @@ const handleSubmit = async () => {
         scroller.value?.scrollToBottom?.()
       }
     }, abortController.signal)
-    chatSucceeded = !abortController.signal.aborted
+    chatSucceeded = !abortController.signal.aborted || userStoppedWebAppStreams.has(abortController.signal)
   } catch {
-    if (requestGeneration !== webAppChatGeneration || abortController.signal.aborted) return
-    const firstMessage = messages.value[0]
-    let shouldRestoreInput = false
-    if (
-      firstMessage &&
-      firstMessage.id === '' &&
-      firstMessage.answer === '' &&
-      firstMessage.query === humanQuery
-    ) {
-      messages.value.shift()
-      shouldRestoreInput = true
-    }
-    if (shouldRestoreInput) {
-      query.value = humanQuery
-      image_urls.value = humanImageUrls
-      await nextTick(() => adjustQueryTextareaHeight())
+    if (requestGeneration !== webAppChatGeneration) return
+    if (abortController.signal.aborted) {
+      if (!userStoppedWebAppStreams.has(abortController.signal)) return
+      chatSucceeded = true
+    } else {
+      const firstMessage = messages.value[0]
+      let shouldRestoreInput = false
+      if (
+        firstMessage &&
+        firstMessage.id === '' &&
+        firstMessage.answer === '' &&
+        firstMessage.query === humanQuery
+      ) {
+        messages.value.shift()
+        shouldRestoreInput = true
+      }
+      if (shouldRestoreInput) {
+        query.value = humanQuery
+        image_urls.value = humanImageUrls
+        await nextTick(() => adjustQueryTextareaHeight())
+      }
     }
   } finally {
     if (webAppChatAbortController === abortController) webAppChatAbortController = null
@@ -520,11 +526,19 @@ const handleSubmit = async () => {
 
 // 12.定义切换会话处理器
 const changeConversation = async (conversation_id: string) => {
-  if (conversation_id !== selectedConversation.value) webAppChatGeneration += 1
+  const isChangingConversation = conversation_id !== selectedConversation.value
+  if (isChangingConversation) webAppChatGeneration += 1
   stopAudioStream()
 
   // 12.1 先暂停并清空会话
-  await handleStop()
+  try {
+    await handleStop()
+  } finally {
+    if (isChangingConversation) {
+      webAppChatAbortController?.abort()
+      webAppChatAbortController = null
+    }
+  }
 
   // 12.2 修改激活选项
   selectedConversation.value = conversation_id
@@ -534,15 +548,12 @@ const changeConversation = async (conversation_id: string) => {
 const handleStop = async () => {
   const abortController = webAppChatAbortController
   // 13.1 如果没有任务id或者未在加载中，则直接停止
-  if (task_id.value === '' || !webAppChatLoading.value) {
-    abortController?.abort()
-    return
-  }
+  if (task_id.value === '' || !webAppChatLoading.value) return
 
   // 13.2 调用api接口中断请求
-  try {
-    await handleStopWebAppChat(String(route.params?.token), task_id.value)
-  } finally {
+  await handleStopWebAppChat(String(route.params?.token), task_id.value)
+  if (abortController) {
+    userStoppedWebAppStreams.add(abortController.signal)
     abortController?.abort()
   }
 }
