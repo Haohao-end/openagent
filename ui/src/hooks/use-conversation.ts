@@ -77,6 +77,8 @@ export const useGetConversationMessagesWithPage = () => {
           'conversation-history',
         )
       }
+    } catch (error) {
+      if (requestId === latestRequest) throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }
