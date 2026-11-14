@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from copy import deepcopy
 from datetime import UTC, datetime
+import re
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -51,6 +52,7 @@ class _Query:
         self._count_result = count_result
         self.filter_args = ()
         self.order_by_args = ()
+        self.for_update_called = False
 
     def filter(self, *args, **_kwargs):
         self.filter_args = args
@@ -75,6 +77,13 @@ class _Query:
     def one_or_none(self):
         return self._one_or_none_result
 
+    def first(self):
+        return self._all_result[0] if self._all_result else self._one_or_none_result
+
+    def with_for_update(self):
+        self.for_update_called = True
+        return self
+
     def all(self):
         return self._all_result
 
@@ -89,15 +98,16 @@ class _QueueSession:
     def __init__(self, queries=None):
         self._queries = list(queries or [])
         self.queried_models = []
+        self.queried_queries = []
         self.added = []
         self.deleted = []
         self.commit_calls = 0
 
     def query(self, *model):
         self.queried_models.append(model)
-        if self._queries:
-            return self._queries.pop(0)
-        return _Query()
+        query = self._queries.pop(0) if self._queries else _Query()
+        self.queried_queries.append(query)
+        return query
 
     def add(self, obj):
         self.added.append(obj)
@@ -132,6 +142,12 @@ class _FakeWorkflow:
         def in_(self, *_args, **_kwargs):
             return self
 
+        def startswith(self, *_args, **_kwargs):
+            return self
+
+        def op(self, operator, **_kwargs):
+            return lambda value: SimpleNamespace(operator=operator, value=value)
+
         def isnot(self, *_args, **_kwargs):
             return self
 
@@ -139,6 +155,7 @@ class _FakeWorkflow:
     is_public = _Col()
     status = _Col()
     account_id = _Col()
+    tool_call_name = _Col()
     original_workflow_id = _Col()
     tags = _Col()
 
@@ -396,6 +413,84 @@ class TestPublicWorkflowService:
         service = _build_service(session=_QueueSession([_Query(one_or_none_result=None)]))
         with pytest.raises(NotFoundException):
             service.fork_public_workflow(uuid4(), SimpleNamespace(id=uuid4()))
+
+    def test_repeated_forks_should_use_distinct_tool_call_names_with_legacy_duplicates(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        source = SimpleNamespace(
+            id=uuid4(),
+            is_public=True,
+            status=WorkflowStatus.PUBLISHED.value,
+            name="公开工作流",
+            tool_call_name="public_tool",
+            icon="https://icon",
+            description="desc",
+            graph={"nodes": [], "edges": []},
+            tags=[AppCategory.GENERAL.value],
+        )
+        base_tool_call_name = f"{source.tool_call_name}_copy_{account.id.hex[:8]}"
+        first_account_lock = _Query()
+        second_account_lock = _Query()
+        session = _QueueSession([
+            _Query(one_or_none_result=source),
+            first_account_lock,
+            _Query(all_result=[]),
+            _Query(one_or_none_result=source),
+            second_account_lock,
+            _Query(all_result=[(base_tool_call_name,), (base_tool_call_name,), (f"{base_tool_call_name}_2",)]),
+        ])
+        service = _build_service(session=session)
+        monkeypatch.setattr("internal.service.public_workflow_service.Workflow", _FakeWorkflow)
+
+        first_fork = service.fork_public_workflow(source.id, account)
+        second_fork = service.fork_public_workflow(source.id, account)
+
+        assert first_fork.tool_call_name == base_tool_call_name
+        assert second_fork.tool_call_name == f"{base_tool_call_name}_3"
+        assert first_account_lock.for_update_called
+        assert second_account_lock.for_update_called
+        assert len(session.queried_models) == 6
+        name_filter = session.queried_queries[2].filter_args[1]
+        assert name_filter.operator == "~"
+        assert name_filter.value.startswith("^(?:public_tool|public_too")
+        assert f"_copy_{account.id.hex[:8]}" in name_filter.value
+        assert name_filter.value.endswith(r"(?:_(?:[2-9]|[1-9][0-9]+))?$")
+        assert re.fullmatch(name_filter.value, base_tool_call_name)
+        assert re.fullmatch(name_filter.value, f"{base_tool_call_name}_23")
+        assert not re.fullmatch(name_filter.value, "unrelated_workflow")
+
+    def test_fork_public_workflow_should_keep_function_name_within_provider_limit(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        source = SimpleNamespace(
+            id=uuid4(),
+            is_public=True,
+            status=WorkflowStatus.PUBLISHED.value,
+            name="公开工作流",
+            tool_call_name="a" * 50,
+            icon="https://icon",
+            description="desc",
+            graph={"nodes": [], "edges": []},
+            tags=[AppCategory.GENERAL.value],
+        )
+        first_account_lock = _Query()
+        second_account_lock = _Query()
+        session = _QueueSession([
+            _Query(one_or_none_result=source),
+            first_account_lock,
+            _Query(all_result=[]),
+            _Query(one_or_none_result=source),
+            second_account_lock,
+            _Query(all_result=[(f"{'a' * 47}_copy_{account.id.hex[:8]}",)]),
+        ])
+        service = _build_service(session=session)
+        monkeypatch.setattr("internal.service.public_workflow_service.Workflow", _FakeWorkflow)
+
+        first_fork = service.fork_public_workflow(source.id, account)
+        second_fork = service.fork_public_workflow(source.id, account)
+
+        assert first_fork.tool_call_name == f"{'a' * 47}_copy_{account.id.hex[:8]}"
+        assert second_fork.tool_call_name == f"{'a' * 45}_copy_{account.id.hex[:8]}_2"
+        assert len(f"wf_{first_fork.tool_call_name}") <= 64
+        assert len(f"wf_{second_fork.tool_call_name}") <= 64
 
     def test_get_public_workflow_detail_should_return_detail_and_fork_status(self):
         account = SimpleNamespace(id=uuid4())
