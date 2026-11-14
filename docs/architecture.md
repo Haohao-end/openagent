@@ -4,7 +4,7 @@ This guide maps the **current repository structure**, not an assertion about a s
 
 ## Component overview
 
-The [editable draw.io version](architecture.drawio) mirrors this component map and can be opened in [diagrams.net](https://app.diagrams.net/). It describes source components, not a specific deployed environment.
+The [editable draw.io file](architecture.drawio) contains six pages: the system overview, API architecture, frontend architecture, Agent execution, workflow execution, and database/infrastructure. The first five map source components; the infrastructure page reflects this repository's Docker Compose configuration and is not a claim that every deployment uses that topology. Open it in [diagrams.net](https://app.diagrams.net/).
 
 ```mermaid
 flowchart LR
