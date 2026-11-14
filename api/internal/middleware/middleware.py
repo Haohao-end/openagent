@@ -64,11 +64,11 @@ class Middleware:
                 raise ForbiddenException("该密钥没有调用此接口的权限")
 
             try:
-                self.api_key_service.record_last_used_at(api_key_record)
+                self.api_key_service.record_api_key_request(api_key_record)
             except SQLAlchemyError as error:
-                # Last-use tracking is best-effort metadata; it must not reject a valid key.
+                # Usage metadata is best-effort; tracking failures must not reject valid credentials.
                 logger.warning(
-                    "api_key_last_used_at_update_failed error_class=%s",
+                    "api_key_usage_update_failed error_class=%s",
                     type(error).__name__,
                 )
 

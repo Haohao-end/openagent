@@ -5,7 +5,7 @@ from uuid import UUID
 from injector import inject
 from dataclasses import dataclass
 
-from sqlalchemy import desc, or_
+from sqlalchemy import case, desc, func, or_
 
 from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
@@ -76,6 +76,28 @@ class ApiKeyService(BaseService):
                 or_(ApiKey.last_used_at.is_(None), ApiKey.last_used_at <= update_after),
             ).update(
                 {ApiKey.last_used_at: used_at},
+                synchronize_session=False,
+            )
+
+    def record_api_key_request(self, api_key_record: ApiKey) -> None:
+        """Count one authorized OpenAPI request and refresh last-used metadata."""
+        used_at = utc_now_naive()
+        update_after = used_at - _LAST_USED_AT_UPDATE_INTERVAL
+        last_used_is_stale = or_(
+            ApiKey.last_used_at.is_(None),
+            ApiKey.last_used_at <= update_after,
+        )
+        with self.db.auto_commit():
+            self.db.session.query(ApiKey).filter(
+                ApiKey.id == api_key_record.id,
+            ).update(
+                {
+                    ApiKey.request_count: func.coalesce(ApiKey.request_count, 0) + 1,
+                    ApiKey.last_used_at: case(
+                        (last_used_is_stale, used_at),
+                        else_=ApiKey.last_used_at,
+                    ),
+                },
                 synchronize_session=False,
             )
 

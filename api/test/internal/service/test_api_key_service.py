@@ -256,6 +256,48 @@ class TestApiKeyService:
         session.close()
         engine.dispose()
 
+    def test_record_api_key_request_counts_each_request_and_throttles_last_used_at(self, monkeypatch):
+        api_key_id = uuid4()
+        first_request = datetime(2026, 11, 15, 10, 0, 0)
+        second_request = datetime(2026, 11, 15, 10, 0, 30)
+        engine = create_engine("sqlite://")
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "CREATE TABLE api_key (id CHAR(32) PRIMARY KEY, request_count BIGINT NOT NULL, last_used_at DATETIME)"
+            )
+            connection.execute(
+                text("INSERT INTO api_key (id, request_count, last_used_at) VALUES (:id, 0, NULL)"),
+                {"id": api_key_id.hex},
+            )
+        session = Session(engine)
+
+        @contextmanager
+        def auto_commit():
+            try:
+                yield
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+
+        service = ApiKeyService(db=SimpleNamespace(session=session, auto_commit=auto_commit))
+        api_key_record = SimpleNamespace(id=api_key_id)
+
+        for request_count, requested_at in enumerate((first_request, second_request), start=1):
+            monkeypatch.setattr(
+                "internal.service.api_key_service.utc_now_naive",
+                lambda requested_at=requested_at: requested_at,
+            )
+            service.record_api_key_request(api_key_record)
+            stored_count, stored_last_used = session.execute(
+                text("SELECT request_count, last_used_at FROM api_key WHERE id = :id"),
+                {"id": api_key_id.hex},
+            ).one()
+            assert stored_count == request_count
+            assert datetime.fromisoformat(stored_last_used) == first_request
+        session.close()
+        engine.dispose()
+
     def test_get_api_by_by_credential_should_return_query_result(self):
         api_key_record = SimpleNamespace(id=uuid4(), api_key="llmops-v1/demo")
         service = ApiKeyService(
