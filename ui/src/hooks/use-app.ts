@@ -246,10 +246,10 @@ export const useCancelPublish = () => {
           loading.value = true
           await cancelPublish(app_id)
           Message.success(t('appStudio.shell.cancelPublishSuccess'))
-        } finally {
           // 2.3 调用callback函数指定回调功能
-          loading.value = false
           callback && callback()
+        } finally {
+          loading.value = false
         }
       },
     })
