@@ -10,6 +10,7 @@ import pytest
 from internal.entity.app_category_entity import AppCategory
 from internal.entity.workflow_entity import WorkflowStatus
 from internal.exception import ForbiddenException, NotFoundException, ValidateErrorException
+from internal.model import Workflow
 from internal.service.public_workflow_service import PublicWorkflowService
 
 
@@ -319,6 +320,11 @@ class TestPublicWorkflowService:
 
         assert isinstance(paginator, _Paginator)
         assert captured["query"] is not None
+        assert tuple(str(order) for order in captured["query"].order_by_args) == (
+            str(Workflow.published_at.desc()),
+            str(Workflow.created_at.desc()),
+            str(Workflow.id.desc()),
+        )
         assert records == [
             {
                 "id": str(workflow.id),

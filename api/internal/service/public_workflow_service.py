@@ -132,7 +132,7 @@ class PublicWorkflowService(BaseService):
             )
             .join(Account, Account.id == Workflow.account_id)
             .filter(*filters)
-            .order_by(desc(Workflow.published_at), desc(Workflow.created_at))
+            .order_by(desc(Workflow.published_at), desc(Workflow.created_at), desc(Workflow.id))
         )
 
         workflow_rows = paginator.paginate(query)
