@@ -300,7 +300,7 @@ class PublicAppService(BaseService):
             )
             .join(Account, Account.id == App.account_id)
             .filter(*filters)
-            .order_by(App.published_at.desc(), App.created_at.desc())
+            .order_by(App.published_at.desc(), App.created_at.desc(), App.id.desc())
         )
 
         user_rows = paginator.paginate(query)
