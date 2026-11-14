@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Message, Modal } from '@arco-design/web-vue'
 
 import {
+  useCancelPublish,
   useDeleteApp,
   useFallbackHistoryToDraft,
   useGetApp,
@@ -19,6 +20,7 @@ vi.mock('@/services/app', async () => {
     ...actual,
     getApp: vi.fn(),
     getAppsWithPage: vi.fn(),
+    cancelPublish: vi.fn(),
     deleteApp: vi.fn(),
     getDraftAppConfig: vi.fn(),
     updateDraftAppConfig: vi.fn(),
@@ -353,6 +355,58 @@ describe('useDeleteApp', () => {
 
     expect(callback).not.toHaveBeenCalled()
     expect(successSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('useCancelPublish', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const openCancelConfirmation = async () => {
+    const warningSpy = vi.spyOn(Modal, 'warning').mockImplementation(() => undefined as never)
+    const callback = vi.fn()
+    const { loading, handleCancelPublish } = useCancelPublish()
+
+    await handleCancelPublish('app-1', callback)
+
+    return { callback, loading, onOk: warningSpy.mock.calls[0][0].onOk as () => Promise<void> }
+  }
+
+  it('calls the callback after cancel-publish succeeds and resets loading', async () => {
+    let resolveCancel!: () => void
+    const pendingCancel = new Promise<void>((resolve) => { resolveCancel = resolve })
+    vi.mocked(appService.cancelPublish).mockReturnValueOnce(pendingCancel as never)
+    const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+    const { callback, loading, onOk } = await openCancelConfirmation()
+
+    const cancelRequest = onOk()
+    expect(loading.value).toBe(true)
+    resolveCancel()
+    await cancelRequest
+
+    expect(callback).toHaveBeenCalledTimes(1)
+    expect(successSpy).toHaveBeenCalledOnce()
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not call the callback when cancel-publish fails and resets loading', async () => {
+    const originalError = new Error('cancel publish failed')
+    vi.mocked(appService.cancelPublish).mockRejectedValueOnce(originalError)
+    const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+    const { callback, loading, onOk } = await openCancelConfirmation()
+
+    const cancelRequest = onOk()
+    expect(loading.value).toBe(true)
+    await expect(cancelRequest).rejects.toBe(originalError)
+
+    expect(callback).not.toHaveBeenCalled()
+    expect(successSpy).not.toHaveBeenCalled()
+    expect(loading.value).toBe(false)
   })
 })
 
