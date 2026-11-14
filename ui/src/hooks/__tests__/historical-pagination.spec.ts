@@ -408,6 +408,37 @@ describe('historical chat pagination', () => {
     expect(messages.value.map((message) => message.id)).toEqual(['new'])
   })
 
+  it('ignores an older conversation error after switching conversations', async () => {
+    let rejectOlder!: (error: Error) => void
+    const olderResponse = new Promise<ReturnType<typeof buildPage>>((_, reject) => { rejectOlder = reject })
+    const newerResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(conversationService.getConversationMessages)
+      .mockReturnValueOnce(olderResponse as never)
+      .mockReturnValueOnce(newerResponse.promise as never)
+    const { loading, messages, loadConversationMessagesWithPage } = useGetConversationMessagesWithPage()
+
+    const olderRequest = loadConversationMessagesWithPage('conversation-old', true)
+    const newerRequest = loadConversationMessagesWithPage('conversation-new', true)
+    newerResponse.resolve(buildPage([buildMessage('new', 200)], {
+      current_page: 1, page_size: 5, total_page: 1, total_record: 1,
+    }))
+    await newerRequest
+    rejectOlder(new Error('stale conversation request failed'))
+
+    await expect(olderRequest).resolves.toBeUndefined()
+    expect(messages.value.map((message) => message.id)).toEqual(['new'])
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates the latest conversation error and resets loading', async () => {
+    const requestError = new Error('current conversation request failed')
+    vi.mocked(conversationService.getConversationMessages).mockRejectedValueOnce(requestError)
+    const { loading, loadConversationMessagesWithPage } = useGetConversationMessagesWithPage()
+
+    await expect(loadConversationMessagesWithPage('conversation-1', true)).rejects.toBe(requestError)
+    expect(loading.value).toBe(false)
+  })
+
   it('ignores recent conversations from before logout without clearing current loading', async () => {
     const olderResponse = createDeferred<{ data: Array<{ id: string }> }>()
     const newerResponse = createDeferred<{ data: Array<{ id: string }> }>()
