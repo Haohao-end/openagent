@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.exc import MultipleResultsFound
 
 from internal.entity.app_category_entity import AppCategory
 from internal.entity.workflow_entity import WorkflowStatus
@@ -75,6 +76,9 @@ class _Query:
     def one_or_none(self):
         return self._one_or_none_result
 
+    def first(self):
+        return self._all_result[0] if self._all_result else self._one_or_none_result
+
     def all(self):
         return self._all_result
 
@@ -83,6 +87,13 @@ class _Query:
 
     def scalar(self):
         return self._scalar_result
+
+
+class _DuplicateResultQuery(_Query):
+    def one_or_none(self):
+        if len(self._all_result) > 1:
+            raise MultipleResultsFound()
+        return super().one_or_none()
 
 
 class _QueueSession:
@@ -415,7 +426,7 @@ class TestPublicWorkflowService:
             _Query(one_or_none_result=source),
             _Query(one_or_none_result=None),
             _Query(one_or_none_result=source),
-            _Query(one_or_none_result=SimpleNamespace()),
+            _DuplicateResultQuery(all_result=[SimpleNamespace(), SimpleNamespace()]),
             _Query(one_or_none_result=None),
         ])
         service = _build_service(session=session)

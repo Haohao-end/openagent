@@ -186,7 +186,7 @@ class PublicWorkflowService(BaseService):
         while self.db.session.query(Workflow).filter(
             Workflow.account_id == account.id,
             Workflow.tool_call_name == tool_call_name,
-        ).one_or_none():
+        ).first():
             tool_call_name = f"{base_tool_call_name}_{suffix}"
             suffix += 1
 
