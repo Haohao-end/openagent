@@ -12,7 +12,7 @@ import { AUTH_REQUIRED_EVENT } from '@/utils/request'
 import { isCredentialLoggedIn } from '@/utils/auth'
 import { getErrorMessage } from '@/utils/error'
 import CreateOrUpdateApiKeyModal from './components/CreateOrUpdateApiKeyModal.vue'
-import { formatTimestampDate } from '@/utils/time-formatter'
+import { formatTimestamp, formatTimestampDate } from '@/utils/time-formatter'
 import { useI18n } from 'vue-i18n'
 
 // 1.定义页面所需基础数据
@@ -242,6 +242,19 @@ watch(
             <template #cell="{ record }">
               <span class="text-sm text-gray-600 whitespace-nowrap">
                 {{ formatTimestampDate(record.expires_at) || '—' }}
+              </span>
+            </template>
+          </a-table-column>
+          <a-table-column
+            :title="t('openapi.apiKeys.columns.lastUsedAt')"
+            data-index="last_used_at"
+            :width="150"
+            header-cell-class="!bg-gray-50 !text-gray-900 !font-semibold !border-b !border-gray-200"
+            cell-class="!py-4"
+          >
+            <template #cell="{ record }">
+              <span class="text-sm text-gray-600 whitespace-nowrap">
+                {{ formatTimestamp(record.last_used_at, 'YYYY-MM-DD HH:mm') || '—' }}
               </span>
             </template>
           </a-table-column>

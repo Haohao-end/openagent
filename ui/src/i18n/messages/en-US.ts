@@ -1010,6 +1010,7 @@ export default {
         status: 'Status',
         createdAt: 'Created At',
         expiresAt: 'Expires At',
+        lastUsedAt: 'Last Used',
         remark: 'Remark',
         actions: 'Actions',
       },
