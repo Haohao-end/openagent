@@ -181,12 +181,16 @@ class PublicWorkflowService(BaseService):
             raise NotFoundException("公共工作流不存在或未公开")
 
         base_tool_call_name = f"{public_workflow.tool_call_name}_copy_{account.id.hex[:8]}"
+        existing_tool_call_names = {
+            name
+            for (name,) in self.db.session.query(Workflow.tool_call_name).filter(
+                Workflow.account_id == account.id,
+                Workflow.tool_call_name.startswith(base_tool_call_name, autoescape=True),
+            ).all()
+        }
         tool_call_name = base_tool_call_name
         suffix = 2
-        while self.db.session.query(Workflow).filter(
-            Workflow.account_id == account.id,
-            Workflow.tool_call_name == tool_call_name,
-        ).first():
+        while tool_call_name in existing_tool_call_names:
             tool_call_name = f"{base_tool_call_name}_{suffix}"
             suffix += 1
 

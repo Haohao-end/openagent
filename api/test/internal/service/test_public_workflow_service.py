@@ -5,7 +5,6 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.exc import MultipleResultsFound
 
 from internal.entity.app_category_entity import AppCategory
 from internal.entity.workflow_entity import WorkflowStatus
@@ -89,13 +88,6 @@ class _Query:
         return self._scalar_result
 
 
-class _DuplicateResultQuery(_Query):
-    def one_or_none(self):
-        if len(self._all_result) > 1:
-            raise MultipleResultsFound()
-        return super().one_or_none()
-
-
 class _QueueSession:
     def __init__(self, queries=None):
         self._queries = list(queries or [])
@@ -141,6 +133,9 @@ class _FakeWorkflow:
             return self
 
         def in_(self, *_args, **_kwargs):
+            return self
+
+        def startswith(self, *_args, **_kwargs):
             return self
 
         def isnot(self, *_args, **_kwargs):
@@ -409,7 +404,7 @@ class TestPublicWorkflowService:
         with pytest.raises(NotFoundException):
             service.fork_public_workflow(uuid4(), SimpleNamespace(id=uuid4()))
 
-    def test_repeated_forks_should_use_distinct_tool_call_names(self, monkeypatch):
+    def test_repeated_forks_should_use_distinct_tool_call_names_with_legacy_duplicates(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         source = SimpleNamespace(
             id=uuid4(),
@@ -422,12 +417,12 @@ class TestPublicWorkflowService:
             graph={"nodes": [], "edges": []},
             tags=[AppCategory.GENERAL.value],
         )
+        base_tool_call_name = f"{source.tool_call_name}_copy_{account.id.hex[:8]}"
         session = _QueueSession([
             _Query(one_or_none_result=source),
-            _Query(one_or_none_result=None),
+            _Query(all_result=[]),
             _Query(one_or_none_result=source),
-            _DuplicateResultQuery(all_result=[SimpleNamespace(), SimpleNamespace()]),
-            _Query(one_or_none_result=None),
+            _Query(all_result=[(base_tool_call_name,), (base_tool_call_name,), (f"{base_tool_call_name}_2",)]),
         ])
         service = _build_service(session=session)
         monkeypatch.setattr("internal.service.public_workflow_service.Workflow", _FakeWorkflow)
@@ -435,9 +430,9 @@ class TestPublicWorkflowService:
         first_fork = service.fork_public_workflow(source.id, account)
         second_fork = service.fork_public_workflow(source.id, account)
 
-        base_tool_call_name = f"{source.tool_call_name}_copy_{account.id.hex[:8]}"
         assert first_fork.tool_call_name == base_tool_call_name
-        assert second_fork.tool_call_name == f"{base_tool_call_name}_2"
+        assert second_fork.tool_call_name == f"{base_tool_call_name}_3"
+        assert len(session.queried_models) == 4
 
     def test_get_public_workflow_detail_should_return_detail_and_fork_status(self):
         account = SimpleNamespace(id=uuid4())
