@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, onUnmounted, ref, resolveComponent, watch, type PropType } from 'vue'
+import { computed, h, onUnmounted, ref, resolveComponent, watch, type PropType } from 'vue'
 import { type ValidatedError, Message, Modal } from '@arco-design/web-vue'
 import { useCreateApiKey, useUpdateApiKey } from '@/hooks/use-api-key'
 import { copyTextToClipboard } from '@/utils/clipboard'
@@ -9,6 +9,8 @@ import moment from 'moment'
 import { useI18n } from 'vue-i18n'
 
 const EXPIRATION_FORMAT = 'YYYY-MM-DD HH:mm:ss'
+const API_KEY_SCOPE_OPENAPI_CHAT = 'openapi:chat'
+const API_KEY_SCOPES = [API_KEY_SCOPE_OPENAPI_CHAT]
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
@@ -17,6 +19,7 @@ const props = defineProps({
   is_active: { type: Boolean, default: false, required: true },
   remark: { type: String, default: '', required: true },
   expires_at: { type: Number as PropType<number | null>, default: null },
+  scopes: { type: Array as PropType<string[] | null>, default: null },
   callback: { type: Function, required: false },
 })
 const emits = defineEmits([
@@ -25,22 +28,36 @@ const emits = defineEmits([
   'update:is_active',
   'update:remark',
   'update:expires_at',
+  'update:scopes',
 ])
 type ApiKeyForm = {
   is_active: boolean
   remark: string
   expires_at: string | null
+  scopes: string[] | null
 }
 const form = ref<ApiKeyForm>({
   is_active: false,
   remark: '',
   expires_at: null,
+  scopes: null,
 })
 const formRef = ref(null)
 const { loading: updateApiKeyLoading, handleUpdateApiKey } = useUpdateApiKey()
 const { loading: createApiKeyLoading, handleCreateApiKey } = useCreateApiKey()
 const IconCopy = resolveComponent('icon-copy')
 const { t } = useI18n()
+const chatScopeSelected = computed({
+  get: () => form.value.scopes?.includes(API_KEY_SCOPE_OPENAPI_CHAT) ?? false,
+  set: (selected: boolean) => {
+    form.value.scopes = selected ? [API_KEY_SCOPE_OPENAPI_CHAT] : []
+  },
+})
+
+const areScopesValid = (scopes: string[]) => {
+  const uniqueScopes = new Set(scopes)
+  return uniqueScopes.size === scopes.length && scopes.every((scope) => API_KEY_SCOPES.includes(scope))
+}
 
 const parseExpiration = (value: string | null): number | null | undefined => {
   if (!value) return null
@@ -77,6 +94,12 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
     return
   }
 
+  const scopes = apiKeyId ? form.value.scopes : (form.value.scopes ?? [...API_KEY_SCOPES])
+  if (scopes !== null && !areScopesValid(scopes)) {
+    Message.error(t('openapi.apiKeys.invalidScopes'))
+    return
+  }
+
   if (apiKeyId) {
     // 3.3 执行更新操作
     try {
@@ -84,6 +107,7 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
         is_active: Boolean(form.value?.is_active),
         remark: String(form.value?.remark),
         expires_at: expiresAt,
+        ...(scopes === null ? {} : { scopes: [...scopes] }),
       })
     } catch (error: unknown) {
       reportSaveFailure(error)
@@ -97,6 +121,7 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
         is_active: Boolean(form.value?.is_active),
         remark: String(form.value?.remark),
         expires_at: expiresAt,
+        scopes: scopes ?? [...API_KEY_SCOPES],
       })
     } catch (error: unknown) {
       reportSaveFailure(error)
@@ -163,6 +188,9 @@ watch(
         is_active: props.is_active,
         remark: props.remark,
         expires_at: props.expires_at ? formatTimestamp(props.expires_at, EXPIRATION_FORMAT) : null,
+        scopes: props.api_key_id
+          ? (props.scopes == null ? null : [...props.scopes])
+          : (props.scopes == null ? [...API_KEY_SCOPES] : [...props.scopes]),
       }
     } else {
       // 4.2 隐藏模态窗的时候，将值清空
@@ -170,6 +198,7 @@ watch(
       emits('update:is_active', false)
       emits('update:remark', '')
       emits('update:expires_at', null)
+      emits('update:scopes', null)
     }
   },
   { flush: 'sync' },
@@ -257,6 +286,21 @@ onUnmounted(() => {
           :placeholder="t('openapi.apiKeys.expiresAtPlaceholder')"
         />
         <div class="mt-1 text-xs text-gray-500">{{ t('openapi.apiKeys.expiresAtHint') }}</div>
+      </a-form-item>
+
+      <a-form-item field="scopes" class="mb-5">
+        <template #label>
+          <div class="text-sm font-semibold text-gray-700 mb-2">{{ t('openapi.apiKeys.scopesLabel') }}</div>
+        </template>
+        <a-checkbox v-model:model-value="chatScopeSelected">
+          {{ t('openapi.apiKeys.chatScope') }}
+        </a-checkbox>
+        <div v-if="form.scopes === null" class="mt-1 text-xs text-amber-700">
+          {{ t('openapi.apiKeys.legacyScopesEditHint') }}
+        </div>
+        <div v-else-if="form.scopes.length === 0" class="mt-1 text-xs text-gray-500">
+          {{ t('openapi.apiKeys.noScopesSelectedHint') }}
+        </div>
       </a-form-item>
 
       <!-- 提示 -->

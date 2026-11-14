@@ -1007,6 +1007,11 @@ export default {
       expiresAtPlaceholder: 'Select expiration date and time',
       expiresAtHint: 'Leave empty for no expiration',
       invalidExpiresAt: 'Choose a valid expiration date and time.',
+      scopesLabel: 'API scopes',
+      chatScope: 'Chat completions (openapi:chat)',
+      legacyScopesEditHint: 'This legacy key is unrestricted. Selecting a scope will restrict it to the selected APIs.',
+      noScopesSelectedHint: 'No API scopes are selected.',
+      invalidScopes: 'Choose only supported API scopes.',
       noteTitle: 'Tip',
       noteDescription: 'The key will only be shown once after creation. Keep it safe. If lost, you need to create a new one.',
       columns: {

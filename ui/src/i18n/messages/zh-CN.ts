@@ -989,6 +989,11 @@ export default {
       expiresAtPlaceholder: '请选择失效日期和时间',
       expiresAtHint: '留空表示永不过期',
       invalidExpiresAt: '请选择有效的失效日期和时间。',
+      scopesLabel: 'API 权限范围',
+      chatScope: '对话补全（openapi:chat）',
+      legacyScopesEditHint: '此旧密钥不受权限范围限制。选择权限范围后，密钥将仅限于所选 API。',
+      noScopesSelectedHint: '当前未选择任何 API 权限范围。',
+      invalidScopes: '请选择受支持的 API 权限范围。',
       noteTitle: '提示',
       noteDescription: '密钥创建后将只显示一次，请妥善保管。如果遗失，您需要重新创建新的密钥。',
       columns: {

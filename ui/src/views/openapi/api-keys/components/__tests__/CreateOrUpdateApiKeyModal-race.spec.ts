@@ -29,10 +29,23 @@ const DatePickerStub = defineComponent({
     onInput: (event: Event) => emit('update:modelValue', (event.target as HTMLInputElement).value || null),
   }),
 })
+const CheckboxStub = defineComponent({
+  props: ['modelValue'],
+  emits: ['update:modelValue'],
+  setup: (props, { emit, slots }) => () => h('label', [
+    h('input', {
+      'data-testid': 'chat-scope',
+      type: 'checkbox',
+      checked: Boolean(props.modelValue),
+      onChange: (event: Event) => emit('update:modelValue', (event.target as HTMLInputElement).checked),
+    }),
+    slots.default?.(),
+  ]),
+})
 
-const mountEditor = (props: { visible: boolean; api_key_id: string; remark?: string; expires_at?: number | null }, callback: () => void) => mount(CreateOrUpdateApiKeyModal, {
+const mountEditor = (props: { visible: boolean; api_key_id: string; remark?: string; expires_at?: number | null; scopes?: string[] | null }, callback: () => void) => mount(CreateOrUpdateApiKeyModal, {
   props: { is_active: true, remark: 'first', callback, ...props },
-  global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': FormItemStub, 'a-date-picker': DatePickerStub, 'a-switch': true, 'a-textarea': true, 'a-button': true, 'a-space': true, 'icon-safe': true, 'icon-close': true, 'icon-copy': true, 'icon-info-circle': true } },
+  global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': FormItemStub, 'a-date-picker': DatePickerStub, 'a-checkbox': CheckboxStub, 'a-switch': true, 'a-textarea': true, 'a-button': true, 'a-space': true, 'icon-safe': true, 'icon-close': true, 'icon-copy': true, 'icon-info-circle': true } },
 })
 
 it.each(['reopen', 'unmount'] as const)('ignores an update after the editor %s', async (action) => {
@@ -89,7 +102,71 @@ it('converts a created expiration from UTC+8 to Unix seconds', async () => {
     is_active: true,
     remark: 'first',
     expires_at: 1893456000,
+    scopes: ['openapi:chat'],
   })
+  wrapper.unmount()
+})
+
+it('creates a chat-scoped key by default and allows an explicit empty scope list', async () => {
+  mocks.create.mockReset().mockResolvedValueOnce('one-time-key')
+  const wrapper = mountEditor({ visible: false, api_key_id: '' }, vi.fn())
+  await wrapper.setProps({ visible: true })
+  const checkbox = wrapper.get('[data-testid="chat-scope"]')
+  expect((checkbox.element as HTMLInputElement).checked).toBe(true)
+  await checkbox.setValue(false)
+  wrapper.findComponent(FormStub).vm.$emit('submit', { errors: undefined })
+  await flushPromises()
+
+  expect(mocks.create).toHaveBeenCalledWith({
+    is_active: true,
+    remark: 'first',
+    expires_at: null,
+    scopes: [],
+  })
+  wrapper.unmount()
+})
+
+it('preserves unrestricted legacy scopes unless the user selects a scope', async () => {
+  mocks.update.mockReset().mockResolvedValue(undefined)
+  const wrapper = mountEditor({ visible: false, api_key_id: 'legacy-key', scopes: null }, vi.fn())
+  await wrapper.setProps({ visible: true })
+  wrapper.findComponent(FormStub).vm.$emit('submit', { errors: undefined })
+  await flushPromises()
+  expect(mocks.update).toHaveBeenCalledWith('legacy-key', {
+    is_active: true,
+    remark: 'first',
+    expires_at: null,
+  })
+
+  mocks.update.mockClear()
+  await wrapper.setProps({ visible: false })
+  await wrapper.setProps({ visible: true })
+  await wrapper.get('[data-testid="chat-scope"]').setValue(true)
+  wrapper.findComponent(FormStub).vm.$emit('submit', { errors: undefined })
+  await flushPromises()
+  expect(mocks.update).toHaveBeenCalledWith('legacy-key', {
+    is_active: true,
+    remark: 'first',
+    expires_at: null,
+    scopes: ['openapi:chat'],
+  })
+  wrapper.unmount()
+})
+
+it.each([
+  ['unsupported', ['openapi:admin']],
+  ['duplicate', ['openapi:chat', 'openapi:chat']],
+] as const)('rejects %s API key scopes before submitting', async (_kind, scopes) => {
+  mocks.create.mockReset()
+  mocks.error.mockReset()
+  const wrapper = mountEditor({ visible: false, api_key_id: '' }, vi.fn())
+  await wrapper.setProps({ visible: true })
+  const state = (wrapper.vm as any).$.setupState
+  state.form.scopes = [...scopes]
+  await state.saveApiKey({ errors: undefined })
+
+  expect(mocks.error).toHaveBeenCalledWith('openapi.apiKeys.invalidScopes')
+  expect(mocks.create).not.toHaveBeenCalled()
   wrapper.unmount()
 })
 

@@ -5,6 +5,7 @@ export type CreateApiKeyRequest = {
   is_active?: boolean
   remark?: string
   expires_at?: number | null
+  scopes?: string[]
 }
 
 export type CreateApiKeyResponse = {
@@ -16,6 +17,7 @@ export type UpdateApiKeyRequest = {
   is_active?: boolean
   remark?: string
   expires_at?: number | null
+  scopes?: string[]
 }
 
 // 获取API秘钥列表响应数据
