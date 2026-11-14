@@ -535,9 +535,20 @@ class TestApiKeyService:
 
     def test_get_api_keys_with_page_should_return_paginated_records(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
+
+        class _AccountScopedQuery(_QueryStub):
+            def __init__(self):
+                super().__init__(all_result=[])
+                self.criteria = []
+
+            def filter(self, *criteria, **kwargs):
+                self.criteria.extend(criteria)
+                return self
+
+        query = _AccountScopedQuery()
         service = ApiKeyService(
             db=SimpleNamespace(
-                session=_SessionStub({ApiKey: _QueryStub(all_result=[])}),
+                session=_SessionStub({ApiKey: query}),
             )
         )
         captures = {}
@@ -559,5 +570,10 @@ class TestApiKeyService:
         assert records == ["k1", "k2"]
         assert captures["req"] is req
         assert captures["db"] is service.db
-        assert captures["query"] is not None
+        assert captures["query"] is query
+        assert len(query.criteria) == 1
+        account_filter = query.criteria[0]
+        assert account_filter.left.name == "account_id"
+        assert account_filter.left.table.name == ApiKey.__tablename__
+        assert account_filter.right.value == account.id
         assert isinstance(paginator, _Paginator)

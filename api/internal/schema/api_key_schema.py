@@ -158,6 +158,7 @@ class GetApiKeysWithPageResp(Schema):
     remark = fields.String(dump_default="")
     expires_at = fields.Integer(dump_default=0)
     last_used_at = fields.Integer(dump_default=0)
+    request_count = fields.Integer(dump_default=0)
     scopes = fields.List(fields.String(), allow_none=True, dump_default=None)
     updated_at = fields.Integer(dump_default=0)
     created_at = fields.Integer(dump_default=0)
@@ -171,6 +172,7 @@ class GetApiKeysWithPageResp(Schema):
             "remark": data.remark,
             "expires_at": datetime_to_timestamp(getattr(data, "expires_at", None)),
             "last_used_at": datetime_to_timestamp(getattr(data, "last_used_at", None)),
+            "request_count": getattr(data, "request_count", 0) or 0,
             "scopes": getattr(data, "scopes", None),
             "updated_at": datetime_to_timestamp(data.updated_at),
             "created_at": datetime_to_timestamp(data.created_at),
