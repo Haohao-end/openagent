@@ -116,7 +116,7 @@ describe('openapi api-keys credential state', () => {
     expect(mocks.loadApiKeys).toHaveBeenCalledTimes(2)
   })
 
-  it('displays API key metadata with fallbacks for unset values', async () => {
+  it('displays metadata, expired status, and keys without recorded use', async () => {
     const wrapper = shallowMount(ApiKeysListView, {
       props: { create_api_key: false },
       global: {
@@ -141,15 +141,18 @@ describe('openapi api-keys credential state', () => {
       { id: 'scoped', is_active: true, expires_at: 1893456000, last_used_at: 1893542400, scopes: ['openapi:chat'] },
       { id: 'legacy', is_active: true, expires_at: 0, last_used_at: 0, scopes: null },
       { id: 'no-scopes', is_active: true, scopes: [] },
+      { id: 'expired', is_active: true, expires_at: 1, last_used_at: 0 },
     ]
     await flushPromises()
 
     expect(wrapper.text()).toContain('2030-01-01')
     expect(wrapper.text()).toContain('2030-01-02 08:00')
-    expect(wrapper.text().match(/—/g)).toHaveLength(4)
+    expect(wrapper.text().match(/—/g)).toHaveLength(2)
     expect(wrapper.text()).toContain('openapi:chat')
     expect(wrapper.text()).toContain('无限制（旧密钥）')
     expect(wrapper.text()).toContain('无权限范围')
+    expect(wrapper.text()).toContain('已过期')
+    expect(wrapper.text()).toContain('暂无使用记录')
   })
 
   it('does not apply a late toggle result to the next account row', async () => {

@@ -38,6 +38,7 @@ const updateApiKeyIsActive = ref(false)
 const updateApiKeyRemark = ref('')
 const updateApiKeyExpiresAt = ref<number | null>(null)
 const isLoggedIn = computed(() => isCredentialLoggedIn(credentialStore.credential))
+const isApiKeyExpired = (expiresAt?: number | null) => Boolean(expiresAt && expiresAt > 0 && expiresAt <= Date.now() / 1000)
 
 const openLoginModal = () => {
   if (typeof window === 'undefined') return
@@ -205,7 +206,13 @@ watch(
           >
             <template #cell="{ record }">
               <div
-                v-if="record.is_active"
+                v-if="isApiKeyExpired(record.expires_at)"
+                class="inline-flex items-center gap-2 px-2.5 py-1 bg-red-50 border border-red-200 rounded text-red-700 text-sm font-medium whitespace-nowrap"
+              >
+                {{ t('openapi.apiKeys.expiredStatus') }}
+              </div>
+              <div
+                v-else-if="record.is_active"
                 class="inline-flex items-center gap-2 px-2.5 py-1 bg-green-50 border border-green-200 rounded text-green-700 text-sm font-medium whitespace-nowrap"
               >
                 <div class="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
@@ -256,7 +263,7 @@ watch(
           >
             <template #cell="{ record }">
               <span class="text-sm text-gray-600 whitespace-nowrap">
-                {{ formatTimestamp(record.last_used_at, 'YYYY-MM-DD HH:mm') || '—' }}
+                {{ record.last_used_at && record.last_used_at > 0 ? formatTimestamp(record.last_used_at, 'YYYY-MM-DD HH:mm') : t('openapi.apiKeys.noRecordedUse') }}
               </span>
             </template>
           </a-table-column>
