@@ -182,6 +182,11 @@ def test_request_loader_should_continue_if_last_used_update_fails(caplog):
 
     assert account == expected_account
     assert "api_key_last_used_at_update_failed error_class=SQLAlchemyError" in caplog.text
+    assert any(
+        record.name == "internal.middleware.middleware"
+        and record.getMessage() == "api_key_last_used_at_update_failed error_class=SQLAlchemyError"
+        for record in caplog.records
+    )
     assert "DATABASE_ERROR_DETAIL_SECRET" not in caplog.text
 
 

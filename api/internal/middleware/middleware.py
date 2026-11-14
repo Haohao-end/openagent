@@ -13,6 +13,8 @@ from internal.service import JwtService, AccountService, ApiKeyService
 _API_KEY_SCOPE_BY_ENDPOINT = {
     "openapi.chat": API_KEY_SCOPE_OPENAPI_CHAT,
 }
+logger = logging.getLogger(__name__)
+
 
 @inject
 @dataclass
@@ -65,7 +67,7 @@ class Middleware:
                 self.api_key_service.record_last_used_at(api_key_record)
             except SQLAlchemyError as error:
                 # Last-use tracking is best-effort metadata; it must not reject a valid key.
-                logging.warning(
+                logger.warning(
                     "api_key_last_used_at_update_failed error_class=%s",
                     type(error).__name__,
                 )
