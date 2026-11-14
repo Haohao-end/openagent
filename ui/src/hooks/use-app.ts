@@ -195,14 +195,11 @@ export const useDeleteApp = () => {
       content: t('appStudio.shell.deleteConfirmContent'),
       hideCancel: false,
       onOk: async () => {
-        try {
-          // 1.点击确定后向API接口发起请求
-          const resp = await deleteApp(app_id)
-          Message.success(resp.message)
-        } finally {
-          // 2.调用callback函数指定回调功能
-          callback && callback()
-        }
+        // 1.点击确定后向API接口发起请求
+        const resp = await deleteApp(app_id)
+        Message.success(resp.message)
+        // 2.调用callback函数指定回调功能
+        callback && callback()
       },
     })
   }

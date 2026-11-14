@@ -1,6 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Message, Modal } from '@arco-design/web-vue'
 
 import {
+  useDeleteApp,
   useFallbackHistoryToDraft,
   useGetApp,
   useGetAppsWithPage,
@@ -17,6 +19,7 @@ vi.mock('@/services/app', async () => {
     ...actual,
     getApp: vi.fn(),
     getAppsWithPage: vi.fn(),
+    deleteApp: vi.fn(),
     getDraftAppConfig: vi.fn(),
     updateDraftAppConfig: vi.fn(),
     getPublishedConfig: vi.fn(),
@@ -307,6 +310,49 @@ describe('useGetApp', () => {
     newerResponse.resolve({ data: { id: 'app-new' } })
     await newerRequest
     expect(loading.value).toBe(false)
+  })
+})
+
+describe('useDeleteApp', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const openDeleteConfirmation = async () => {
+    const warningSpy = vi.spyOn(Modal, 'warning').mockImplementation(() => undefined as never)
+    const callback = vi.fn()
+    const { handleDeleteApp } = useDeleteApp()
+
+    await handleDeleteApp('app-1', callback)
+
+    return { callback, onOk: warningSpy.mock.calls[0][0].onOk as () => Promise<void> }
+  }
+
+  it('calls the callback once after a successful delete', async () => {
+    vi.mocked(appService.deleteApp).mockResolvedValueOnce({ message: 'Deleted' } as never)
+    const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+    const { callback, onOk } = await openDeleteConfirmation()
+
+    await onOk()
+
+    expect(callback).toHaveBeenCalledTimes(1)
+    expect(successSpy).toHaveBeenCalledWith('Deleted')
+  })
+
+  it('does not call the callback or show success when delete fails', async () => {
+    const originalError = new Error('delete failed')
+    vi.mocked(appService.deleteApp).mockRejectedValueOnce(originalError)
+    const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+    const { callback, onOk } = await openDeleteConfirmation()
+
+    await expect(onOk()).rejects.toBe(originalError)
+
+    expect(callback).not.toHaveBeenCalled()
+    expect(successSpy).not.toHaveBeenCalled()
   })
 })
 
