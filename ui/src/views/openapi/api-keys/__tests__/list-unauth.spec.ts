@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   handleUpdateApiKeyIsActive: vi.fn(),
   handleDeleteApiKey: vi.fn(),
   credentialState: { credential: { access_token: '', expire_at: 0 } },
-  apiKeys: { value: [] as Array<{ id: string; is_active?: boolean }> },
+  apiKeys: { value: [] as Array<{ id: string; is_active?: boolean; expires_at?: number | null }> },
 }))
 
 vi.mock('vue-router', async (importOriginal) => {
@@ -36,7 +36,7 @@ vi.mock('@/stores/credential', async () => {
 
 vi.mock('@/hooks/use-api-key', async () => {
   const { ref } = await import('vue')
-  mocks.apiKeys = ref([] as Array<{ id: string; is_active?: boolean }>)
+  mocks.apiKeys = ref([] as Array<{ id: string; is_active?: boolean; expires_at?: number | null }>)
   return {
     useGetApiKeysWithPage: () => ({
       loading: ref(false),
@@ -114,6 +114,37 @@ describe('openapi api-keys credential state', () => {
 
     expect(mocks.apiKeys.value).toEqual([])
     expect(mocks.loadApiKeys).toHaveBeenCalledTimes(2)
+  })
+
+  it('displays expiration dates and a fallback for keys without an expiration', async () => {
+    const wrapper = shallowMount(ApiKeysListView, {
+      props: { create_api_key: false },
+      global: {
+        stubs: {
+          'a-button': buttonStub,
+          'a-table': tableStub,
+          'a-table-column': tableColumnStub,
+          'a-tooltip': true,
+          'a-switch': true,
+          'icon-safe': true,
+          'icon-clock-circle': true,
+          'icon-edit': true,
+          'icon-delete': true,
+          'create-or-update-api-key-modal': true,
+        },
+      },
+    })
+    await flushPromises()
+    mocks.credentialState.credential = { access_token: 'token', expire_at: 4102444800 }
+    await flushPromises()
+    mocks.apiKeys.value = [
+      { id: 'expires', is_active: true, expires_at: 1893456000 },
+      { id: 'no-expiration', is_active: true, expires_at: 0 },
+    ]
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('2030-01-01')
+    expect(wrapper.text()).toContain('—')
   })
 
   it('does not apply a late toggle result to the next account row', async () => {

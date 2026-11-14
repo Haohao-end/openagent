@@ -991,6 +991,7 @@ export default {
         key: '密钥',
         status: '状态',
         createdAt: '创建时间',
+        expiresAt: '失效时间',
         remark: '备注',
         actions: '操作',
       },

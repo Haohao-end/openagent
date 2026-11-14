@@ -22,6 +22,7 @@ export type GetApiKeysWithPageResponse = BasePaginatorResponse<{
   api_key: string
   is_active: boolean
   remark: string
+  expires_at?: number | null
   updated_at: number
   created_at: number
 }>
