@@ -144,7 +144,7 @@ describe('openapi api-keys credential state', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('2030-01-01')
-    expect(wrapper.text()).toContain('2030-01-02')
+    expect(wrapper.text()).toContain('2030-01-02 08:00')
     expect(wrapper.text().match(/—/g)).toHaveLength(2)
   })
 
