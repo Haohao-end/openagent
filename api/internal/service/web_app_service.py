@@ -328,6 +328,6 @@ class WebAppService(BaseService):
             Conversation.invoke_from == InvokeFrom.WEB_APP.value,
             Conversation.is_pinned == is_pinned,
             Conversation.is_deleted == False
-        ).order_by(desc("created_at")).offset(offset).limit(safe_page_size).all()
+        ).order_by(desc(Conversation.created_at), desc(Conversation.id)).offset(offset).limit(safe_page_size).all()
 
         return conversations
