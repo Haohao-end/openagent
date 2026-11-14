@@ -244,6 +244,8 @@ Create datasets, upload documents, inspect segments, and wire retrieval nodes in
 
 Publish an app and call it over `POST /api/openapi/chat` with standard or streaming responses, including support for multi-turn conversation identifiers.
 
+Manage credentials and supported API Key scopes in the [API Key guide](docs/api-keys.md).
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Testing

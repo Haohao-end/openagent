@@ -244,6 +244,8 @@ Callable 执行轨迹随实时运行事件到达，不会从历史消息中恢�
 
 应用发布后，可以通过 `POST /api/openapi/chat` 进行标准调用或流式调用，并支持多轮对话所需的会话标识。
 
+API Key 的凭据管理和权限范围说明见 [API Key 文档](docs/api-keys.zh-CN.md)。
+
 <p align="right">(<a href="#readme-top">返回顶部</a>)</p>
 
 ## 测试
