@@ -8,6 +8,7 @@ import pytest
 from internal.entity.app_category_entity import AppCategory
 from internal.entity.app_entity import AppStatus
 from internal.exception import FailException, ForbiddenException, NotFoundException, ValidateErrorException
+from internal.model import App
 from internal.service.public_app_service import PublicAppService
 
 
@@ -358,6 +359,11 @@ class TestPublicAppService:
         assert paginator.total == 1
         assert len(captured["query"].filter_args) == 3
         assert "tags" in str(captured["query"].filter_args[2])
+        assert tuple(str(order) for order in captured["query"].order_by_args) == (
+            str(App.published_at.desc()),
+            str(App.created_at.desc()),
+            str(App.id.desc()),
+        )
 
     def test_get_public_apps_with_page_should_filter_by_requested_tags(self, monkeypatch):
         app_1 = SimpleNamespace(
