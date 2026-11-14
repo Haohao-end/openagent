@@ -251,7 +251,10 @@ class TestWebAppService:
         assert result == conversations
         # 该查询应至少包含 app_id、created_by、invoke_from、is_pinned、is_deleted 五个过滤条件。
         assert len(query.filter_args) >= 5
-        assert query.order_by_args
+        assert tuple(str(order) for order in query.order_by_args) == (
+            str(Conversation.created_at.desc()),
+            str(Conversation.id.desc()),
+        )
         assert query.offset_value == 0
         assert query.limit_value == 20
 
