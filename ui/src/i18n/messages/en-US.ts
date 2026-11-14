@@ -1009,6 +1009,7 @@ export default {
         key: 'Key',
         status: 'Status',
         createdAt: 'Created At',
+        expiresAt: 'Expires At',
         remark: 'Remark',
         actions: 'Actions',
       },
