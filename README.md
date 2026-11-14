@@ -224,6 +224,8 @@ Key capabilities:
 - Sandbox and artifact output: support script execution, code handling, file generation, and attachment export for tasks that need concrete outputs.
 - Debugging and result verification: use the right-side panel to run real conversations and inspect deep execution timelines, task state, produced artifacts, and final results.
 
+Callable execution traces arrive with live runs and are not restored from message history. See the [Trace guide](docs/trace.md) for the event lifecycle and persistence behavior.
+
 ### 3. Visual Workflow Editor
 
 <img width="2560" height="1599" alt="OpenAgent Workflow Editor" src="https://github.com/user-attachments/assets/23b510e2-1232-4f52-9262-812a7523ae21" />

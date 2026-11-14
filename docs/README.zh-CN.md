@@ -4,6 +4,7 @@
 
 ## 文档指南
 
+- [实时执行 Trace](trace.zh-CN.md)：事件生命周期、时间线行为，以及 Trace 不会从聊天历史恢复的原因。
 - [架构说明](architecture.zh-CN.md)：组件关系、源码目录、典型请求链路和本地开发边界。
 - [可编辑架构图](architecture.drawio)：对应中英文文档的 diagrams.net/draw.io 源文件。
 - [English architecture guide](architecture.md)：对应的英文版本。

@@ -4,6 +4,7 @@ This directory contains source-grounded documentation for OpenAgent.
 
 ## Guides
 
+- [Live execution traces](trace.md) — event lifecycle, timeline behavior, and why traces are not restored from chat history.
 - [Architecture guide](architecture.md) — component map, repository source locations, representative request paths, and local development boundaries.
 - [Editable architecture diagram](architecture.drawio) — diagrams.net/draw.io source aligned with the English and Chinese guides.
 - [中文架构说明](architecture.zh-CN.md) — Chinese version of the same guide.
