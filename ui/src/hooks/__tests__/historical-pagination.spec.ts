@@ -461,6 +461,35 @@ describe('historical chat pagination', () => {
     expect(hook.loading.value).toBe(false)
   })
 
+  it('ignores a stale recent conversations error after a newer refresh succeeds', async () => {
+    let rejectOlder!: (error: Error) => void
+    const olderResponse = new Promise<{ data: Array<{ id: string }> }>((_, reject) => { rejectOlder = reject })
+    const newerResponse = createDeferred<{ data: Array<{ id: string }> }>()
+    vi.mocked(conversationService.getRecentConversations)
+      .mockReturnValueOnce(olderResponse as never)
+      .mockReturnValueOnce(newerResponse.promise as never)
+    const hook = useGetRecentConversations()
+
+    const olderRequest = hook.loadRecentConversations()
+    const newerRequest = hook.loadRecentConversations()
+    newerResponse.resolve({ data: [{ id: 'new-session' }] })
+    await newerRequest
+    rejectOlder(new Error('stale recent conversations request failed'))
+
+    await expect(olderRequest).resolves.toBeUndefined()
+    expect(hook.conversations.value).toEqual([{ id: 'new-session' }])
+    expect(hook.loading.value).toBe(false)
+  })
+
+  it('propagates the latest recent conversations error and resets loading', async () => {
+    const requestError = new Error('current recent conversations request failed')
+    vi.mocked(conversationService.getRecentConversations).mockRejectedValueOnce(requestError)
+    const hook = useGetRecentConversations()
+
+    await expect(hook.loadRecentConversations()).rejects.toBe(requestError)
+    expect(hook.loading.value).toBe(false)
+  })
+
   it('does not log recent conversation message content', async () => {
     const data = [
       { id: 'private-conversation', human_message: 'private question', ai_message: 'private answer' },

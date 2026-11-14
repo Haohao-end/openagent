@@ -213,6 +213,8 @@ export const useGetRecentConversations = () => {
       if (requestId !== latestRequest) return
       const data = resp.data || []
       conversations.value = data
+    } catch (error) {
+      if (requestId === latestRequest) throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }
