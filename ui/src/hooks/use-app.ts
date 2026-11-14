@@ -812,6 +812,8 @@ export const useGetVersions = () => {
       const resp = await getVersions(app_id)
       if (requestId !== latestRequest) return
       versions.value = resp.data.list
+    } catch (error) {
+      if (requestId === latestRequest) throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }
