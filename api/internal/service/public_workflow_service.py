@@ -180,11 +180,21 @@ class PublicWorkflowService(BaseService):
         if not public_workflow:
             raise NotFoundException("公共工作流不存在或未公开")
 
+        base_tool_call_name = f"{public_workflow.tool_call_name}_copy_{account.id.hex[:8]}"
+        tool_call_name = base_tool_call_name
+        suffix = 2
+        while self.db.session.query(Workflow).filter(
+            Workflow.account_id == account.id,
+            Workflow.tool_call_name == tool_call_name,
+        ).one_or_none():
+            tool_call_name = f"{base_tool_call_name}_{suffix}"
+            suffix += 1
+
         # 2.复制工作流基础信息
         workflow_dict = {
             "account_id": account.id,
             "name": f"{public_workflow.name} (副本)",
-            "tool_call_name": f"{public_workflow.tool_call_name}_copy_{account.id.hex[:8]}",
+            "tool_call_name": tool_call_name,
             "icon": public_workflow.icon,
             "description": public_workflow.description,
             "draft_graph": deepcopy(public_workflow.graph),  # 将发布的graph作为草稿

@@ -139,6 +139,7 @@ class _FakeWorkflow:
     is_public = _Col()
     status = _Col()
     account_id = _Col()
+    tool_call_name = _Col()
     original_workflow_id = _Col()
     tags = _Col()
 
@@ -396,6 +397,36 @@ class TestPublicWorkflowService:
         service = _build_service(session=_QueueSession([_Query(one_or_none_result=None)]))
         with pytest.raises(NotFoundException):
             service.fork_public_workflow(uuid4(), SimpleNamespace(id=uuid4()))
+
+    def test_repeated_forks_should_use_distinct_tool_call_names(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        source = SimpleNamespace(
+            id=uuid4(),
+            is_public=True,
+            status=WorkflowStatus.PUBLISHED.value,
+            name="公开工作流",
+            tool_call_name="public_tool",
+            icon="https://icon",
+            description="desc",
+            graph={"nodes": [], "edges": []},
+            tags=[AppCategory.GENERAL.value],
+        )
+        session = _QueueSession([
+            _Query(one_or_none_result=source),
+            _Query(one_or_none_result=None),
+            _Query(one_or_none_result=source),
+            _Query(one_or_none_result=SimpleNamespace()),
+            _Query(one_or_none_result=None),
+        ])
+        service = _build_service(session=session)
+        monkeypatch.setattr("internal.service.public_workflow_service.Workflow", _FakeWorkflow)
+
+        first_fork = service.fork_public_workflow(source.id, account)
+        second_fork = service.fork_public_workflow(source.id, account)
+
+        base_tool_call_name = f"{source.tool_call_name}_copy_{account.id.hex[:8]}"
+        assert first_fork.tool_call_name == base_tool_call_name
+        assert second_fork.tool_call_name == f"{base_tool_call_name}_2"
 
     def test_get_public_workflow_detail_should_return_detail_and_fork_status(self):
         account = SimpleNamespace(id=uuid4())
