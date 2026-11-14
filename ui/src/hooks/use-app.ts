@@ -763,9 +763,9 @@ export const useShareAppToSquare = () => {
       loading.value = true
       await shareAppToSquare(app_id, category)
       Message.success(t('appStudio.published.square.sharedSuccess'))
+      callback && callback()
     } finally {
       loading.value = false
-      callback && callback()
     }
   }
 

@@ -10,6 +10,7 @@ import {
   useGetDraftAppConfig,
   useGetPublishedConfig,
   useGetVersions,
+  useShareAppToSquare,
   useUpdateDraftAppConfig,
 } from '@/hooks/use-app'
 import * as appService from '@/services/app'
@@ -22,6 +23,7 @@ vi.mock('@/services/app', async () => {
     getAppsWithPage: vi.fn(),
     cancelPublish: vi.fn(),
     deleteApp: vi.fn(),
+    shareAppToSquare: vi.fn(),
     getDraftAppConfig: vi.fn(),
     updateDraftAppConfig: vi.fn(),
     getPublishedConfig: vi.fn(),
@@ -444,6 +446,38 @@ describe('useCancelPublish', () => {
 
     expect(callback).not.toHaveBeenCalled()
     expect(successSpy).not.toHaveBeenCalled()
+    expect(loading.value).toBe(false)
+  })
+})
+
+describe('useShareAppToSquare', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('calls the callback after sharing succeeds', async () => {
+    vi.mocked(appService.shareAppToSquare).mockResolvedValueOnce({ message: 'Shared' } as never)
+    const callback = vi.fn()
+    const { handleShareAppToSquare } = useShareAppToSquare()
+
+    await handleShareAppToSquare('app-1', 'agents', callback)
+
+    expect(callback).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call the callback when sharing fails', async () => {
+    const originalError = new Error('share failed')
+    vi.mocked(appService.shareAppToSquare).mockRejectedValueOnce(originalError)
+    const callback = vi.fn()
+    const { loading, handleShareAppToSquare } = useShareAppToSquare()
+
+    await expect(handleShareAppToSquare('app-1', 'agents', callback)).rejects.toBe(originalError)
+
+    expect(callback).not.toHaveBeenCalled()
     expect(loading.value).toBe(false)
   })
 })
