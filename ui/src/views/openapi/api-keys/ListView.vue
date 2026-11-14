@@ -259,6 +259,19 @@ watch(
             </template>
           </a-table-column>
           <a-table-column
+            :title="t('openapi.apiKeys.columns.scopes')"
+            data-index="scopes"
+            :width="180"
+            header-cell-class="!bg-gray-50 !text-gray-900 !font-semibold !border-b !border-gray-200"
+            cell-class="!py-4"
+          >
+            <template #cell="{ record }">
+              <span class="text-sm text-gray-600">
+                {{ record.scopes == null ? t('openapi.apiKeys.legacyScopes') : record.scopes.length ? record.scopes.join(', ') : t('openapi.apiKeys.noScopes') }}
+              </span>
+            </template>
+          </a-table-column>
+          <a-table-column
             :title="t('openapi.apiKeys.columns.remark')"
             data-index="remark"
             :width="280"

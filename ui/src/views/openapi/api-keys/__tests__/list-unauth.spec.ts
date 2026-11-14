@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   handleUpdateApiKeyIsActive: vi.fn(),
   handleDeleteApiKey: vi.fn(),
   credentialState: { credential: { access_token: '', expire_at: 0 } },
-  apiKeys: { value: [] as Array<{ id: string; is_active?: boolean; expires_at?: number | null; last_used_at?: number | null }> },
+  apiKeys: { value: [] as Array<{ id: string; is_active?: boolean; expires_at?: number | null; last_used_at?: number | null; scopes?: string[] | null }> },
 }))
 
 vi.mock('vue-router', async (importOriginal) => {
@@ -36,7 +36,7 @@ vi.mock('@/stores/credential', async () => {
 
 vi.mock('@/hooks/use-api-key', async () => {
   const { ref } = await import('vue')
-  mocks.apiKeys = ref([] as Array<{ id: string; is_active?: boolean; expires_at?: number | null; last_used_at?: number | null }>)
+  mocks.apiKeys = ref([] as Array<{ id: string; is_active?: boolean; expires_at?: number | null; last_used_at?: number | null; scopes?: string[] | null }>)
   return {
     useGetApiKeysWithPage: () => ({
       loading: ref(false),
@@ -116,7 +116,7 @@ describe('openapi api-keys credential state', () => {
     expect(mocks.loadApiKeys).toHaveBeenCalledTimes(2)
   })
 
-  it('displays expiration and last-used dates with a fallback for unset values', async () => {
+  it('displays API key metadata with fallbacks for unset values', async () => {
     const wrapper = shallowMount(ApiKeysListView, {
       props: { create_api_key: false },
       global: {
@@ -138,14 +138,18 @@ describe('openapi api-keys credential state', () => {
     mocks.credentialState.credential = { access_token: 'token', expire_at: 4102444800 }
     await flushPromises()
     mocks.apiKeys.value = [
-      { id: 'used', is_active: true, expires_at: 1893456000, last_used_at: 1893542400 },
-      { id: 'unset-metadata', is_active: true, expires_at: 0, last_used_at: 0 },
+      { id: 'scoped', is_active: true, expires_at: 1893456000, last_used_at: 1893542400, scopes: ['openapi:chat'] },
+      { id: 'legacy', is_active: true, expires_at: 0, last_used_at: 0, scopes: null },
+      { id: 'no-scopes', is_active: true, scopes: [] },
     ]
     await flushPromises()
 
     expect(wrapper.text()).toContain('2030-01-01')
     expect(wrapper.text()).toContain('2030-01-02 08:00')
-    expect(wrapper.text().match(/—/g)).toHaveLength(2)
+    expect(wrapper.text().match(/—/g)).toHaveLength(4)
+    expect(wrapper.text()).toContain('openapi:chat')
+    expect(wrapper.text()).toContain('无限制（旧密钥）')
+    expect(wrapper.text()).toContain('无权限范围')
   })
 
   it('does not apply a late toggle result to the next account row', async () => {
