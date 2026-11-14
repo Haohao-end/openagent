@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { h, onUnmounted, ref, resolveComponent, watch } from 'vue'
+import { h, onUnmounted, ref, resolveComponent, watch, type PropType } from 'vue'
 import { type ValidatedError, Message, Modal } from '@arco-design/web-vue'
 import { useCreateApiKey, useUpdateApiKey } from '@/hooks/use-api-key'
 import { copyTextToClipboard } from '@/utils/clipboard'
 import { getErrorMessage } from '@/utils/error'
+import { formatTimestamp } from '@/utils/time-formatter'
+import moment from 'moment'
 import { useI18n } from 'vue-i18n'
+
+const EXPIRATION_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
 // 1.定义自定义组件所需数据
 const props = defineProps({
@@ -12,6 +16,7 @@ const props = defineProps({
   api_key_id: { type: String, default: '', required: true },
   is_active: { type: Boolean, default: false, required: true },
   remark: { type: String, default: '', required: true },
+  expires_at: { type: Number as PropType<number | null>, default: null },
   callback: { type: Function, required: false },
 })
 const emits = defineEmits([
@@ -19,20 +24,30 @@ const emits = defineEmits([
   'update:api_key_id',
   'update:is_active',
   'update:remark',
+  'update:expires_at',
 ])
 type ApiKeyForm = {
   is_active: boolean
   remark: string
+  expires_at: string | null
 }
 const form = ref<ApiKeyForm>({
   is_active: false,
   remark: '',
+  expires_at: null,
 })
 const formRef = ref(null)
 const { loading: updateApiKeyLoading, handleUpdateApiKey } = useUpdateApiKey()
 const { loading: createApiKeyLoading, handleCreateApiKey } = useCreateApiKey()
 const IconCopy = resolveComponent('icon-copy')
 const { t } = useI18n()
+
+const parseExpiration = (value: string | null): number | null | undefined => {
+  if (!value) return null
+  const expiration = moment(value, EXPIRATION_FORMAT, true)
+  if (!expiration.isValid()) return undefined
+  return expiration.utcOffset(8 * 60, true).unix()
+}
 
 // 2.定义隐藏模态窗函数
 let modalSession = 0
@@ -56,12 +71,19 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
   }
 
   // 3.2 检测是新增还是更新，执行不同的操作
+  const expiresAt = parseExpiration(form.value.expires_at)
+  if (expiresAt === undefined) {
+    Message.error(t('openapi.apiKeys.invalidExpiresAt'))
+    return
+  }
+
   if (apiKeyId) {
     // 3.3 执行更新操作
     try {
       await handleUpdateApiKey(apiKeyId, {
         is_active: Boolean(form.value?.is_active),
         remark: String(form.value?.remark),
+        expires_at: expiresAt,
       })
     } catch (error: unknown) {
       reportSaveFailure(error)
@@ -74,6 +96,7 @@ const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> |
       createdApiKey = await handleCreateApiKey({
         is_active: Boolean(form.value?.is_active),
         remark: String(form.value?.remark),
+        expires_at: expiresAt,
       })
     } catch (error: unknown) {
       reportSaveFailure(error)
@@ -139,12 +162,14 @@ watch(
       form.value = {
         is_active: props.is_active,
         remark: props.remark,
+        expires_at: props.expires_at ? formatTimestamp(props.expires_at, EXPIRATION_FORMAT) : null,
       }
     } else {
       // 4.2 隐藏模态窗的时候，将值清空
       emits('update:api_key_id', '')
       emits('update:is_active', false)
       emits('update:remark', '')
+      emits('update:expires_at', null)
     }
   },
   { flush: 'sync' },
@@ -216,6 +241,22 @@ onUnmounted(() => {
           :auto-size="{ minRows: 3, maxRows: 6 }"
           class="!rounded-lg"
         />
+      </a-form-item>
+
+      <a-form-item field="expires_at" class="mb-5">
+        <template #label>
+          <div class="text-sm font-semibold text-gray-700 mb-2">{{ t('openapi.apiKeys.expiresAtLabel') }}</div>
+        </template>
+        <a-date-picker
+          v-model="form.expires_at"
+          class="w-full"
+          format="YYYY-MM-DD HH:mm:ss"
+          value-format="YYYY-MM-DD HH:mm:ss"
+          show-time
+          allow-clear
+          :placeholder="t('openapi.apiKeys.expiresAtPlaceholder')"
+        />
+        <div class="mt-1 text-xs text-gray-500">{{ t('openapi.apiKeys.expiresAtHint') }}</div>
       </a-form-item>
 
       <!-- 提示 -->

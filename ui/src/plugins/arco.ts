@@ -6,6 +6,7 @@ import Card from '@arco-design/web-vue/es/card'
 import Checkbox from '@arco-design/web-vue/es/checkbox'
 import Collapse from '@arco-design/web-vue/es/collapse'
 import ConfigProvider from '@arco-design/web-vue/es/config-provider'
+import DatePicker from '@arco-design/web-vue/es/date-picker'
 import Divider from '@arco-design/web-vue/es/divider'
 import Drawer from '@arco-design/web-vue/es/drawer'
 import Dropdown from '@arco-design/web-vue/es/dropdown'
@@ -125,6 +126,7 @@ const arcoComponents = [
   Checkbox,
   Collapse,
   ConfigProvider,
+  DatePicker,
   Divider,
   Drawer,
   Dropdown,
