@@ -527,17 +527,17 @@ const handleSubmit = async () => {
 // 12.定义切换会话处理器
 const changeConversation = async (conversation_id: string) => {
   const isChangingConversation = conversation_id !== selectedConversation.value
-  if (isChangingConversation) webAppChatGeneration += 1
   stopAudioStream()
 
   // 12.1 先暂停并清空会话
-  try {
-    await handleStop()
-  } finally {
-    if (isChangingConversation) {
-      webAppChatAbortController?.abort()
-      webAppChatAbortController = null
-    }
+  if (isChangingConversation && task_id.value && webAppChatLoading.value) {
+    await handleStopWebAppChat(String(route.params?.token), task_id.value)
+  }
+
+  if (isChangingConversation) {
+    webAppChatGeneration += 1
+    webAppChatAbortController?.abort()
+    webAppChatAbortController = null
   }
 
   // 12.2 修改激活选项
