@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   useDeleteApiKey,
@@ -38,7 +38,29 @@ const updateApiKeyIsActive = ref(false)
 const updateApiKeyRemark = ref('')
 const updateApiKeyExpiresAt = ref<number | null>(null)
 const isLoggedIn = computed(() => isCredentialLoggedIn(credentialStore.credential))
-const isApiKeyExpired = (expiresAt?: number | null) => Boolean(expiresAt && expiresAt > 0 && expiresAt <= Date.now() / 1000)
+const currentTime = ref(Date.now())
+let expirationRefreshTimer: ReturnType<typeof setTimeout> | undefined
+
+const isApiKeyExpired = (expiresAt?: number | null) => Boolean(expiresAt && expiresAt > 0 && expiresAt * 1000 <= currentTime.value)
+
+function scheduleExpirationRefresh() {
+  if (expirationRefreshTimer !== undefined) clearTimeout(expirationRefreshTimer)
+  currentTime.value = Date.now()
+  const nextExpiration = api_keys.value
+    .map((apiKey) => apiKey.expires_at)
+    .filter((expiresAt): expiresAt is number => typeof expiresAt === 'number' && expiresAt > 0 && expiresAt * 1000 > currentTime.value)
+    .reduce((soonest, expiresAt) => Math.min(soonest, expiresAt * 1000), Number.POSITIVE_INFINITY)
+  if (!Number.isFinite(nextExpiration)) return
+
+  expirationRefreshTimer = setTimeout(() => {
+    scheduleExpirationRefresh()
+  }, Math.min(nextExpiration - currentTime.value, 2_147_000_000))
+}
+
+watch(api_keys, scheduleExpirationRefresh, { deep: true })
+onUnmounted(() => {
+  if (expirationRefreshTimer !== undefined) clearTimeout(expirationRefreshTimer)
+})
 
 const openLoginModal = () => {
   if (typeof window === 'undefined') return
