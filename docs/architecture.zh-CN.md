@@ -4,7 +4,7 @@
 
 ## 组件概览
 
-[可编辑 draw.io 架构图](architecture.drawio) 与下方组件关系一致，可使用 [diagrams.net](https://app.diagrams.net/) 打开修改。它描述的是源码组件，并非某个环境的部署拓扑。
+[可编辑 draw.io 文件](architecture.drawio)包含六个页面：系统概览、API 架构、前端架构、Agent 执行、工作流执行、数据库与基础设施。前五页展示源码组件；基础设施页依据仓库中的 Docker Compose 配置，不代表所有部署都采用该拓扑。可使用 [diagrams.net](https://app.diagrams.net/) 打开编辑。
 
 ```mermaid
 flowchart LR

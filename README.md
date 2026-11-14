@@ -70,7 +70,7 @@ What the current codebase already supports:
 
 Click the diagram to view the full-resolution architecture image.
 
-See the [Documentation index](docs/README.md) for source-level guides and the [Chinese documentation index](docs/README.zh-CN.md).
+See the [Documentation index](docs/README.md), the [editable architecture diagrams](docs/architecture.drawio), and the [Chinese documentation index](docs/README.zh-CN.md).
 
 Detailed source-level guide: [Architecture documentation](docs/architecture.md).
 
