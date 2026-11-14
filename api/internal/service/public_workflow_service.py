@@ -1,5 +1,6 @@
 """公共工作流服务 - 处理工作流广场相关逻辑"""
 import logging
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -216,7 +217,7 @@ class PublicWorkflowService(BaseService):
             raise NotFoundException("公共工作流不存在或未公开")
 
         # 2.获取已发布的graph配置
-        graph = workflow.graph or {"nodes": [], "edges": []}
+        graph = deepcopy(workflow.graph or {"nodes": [], "edges": []})
 
         # 3.转换节点格式：将 node_type 转换为 type（Vue Flow 需要）
         if "nodes" in graph:

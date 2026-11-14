@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from copy import deepcopy
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
@@ -459,38 +460,59 @@ class TestPublicWorkflowService:
         with pytest.raises(NotFoundException):
             service.get_public_workflow_detail(uuid4(), None)
 
-    def test_get_public_workflow_draft_graph_should_convert_node_and_edge_fields(self):
+    def test_get_public_workflow_draft_graph_should_convert_without_mutating_published_graph(self):
+        published_graph = {
+            "nodes": [
+                {
+                    "id": "node-1",
+                    "node_type": "start",
+                    "position": {"x": 0, "y": 0},
+                    "title": "start",
+                    "foo": "bar",
+                    "nested": {"value": "published"},
+                }
+            ],
+            "edges": [
+                {
+                    "id": "edge-1",
+                    "source": "node-1",
+                    "target": "node-2",
+                    "source_handle": "s1",
+                    "target_handle": "t1",
+                    "metadata": {"value": "published"},
+                }
+            ],
+        }
+        original_graph = deepcopy(published_graph)
         workflow = SimpleNamespace(
             id=uuid4(),
             is_public=True,
             status=WorkflowStatus.PUBLISHED.value,
-            graph={
-                "nodes": [
-                    {
-                        "id": "node-1",
-                        "node_type": "start",
-                        "position": {"x": 0, "y": 0},
-                        "title": "start",
-                        "foo": "bar",
-                    }
-                ],
-                "edges": [
-                    {
-                        "id": "edge-1",
-                        "source": "node-1",
-                        "target": "node-2",
-                        "source_handle": "s1",
-                        "target_handle": "t1",
-                    }
-                ],
-            },
+            graph=published_graph,
         )
-        service = _build_service(session=_QueueSession([_Query(one_or_none_result=workflow)]))
+        service = _build_service(session=_QueueSession([
+            _Query(one_or_none_result=workflow),
+            _Query(one_or_none_result=workflow),
+        ]))
 
         graph = service.get_public_workflow_draft_graph(workflow.id)
+        repeated_graph = service.get_public_workflow_draft_graph(workflow.id)
 
         assert graph["nodes"][0]["type"] == "start"
         assert graph["nodes"][0]["data"]["foo"] == "bar"
         assert "foo" not in graph["nodes"][0]
         assert graph["edges"][0]["sourceHandle"] == "s1"
         assert graph["edges"][0]["targetHandle"] == "t1"
+        assert graph == repeated_graph
+        assert workflow.graph == original_graph
+        assert workflow.graph["nodes"][0]["node_type"] == "start"
+        assert "type" not in workflow.graph["nodes"][0]
+        assert workflow.graph["edges"][0]["source_handle"] == "s1"
+        assert workflow.graph["edges"][0]["target_handle"] == "t1"
+        assert graph["nodes"][0] is not workflow.graph["nodes"][0]
+        assert graph["nodes"][0]["data"]["nested"] is not workflow.graph["nodes"][0]["nested"]
+        assert graph["edges"][0]["metadata"] is not workflow.graph["edges"][0]["metadata"]
+
+        graph["nodes"][0]["data"]["nested"]["value"] = "draft"
+        graph["edges"][0]["metadata"]["value"] = "draft"
+        assert workflow.graph == original_graph
