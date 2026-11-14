@@ -140,6 +140,8 @@ Detailed source-level guide: [Architecture documentation](docs/architecture.md).
    - `VITE_API_PREFIX`
    - At least one provider key such as `OPENAI_API_KEY`, `ATLASCLOUD_API_KEY`, `DEEPSEEK_API_KEY`, or `DASHSCOPE_API_KEY`
 
+   For Docker Compose, also set the same `WEAVIATE_API_KEY` in `docker/.env`. Compose reads that file to configure Weaviate's allowed-key list; `api/.env` supplies the key to OpenAgent services.
+
 4. Start the Docker stack.
 
    ```bash

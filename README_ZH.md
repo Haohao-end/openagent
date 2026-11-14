@@ -140,6 +140,8 @@ OpenAgent 不是单一的聊天 Demo，而是一个面向团队和产品化场�
    - `VITE_API_PREFIX`
    - 至少一个模型提供商 Key，例如 `OPENAI_API_KEY`、`ATLASCLOUD_API_KEY`、`DEEPSEEK_API_KEY` 或 `DASHSCOPE_API_KEY`
 
+   使用 Docker Compose 时，还要在 `docker/.env` 中设置相同的 `WEAVIATE_API_KEY`。Compose 从该文件读取 Weaviate 的允许密钥列表；`api/.env` 则向 OpenAgent 服务提供密钥。
+
 4. 启动 Docker 编排。
 
    ```bash
