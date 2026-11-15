@@ -861,5 +861,12 @@ class ConversationService(BaseService):
                 }
             )
 
-        results.sort(key=lambda item: item["latest_message_at"], reverse=True)
+        results.sort(
+            key=lambda item: (
+                int(item.get("latest_message_at") or 0),
+                int(item.get("created_at") or 0),
+                str(item.get("id") or ""),
+            ),
+            reverse=True,
+        )
         return results[:safe_limit]
