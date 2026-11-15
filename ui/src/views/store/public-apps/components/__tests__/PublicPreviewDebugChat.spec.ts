@@ -73,6 +73,8 @@ vi.mock('@/services/public-app', () => ({
   sendPublicAppA2aMessage: mocks.sendPublicAppA2aMessage,
 }))
 
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+
 vi.mock('@/services/upload-file', () => ({
   uploadImage: mocks.uploadImage,
 }))
@@ -258,6 +260,37 @@ describe('PublicPreviewDebugChat', () => {
     composer.vm.$emit('submit')
     await flushPromises()
     expect(mocks.sendPublicAppA2aMessage.mock.calls[1][2]).toBe('conversation-b')
+  })
+
+  it('reports a localized error when conversation history fails to load', async () => {
+    mocks.routeProxy!.query = { conversation_id: 'conversation-fails' }
+    mocks.getPublicAppA2aConversationMessages.mockRejectedValueOnce('history unavailable')
+
+    const wrapper = mountPreview()
+    await flushPromises()
+
+    expect(mocks.messageError).toHaveBeenCalledWith('publicApps.preview.actionFailed')
+    wrapper.unmount()
+  })
+
+  it('does not report a failed history request after switching conversations', async () => {
+    mocks.routeProxy!.query = { conversation_id: 'conversation-a' }
+    let rejectHistoryA!: (error: Error) => void
+    mocks.getPublicAppA2aConversationMessages.mockImplementation((_app: string, id: string) => {
+      return id === 'conversation-a'
+        ? new Promise((_, reject) => { rejectHistoryA = reject })
+        : Promise.resolve({ data: [{ id: 'message-b', conversation_id: id, query: 'history-b' }] })
+    })
+
+    const wrapper = mountPreview()
+    await flushPromises()
+    mocks.routeProxy!.query = { conversation_id: 'conversation-b' }
+    await flushPromises()
+    rejectHistoryA(new Error('stale history failure'))
+    await flushPromises()
+
+    expect(mocks.messageError).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 
   it('aborts the active stream when the conversation route changes', async () => {

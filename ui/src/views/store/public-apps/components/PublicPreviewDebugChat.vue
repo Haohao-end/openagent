@@ -5,6 +5,7 @@ import ChatMessageTimeline from '@/components/chat/ChatMessageTimeline.vue'
 import { useAudioToText } from '@/hooks/use-audio'
 import { useChatImageUpload } from '@/hooks/use-chat-image-upload'
 import { useChatQueryInput } from '@/hooks/use-chat-query-input'
+import { getErrorMessage } from '@/utils/error'
 import {
   getPublicAppA2aConversationMessages,
   sendPublicAppA2aMessage,
@@ -151,28 +152,34 @@ const clearConversation = () => {
 const loadPublicConversationMessages = async (conversationId: string) => {
   if (!conversationId) return
   const generation = contextGeneration
-  const res = await getPublicAppA2aConversationMessages(String(route.params?.app_id), conversationId)
-  if (generation !== contextGeneration) return
-  const history = [...(res.data || [])].reverse()
-  messages.value = history.map((item) =>
-    withChatRenderId(
-      {
-        id: item.id,
-        conversation_id: item.conversation_id,
-        answer: item.answer || '',
-        answer_parts: item.answer_parts || [],
-        artifacts: item.artifacts || [],
-        latency: Number(item.latency || 0),
-        total_token_count: Number(item.total_token_count || 0),
-        agent_thoughts: [],
-        callable_trace_events: [],
-        query: item.query || '',
-        image_urls: item.image_urls || [],
-        suggested_questions: item.suggested_questions || [],
-      },
-      'public-app',
-    ),
-  )
+  try {
+    const res = await getPublicAppA2aConversationMessages(String(route.params?.app_id), conversationId)
+    if (generation !== contextGeneration) return
+    const history = [...(res.data || [])].reverse()
+    messages.value = history.map((item) =>
+      withChatRenderId(
+        {
+          id: item.id,
+          conversation_id: item.conversation_id,
+          answer: item.answer || '',
+          answer_parts: item.answer_parts || [],
+          artifacts: item.artifacts || [],
+          latency: Number(item.latency || 0),
+          total_token_count: Number(item.total_token_count || 0),
+          agent_thoughts: [],
+          callable_trace_events: [],
+          query: item.query || '',
+          image_urls: item.image_urls || [],
+          suggested_questions: item.suggested_questions || [],
+        },
+        'public-app',
+      ),
+    )
+  } catch (error: unknown) {
+    if (generation === contextGeneration) {
+      Message.error(getErrorMessage(error, t('publicApps.preview.actionFailed')))
+    }
+  }
 }
 
 const loadConversationFromRoute = async () => {
