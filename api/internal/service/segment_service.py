@@ -263,7 +263,9 @@ class SegmentService(BaseService):
 
         # 4.执行分页并获取数据
         segments = paginator.paginate(
-            self.db.session.query(Segment).filter(*filters).order_by(asc("position"))
+            self.db.session.query(Segment).filter(*filters).order_by(
+                asc(Segment.position), asc(Segment.id),
+            )
         )
 
         return segments, paginator
