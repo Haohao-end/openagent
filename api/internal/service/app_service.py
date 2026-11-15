@@ -844,7 +844,7 @@ class AppService(BaseService):
             self.db.session.query(AppConfigVersion).filter(
                 AppConfigVersion.app_id == app_id,
                 AppConfigVersion.config_type == AppConfigType.PUBLISHED.value,
-            ).order_by(desc("version"))
+            ).order_by(desc(AppConfigVersion.version), desc(AppConfigVersion.id))
         )
 
         return app_config_versions, paginator
