@@ -226,6 +226,38 @@ def test_get_mcp_providers_with_page_should_propagate_database_inspection_errors
         service.get_mcp_providers_with_page(_req(), SimpleNamespace(id="account"))
 
 
+def test_get_mcp_providers_with_page_should_use_stable_tie_breaker(monkeypatch):
+    service = _build_service(table_exists=True)
+    captures = {}
+
+    class _Query:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def order_by(self, *order):
+            captures["order"] = order
+            return self
+
+    service.db.session = SimpleNamespace(query=lambda *_args, **_kwargs: _Query())
+
+    class _Paginator:
+        def __init__(self, db, req):
+            pass
+
+        def paginate(self, query):
+            return []
+
+    monkeypatch.setattr("internal.service.mcp_service.Paginator", _Paginator)
+
+    service.get_mcp_providers_with_page(_req(), SimpleNamespace(id="account"))
+
+    assert [str(order) for order in captures["order"]] == [
+        "mcp_provider.updated_at DESC",
+        "mcp_provider.created_at DESC",
+        "mcp_provider.id DESC",
+    ]
+
+
 def test_get_public_mcp_providers_with_page_should_support_catalog_integer_timestamps():
     service = _build_service(table_exists=False, stub_catalog_payload=False)
 
