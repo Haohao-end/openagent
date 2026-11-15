@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Message } from '@arco-design/web-vue'
 import { apiPrefix } from '@/config'
 import { useGetLanguageModel, useGetLanguageModels } from '@/hooks/use-language-model'
+import { getErrorMessage } from '@/utils/error'
 import {
   getModelParameterDisplayHelp,
   getModelParameterDisplayLabel,
@@ -53,16 +55,48 @@ const modelOptions = computed(() => {
     }
   })
 })
-let modelDetailLoad: Promise<void> = Promise.resolve()
+let modelDetailLoad: Promise<boolean> = Promise.resolve(true)
+let modelDetailRequest = 0
+let isUnmounted = false
+
+const reportModelLoadFailure = (error: unknown, fallback: string) => {
+  if (isUnmounted) return
+  Message.error(getErrorMessage(error, t(fallback)))
+}
+
+const restoreConfiguredModel = () => {
+  const configuredModel = props.model_config as Record<string, any>
+  const provider = String(configuredModel?.provider || '')
+  const model = String(configuredModel?.model || '')
+  form.value.selectValue = provider && model ? `${provider}/${model}` : ''
+  form.value.parameters = (configuredModel?.parameters || {}) as Record<string, unknown>
+
+  if (!provider || !model) {
+    language_model.value = {}
+    modelDetailLoad = Promise.resolve(false)
+    return
+  }
+
+  const requestId = ++modelDetailRequest
+  modelDetailLoad = loadLanguageModel(provider, model).then((isLatest) => {
+    return isLatest && requestId === modelDetailRequest
+  }).catch((error: unknown) => {
+    if (requestId === modelDetailRequest) {
+      reportModelLoadFailure(error, 'workflowEditor.modelConfig.loadFailed')
+    }
+    return false
+  })
+}
 
 // 2.定义选择模型处理器
 const changeModel = (value: string) => {
+  const requestId = ++modelDetailRequest
   // 2.1 使用/拆分出提供商+模型名字
   const [provider_name, model_name] = value.split('/')
 
   // 2.2 发起请求获取模型详情
   modelDetailLoad = loadLanguageModel(provider_name, model_name).then((isLatest) => {
-    if (!isLatest) return
+    if (!isLatest || requestId !== modelDetailRequest) return false
     // 2.3 重新赋值parameters
     form.value.parameters = language_model.value.parameters.reduce(
       (acc: Record<string, unknown>, parameter: { name: string; default?: unknown }) => {
@@ -71,12 +105,18 @@ const changeModel = (value: string) => {
       },
       {} as Record<string, unknown>,
     )
+    return true
+  }).catch((error: unknown) => {
+    if (requestId !== modelDetailRequest || isUnmounted) return false
+    reportModelLoadFailure(error, 'workflowEditor.modelConfig.loadFailed')
+    restoreConfiguredModel()
+    return false
   })
 }
 
 // 3.触发器隐藏处理器，提交数据进行更新
 const hideModelTrigger = async () => {
-  await modelDetailLoad
+  if (!(await modelDetailLoad)) return
 
   // 3.1 处理表单数据
   const [provider_name, model_name] = form.value.selectValue.split('/')
@@ -95,6 +135,7 @@ const hideModelTrigger = async () => {
 watch(
   () => props.model_config,
   (newValue) => {
+    const requestId = ++modelDetailRequest
     // 1.完成表单数据初始化
     form.value.selectValue = `${newValue?.provider}/${newValue.model}`
     form.value.provider = String(newValue?.provider || '')
@@ -102,13 +143,25 @@ watch(
     form.value.parameters = (newValue?.parameters || {}) as Record<string, unknown>
 
     // 2.请求语言模型详情API接口
-    newValue?.provider && loadLanguageModel(String(newValue?.provider), String(newValue?.model))
+    if (newValue?.provider) {
+      void loadLanguageModel(String(newValue.provider), String(newValue.model)).catch((error: unknown) => {
+        if (requestId !== modelDetailRequest) return
+        reportModelLoadFailure(error, 'workflowEditor.modelConfig.loadFailed')
+      })
+    }
   },
   { immediate: true },
 )
 
 onMounted(() => {
-  loadLanguageModels()
+  void loadLanguageModels().catch((error: unknown) => {
+    reportModelLoadFailure(error, 'workflowEditor.modelConfig.loadOptionsFailed')
+  })
+})
+
+onUnmounted(() => {
+  isUnmounted = true
+  modelDetailRequest++
 })
 </script>
 
