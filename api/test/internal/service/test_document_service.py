@@ -667,6 +667,50 @@ class TestDocumentService:
         assert captures["query"] is not None
         assert isinstance(paginator, _Paginator)
 
+    def test_get_documents_with_page_should_use_stable_tie_breaker(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        captures = {}
+
+        class _Query:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def order_by(self, *order):
+                captures["order"] = order
+                return self
+
+        service = DocumentService(
+            db=SimpleNamespace(session=SimpleNamespace(query=lambda _model: _Query())),
+            redis_client=_RedisStub(),
+        )
+        monkeypatch.setattr(
+            service,
+            "get",
+            lambda model, _id: SimpleNamespace(id=dataset_id, account_id=account.id) if model is Dataset else None,
+        )
+
+        class _Paginator:
+            def __init__(self, db, req):
+                pass
+
+            def paginate(self, query):
+                return []
+
+        monkeypatch.setattr("internal.service.document_service.Paginator", _Paginator)
+        req = SimpleNamespace(
+            current_page=SimpleNamespace(data=1),
+            page_size=SimpleNamespace(data=20),
+            search_word=SimpleNamespace(data=""),
+        )
+
+        service.get_documents_with_page(dataset_id, req, account)
+
+        assert [str(order) for order in captures["order"]] == [
+            "document.created_at DESC",
+            "document.id DESC",
+        ]
+
     def test_get_documents_with_page_should_build_default_filter_when_search_word_empty(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         dataset_id = uuid4()
