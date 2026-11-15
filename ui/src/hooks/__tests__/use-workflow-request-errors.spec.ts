@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Modal } from '@arco-design/web-vue'
 import { createRequestError } from '@/utils/error'
 import {
   useDebugWorkflow,
+  useDeleteWorkflow,
   useGenerateIconPreview,
   useGetWorkflowsWithPage,
   useRegenerateIcon,
@@ -71,6 +73,28 @@ vi.mock('@arco-design/web-vue', () => ({
 describe('use-workflow request hooks', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('calls the workflow delete callback only after deletion succeeds', async () => {
+    mocks.deleteWorkflow.mockResolvedValueOnce({ message: 'deleted' })
+    const callback = vi.fn()
+    const { handleDeleteWorkflow } = useDeleteWorkflow()
+
+    handleDeleteWorkflow('workflow-1', callback)
+    const onOk = vi.mocked(Modal.warning).mock.calls[0][0].onOk as () => Promise<void>
+    await onOk()
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(messageSuccessMock).toHaveBeenCalledWith('deleted')
+
+    callback.mockClear()
+    messageSuccessMock.mockClear()
+    const requestError = new Error('delete failed')
+    mocks.deleteWorkflow.mockRejectedValueOnce(requestError)
+
+    await expect(onOk()).rejects.toBe(requestError)
+    expect(callback).not.toHaveBeenCalled()
+    expect(messageSuccessMock).not.toHaveBeenCalled()
   })
 
   it('returns true when draft graph save succeeds without notification', async () => {
