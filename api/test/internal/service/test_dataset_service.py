@@ -193,7 +193,18 @@ class TestDatasetService:
         account = SimpleNamespace(id=uuid4())
         dataset_id = uuid4()
         expected_queries = [SimpleNamespace(query="q1"), SimpleNamespace(query="q2")]
-        session = SimpleNamespace(query=lambda _model: _QueryStub(all_result=expected_queries))
+
+        class _RecordingQuery(_QueryStub):
+            def order_by(self, *columns):
+                self.ordering = tuple(map(str, columns))
+                return self
+
+            def limit(self, value):
+                self.limit_value = value
+                return self
+
+        query = _RecordingQuery(all_result=expected_queries)
+        session = SimpleNamespace(query=lambda _model: query)
         service = _new_dataset_service(db=SimpleNamespace(session=session), retrieval_service=SimpleNamespace())
         monkeypatch.setattr(
             service,
@@ -204,6 +215,8 @@ class TestDatasetService:
         result = service.get_dataset_queries(dataset_id, account)
 
         assert result == expected_queries
+        assert query.ordering == ("dataset_query.created_at DESC", "dataset_query.id DESC")
+        assert query.limit_value == 10
 
     def test_get_dataset_queries_should_raise_when_dataset_not_accessible(self, monkeypatch):
         service = _new_dataset_service(
