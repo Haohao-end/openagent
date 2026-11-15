@@ -18,8 +18,8 @@ class _QueryStub:
         self.filters.append(condition)
         return self
 
-    def order_by(self, order):
-        self.order_bys.append(order)
+    def order_by(self, *orders):
+        self.order_bys.extend(orders)
         return self
 
     def group_by(self, column):
@@ -117,7 +117,10 @@ def test_get_tags_with_page_should_filter_owner_and_build_paginator(monkeypatch)
     condition = str(query.filters[0])
     assert "tag.account_id" in condition
     assert "tag.status" in condition
-    assert query.order_bys
+    assert [str(order) for order in query.order_bys] == [
+        "tag.created_at DESC",
+        "tag.id DESC",
+    ]
 
 
 def test_get_hot_tags_should_group_by_dimension_and_count_usage():

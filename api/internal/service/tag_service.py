@@ -150,7 +150,7 @@ class TagService(BaseService):
                     Tag.account_id == account_id,
                     Tag.status == status,
                 )
-            ).order_by(desc(Tag.created_at))
+            ).order_by(desc(Tag.created_at), desc(Tag.id))
         )
 
         return tags, paginator
