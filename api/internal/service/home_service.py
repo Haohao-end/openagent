@@ -109,7 +109,7 @@ class HomeService(BaseService):
                     Message.created_by == user.id,
                     Message.is_deleted == False,
                 )
-                .order_by(desc(Message.created_at))
+                .order_by(desc(Message.created_at), desc(Message.id))
                 .limit(self.RECENT_MESSAGES_LIMIT)
                 .all()
             )

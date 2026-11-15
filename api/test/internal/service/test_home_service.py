@@ -70,6 +70,10 @@ class TestHomeService:
         assert result[0]["content"] == "你好"
         assert result[0]["id"] == str(message1.id)
         assert result[0]["updated_at"] == now.isoformat()
+        assert tuple(map(str, mock_query.filter.return_value.order_by.call_args.args)) == (
+            "message.created_at DESC",
+            "message.id DESC",
+        )
 
     def test_build_message_signature_is_stable_and_content_sensitive(self, service):
         """测试消息签名稳定且会随内容变化"""
