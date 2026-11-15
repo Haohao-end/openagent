@@ -300,3 +300,61 @@ class TestConversationSearchService:
         assert len(result["human_message"]) < len(long_query)
         assert len(result["ai_message"]) < len(long_answer)
         assert set(result["matched_fields"]) == {"human_message", "ai_message"}
+
+    def test_search_conversations_should_stabilize_equal_timestamp_order_with_tie_breakers(self, app):
+        account = _account()
+        id_1 = UUID("11111111-1111-1111-1111-111111111111")
+        id_2 = UUID("22222222-2222-2222-2222-222222222222")
+        id_3 = UUID("33333333-3333-3333-3333-333333333333")
+
+        same_time = datetime(2024, 1, 3, 0, 0, 0, tzinfo=UTC)
+        conv_1 = _conversation(conversation_id=id_1, name="Python 1", account_id=account.id, created_at=same_time)
+        conv_2 = _conversation(conversation_id=id_2, name="Python 2", account_id=account.id, created_at=same_time)
+        conv_3 = _conversation(
+            conversation_id=id_3,
+            name="Python 3",
+            account_id=account.id,
+            created_at=datetime(2024, 1, 4, 0, 0, 0, tzinfo=UTC),
+        )
+
+        msg_1 = _message(
+            conversation_id=id_1,
+            account_id=account.id,
+            query="Python 1",
+            answer="Answer 1",
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            created_at=same_time,
+        )
+        msg_2 = _message(
+            conversation_id=id_2,
+            account_id=account.id,
+            query="Python 2",
+            answer="Answer 2",
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            created_at=same_time,
+        )
+        msg_3 = _message(
+            conversation_id=id_3,
+            account_id=account.id,
+            query="Python 3",
+            answer="Answer 3",
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            created_at=same_time,
+        )
+        assistant_app = _app(app_id=ASSISTANT_AGENT_ID, name="辅助Agent")
+
+        # Database returns conversations in arbitrary / ascending order [conv_1, conv_2, conv_3]
+        service = _build_service(
+            [msg_1, msg_2, msg_3],
+            [conv_1, conv_2, conv_3],
+            [assistant_app],
+        )
+
+        with app.app_context():
+            app.config["ASSISTANT_AGENT_ID"] = ASSISTANT_AGENT_ID
+            results = service.search_conversations(account, "python", limit=10)
+
+        result_ids = [r["id"] for r in results]
+        # conv_3 has newer created_at so it ranks first. Between conv_2 and conv_1 (same latest_message_at and created_at),
+        # conv_2 has higher ID ("2222..." > "1111...") so it ranks second.
+        assert result_ids == [str(id_3), str(id_2), str(id_1)]
