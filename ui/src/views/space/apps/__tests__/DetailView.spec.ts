@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   } as any,
   draftAppConfigForm: null as null | { value: Record<string, any> },
   loadDraftAppConfig: vi.fn().mockResolvedValue(undefined),
+  messageError: vi.fn(),
 }))
 
 vi.mock('vue-router', async (importOriginal) => {
@@ -21,6 +22,9 @@ vi.mock('vue-router', async (importOriginal) => {
     useRoute: () => mocks.route,
   }
 })
+
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError } }))
 
 vi.mock('@/hooks/use-app', async () => {
   const { ref } = await import('vue')
@@ -57,6 +61,7 @@ vi.mock('@/hooks/use-app', async () => {
 describe('DetailView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.loadDraftAppConfig.mockReset().mockResolvedValue(undefined)
     if (!mocks.draftAppConfigForm) {
       throw new Error('draftAppConfigForm mock not initialized')
     }
@@ -79,6 +84,57 @@ describe('DetailView', () => {
       speech_to_text: { enable: false },
       text_to_speech: { enable: false, voice: 'alex', auto_play: false },
     }
+  })
+
+  it('reports a draft load failure instead of rejecting the mounted view', async () => {
+    mocks.loadDraftAppConfig.mockRejectedValueOnce(new Error('draft config unavailable'))
+    const errors: unknown[] = []
+    const wrapper = shallowMount(DetailView, {
+      props: { app: { id: 'app-1' } },
+      global: {
+        config: { errorHandler: (error) => errors.push(error) },
+        stubs: {
+          'agent-app-ability': true,
+          'model-config': true,
+          'preset-prompt-textarea': true,
+          'preview-debug-chat': true,
+          'preview-debug-header': true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(mocks.messageError).toHaveBeenCalledWith('draft config unavailable')
+    expect(errors).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('does not report a draft load failure after the editor unmounts', async () => {
+    let rejectLoad!: (error: Error) => void
+    mocks.loadDraftAppConfig.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectLoad = reject }))
+    const errors: unknown[] = []
+    const wrapper = shallowMount(DetailView, {
+      props: { app: { id: 'app-1' } },
+      global: {
+        config: { errorHandler: (error) => errors.push(error) },
+        stubs: {
+          'agent-app-ability': true,
+          'model-config': true,
+          'preset-prompt-textarea': true,
+          'preview-debug-chat': true,
+          'preview-debug-header': true,
+        },
+      },
+    })
+
+    await flushPromises()
+    wrapper.unmount()
+    rejectLoad(new Error('late draft config failure'))
+    await flushPromises()
+
+    expect(mocks.messageError).not.toHaveBeenCalled()
+    expect(errors).toEqual([])
   })
 
   it('reloads draft config when the selected model changes', async () => {

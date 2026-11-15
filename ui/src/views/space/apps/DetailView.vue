@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useGetDraftAppConfig } from '@/hooks/use-app'
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { Message } from '@arco-design/web-vue'
+import { getErrorMessage } from '@/utils/error'
 import AgentAppAbility from './components/AgentAppAbility.vue'
 import ModelConfig from './components/ModelConfig.vue'
 import PresetPromptTextarea from './components/PresetPromptTextarea.vue'
@@ -23,6 +25,7 @@ const props = defineProps({
 const { t } = useI18n()
 const { draftAppConfigForm, loadDraftAppConfig } = useGetDraftAppConfig()
 const isDraftAppConfigRefreshing = ref(false)
+let isUnmounted = false
 let draftAppConfigRefreshQueued = false
 
 const refreshDraftAppConfig = async () => {
@@ -36,9 +39,13 @@ const refreshDraftAppConfig = async () => {
   try {
     isDraftAppConfigRefreshing.value = true
     await loadDraftAppConfig(appId)
+  } catch (error: unknown) {
+    if (!isUnmounted) {
+      Message.error(getErrorMessage(error, t('appStudio.detail.configLoadFailed')))
+    }
   } finally {
     isDraftAppConfigRefreshing.value = false
-    if (draftAppConfigRefreshQueued) {
+    if (draftAppConfigRefreshQueued && !isUnmounted) {
       draftAppConfigRefreshQueued = false
       await refreshDraftAppConfig()
     }
@@ -57,6 +64,10 @@ watch(
     await refreshDraftAppConfig()
   },
 )
+
+onUnmounted(() => {
+  isUnmounted = true
+})
 </script>
 
 <template>
