@@ -17,7 +17,7 @@ from internal.exception import (
     NotFoundException,
     ValidateErrorException,
 )
-from internal.model import ApiTool, Dataset
+from internal.model import ApiTool, Dataset, Workflow
 from internal.service.workflow_service import WorkflowService as _WorkflowService
 from pkg.response import compact_generate_response
 
@@ -444,6 +444,14 @@ class TestWorkflowService:
     def test_get_workflows_with_page_should_use_paginator(self, monkeypatch):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
+
+        class _RecordingQuery(_DummyQuery):
+            def order_by(self, *columns):
+                self.ordering = tuple(map(str, columns))
+                return self
+
+        query = _RecordingQuery(None)
+        service.db.session = SimpleNamespace(query=lambda _model: query)
         captures = {}
 
         class _Paginator:
@@ -468,7 +476,8 @@ class TestWorkflowService:
         assert workflows == ["wf-1"]
         assert captures["req"] is req
         assert captures["db"] is service.db
-        assert captures["query"] is not None
+        assert captures["query"] is query
+        assert query.ordering == ("workflow.created_at DESC", "workflow.id DESC")
         assert isinstance(paginator, _Paginator)
 
     def test_update_draft_graph_should_validate_then_reset_debug_flag(self, monkeypatch):
