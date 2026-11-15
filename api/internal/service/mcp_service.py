@@ -460,7 +460,11 @@ class McpService(BaseService):
             category = normalize_mcp_category(req.category.data)
             query = query.filter(McpProvider.category == category)
 
-        query = query.order_by(McpProvider.updated_at.desc(), McpProvider.created_at.desc())
+        query = query.order_by(
+            McpProvider.updated_at.desc(),
+            McpProvider.created_at.desc(),
+            McpProvider.id.desc(),
+        )
         try:
             providers = paginator.paginate(query)
         except ProgrammingError as exc:
