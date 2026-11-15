@@ -15,7 +15,7 @@ from internal.entity.conversation_entity import InvokeFrom
 from internal.entity.audio_entity import ALLOWED_AUDIO_VOICES
 from internal.core.language_model.entities.model_entity import ModelParameterType
 from internal.exception import FailException, ForbiddenException, NotFoundException, ValidateErrorException
-from internal.model import ApiTool, Workflow, Dataset, App
+from internal.model import ApiTool, Workflow, Dataset, App, AppConfigVersion
 from internal.service.app_service import AppService, AutoCreateToolSelection
 
 
@@ -2008,6 +2008,17 @@ class TestAppService:
         monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: SimpleNamespace(id=app_id))
         captures = {}
 
+        class _RecordingQuery:
+            def filter(self, *_args):
+                return self
+
+            def order_by(self, *columns):
+                self.ordering = tuple(map(str, columns))
+                return self
+
+        query = _RecordingQuery()
+        monkeypatch.setattr(service.db.session, "query", lambda _model: query)
+
         class _Paginator:
             def __init__(self, db, req):
                 captures["db"] = db
@@ -2026,6 +2037,10 @@ class TestAppService:
         assert captures["req"] is req
         assert captures["db"] is service.db
         assert captures["query"] is not None
+        assert query.ordering == (
+            "app_config_version.version DESC",
+            "app_config_version.id DESC",
+        )
         assert isinstance(paginator, _Paginator)
 
     def test_get_versions_should_return_draft_and_mark_current_published(self, monkeypatch):
