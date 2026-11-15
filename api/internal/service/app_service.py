@@ -640,7 +640,7 @@ class AppService(BaseService):
 
         # 3.执行分页操作
         apps = paginator.paginate(
-            self.db.session.query(App).filter(*filters).order_by(desc("created_at"))
+            self.db.session.query(App).filter(*filters).order_by(desc(App.created_at), desc(App.id))
         )
 
         return apps, paginator
