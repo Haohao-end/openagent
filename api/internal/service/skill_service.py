@@ -277,7 +277,9 @@ class SkillService(BaseService):
 
         try:
             packages = paginator.paginate(
-                self.db.session.query(SkillPackage).filter(*filters).order_by(desc(SkillPackage.updated_at))
+                self.db.session.query(SkillPackage).filter(*filters).order_by(
+                    desc(SkillPackage.updated_at), desc(SkillPackage.id),
+                )
             )
         except ProgrammingError as exc:
             if self._is_missing_skill_package_table_error(exc):

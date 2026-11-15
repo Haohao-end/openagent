@@ -86,6 +86,42 @@ def _build_version_record(package_id):
     )
 
 
+def test_get_skill_packages_with_page_should_use_stable_tie_breaker(monkeypatch):
+    service = _build_service()
+    query_order = {}
+
+    class _Query:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def order_by(self, *order):
+            query_order["order"] = order
+            return self
+
+    service.db.session.query = lambda *_args, **_kwargs: _Query()
+    monkeypatch.setattr(service, "_has_skill_package_table", lambda: True)
+
+    class _Paginator:
+        def __init__(self, db, req):
+            pass
+
+        def paginate(self, query):
+            return []
+
+    monkeypatch.setattr("internal.service.skill_service.Paginator", _Paginator)
+    req = SimpleNamespace(
+        search_word=SimpleNamespace(data=""),
+        category=SimpleNamespace(data="all"),
+    )
+
+    service.get_skill_packages_with_page(req)
+
+    assert [str(order) for order in query_order["order"]] == [
+        "skill_package.updated_at DESC",
+        "skill_package.id DESC",
+    ]
+
+
 @pytest.mark.parametrize("package_enabled", [True, False])
 def test_process_and_validate_skill_bindings_should_keep_only_skill_id(
     monkeypatch, package_enabled
