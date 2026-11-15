@@ -173,6 +173,9 @@ export const useGetDataset = () => {
       if (requestId !== latestRequest) return
       dataset.value = resp.data
       return resp.data
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }

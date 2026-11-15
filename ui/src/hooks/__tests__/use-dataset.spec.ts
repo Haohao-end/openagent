@@ -289,6 +289,34 @@ describe('useGetDataset', () => {
     expect(dataset.value.id).toBe('dataset-b')
     expect(loading.value).toBe(false)
   })
+
+  it('ignores an older route failure after a newer dataset request succeeds', async () => {
+    const olderResponse = createDeferred<{ data: { id: string } }>()
+    const newerResponse = createDeferred<{ data: { id: string } }>()
+    mocks.getDataset.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+
+    const { dataset, loading, loadDataset } = useGetDataset()
+    const olderRequest = loadDataset('dataset-a')
+    const newerRequest = loadDataset('dataset-b')
+    const latestDataset = { id: 'dataset-b' }
+    newerResponse.resolve({ data: latestDataset })
+    await newerRequest
+
+    olderResponse.reject(new Error('stale dataset request failed'))
+
+    await expect(olderRequest).resolves.toBeUndefined()
+    expect(dataset.value).toEqual(latestDataset)
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates the latest dataset request failure and clears loading', async () => {
+    const requestError = new Error('dataset request failed')
+    mocks.getDataset.mockRejectedValueOnce(requestError)
+    const { loading, loadDataset } = useGetDataset()
+
+    await expect(loadDataset('dataset-a')).rejects.toBe(requestError)
+    expect(loading.value).toBe(false)
+  })
 })
 
 describe('useGetDocument', () => {
