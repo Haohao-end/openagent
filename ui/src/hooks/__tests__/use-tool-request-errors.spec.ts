@@ -188,6 +188,47 @@ describe('use-tool request feedback', () => {
     expect(api_tool_providers.value).toEqual([{ id: 'new' }])
   })
 
+  it('ignores a stale tool provider search failure after a newer search succeeds', async () => {
+    const defer = () => {
+      let resolve!: (value: any) => void
+      let reject!: (error: Error) => void
+      const promise = new Promise<any>((done, fail) => {
+        resolve = done
+        reject = fail
+      })
+      return { promise, resolve, reject }
+    }
+    const olderResponse = defer()
+    const newerResponse = defer()
+    mocks.getApiToolProvidersWithPage.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+    const { api_tool_providers, loading, loadApiToolProviders } = useGetApiToolProvidersWithPage()
+
+    const olderRequest = loadApiToolProviders(true, 'old')
+    const newerRequest = loadApiToolProviders(true, 'new')
+    newerResponse.resolve({
+      data: {
+        list: [{ id: 'new' }],
+        paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+      },
+    })
+    await newerRequest
+
+    olderResponse.reject(new Error('stale tool provider search failed'))
+
+    await expect(olderRequest).resolves.toBeUndefined()
+    expect(api_tool_providers.value).toEqual([{ id: 'new' }])
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates the latest tool provider search failure and clears loading', async () => {
+    const requestError = new Error('current tool provider search failed')
+    mocks.getApiToolProvidersWithPage.mockRejectedValueOnce(requestError)
+    const { loading, loadApiToolProviders } = useGetApiToolProvidersWithPage()
+
+    await expect(loadApiToolProviders(true, 'current')).rejects.toBe(requestError)
+    expect(loading.value).toBe(false)
+  })
+
   it('keeps the latest API tool details when requests resolve out of order', async () => {
     const defer = () => {
       let resolve!: (value: any) => void

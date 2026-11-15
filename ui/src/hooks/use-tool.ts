@@ -114,6 +114,9 @@ export const useGetApiToolProvidersWithPage = () => {
       } else {
         api_tool_providers.value.push(...data.list)
       }
+    } catch (error) {
+      if (requestId !== latestProviderRequest) return
+      throw error
     } finally {
       if (requestId === latestProviderRequest) loading.value = false
     }
