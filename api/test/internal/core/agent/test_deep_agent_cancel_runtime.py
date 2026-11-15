@@ -2,6 +2,8 @@ from threading import Event, Thread
 from uuid import uuid4
 
 import pytest
+
+pytest.importorskip("deepagents")
 from deepagents import create_deep_agent
 from deepagents.backends import StateBackend
 from deepagents.backends.protocol import ExecuteResponse, SandboxBackendProtocol
