@@ -1584,7 +1584,8 @@ class TestAssistantAgentService:
             def filter(self, *_args, **_kwargs):
                 return self
 
-            def order_by(self, *_args, **_kwargs):
+            def order_by(self, *columns, **_kwargs):
+                self.ordering = tuple(map(str, columns))
                 return self
 
             def limit(self, *_args, **_kwargs):
@@ -1601,10 +1602,12 @@ class TestAssistantAgentService:
                 self.calls += 1
                 if self.calls == 1:
                     return _MessageIdQuery()
-                return _ConversationQuery()
+                self.conversation_query = _ConversationQuery()
+                return self.conversation_query
 
+        session = _Session()
         service = AssistantAgentService(
-            db=SimpleNamespace(session=_Session()),
+            db=SimpleNamespace(session=session),
             faiss_service=SimpleNamespace(),
             conversation_service=SimpleNamespace(),
             redis_client=SimpleNamespace(),
@@ -1619,6 +1622,10 @@ class TestAssistantAgentService:
         assert result[0]["id"] == active_id
         assert result[0]["is_active"] is True
         assert result[1]["is_active"] is False
+        assert session.conversation_query.ordering == (
+            "conversation.updated_at DESC",
+            "conversation.id DESC",
+        )
 
     def test_extract_chunk_content_should_fallback_for_unknown_items(self):
         assert AssistantAgentService._extract_chunk_content([1, {"text": "b"}]) == "1b"

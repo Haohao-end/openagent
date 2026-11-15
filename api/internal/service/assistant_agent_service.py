@@ -684,7 +684,7 @@ class AssistantAgentService(BaseService):
                 ~Conversation.is_deleted,
                 has_valid_message,
             )
-            .order_by(desc(Conversation.updated_at))
+            .order_by(desc(Conversation.updated_at), desc(Conversation.id))
             .limit(limit)
             .all()
         )
