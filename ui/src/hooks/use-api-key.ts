@@ -75,14 +75,11 @@ export const useDeleteApiKey = () => {
         '删除秘钥后，无法使用该秘钥访问 OpenAgent 个人空间中的所有 Agent，并且无法恢复，如果临时关闭请使用禁用功能。',
       hideCancel: false,
       onOk: async () => {
-        try {
-          // 1.点击确定后向API接口发起请求
-          const resp = await deleteApiKey(api_key_id)
-          Message.success(resp.message)
-        } finally {
-          // 2.调用callback函数指定回调功能
-          callback && callback()
-        }
+        // 1.点击确定后向API接口发起请求
+        const resp = await deleteApiKey(api_key_id)
+        Message.success(resp.message)
+        // 2.调用callback函数指定回调功能
+        callback && callback()
       },
     })
   }
