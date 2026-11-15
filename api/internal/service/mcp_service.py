@@ -423,6 +423,7 @@ class McpService(BaseService):
             key=lambda item: (
                 int(item.get("published_at") or 0),
                 int(item.get("created_at") or 0),
+                str(item.get("provider_key") or ""),
             ),
             reverse=True,
         )

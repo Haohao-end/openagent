@@ -137,6 +137,24 @@ def test_get_public_mcp_providers_with_page_should_fallback_to_catalog_when_tabl
     assert paginator.total_page == 1
 
 
+def test_get_public_mcp_providers_with_page_should_keep_equal_timestamp_order_stable(monkeypatch):
+    service = _build_service(table_exists=False)
+    candidates = [
+        {"provider_key": "catalog::a", "category": "tools", "published_at": 100, "created_at": 100},
+        {"provider_key": "catalog::z", "category": "tools", "published_at": 100, "created_at": 100},
+    ]
+    service.mcp_provider_manager.get_providers = lambda: candidates
+    monkeypatch.setattr(service, "_build_catalog_provider_payload", lambda provider, include_tools=False: provider)
+
+    first_page, _ = service.get_public_mcp_providers_with_page(_req(page_size=1, current_page=1))
+    second_page, _ = service.get_public_mcp_providers_with_page(_req(page_size=1, current_page=2))
+
+    assert [first_page[0]["provider_key"], second_page[0]["provider_key"]] == [
+        "catalog::z",
+        "catalog::a",
+    ]
+
+
 @pytest.mark.parametrize((
     "is_public", "expected_headers", "expected_env", "expected_url", "expected_command", "expected_args",
 ), [
