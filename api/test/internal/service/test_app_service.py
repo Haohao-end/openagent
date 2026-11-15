@@ -15,7 +15,7 @@ from internal.entity.conversation_entity import InvokeFrom
 from internal.entity.audio_entity import ALLOWED_AUDIO_VOICES
 from internal.core.language_model.entities.model_entity import ModelParameterType
 from internal.exception import FailException, ForbiddenException, NotFoundException, ValidateErrorException
-from internal.model import ApiTool, Workflow, Dataset
+from internal.model import ApiTool, Workflow, Dataset, App
 from internal.service.app_service import AppService, AutoCreateToolSelection
 
 
@@ -1317,6 +1317,17 @@ class TestAppService:
     def test_get_apps_with_page_should_use_paginator(self, monkeypatch):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
+
+        class _RecordingQuery:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def order_by(self, *columns):
+                self.ordering = tuple(map(str, columns))
+                return self
+
+        query = _RecordingQuery()
+        service.db.session = SimpleNamespace(query=lambda _model: query)
         captures = {}
 
         class _Paginator:
@@ -1340,7 +1351,8 @@ class TestAppService:
         assert apps == ["app-1"]
         assert captures["req"] is req
         assert captures["db"] is service.db
-        assert captures["query"] is not None
+        assert captures["query"] is query
+        assert query.ordering == ("app.created_at DESC", "app.id DESC")
         assert isinstance(paginator, _Paginator)
 
     def test_get_apps_with_page_should_build_default_filter_when_search_word_empty(self, monkeypatch):
