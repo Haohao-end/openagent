@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Message, Modal } from '@arco-design/web-vue'
 
 const mocks = vi.hoisted(() => ({
   updateApiKeyIsActive: vi.fn(),
+  deleteApiKey: vi.fn(),
   getApiKeysWithPage: vi.fn(),
   routeQuery: { current_page: '2', page_size: '20' },
   credentialStore: { credential: { access_token: 'token-a', expire_at: 4102444800 } },
@@ -9,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/services/api-key', () => ({
   createApiKey: vi.fn(),
-  deleteApiKey: vi.fn(),
+  deleteApiKey: mocks.deleteApiKey,
   getApiKeysWithPage: mocks.getApiKeysWithPage,
   updateApiKey: vi.fn(),
   updateApiKeyIsActive: mocks.updateApiKeyIsActive,
@@ -21,7 +23,35 @@ vi.mock('vue-router', async (importOriginal) => {
 vi.mock('@arco-design/web-vue', () => ({ Message: { success: vi.fn() }, Modal: { warning: vi.fn() } }))
 vi.mock('@/stores/credential', () => ({ useCredentialStore: () => mocks.credentialStore }))
 
-import { useGetApiKeysWithPage, useUpdateApiKeyIsActive } from '@/hooks/use-api-key'
+import { useDeleteApiKey, useGetApiKeysWithPage, useUpdateApiKeyIsActive } from '@/hooks/use-api-key'
+
+describe('useDeleteApiKey', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('calls the delete callback only after the API key is deleted', async () => {
+    mocks.deleteApiKey.mockResolvedValueOnce({ message: 'deleted' })
+    const callback = vi.fn()
+    const { handleDeleteApiKey } = useDeleteApiKey()
+
+    handleDeleteApiKey('key-1', callback)
+    const onOk = vi.mocked(Modal.warning).mock.calls[0][0].onOk as () => Promise<void>
+    await onOk()
+
+    expect(callback).toHaveBeenCalledOnce()
+    expect(Message.success).toHaveBeenCalledWith('deleted')
+
+    callback.mockClear()
+    vi.mocked(Message.success).mockClear()
+    const requestError = new Error('delete failed')
+    mocks.deleteApiKey.mockRejectedValueOnce(requestError)
+
+    await expect(onOk()).rejects.toBe(requestError)
+    expect(callback).not.toHaveBeenCalled()
+    expect(Message.success).not.toHaveBeenCalled()
+  })
+})
 
 describe('useUpdateApiKeyIsActive', () => {
   beforeEach(() => {
