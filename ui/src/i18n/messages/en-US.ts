@@ -1605,6 +1605,7 @@ export default {
       queryEmpty: 'Please enter a question',
       modelNotSelected: '{title} has no model selected',
       requestInProgress: 'A comparison request is still running. Please wait.',
+      configLoadFailed: 'Failed to load app configuration. Please try again.',
       debugFailed: 'Prompt compare debug failed',
       clearWhileRunning: 'Wait for the comparison to finish or stop it manually first',
       applyAndUpdate: 'Apply to app',
