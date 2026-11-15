@@ -118,7 +118,9 @@ class DatasetService(BaseService):
 
         # 3.执行分页并获取数据
         datasets = paginator.paginate(
-            self.db.session.query(Dataset).filter(*filters).order_by(desc("created_at"))
+            self.db.session.query(Dataset).filter(*filters).order_by(
+                desc(Dataset.created_at), desc(Dataset.id)
+            )
         )
 
         return datasets, paginator

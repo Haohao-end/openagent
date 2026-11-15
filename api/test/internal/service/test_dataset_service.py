@@ -308,8 +308,15 @@ class TestDatasetService:
 
     def test_get_datasets_with_page_should_use_paginator(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
+
+        class _RecordingQuery(_QueryStub):
+            def order_by(self, *columns):
+                self.ordering = tuple(map(str, columns))
+                return self
+
+        query = _RecordingQuery(all_result=[])
         service = _new_dataset_service(
-            db=SimpleNamespace(session=SimpleNamespace(query=lambda _model: _QueryStub(all_result=[]))),
+            db=SimpleNamespace(session=SimpleNamespace(query=lambda _model: query)),
             retrieval_service=SimpleNamespace(),
         )
         captures = {}
@@ -335,7 +342,8 @@ class TestDatasetService:
         assert datasets == ["dataset-1"]
         assert captures["req"] is req
         assert captures["db"] is service.db
-        assert captures["query"] is not None
+        assert captures["query"] is query
+        assert query.ordering == ("dataset.created_at DESC", "dataset.id DESC")
         assert isinstance(paginator, _Paginator)
 
     def test_get_datasets_with_page_should_build_default_filter_when_search_word_empty(self, monkeypatch):
