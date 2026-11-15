@@ -957,7 +957,9 @@ class PublicAgentA2AService(BaseService):
             Message.app_id == app.id,
             Message.status.in_([MessageStatus.NORMAL.value, MessageStatus.STOP.value]),
             Message.is_deleted == False,
-        ).options(selectinload(Message.agent_thoughts)).order_by(desc(Message.created_at)).all()
+        ).options(selectinload(Message.agent_thoughts)).order_by(
+            desc(Message.created_at), desc(Message.id)
+        ).all()
         return [
             {
                 "id": str(message.id),
