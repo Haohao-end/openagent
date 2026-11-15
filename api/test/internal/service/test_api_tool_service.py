@@ -476,6 +476,44 @@ class TestApiToolService:
         assert captures["query"] is not None
         assert isinstance(paginator, _Paginator)
 
+    def test_get_api_tool_providers_with_page_should_use_stable_tie_breaker(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        captures = {}
+
+        class _Query:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def order_by(self, *order):
+                captures["order"] = order
+                return self
+
+        service = _new_api_tool_service(
+            db=SimpleNamespace(session=SimpleNamespace(query=lambda _model: _Query())),
+            api_provider_manager=SimpleNamespace(),
+        )
+
+        class _Paginator:
+            def __init__(self, db, req):
+                pass
+
+            def paginate(self, query):
+                return []
+
+        monkeypatch.setattr("internal.service.api_tool_service.Paginator", _Paginator)
+        req = SimpleNamespace(
+            current_page=SimpleNamespace(data=1),
+            page_size=SimpleNamespace(data=20),
+            search_word=SimpleNamespace(data=""),
+        )
+
+        service.get_api_tool_providers_wiith_page(req, account)
+
+        assert [str(order) for order in captures["order"]] == [
+            "api_tool_provider.created_at DESC",
+            "api_tool_provider.id DESC",
+        ]
+
     def test_get_api_tool_providers_with_page_should_work_without_search_word(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         service = _new_api_tool_service(

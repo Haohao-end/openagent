@@ -99,7 +99,9 @@ class ApiToolService(BaseService):
 
         # 3.执行分页并获取数据
         api_tool_providers = paginator.paginate(
-            self.db.session.query(ApiToolProvider).filter(*filters).order_by(desc("created_at"))
+            self.db.session.query(ApiToolProvider).filter(*filters).order_by(
+                desc(ApiToolProvider.created_at), desc(ApiToolProvider.id),
+            )
         )
         return api_tool_providers,paginator
 
