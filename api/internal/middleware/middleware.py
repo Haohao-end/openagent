@@ -65,7 +65,7 @@ class Middleware:
 
             try:
                 self.api_key_service.record_api_key_request(api_key_record)
-            except SQLAlchemyError as error:
+            except Exception as error:
                 # Usage metadata is best-effort; tracking failures must not reject valid credentials.
                 logger.warning(
                     "api_key_usage_update_failed error_class=%s",

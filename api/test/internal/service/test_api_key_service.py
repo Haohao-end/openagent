@@ -298,6 +298,16 @@ class TestApiKeyService:
         session.close()
         engine.dispose()
 
+    def test_record_api_key_request_should_safely_ignore_record_without_id(self):
+        service = ApiKeyService(db=SimpleNamespace(session=None, auto_commit=None))
+        service.record_api_key_request(None)
+        service.record_api_key_request(SimpleNamespace())
+
+    def test_record_last_used_at_should_safely_ignore_record_without_id(self):
+        service = ApiKeyService(db=SimpleNamespace(session=None, auto_commit=None))
+        service.record_last_used_at(None)
+        service.record_last_used_at(SimpleNamespace())
+
     def test_get_api_by_by_credential_should_return_query_result(self):
         api_key_record = SimpleNamespace(id=uuid4(), api_key="llmops-v1/demo")
         service = ApiKeyService(

@@ -198,6 +198,35 @@ def test_request_loader_should_continue_if_usage_update_fails(caplog):
     assert "DATABASE_ERROR_DETAIL_SECRET" not in caplog.text
 
 
+def test_request_loader_should_continue_if_usage_update_raises_non_sqlalchemy_error(caplog):
+    expected_account = {"id": "acc-1"}
+    api_key_record = SimpleNamespace(is_active=True, account=expected_account)
+
+    def fail_to_record_usage(_record):
+        raise RuntimeError("UNEXPECTED_TRACKING_FAILURE")
+
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: api_key_record,
+            record_api_key_request=fail_to_record_usage,
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with caplog.at_level(logging.WARNING), app.app_context():
+        account = middleware.request_loader(request)
+
+    assert account == expected_account
+    assert "api_key_usage_update_failed error_class=RuntimeError" in caplog.text
+    assert "UNEXPECTED_TRACKING_FAILURE" not in caplog.text
+
+
 @pytest.mark.parametrize(
     ("endpoint", "scopes"),
     [

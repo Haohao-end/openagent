@@ -68,11 +68,16 @@ class ApiKeyService(BaseService):
 
     def record_last_used_at(self, api_key_record: ApiKey) -> None:
         """Persist successful use at most once per minute without moving backward."""
+        if not api_key_record:
+            return
+        api_key_id = getattr(api_key_record, "id", None)
+        if not api_key_id:
+            return
         used_at = utc_now_naive()
         update_after = used_at - _LAST_USED_AT_UPDATE_INTERVAL
         with self.db.auto_commit():
             self.db.session.query(ApiKey).filter(
-                ApiKey.id == api_key_record.id,
+                ApiKey.id == api_key_id,
                 or_(ApiKey.last_used_at.is_(None), ApiKey.last_used_at <= update_after),
             ).update(
                 {ApiKey.last_used_at: used_at},
@@ -81,6 +86,11 @@ class ApiKeyService(BaseService):
 
     def record_api_key_request(self, api_key_record: ApiKey) -> None:
         """Count one authorized OpenAPI request and refresh last-used metadata."""
+        if not api_key_record:
+            return
+        api_key_id = getattr(api_key_record, "id", None)
+        if not api_key_id:
+            return
         used_at = utc_now_naive()
         update_after = used_at - _LAST_USED_AT_UPDATE_INTERVAL
         last_used_is_stale = or_(
@@ -89,7 +99,7 @@ class ApiKeyService(BaseService):
         )
         with self.db.auto_commit():
             self.db.session.query(ApiKey).filter(
-                ApiKey.id == api_key_record.id,
+                ApiKey.id == api_key_id,
             ).update(
                 {
                     ApiKey.request_count: func.coalesce(ApiKey.request_count, 0) + 1,
