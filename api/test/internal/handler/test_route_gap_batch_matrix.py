@@ -16,10 +16,9 @@ PUBLIC_STRING_APP_ID = "00000000-0000-0000-0000-00000000aa01"
 def _assert_health(data: dict):
     assert data["status"] in {"healthy", "degraded", "unhealthy"}
     assert data["service"] == "llmops-api"
-    assert "components" in data
-    assert "database" in data["components"]
-    assert "metrics" in data
-    assert "status_code" in data["metrics"]
+    # Topology details (components, metrics) are kept internal for anonymous requests
+    assert "components" not in data
+    assert "metrics" not in data
 
 
 def _assert_healthz(data: dict):
