@@ -252,14 +252,22 @@ class TestSegmentService:
         document_id = uuid4()
         document = SimpleNamespace(id=document_id, dataset_id=dataset_id, account_id=account.id)
         service = self._build_service()
-        service.db = SimpleNamespace(session=SimpleNamespace(query=lambda _model: _QueryStub(all_result=[])))
+        captures = {}
+
+        class _Query:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def order_by(self, *order):
+                captures["order"] = order
+                return self
+
+        service.db = SimpleNamespace(session=SimpleNamespace(query=lambda _model: _Query()))
         monkeypatch.setattr(
             service,
             "get",
             lambda model, _id: document if model is Document else None,
         )
-        captures = {}
-
         class _Paginator:
             def __init__(self, db, req):
                 captures["db"] = db
@@ -283,6 +291,10 @@ class TestSegmentService:
         assert captures["db"] is service.db
         assert captures["query"] is not None
         assert isinstance(paginator, _Paginator)
+        assert [str(order) for order in captures["order"]] == [
+            "segment.position ASC",
+            "segment.id ASC",
+        ]
 
     def test_update_segment_should_sync_keyword_document_and_vector_when_content_changed(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
