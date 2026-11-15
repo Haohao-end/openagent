@@ -258,7 +258,9 @@ class DocumentService(BaseService):
 
         # 4.执行分页并获取数据
         documents = paginator.paginate(
-            self.db.session.query(Document).filter(*filters).order_by(desc("created_at"))
+            self.db.session.query(Document).filter(*filters).order_by(
+                desc(Document.created_at), desc(Document.id),
+            )
         )
 
         return documents, paginator
