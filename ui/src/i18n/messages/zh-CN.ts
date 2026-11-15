@@ -776,6 +776,8 @@ export default {
       noConditions: '未配置条件',
     },
     modelConfig: {
+      loadFailed: '加载模型参数失败，请重试',
+      loadOptionsFailed: '加载模型列表失败，请重试',
       title: '模型设置',
       model: '模型',
       placeholder: '请选择 Agent 使用的大语言模型',

@@ -788,6 +788,8 @@ export default {
     },
     logicRelation: 'Logic',
     modelConfig: {
+      loadFailed: 'Failed to load model parameters. Please try again.',
+      loadOptionsFailed: 'Failed to load models. Please try again.',
       title: 'Model Settings',
       model: 'Model',
       placeholder: 'Choose the LLM used by this agent',
