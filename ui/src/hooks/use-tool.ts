@@ -53,6 +53,9 @@ export const useGetApiTool = () => {
       if (requestId !== latestRequest) return false
       api_tool.value = resp.data
       return true
+    } catch (error) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }

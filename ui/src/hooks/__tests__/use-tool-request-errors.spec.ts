@@ -209,4 +209,40 @@ describe('use-tool request feedback', () => {
     expect(api_tool.value).toEqual({ name: 'new' })
     expect(olderResult).toBe(false)
   })
+
+  it('ignores a stale API tool detail failure after a newer request succeeds', async () => {
+    const defer = () => {
+      let resolve!: (value: any) => void
+      let reject!: (error: Error) => void
+      const promise = new Promise<any>((done, fail) => {
+        resolve = done
+        reject = fail
+      })
+      return { promise, resolve, reject }
+    }
+    const olderResponse = defer()
+    const newerResponse = defer()
+    mocks.getApiTool.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+    const { api_tool, loading, loadApiTool } = useGetApiTool()
+
+    const olderRequest = loadApiTool('provider', 'old')
+    const newerRequest = loadApiTool('provider', 'new')
+    newerResponse.resolve({ data: { name: 'new' } })
+    await newerRequest
+
+    olderResponse.reject(new Error('stale API tool request failed'))
+
+    await expect(olderRequest).resolves.toBe(false)
+    expect(api_tool.value).toEqual({ name: 'new' })
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates the latest API tool detail failure and clears loading', async () => {
+    const requestError = new Error('current API tool request failed')
+    mocks.getApiTool.mockRejectedValueOnce(requestError)
+    const { loading, loadApiTool } = useGetApiTool()
+
+    await expect(loadApiTool('provider', 'current')).rejects.toBe(requestError)
+    expect(loading.value).toBe(false)
+  })
 })
