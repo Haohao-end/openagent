@@ -64,6 +64,30 @@ const reportModelLoadFailure = (error: unknown, fallback: string) => {
   Message.error(getErrorMessage(error, t(fallback)))
 }
 
+const restoreConfiguredModel = () => {
+  const configuredModel = props.model_config as Record<string, any>
+  const provider = String(configuredModel?.provider || '')
+  const model = String(configuredModel?.model || '')
+  form.value.selectValue = provider && model ? `${provider}/${model}` : ''
+  form.value.parameters = (configuredModel?.parameters || {}) as Record<string, unknown>
+
+  if (!provider || !model) {
+    language_model.value = {}
+    modelDetailLoad = Promise.resolve(false)
+    return
+  }
+
+  const requestId = ++modelDetailRequest
+  modelDetailLoad = loadLanguageModel(provider, model).then((isLatest) => {
+    return isLatest && requestId === modelDetailRequest
+  }).catch((error: unknown) => {
+    if (requestId === modelDetailRequest) {
+      reportModelLoadFailure(error, 'workflowEditor.modelConfig.loadFailed')
+    }
+    return false
+  })
+}
+
 // 2.定义选择模型处理器
 const changeModel = (value: string) => {
   const requestId = ++modelDetailRequest
@@ -84,10 +108,8 @@ const changeModel = (value: string) => {
     return true
   }).catch((error: unknown) => {
     if (requestId !== modelDetailRequest || isUnmounted) return false
-    form.value.selectValue = props.model_config?.provider && props.model_config?.model
-      ? `${props.model_config.provider}/${props.model_config.model}`
-      : ''
     reportModelLoadFailure(error, 'workflowEditor.modelConfig.loadFailed')
+    restoreConfiguredModel()
     return false
   })
 }

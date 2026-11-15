@@ -78,6 +78,49 @@ describe('Workflow ModelConfig', () => {
     wrapper.unmount()
   })
 
+  it('restores the saved model state and submit gate after a later selection fails', async () => {
+    const wrapper = mount(ModelConfig, {
+      props: { model_config: { provider: 'old', model: 'old-model', parameters: { temperature: 0.9 } } },
+      global: { stubs: { 'a-trigger': TriggerStub, 'a-select': SelectStub } },
+    })
+    await flushPromises()
+    mocks.loadLanguageModel.mockImplementation(async (_provider: string, model: string) => {
+      if (model === 'model-b') {
+        mocks.languageModel.value = { parameters: [{ name: 'max_tokens', default: 40 }] }
+      } else if (model === 'model-c') {
+        throw new Error('model C unavailable')
+      } else {
+        mocks.languageModel.value = { parameters: [{ name: 'temperature', default: 0.1 }] }
+      }
+      return true
+    })
+
+    const select = wrapper.findComponent(SelectStub)
+    const trigger = wrapper.findComponent(TriggerStub)
+    const state = (wrapper.vm.$ as any).setupState
+    select.vm.$emit('update:modelValue', 'provider-b/model-b')
+    select.vm.$emit('change', 'provider-b/model-b')
+    await flushPromises()
+    expect(state.form.parameters).toEqual({ max_tokens: 40 })
+
+    select.vm.$emit('update:modelValue', 'provider-c/model-c')
+    select.vm.$emit('change', 'provider-c/model-c')
+    trigger.vm.$emit('hide')
+    await flushPromises()
+
+    expect(state.form.selectValue).toBe('old/old-model')
+    expect(state.form.parameters).toEqual({ temperature: 0.9 })
+    expect(state.language_model.parameters).toEqual([{ name: 'temperature', default: 0.1 }])
+    expect(wrapper.emitted('update:model_config')).toBeUndefined()
+
+    trigger.vm.$emit('hide')
+    await flushPromises()
+    expect(wrapper.emitted('update:model_config')).toEqual([[{
+      provider: 'old', model: 'old-model', parameters: { temperature: 0.9 },
+    }]])
+    wrapper.unmount()
+  })
+
   it('reports failure loading the configured model details', async () => {
     mocks.loadLanguageModel.mockRejectedValueOnce(new Error('configured model unavailable'))
     const wrapper = mount(ModelConfig, {
