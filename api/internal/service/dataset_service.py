@@ -64,7 +64,7 @@ class DatasetService(BaseService):
         # 2.调用知识库查询模型查找最近的10条记录
         dataset_queries = self.db.session.query(DatasetQuery).filter(
             DatasetQuery.dataset_id == dataset_id,
-        ).order_by(desc("created_at")).limit(10).all()
+        ).order_by(desc(DatasetQuery.created_at), desc(DatasetQuery.id)).limit(10).all()
 
         return dataset_queries
 
