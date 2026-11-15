@@ -422,7 +422,7 @@ class ConversationService(BaseService):
                 Message.answer != "",
                 ~Message.is_deleted,
             )
-            .order_by(desc(Message.created_at))
+            .order_by(desc(Message.created_at), desc(Message.id))
             .limit(message_scan_limit)
             .all()
         )
@@ -438,7 +438,7 @@ class ConversationService(BaseService):
                 Message.answer != "",
                 ~Message.is_deleted,
             )
-            .order_by(desc(Message.created_at))
+            .order_by(desc(Message.created_at), desc(Message.id))
             .limit(message_scan_limit)
             .all()
         )
@@ -446,7 +446,7 @@ class ConversationService(BaseService):
         message_by_conversation = OrderedDict()
         for message in sorted(
             private_recent_messages + public_recent_messages,
-            key=lambda message: message.created_at,
+            key=lambda message: (message.created_at, str(message.id)),
             reverse=True,
         ):
             if message.conversation_id in message_by_conversation:
@@ -735,7 +735,7 @@ class ConversationService(BaseService):
                 Message.answer != "",
                 ~Message.is_deleted,
             )
-            .order_by(desc(Message.created_at))
+            .order_by(desc(Message.created_at), desc(Message.id))
             .all()
         )
         # 3.收集每个会话的最新消息以及真正命中的消息片段
