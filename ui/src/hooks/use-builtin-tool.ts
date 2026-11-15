@@ -35,6 +35,9 @@ export const useGetBuiltinTool = () => {
       if (currentRequestId !== requestId) return false
       builtin_tool.value = resp.data
       return true
+    } catch (error) {
+      if (currentRequestId !== requestId) return false
+      throw error
     } finally {
       if (currentRequestId === requestId) loading.value = false
     }
