@@ -569,6 +569,9 @@ export const useGetDocumentsStatus = () => {
       if (requestId !== latestRequest) return
       documents_status_result.value = resp.data
       return resp.data
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
       if (requestId === latestRequest) loading.value = false
     }

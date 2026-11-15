@@ -758,4 +758,32 @@ describe('useGetDocumentsStatus', () => {
     expect(documents_status_result.value).toEqual([{ status: 'completed' }])
     expect(newestResult).toEqual([{ status: 'completed' }])
   })
+
+  it('ignores a stale polling failure after a newer request succeeds', async () => {
+    const olderResponse = createDeferred<{ data: { status: string }[] }>()
+    const newerResponse = createDeferred<{ data: { status: string }[] }>()
+    mocks.getDocumentsStatus.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+
+    const { documents_status_result, loading, loadDocumentsStatus } = useGetDocumentsStatus()
+    const olderRequest = loadDocumentsStatus('dataset-1', 'batch-1')
+    const newerRequest = loadDocumentsStatus('dataset-1', 'batch-1')
+    const latestStatus = [{ status: 'completed' }]
+    newerResponse.resolve({ data: latestStatus })
+    await newerRequest
+
+    olderResponse.reject(new Error('stale polling failure'))
+
+    await expect(olderRequest).resolves.toBeUndefined()
+    expect(documents_status_result.value).toEqual(latestStatus)
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates the latest polling failure and clears loading', async () => {
+    const requestError = new Error('current polling failure')
+    mocks.getDocumentsStatus.mockRejectedValueOnce(requestError)
+    const { loading, loadDocumentsStatus } = useGetDocumentsStatus()
+
+    await expect(loadDocumentsStatus('dataset-1', 'batch-1')).rejects.toBe(requestError)
+    expect(loading.value).toBe(false)
+  })
 })
