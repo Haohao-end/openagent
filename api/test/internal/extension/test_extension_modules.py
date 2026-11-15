@@ -61,6 +61,7 @@ class _FakeLogger:
         self.level = logging.WARNING
         self.levels = []
         self.handlers = []
+        self.manager = getattr(logging.root, "manager", None)
 
     def setLevel(self, level):
         self.level = level
@@ -87,6 +88,9 @@ class _FakeHandler:
     def setFormatter(self, formatter):
         self.formatter = formatter
 
+    def close(self):
+        pass
+
 
 @pytest.mark.parametrize(
     "debug, flask_env, folder_exists, expected_level, expected_handlers, expect_makedirs",
@@ -107,8 +111,13 @@ def test_logging_extension_should_cover_debug_dev_and_prod_branches(
 ):
     fake_logger = _FakeLogger()
     makedirs_calls = []
+    real_get_logger = logging.getLogger
 
-    monkeypatch.setattr(logging_extension.logging, "getLogger", lambda: fake_logger)
+    monkeypatch.setattr(
+        logging_extension.logging,
+        "getLogger",
+        lambda name=None: fake_logger if name is None else real_get_logger(name),
+    )
     monkeypatch.setattr(
         logging_extension,
         "ConcurrentTimedRotatingFileHandler",
@@ -117,7 +126,7 @@ def test_logging_extension_should_cover_debug_dev_and_prod_branches(
     monkeypatch.setattr(
         logging_extension.logging,
         "StreamHandler",
-        lambda: _FakeHandler(),
+        _FakeHandler,
     )
     monkeypatch.setattr(logging_extension.os.path, "exists", lambda _path: folder_exists)
     monkeypatch.setattr(logging_extension.os, "makedirs", lambda path: makedirs_calls.append(path))
