@@ -77,6 +77,7 @@ const laneScrollRefs = ref<Record<LaneKey, HTMLDivElement | null>>({
 })
 const lanes = ref<CompareLane[]>([])
 const activeStreamControllers = new Set<AbortController>()
+let isUnmounted = false
 const { draftAppConfigForm, loadDraftAppConfig } = useGetDraftAppConfig()
 const { handleUpdateDraftAppConfig } = useUpdateDraftAppConfig()
 
@@ -325,11 +326,22 @@ const handleClear = () => {
 }
 
 onMounted(async () => {
-  await loadDraftAppConfig(appId.value)
+  try {
+    await loadDraftAppConfig(appId.value)
+  } catch (error: unknown) {
+    if (!isUnmounted) {
+      Message.error(getErrorMessage(error, t('appStudio.promptCompare.configLoadFailed')))
+    }
+    return
+  }
+  if (isUnmounted) return
   initializeLanes()
 })
 
-onUnmounted(() => activeStreamControllers.forEach((controller) => controller.abort()))
+onUnmounted(() => {
+  isUnmounted = true
+  activeStreamControllers.forEach((controller) => controller.abort())
+})
 </script>
 
 <template>

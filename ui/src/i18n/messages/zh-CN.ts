@@ -1586,6 +1586,7 @@ export default {
       queryEmpty: '用户提问不能为空',
       modelNotSelected: '{title} 尚未选择模型',
       requestInProgress: '当前仍有对比请求在执行，请稍后',
+      configLoadFailed: '加载应用配置失败，请重试',
       debugFailed: '提示词对比调试失败',
       clearWhileRunning: '请先等待对比请求结束或手动停止响应',
       applyAndUpdate: '选中并更新应用',

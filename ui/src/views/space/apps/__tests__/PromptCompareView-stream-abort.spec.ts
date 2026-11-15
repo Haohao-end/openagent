@@ -1,15 +1,58 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
-import { expect, it, vi } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
 import PromptCompareView from '../PromptCompareView.vue'
-const mocks = vi.hoisted(() => ({ route: { params: { app_id: 'app-1' } }, ssePost: vi.fn(), signals: [] as AbortSignal[] }))
+const mocks = vi.hoisted(() => ({
+  route: { params: { app_id: 'app-1' } },
+  ssePost: vi.fn(),
+  signals: [] as AbortSignal[],
+  loadDraftAppConfig: vi.fn(),
+  messageError: vi.fn(),
+  messageWarning: vi.fn(),
+}))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route })); vi.mock('@/utils/request', () => ({ get: vi.fn(), post: vi.fn(), ssePost: mocks.ssePost }))
 vi.mock('@/hooks/use-app', () => ({
-  useGetDraftAppConfig: () => ({ draftAppConfigForm: { value: { model_config: { provider: 'p', model: 'm', parameters: {} }, preset_prompt: 'prompt' } }, loadDraftAppConfig: vi.fn() }),
+  useGetDraftAppConfig: () => ({ draftAppConfigForm: { value: { model_config: { provider: 'p', model: 'm', parameters: {} }, preset_prompt: 'prompt' } }, loadDraftAppConfig: mocks.loadDraftAppConfig }),
   useUpdateDraftAppConfig: () => ({ handleUpdateDraftAppConfig: vi.fn() }),
 }))
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) })); vi.mock('@/stores/account', () => ({ useAccountStore: () => ({ account: {} }) })); vi.mock('@arco-design/web-vue', () => ({ Message: { warning: vi.fn() } }))
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) })); vi.mock('@/stores/account', () => ({ useAccountStore: () => ({ account: {} }) })); vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError, warning: mocks.messageWarning } }))
+
+beforeEach(() => {
+  mocks.loadDraftAppConfig.mockReset().mockResolvedValue(undefined)
+  mocks.messageError.mockReset()
+  mocks.messageWarning.mockReset()
+  mocks.ssePost.mockReset()
+  mocks.signals.length = 0
+})
+
+it('reports draft configuration load failures instead of rejecting the mount hook', async () => {
+  mocks.loadDraftAppConfig.mockRejectedValueOnce('private draft response details')
+  const errors: unknown[] = []
+  const wrapper = shallowMount(PromptCompareView, {
+    props: { app: { id: 'app-1', name: 'App' } },
+    global: { config: { errorHandler: (error) => errors.push(error) } },
+  })
+
+  await flushPromises()
+
+  expect(mocks.messageError).toHaveBeenCalledWith('appStudio.promptCompare.configLoadFailed')
+  expect(errors).toEqual([])
+  wrapper.unmount()
+})
+
+it('does not report a draft load failure after the page unmounts', async () => {
+  let rejectLoad!: (error: Error) => void
+  mocks.loadDraftAppConfig.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectLoad = reject }))
+  const wrapper = shallowMount(PromptCompareView, { props: { app: { id: 'app-1', name: 'App' } } })
+
+  await flushPromises()
+  wrapper.unmount()
+  rejectLoad(new Error('late draft load failure'))
+  await flushPromises()
+
+  expect(mocks.messageError).not.toHaveBeenCalled()
+})
+
 it('aborts both prompt comparison streams when the page unmounts', async () => {
-  mocks.signals.length = 0;
   mocks.ssePost.mockImplementation((_url, options) => {
     mocks.signals.push(options.signal)
     return new Promise<void>((_resolve, reject) => options.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true }))
