@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
+from flask import Flask
 
 from internal.entity.conversation_entity import InvokeFrom, MessageStatus
 from internal.lib.helper import datetime_to_timestamp
@@ -103,6 +104,40 @@ def _app(*, app_id: UUID, name: str, debug_conversation_id: UUID | None = None):
 
 
 class TestConversationSearchService:
+    def test_search_orders_equal_timestamp_messages_by_id(self):
+        account = _account()
+        conversation = _conversation(name="Tie case", account_id=account.id)
+        message = _message(
+            conversation_id=conversation.id,
+            account_id=account.id,
+            query="tie query",
+            answer="tie answer",
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+        )
+        assistant_app = _app(app_id=ASSISTANT_AGENT_ID, name="辅助Agent")
+        ordered_columns = []
+
+        class _RecordingQuery(_QueryStub):
+            def order_by(self, *columns):
+                ordered_columns.append(tuple(map(str, columns)))
+                return self
+
+        class _Session:
+            def __init__(self):
+                self.results = iter([[message], [conversation], [assistant_app]])
+
+            def query(self, _model):
+                return _RecordingQuery(next(self.results))
+
+        service = ConversationService(db=SimpleNamespace(session=_Session()))
+
+        test_app = Flask(__name__)
+        with test_app.app_context():
+            test_app.config["ASSISTANT_AGENT_ID"] = ASSISTANT_AGENT_ID
+            service.search_conversations(account, "tie", limit=10)
+
+        assert ordered_columns == [("message.created_at DESC", "message.id DESC")]
+
     def test_search_conversations_should_delegate_blank_query_to_recent_conversations(self, monkeypatch):
         service = _build_service()
         account = _account()

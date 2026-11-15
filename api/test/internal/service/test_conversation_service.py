@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from flask import Flask
@@ -987,7 +987,7 @@ class TestConversationServiceBasics:
             debug_conversation_id=debugger_conversation.id,
         )
         message_assistant = SimpleNamespace(
-            id=uuid4(),
+            id=UUID(int=3),
             conversation_id=assistant_conversation.id,
             invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
             app_id=None,
@@ -996,7 +996,7 @@ class TestConversationServiceBasics:
             created_at=now,
         )
         message_debugger = SimpleNamespace(
-            id=uuid4(),
+            id=UUID(int=2),
             conversation_id=debugger_conversation.id,
             invoke_from=InvokeFrom.DEBUGGER.value,
             app_id=app.id,
@@ -1005,7 +1005,7 @@ class TestConversationServiceBasics:
             created_at=now,
         )
         duplicated_old_message = SimpleNamespace(
-            id=uuid4(),
+            id=UUID(int=1),
             conversation_id=assistant_conversation.id,
             invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
             app_id=None,
@@ -1085,8 +1085,9 @@ class TestConversationServiceBasics:
         now = datetime(2026, 3, 1, tzinfo=UTC)
         conversation_a = SimpleNamespace(id=uuid4(), name="A", created_at=now, created_by=account_id, is_deleted=False)
         conversation_b = SimpleNamespace(id=uuid4(), name="B", created_at=now, created_by=account_id, is_deleted=False)
-        message_a = SimpleNamespace(id=uuid4(), conversation_id=conversation_a.id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, query="A", answer="A-answer", created_at=now)
-        message_b = SimpleNamespace(id=uuid4(), conversation_id=conversation_b.id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, query="B", answer="B-answer", created_at=now)
+        message_a = SimpleNamespace(id=UUID(int=1), conversation_id=conversation_a.id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, query="A", answer="A-answer", created_at=now)
+        message_b = SimpleNamespace(id=UUID(int=2), conversation_id=conversation_b.id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, query="B", answer="B-answer", created_at=now)
+        ordered_columns = []
 
         class _Query:
             def __init__(self, all_result):
@@ -1095,7 +1096,8 @@ class TestConversationServiceBasics:
             def filter(self, *_args, **_kwargs):
                 return self
 
-            def order_by(self, *_args, **_kwargs):
+            def order_by(self, *columns):
+                ordered_columns.append(tuple(map(str, columns)))
                 return self
 
             def limit(self, *_args, **_kwargs):
@@ -1105,10 +1107,15 @@ class TestConversationServiceBasics:
                 return self._all_result
 
         class _Session:
+            def __init__(self):
+                self.message_query_count = 0
+
             def query(self, model):
                 model_name = getattr(model, "__name__", "")
                 if model_name == "Message":
-                    return _Query([message_a, message_b])
+                    self.message_query_count += 1
+                    rows = [message_a] if self.message_query_count == 1 else [message_b]
+                    return _Query(rows)
                 if model_name == "Conversation":
                     return _Query([conversation_a, conversation_b])
                 if model_name == "App":
@@ -1121,7 +1128,11 @@ class TestConversationServiceBasics:
         conversations = service.get_recent_conversations(account, limit=1)
 
         assert len(conversations) == 1
-        assert conversations[0]["id"] == str(conversation_a.id)
+        assert conversations[0]["id"] == str(conversation_b.id)
+        assert ordered_columns == [
+            ("message.created_at DESC", "message.id DESC"),
+            ("message.created_at DESC", "message.id DESC"),
+        ]
 
     def test_get_recent_conversations_should_merge_sources_by_recency(self, app_ctx):
         service = self._build_service()
@@ -1403,7 +1414,7 @@ class TestConversationServiceBasics:
         conversation_1 = SimpleNamespace(id=uuid4(), name="会话1", created_by=account_id, is_deleted=False, created_at=now)
         conversation_2 = SimpleNamespace(id=uuid4(), name="会话2", created_by=account_id, is_deleted=False, created_at=now)
         message_1 = SimpleNamespace(
-            id=uuid4(),
+            id=UUID(int=1),
             conversation_id=conversation_1.id,
             invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
             app_id=None,
@@ -1412,7 +1423,7 @@ class TestConversationServiceBasics:
             created_at=now,
         )
         message_2 = SimpleNamespace(
-            id=uuid4(),
+            id=UUID(int=2),
             conversation_id=conversation_2.id,
             invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
             app_id=None,
@@ -1454,7 +1465,7 @@ class TestConversationServiceBasics:
         conversations = service.get_recent_conversations(account, limit=1)
 
         assert len(conversations) == 1
-        assert conversations[0]["id"] == str(conversation_1.id)
+        assert conversations[0]["id"] == str(conversation_2.id)
 
     def test_get_recent_conversations_should_allow_more_than_fifty_items(self, app_ctx):
         service = self._build_service()
@@ -1516,8 +1527,11 @@ class TestConversationServiceBasics:
         conversations = service.get_recent_conversations(account, limit=60)
 
         assert len(conversations) == 60
-        assert conversations[0]["id"] == str(conversations_data[0].id)
-        assert conversations[-1]["id"] == str(conversations_data[-1].id)
+        expected_conversation_ids = [
+            str(message.conversation_id)
+            for message in sorted(messages_data, key=lambda item: str(item.id), reverse=True)
+        ]
+        assert [item["id"] for item in conversations] == expected_conversation_ids
 
     def test_get_recent_conversations_should_skip_missing_conversation_and_missing_debugger_app(self, app_ctx):
         service = self._build_service()
