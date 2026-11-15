@@ -1372,6 +1372,7 @@ export default {
     },
     detail: {
       title: 'App Orchestration',
+      configLoadFailed: 'Failed to load app configuration. Please try again.',
       autoLayout: 'Auto layout',
     },
     debug: {

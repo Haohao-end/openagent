@@ -1353,6 +1353,7 @@ export default {
     },
     detail: {
       title: '应用编排',
+      configLoadFailed: '加载应用配置失败，请重试',
       autoLayout: '自适应布局',
     },
     debug: {
