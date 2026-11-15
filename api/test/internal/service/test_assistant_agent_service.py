@@ -773,11 +773,13 @@ class TestAssistantAgentService:
         class _Query:
             def __init__(self, rows):
                 self._rows = rows
+                self.ordering = ()
 
             def filter(self, *_args, **_kwargs):
                 return self
 
-            def order_by(self, *_args, **_kwargs):
+            def order_by(self, *columns, **_kwargs):
+                self.ordering = tuple(map(str, columns))
                 return self
 
             def limit(self, *_args, **_kwargs):
@@ -788,13 +790,15 @@ class TestAssistantAgentService:
 
         class _Session:
             def __init__(self):
-                self._queries = [_Query([]), _Query([])]
+                self.queries = [_Query([]), _Query([])]
+                self._pending_queries = list(self.queries)
 
             def query(self, _model):
-                return self._queries.pop(0)
+                return self._pending_queries.pop(0)
 
+        session = _Session()
         service = AssistantAgentService(
-            db=SimpleNamespace(session=_Session()),
+            db=SimpleNamespace(session=session),
             faiss_service=SimpleNamespace(),
             conversation_service=SimpleNamespace(),
             redis_client=SimpleNamespace(get=lambda key: None),
@@ -809,6 +813,14 @@ class TestAssistantAgentService:
         assert payload["is_first_time"] is True
         assert payload["content"] == ""
         assert payload["message_id"] == ""
+        assert session.queries[0].ordering == (
+            "message.created_at DESC",
+            "message.id DESC",
+        )
+        assert session.queries[1].ordering == (
+            "conversation.updated_at DESC",
+            "conversation.id DESC",
+        )
 
     def test_generate_introduction_should_stream_chunks_and_emit_markdown_done(
         self, monkeypatch

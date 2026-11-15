@@ -441,7 +441,7 @@ class AssistantAgentService(BaseService):
                 Message.answer != "",
                 ~Message.is_deleted,
             )
-            .order_by(desc(Message.created_at))
+            .order_by(desc(Message.created_at), desc(Message.id))
             .limit(5)
             .all()
         )
@@ -457,7 +457,7 @@ class AssistantAgentService(BaseService):
                 Conversation.summary != "",
                 ~Conversation.is_deleted,
             )
-            .order_by(desc(Conversation.updated_at))
+            .order_by(desc(Conversation.updated_at), desc(Conversation.id))
             .limit(3)
             .all()
         )
