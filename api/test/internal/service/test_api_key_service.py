@@ -540,9 +540,14 @@ class TestApiKeyService:
             def __init__(self):
                 super().__init__(all_result=[])
                 self.criteria = []
+                self.ordering = ()
 
             def filter(self, *criteria, **kwargs):
                 self.criteria.extend(criteria)
+                return self
+
+            def order_by(self, *columns):
+                self.ordering = tuple(map(str, columns))
                 return self
 
         query = _AccountScopedQuery()
@@ -576,4 +581,5 @@ class TestApiKeyService:
         assert account_filter.left.name == "account_id"
         assert account_filter.left.table.name == ApiKey.__tablename__
         assert account_filter.right.value == account.id
+        assert query.ordering == ("api_key.created_at DESC", "api_key.id DESC")
         assert isinstance(paginator, _Paginator)
