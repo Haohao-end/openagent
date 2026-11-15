@@ -100,14 +100,11 @@ export const useDeleteDataset = () => {
         '删除知识库后，关联该知识库的应用将无法再使用该知识库，所有的提示配置和文档都将被永久删除',
       hideCancel: false,
       onOk: async () => {
-        try {
-          // 1.点击确定后向API接口发起请求
-          const resp = await deleteDataset(dataset_id)
-          Message.success(resp.message)
-        } finally {
-          // 2.调用callback函数指定回调功能
-          callback && callback()
-        }
+        // 1.点击确定后向API接口发起请求
+        const resp = await deleteDataset(dataset_id)
+        Message.success(resp.message)
+        // 2.调用callback函数指定回调功能
+        callback && callback()
       },
     })
   }
