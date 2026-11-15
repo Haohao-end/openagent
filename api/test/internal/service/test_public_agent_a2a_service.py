@@ -9,6 +9,7 @@ from flask import Flask, has_app_context
 from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
 from internal.entity.conversation_entity import MessageStatus
 from internal.exception import NotFoundException, ValidateErrorException
+from internal.model import Conversation, Message
 from internal.service.public_agent_a2a_service import PublicAgentA2AService
 from internal.service.public_agent_registry_service import PublicAgentRegistryService
 
@@ -23,6 +24,49 @@ def _build_service(**kwargs) -> PublicAgentA2AService:
 
 
 class TestPublicAgentA2AService:
+    def test_list_public_app_conversation_messages_should_use_stable_order(self, monkeypatch):
+        app = SimpleNamespace(id=uuid4(), account_id=uuid4())
+        conversation = SimpleNamespace(id=uuid4())
+
+        class _ConversationQuery:
+            def filter(self, *_args):
+                return self
+
+            def one_or_none(self):
+                return conversation
+
+        class _MessagesQuery:
+            def filter(self, *_args):
+                return self
+
+            def options(self, *_args):
+                return self
+
+            def order_by(self, *columns):
+                self.ordering = tuple(map(str, columns))
+                return self
+
+            def all(self):
+                return []
+
+        messages_query = _MessagesQuery()
+        queries = {
+            Conversation: _ConversationQuery(),
+            Message: messages_query,
+        }
+        service = _build_service(
+            db=SimpleNamespace(session=SimpleNamespace(query=lambda model: queries[model]))
+        )
+        monkeypatch.setattr(service, "_get_public_app", lambda _app_id: app)
+
+        result = service.list_public_app_conversation_messages(app.id, conversation.id)
+
+        assert result == []
+        assert messages_query.ordering == (
+            "message.created_at DESC",
+            "message.id DESC",
+        )
+
     @pytest.mark.parametrize("method", ["_extract_query_from_payload", "_extract_answer_text"])
     def test_extracts_all_text_parts_in_order(self, method):
         payload = {"message": {"parts": [
