@@ -244,6 +244,104 @@ describe('LayoutSidebar home navigation', () => {
     wrapper.unmount()
   })
 
+  it('restarts bootstrap for the active account when a stale bootstrap completes', async () => {
+    let resolveStaleBootstrap!: (val: string) => void
+    const staleBootstrapPromise = new Promise((resolve) => {
+      resolveStaleBootstrap = resolve
+    })
+
+    // 账号 A 在 bootstrap 中发起限额 40 请求并挂起
+    mocks.loadRecentConversations.mockImplementation(async (limit: number) => {
+      if (limit === 40) {
+        return staleBootstrapPromise as any
+      }
+      mocks.recentConversationsRef.value = Array.from({ length: limit }, (_, i) =>
+        createRecentConversation(i),
+      )
+      return 'APPLIED'
+    })
+
+    const wrapper = mountSidebar()
+    const list = wrapper.get('.recent-conversation-list')
+    Object.defineProperties(list.element, {
+      scrollTop: { value: 0, writable: true, configurable: true },
+      clientHeight: { value: 400, configurable: true },
+      scrollHeight: { value: 400, configurable: true },
+    })
+    await flushPromises()
+
+    // 切换至账号 B，账号 B 数据列表不可滚动，需 bootstrap 补充数据
+    const accountBCalledLimits: number[] = []
+    mocks.loadRecentConversations.mockImplementation(async (limit: number) => {
+      accountBCalledLimits.push(limit)
+      mocks.recentConversationsRef.value = Array.from({ length: limit }, (_, i) =>
+        createRecentConversation(2000 + i),
+      )
+      return 'APPLIED'
+    })
+    mocks.credentialState.credential = { access_token: 'token-account-b' }
+    await flushPromises()
+
+    // 账号 B 完成初始 20 条加载，但由于旧 bootstrap 仍在运行，标记了 pendingBootstrapSessionId
+    expect(accountBCalledLimits).toEqual([20])
+
+    // 旧账号 A 的 bootstrap 完成（返回 STALE 并退出循环）
+    resolveStaleBootstrap('STALE')
+    await flushPromises()
+
+    // 账号 B 的 bootstrap 应当被顺利唤醒执行，继续加载下一批（40 条）
+    expect(accountBCalledLimits).toContain(40)
+    wrapper.unmount()
+  })
+
+  it('does not restart bootstrap if the sidebar unmounts while stale bootstrap was in flight', async () => {
+    let resolveStaleBootstrap!: (val: string) => void
+    const staleBootstrapPromise = new Promise((resolve) => {
+      resolveStaleBootstrap = resolve
+    })
+
+    mocks.loadRecentConversations.mockImplementation(async (limit: number) => {
+      if (limit === 40) {
+        return staleBootstrapPromise as any
+      }
+      mocks.recentConversationsRef.value = Array.from({ length: limit }, (_, i) =>
+        createRecentConversation(i),
+      )
+      return 'APPLIED'
+    })
+
+    const wrapper = mountSidebar()
+    const list = wrapper.get('.recent-conversation-list')
+    Object.defineProperties(list.element, {
+      scrollTop: { value: 0, writable: true, configurable: true },
+      clientHeight: { value: 400, configurable: true },
+      scrollHeight: { value: 400, configurable: true },
+    })
+    await flushPromises()
+
+    const accountBCalledLimits: number[] = []
+    mocks.loadRecentConversations.mockImplementation(async (limit: number) => {
+      accountBCalledLimits.push(limit)
+      mocks.recentConversationsRef.value = Array.from({ length: limit }, (_, i) =>
+        createRecentConversation(2000 + i),
+      )
+      return 'APPLIED'
+    })
+    mocks.credentialState.credential = { access_token: 'token-account-b' }
+    await flushPromises()
+
+    // 卸载组件
+    wrapper.unmount()
+    accountBCalledLimits.length = 0
+
+    // 此时旧请求完成返回
+    resolveStaleBootstrap('STALE')
+    await flushPromises()
+
+    // 已卸载的组件不得触发后续 bootstrap
+    expect(accountBCalledLimits).toEqual([])
+  })
+
   it('navigates to plain home when a logged-in user clicks Home', async () => {
     const wrapper = mountSidebar()
     await flushPromises()
