@@ -10,7 +10,7 @@ from sqlalchemy import desc, asc, func
 from internal.entity.cache_entity import LOCK_DOCUMENT_UPDATE_ENABLED, LOCK_EXPIRE_TIME
 from internal.entity.dataset_entity import ProcessType, DocumentStatus, SegmentStatus
 from internal.entity.upload_file_entity import ALLOWED_DOCUMENT_EXTENSION
-from internal.exception import ForbiddenException, FailException, NotFoundException
+from internal.exception import ForbiddenException, FailException, NotFoundException, ValidateErrorException
 from internal.lib.helper import datetime_to_timestamp
 from internal.model import Dataset, Document, Segment, UploadFile, ProcessRule, Account
 from internal.schema.document_schema import GetDocumentsWithPageReq
@@ -18,6 +18,9 @@ from internal.task.document_task import build_documents, update_document_enabled
 from pkg.paginator import Paginator
 from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
+
+
+_DOCUMENT_ALLOWED_UPDATE_FIELDS = frozenset({"name"})
 
 
 @inject
@@ -175,7 +178,19 @@ class DocumentService(BaseService):
         if document.dataset_id != dataset_id or document.account_id != account.id:
             raise ForbiddenException("当前用户无权限修改该文档，请核实后重试")
 
-        return self.update(document, **kwargs)
+        updates = {k: v for k, v in kwargs.items() if k in _DOCUMENT_ALLOWED_UPDATE_FIELDS}
+        if "name" in updates:
+            name = str(updates["name"] or "").strip()
+            if not name:
+                raise ValidateErrorException("文档名称不能为空")
+            if len(name) > 100:
+                raise ValidateErrorException("文档的名称长度不能超过100")
+            updates["name"] = name
+
+        if updates:
+            self.update(document, **updates)
+
+        return document
 
     def update_document_enabled(
             self,
