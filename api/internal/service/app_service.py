@@ -70,6 +70,7 @@ from ..entity.workflow_entity import WorkflowStatus
 
 
 MAX_AUTO_CREATE_SELECTED_TOOLS = 5
+_APP_ALLOWED_UPDATE_FIELDS = frozenset({"name", "icon", "description"})
 
 
 class AutoCreateToolSelection(BaseModel):
@@ -580,7 +581,17 @@ class AppService(BaseService):
     def update_app(self, app_id: UUID, account: Account, **kwargs) -> App:
         """根据传递的应用id+账号+信息,更新指定的应用"""
         app = self.get_app(app_id, account)
-        self.update(app, **kwargs)
+        updates = {k: v for k, v in kwargs.items() if k in _APP_ALLOWED_UPDATE_FIELDS}
+        if "name" in updates:
+            name = str(updates["name"] or "").strip()
+            if not name:
+                raise ValidateErrorException("应用名称不能为空")
+            if len(name) > 40:
+                raise ValidateErrorException("应用名称长度最大不能超过40个字符")
+            updates["name"] = name
+
+        if updates:
+            self.update(app, **updates)
         return app
 
     def copy_app(self, app_id: UUID, account: Account) -> App:

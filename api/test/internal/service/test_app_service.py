@@ -898,10 +898,47 @@ class TestAppService:
             lambda target, **kwargs: updates.append((target, kwargs)) or target,
         )
 
-        result = service.update_app(app.id, account, name="new")
+        result = service.update_app(
+            app.id,
+            account,
+            name="  new  ",
+            icon="https://icon.png",
+            description="desc",
+            account_id=uuid4(),
+            status="published",
+        )
 
         assert result is app
-        assert updates == [(app, {"name": "new"})]
+        assert updates == [(app, {"name": "new", "icon": "https://icon.png", "description": "desc"})]
+
+    def test_update_app_should_raise_when_name_invalid(self, monkeypatch):
+        service = _build_service()
+        account = SimpleNamespace(id=uuid4())
+        app = SimpleNamespace(id=uuid4(), account_id=account.id, name="old")
+        monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: app)
+
+        with pytest.raises(ValidateErrorException, match="应用名称不能为空"):
+            service.update_app(app.id, account, name="   ")
+
+        with pytest.raises(ValidateErrorException, match="应用名称长度最大不能超过40个字符"):
+            service.update_app(app.id, account, name="a" * 41)
+
+    def test_update_app_no_update_called_when_all_fields_unallowed(self, monkeypatch):
+        service = _build_service()
+        account = SimpleNamespace(id=uuid4())
+        app = SimpleNamespace(id=uuid4(), account_id=account.id, name="old")
+        monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: app)
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        result = service.update_app(app.id, account, account_id=uuid4(), status="published")
+
+        assert result is app
+        assert updates == []
 
     def test_get_app_should_raise_when_not_found(self, monkeypatch):
         service = _build_service()
