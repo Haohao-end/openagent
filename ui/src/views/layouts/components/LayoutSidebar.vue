@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import type { RecentConversation } from '@/models/conversation'
-import { useDeleteConversation, useGetRecentConversations } from '@/hooks/use-conversation'
+import {
+  useDeleteConversation,
+  useGetRecentConversations,
+  type LoadRecentConversationsResult,
+} from '@/hooks/use-conversation'
 import { useCredentialStore } from '@/stores/credential'
 import { isCredentialLoggedIn } from '@/utils/auth'
 import UpdateConversationNameModal from '@/views/layouts/components/UpdateConversationNameModal.vue'
@@ -76,7 +80,10 @@ const isRecentConversationsScrollable = () => {
   return listElement.scrollHeight > listElement.clientHeight + RECENT_CONVERSATIONS_SCROLL_THRESHOLD
 }
 
+let sidebarSessionId = 0
+
 const bootstrapRecentConversations = async () => {
+  const session = sidebarSessionId
   if (
     recentConversationsBootstrapRunning.value ||
     props.collapsed ||
@@ -93,24 +100,30 @@ const bootstrapRecentConversations = async () => {
     let rounds = 0
 
     while (
+      session === sidebarSessionId &&
       rounds < maxRounds &&
       hasMoreRecentConversations.value &&
       !isRecentConversationsScrollable()
     ) {
       const previousCount = recentConversations.value.length
+      const previousLimit = recentConversationsLimit.value
       const nextLimit = Math.min(
-        recentConversationsLimit.value + RECENT_CONVERSATIONS_LOAD_STEP,
+        previousLimit + RECENT_CONVERSATIONS_LOAD_STEP,
         MAX_RECENT_CONVERSATIONS_LIMIT,
       )
 
-      if (nextLimit === recentConversationsLimit.value) {
+      if (nextLimit === previousLimit) {
         hasMoreRecentConversations.value = false
         recentConversationsBottomLocked.value = false
         break
       }
 
+      const status = await loadRecentConversationsHook(nextLimit)
+      if (session !== sidebarSessionId || status !== 'APPLIED') {
+        break
+      }
+
       recentConversationsLimit.value = nextLimit
-      await loadRecentConversationsHook(nextLimit)
       const nextCount = recentConversations.value.length
       syncRecentConversationsHasMore(previousCount, nextCount, nextLimit)
       rounds += 1
@@ -129,13 +142,16 @@ const bootstrapRecentConversations = async () => {
 }
 
 // 2.定义加载最近会话列表函数
-const loadRecentConversations = async (reset = false) => {
+const loadRecentConversations = async (
+  reset = false,
+): Promise<LoadRecentConversationsResult> => {
+  const session = sidebarSessionId
   if (!isLoggedIn.value) {
     recentConversations.value = []
     recentConversationsLimit.value = DEFAULT_RECENT_CONVERSATIONS_LIMIT
     hasMoreRecentConversations.value = true
     recentConversationsBottomLocked.value = false
-    return
+    return 'APPLIED'
   }
 
   if (reset) {
@@ -146,17 +162,23 @@ const loadRecentConversations = async (reset = false) => {
 
   const limit = Math.min(recentConversationsLimit.value, MAX_RECENT_CONVERSATIONS_LIMIT)
   const previousCount = reset ? 0 : recentConversations.value.length
+  const status = await loadRecentConversationsHook(limit)
+  if (session !== sidebarSessionId || status !== 'APPLIED') {
+    return status === 'ERROR' && session === sidebarSessionId ? 'ERROR' : 'STALE'
+  }
+
   recentConversationsLimit.value = limit
-  await loadRecentConversationsHook(limit)
   syncRecentConversationsHasMore(previousCount, recentConversations.value.length, limit)
   await nextTick()
 
   if (!props.collapsed && !recentConversationsBootstrapRunning.value) {
     await bootstrapRecentConversations()
   }
+  return status
 }
 
 const loadMoreRecentConversations = async () => {
+  const session = sidebarSessionId
   if (
     getRecentConversationsLoading.value ||
     !hasMoreRecentConversations.value ||
@@ -170,20 +192,32 @@ const loadMoreRecentConversations = async () => {
     previousLimit + RECENT_CONVERSATIONS_LOAD_STEP,
     MAX_RECENT_CONVERSATIONS_LIMIT,
   )
-  if (nextLimit === recentConversationsLimit.value) {
+  if (nextLimit === previousLimit) {
     hasMoreRecentConversations.value = false
     recentConversationsBottomLocked.value = false
     return
   }
-  recentConversationsLimit.value = nextLimit
   try {
-    await loadRecentConversations(false)
+    const status = await loadRecentConversationsHook(nextLimit)
+    if (session !== sidebarSessionId || status !== 'APPLIED') {
+      if (session === sidebarSessionId) {
+        recentConversationsBottomLocked.value = false
+      }
+      return
+    }
+    recentConversationsLimit.value = nextLimit
+    syncRecentConversationsHasMore(
+      recentConversations.value.length - RECENT_CONVERSATIONS_LOAD_STEP,
+      recentConversations.value.length,
+      nextLimit,
+    )
     if (!hasMoreRecentConversations.value) {
       recentConversationsBottomLocked.value = false
     }
   } catch (error) {
-    recentConversationsLimit.value = previousLimit
-    recentConversationsBottomLocked.value = false
+    if (session === sidebarSessionId) {
+      recentConversationsBottomLocked.value = false
+    }
     console.error('Failed to load more recent conversations:', error instanceof Error ? error.name : 'unknown_error')
   }
 }
@@ -335,8 +369,12 @@ const handleRecentConversationsLeave = () => {
 watch(
   () => credentialStore.credential,
   async () => {
+    sidebarSessionId += 1
     invalidateRecentConversations()
     recentConversations.value = []
+    recentConversationsLimit.value = DEFAULT_RECENT_CONVERSATIONS_LIMIT
+    hasMoreRecentConversations.value = true
+    recentConversationsBottomLocked.value = false
     await loadRecentConversations(true)
   },
   { immediate: true },
