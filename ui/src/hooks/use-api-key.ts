@@ -33,12 +33,12 @@ export const useGetApiKeysWithPage = () => {
 
   // 2.定义加载数据函数
   const loadApiKeys = async (init: boolean = false) => {
-    const requestId = ++latestLoadRequest
-    const credential = credentialStore.credential
-    if (!init && paginator.value.current_page > paginator.value.total_page) {
-      loading.value = false
+    if (!init && (loading.value || paginator.value.current_page > paginator.value.total_page)) {
       return
     }
+
+    const requestId = ++latestLoadRequest
+    const credential = credentialStore.credential
 
     try {
       loading.value = true
