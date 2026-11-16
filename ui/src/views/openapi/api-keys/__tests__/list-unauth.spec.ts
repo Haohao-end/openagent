@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   handleUpdateApiKeyIsActive: vi.fn(),
   handleDeleteApiKey: vi.fn(),
   credentialState: { credential: { access_token: '', expire_at: 0 } },
-  apiKeys: { value: [] as Array<{ id: string; is_active?: boolean; expires_at?: number | null; last_used_at?: number | null; scopes?: string[] | null }> },
+  apiKeys: { value: [] as Array<{ id: string; is_active?: boolean; expires_at?: number | null; last_used_at?: number | null; scopes?: string[] | null; request_count?: number | null }> },
 }))
 
 vi.mock('vue-router', async (importOriginal) => {
@@ -38,7 +38,7 @@ vi.mock('@/stores/credential', async () => {
 
 vi.mock('@/hooks/use-api-key', async () => {
   const { ref } = await import('vue')
-  mocks.apiKeys = ref([] as Array<{ id: string; is_active?: boolean; expires_at?: number | null; last_used_at?: number | null; scopes?: string[] | null }>)
+  mocks.apiKeys = ref([] as Array<{ id: string; is_active?: boolean; expires_at?: number | null; last_used_at?: number | null; scopes?: string[] | null; request_count?: number | null }>)
   return {
     useGetApiKeysWithPage: () => ({
       loading: ref(false),
@@ -155,6 +155,44 @@ describe('openapi api-keys credential state', () => {
     expect(wrapper.text()).toContain('无权限范围')
     expect(wrapper.text()).toContain('已过期')
     expect(wrapper.text()).toContain('暂无使用记录')
+  })
+
+  it('displays cumulative request count, falls back to 0 for unused or legacy keys, and hides raw secret', async () => {
+    const wrapper = shallowMount(ApiKeysListView, {
+      props: { create_api_key: false },
+      global: {
+        stubs: {
+          'a-button': buttonStub,
+          'a-table': tableStub,
+          'a-table-column': tableColumnStub,
+          'a-tooltip': true,
+          'a-switch': true,
+          'icon-safe': true,
+          'icon-clock-circle': true,
+          'icon-edit': true,
+          'icon-delete': true,
+          'create-or-update-api-key-modal': true,
+        },
+      },
+    })
+    await flushPromises()
+    mocks.credentialState.credential = { access_token: 'token', expire_at: 4102444800 }
+    await flushPromises()
+    mocks.apiKeys.value = [
+      { id: 'used-key', is_active: true, request_count: 128 },
+      { id: 'unused-key', is_active: true, request_count: 0 },
+      { id: 'legacy-key', is_active: true },
+      { id: 'null-count-key', is_active: true, request_count: null },
+    ]
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('128')
+    // 未使用或缺失 request_count 的 Key 均展示 0
+    expect(text).toContain('0')
+    // 列表不显示任何敏感原始密钥（如 sk-xxx）
+    expect(text).not.toContain('sk-')
+    expect(text).not.toContain('secret')
   })
 
   it('updates an active key to expired when its expiration time arrives', async () => {
