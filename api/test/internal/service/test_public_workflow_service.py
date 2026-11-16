@@ -465,6 +465,42 @@ class TestPublicWorkflowService:
         assert re.fullmatch(name_filter.value, f"{base_tool_call_name}_23")
         assert not re.fullmatch(name_filter.value, "unrelated_workflow")
 
+    def test_fork_public_workflow_regex_does_not_generate_oversized_prefixes(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        account_suffix = f"_copy_{account.id.hex[:8]}"
+        source = SimpleNamespace(
+            id=uuid4(),
+            is_public=True,
+            status=WorkflowStatus.PUBLISHED.value,
+            name="公开工作流",
+            tool_call_name="p" * 61,
+            icon="https://icon",
+            description="desc",
+            graph={"nodes": [], "edges": []},
+            tags=[AppCategory.GENERAL.value],
+        )
+        existing_fork_name = f"{'p' * 36}{account_suffix}"
+        session = _QueueSession([
+            _Query(one_or_none_result=source),
+            _Query(),
+            _Query(all_result=[(existing_fork_name,)]),
+        ])
+        service = _build_service(session=session)
+        monkeypatch.setattr("internal.service.public_workflow_service.Workflow", _FakeWorkflow)
+
+        fork = service.fork_public_workflow(source.id, account)
+
+        name_filter = session.queried_queries[2].filter_args[1]
+        pattern = name_filter.value
+        max_possible_prefix_len = MAX_FORK_TOOL_CALL_NAME_LENGTH - len(account_suffix)
+        assert f"{'p' * 61}" not in pattern
+        assert f"{'p' * 50}" not in pattern
+        assert f"{'p' * (max_possible_prefix_len + 1)}" not in pattern
+        assert pattern.startswith(f"^(?:{'p' * max_possible_prefix_len}|")
+        assert fork.tool_call_name == f"{'p' * 34}{account_suffix}_2"
+        assert re.fullmatch(pattern, existing_fork_name)
+        assert re.fullmatch(pattern, fork.tool_call_name)
+
     def test_fork_public_workflow_should_keep_function_name_within_provider_limit(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         source = SimpleNamespace(

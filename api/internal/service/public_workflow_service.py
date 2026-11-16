@@ -186,9 +186,13 @@ class PublicWorkflowService(BaseService):
 
         account_tool_suffix = f"_copy_{account.id.hex[:8]}"
         max_tool_call_name_length = MAX_FORK_TOOL_CALL_NAME_LENGTH
+        max_source_prefix_length = min(
+            len(public_workflow.tool_call_name),
+            max_tool_call_name_length - len(account_tool_suffix)
+        )
         source_prefixes = "|".join(
             re.escape(public_workflow.tool_call_name[:length])
-            for length in range(len(public_workflow.tool_call_name), -1, -1)
+            for length in range(max_source_prefix_length, -1, -1)
         )
         fork_name_pattern = (
             f"^(?:{source_prefixes}){re.escape(account_tool_suffix)}"
