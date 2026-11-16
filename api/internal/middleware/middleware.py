@@ -44,26 +44,23 @@ class Middleware:
             # 4.校验获取api_key
             api_key = self._validate_credential(request)
 
-            # 5.接信息得到API密钥记录
+            # 5.根据凭证获取API密钥记录并严格按序校验
             api_key_record = self.api_key_service.get_api_by_by_credential(api_key)
+            if not api_key_record or not getattr(api_key_record, "is_active", False):
+                raise UnauthorizedException("该密钥不存在或未激活")
 
-            # 6.判断API密钥记录是否存在/是否被激活 如果不存在则抛出错误
-            expires_at = getattr(api_key_record, "expires_at", None) if api_key_record else None
-            account = getattr(api_key_record, "account", None) if api_key_record else None
-            if (
-                not api_key_record
-                or not api_key_record.is_active
-                or not account
-                or (
-                    expires_at is not None
-                    and ensure_utc_naive(expires_at) <= utc_now_naive()
-                )
-            ):
+            expires_at = getattr(api_key_record, "expires_at", None)
+            if expires_at is not None and ensure_utc_naive(expires_at) <= utc_now_naive():
                 raise UnauthorizedException("该密钥不存在或未激活")
 
             scopes = getattr(api_key_record, "scopes", None)
             if scopes is not None and not self._api_key_has_scope(scopes, request.endpoint):
                 raise ForbiddenException("该密钥没有调用此接口的权限")
+
+            # 6.所有凭证与权限校验通过后，再加载绑定账号
+            account = getattr(api_key_record, "account", None)
+            if not account:
+                raise UnauthorizedException("该密钥不存在或未激活")
 
             try:
                 self.api_key_service.record_api_key_request(api_key_record)
