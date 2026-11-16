@@ -523,6 +523,70 @@ class TestDatasetService:
         assert result[0]["score"] == 0.91
         assert result[1]["score"] == 0.77
 
+    def test_hit_should_batch_preload_documents_and_files_and_handle_none(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        seg1_id = uuid4()
+        seg2_id = uuid4()
+        doc1_id = uuid4()
+        file1_id = uuid4()
+
+        lc_doc1 = SimpleNamespace(metadata={"segment_id": str(seg1_id), "score": 0.95})
+        lc_doc2 = SimpleNamespace(metadata={"segment_id": str(seg2_id), "score": 0.85})
+
+        seg1 = SimpleNamespace(
+            id=seg1_id, dataset_id=dataset_id, document_id=doc1_id, position=1, content="seg1",
+            keywords=[], character_count=10, token_count=5, hit_count=1, enabled=True,
+            disabled_at=None, status="completed", error="", updated_at=None, created_at=None,
+        )
+        seg2 = SimpleNamespace(
+            id=seg2_id, dataset_id=dataset_id, document_id=None, position=2, content="seg2",
+            keywords=[], character_count=20, token_count=10, hit_count=0, enabled=True,
+            disabled_at=None, status="completed", error="", updated_at=None, created_at=None,
+        )
+        doc1 = SimpleNamespace(id=doc1_id, name="doc1.txt", upload_file_id=file1_id)
+        file1 = SimpleNamespace(id=file1_id, extension="txt", mime_type="text/plain")
+
+        class _Session:
+            def __init__(self):
+                self.queries = []
+
+            def query(self, model):
+                self.queries.append(model)
+                if len(self.queries) == 1:
+                    return _QueryStub(all_result=[seg1, seg2])
+                if len(self.queries) == 2:
+                    return _QueryStub(all_result=[doc1])
+                return _QueryStub(all_result=[file1])
+
+        session = _Session()
+        retrieval = SimpleNamespace(
+            search_in_datasets=lambda **_kwargs: [lc_doc1, lc_doc2]
+        )
+        service = _new_dataset_service(
+            db=SimpleNamespace(session=session),
+            retrieval_service=retrieval,
+        )
+        monkeypatch.setattr(
+            service, "get",
+            lambda *_args, **_kwargs: SimpleNamespace(id=dataset_id, account_id=account.id),
+        )
+
+        result = service.hit(
+            dataset_id,
+            SimpleNamespace(data={"query": "test", "retrieval_strategy": "semantic", "k": 2, "score": 0}),
+            account,
+        )
+
+        assert len(result) == 2
+        assert len(session.queries) == 3
+        assert result[0]["id"] == seg1_id
+        assert result[0]["document"]["name"] == "doc1.txt"
+        assert result[0]["document"]["extension"] == "txt"
+        assert result[1]["id"] == seg2_id
+        assert result[1]["document"]["name"] == ""
+        assert result[1]["document"]["extension"] == ""
+
     def test_hit_should_raise_when_dataset_not_accessible(self, monkeypatch):
         service = _new_dataset_service(
             db=SimpleNamespace(session=SimpleNamespace(query=lambda _model: _QueryStub(all_result=[]))),

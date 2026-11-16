@@ -8,7 +8,7 @@ from sqlalchemy import desc, func
 from internal.entity.dataset_entity import DEFAULT_DATASET_DESCRIPTION_FORMATTER
 from internal.exception import ValidateErrorException, NotFoundException, FailException
 from internal.lib.helper import datetime_to_timestamp
-from internal.model import Dataset, Document, Segment, DatasetQuery, AppDatasetJoin, Account
+from internal.model import Dataset, Document, Segment, DatasetQuery, AppDatasetJoin, Account, UploadFile
 from internal.schema.dataset_schema import (
     CreateDatasetReq,
     UpdateDatasetReq,
@@ -180,18 +180,37 @@ class DatasetService(BaseService):
             if str(lc_document.metadata["segment_id"]) in segment_dict
         ]
 
-        # 5.组装响应数据
+        # 5.批量查询关联文档和文件，避免在响应组装时产生 2*N 次单独查询
+        doc_ids = [s.document_id for s in sorted_segments if getattr(s, "document_id", None)]
+        documents = {
+            doc.id: doc
+            for doc in self.db.session.query(Document).filter(Document.id.in_(doc_ids)).all()
+        } if doc_ids else {}
+        upload_file_ids = [
+            doc.upload_file_id for doc in documents.values() if getattr(doc, "upload_file_id", None)
+        ]
+        upload_files = {
+            uf.id: uf
+            for uf in self.db.session.query(UploadFile).filter(UploadFile.id.in_(upload_file_ids)).all()
+        } if upload_file_ids else {}
+
+        # 6.组装响应数据
         hit_result = []
         for segment in sorted_segments:
-            document = segment.document
-            upload_file = document.upload_file
+            document = documents.get(getattr(segment, "document_id", None))
+            if document is None:
+                document = getattr(segment, "document", None)
+            upload_file = upload_files.get(getattr(document, "upload_file_id", None)) if document else None
+            if upload_file is None and document:
+                upload_file = getattr(document, "upload_file", None)
+
             hit_result.append({
                 "id": segment.id,
                 "document": {
-                    "id": document.id,
-                    "name": document.name,
-                    "extension": upload_file.extension,
-                    "mime_type": upload_file.mime_type,
+                    "id": getattr(document, "id", None) if document else None,
+                    "name": getattr(document, "name", "") if document else "",
+                    "extension": getattr(upload_file, "extension", "") if upload_file else "",
+                    "mime_type": getattr(upload_file, "mime_type", "") if upload_file else "",
                 },
                 "dataset_id": segment.dataset_id,
                 "score": lc_document_dict[str(segment.id)].metadata["score"],
