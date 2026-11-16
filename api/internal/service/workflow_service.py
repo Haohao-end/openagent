@@ -120,13 +120,19 @@ class WorkflowService(BaseService):
         workflow = self.get_workflow(workflow_id, account)
 
         # 2.根据传递的工具调用名字查询是否存在重名工作流
-        check_workflow = self.db.session.query(Workflow).filter(
-            Workflow.tool_call_name == kwargs.get("tool_call_name", "").strip(),
-            Workflow.account_id == account.id,
-            Workflow.id != workflow.id,
-        ).one_or_none()
-        if check_workflow:
-            raise ValidateErrorException(f"在当前账号下已创建[{kwargs.get('tool_call_name', '')}]工作流，不支持重名")
+        if "tool_call_name" in kwargs:
+            tool_call_name = kwargs.get("tool_call_name", "").strip()
+            existing_tool_call_name = getattr(workflow, "tool_call_name", "")
+            if tool_call_name != existing_tool_call_name and len(tool_call_name) > 50:
+                raise ValidateErrorException("英文名称不能超过50个字符")
+
+            check_workflow = self.db.session.query(Workflow).filter(
+                Workflow.tool_call_name == tool_call_name,
+                Workflow.account_id == account.id,
+                Workflow.id != workflow.id,
+            ).one_or_none()
+            if check_workflow:
+                raise ValidateErrorException(f"在当前账号下已创建[{kwargs.get('tool_call_name', '')}]工作流，不支持重名")
 
         # 3.更新工作流基础信息
         self.update(workflow, **kwargs)
