@@ -108,28 +108,42 @@ class DocumentService(BaseService):
         if documents is None or len(documents) == 0:
             raise NotFoundException("该处理批次未发现文档，请核实后重试")
 
-        # 3.循环遍历文档列表提取文档的状态信息
+        # 3.批量查询片段数、已完成片段数及上传文件，消除 N+1 查询
+        doc_ids = [doc.id for doc in documents]
+        segment_counts = dict(
+            self.db.session.query(Segment.document_id, func.count(Segment.id))
+            .filter(Segment.document_id.in_(doc_ids))
+            .group_by(Segment.document_id)
+            .all()
+        )
+        completed_counts = dict(
+            self.db.session.query(Segment.document_id, func.count(Segment.id))
+            .filter(Segment.document_id.in_(doc_ids), Segment.status == SegmentStatus.COMPLETED.value)
+            .group_by(Segment.document_id)
+            .all()
+        )
+        upload_file_ids = [doc.upload_file_id for doc in documents if getattr(doc, "upload_file_id", None)]
+        upload_files = {
+            uf.id: uf
+            for uf in self.db.session.query(UploadFile).filter(UploadFile.id.in_(upload_file_ids)).all()
+        } if upload_file_ids else {}
+
+        # 4.循环遍历文档列表提取文档的状态信息
         documents_status = []
         for document in documents:
-            # 4.查询每个文档的总片段数和已构建完成的片段数
-            segment_count = self.db.session.query(func.count(Segment.id)).filter(
-                Segment.document_id == document.id,
-            ).scalar()
-            completed_segment_count = self.db.session.query(func.count(Segment.id)).filter(
-                Segment.document_id == document.id,
-                Segment.status == SegmentStatus.COMPLETED.value,
-            ).scalar()
+            upload_file = upload_files.get(getattr(document, "upload_file_id", None))
+            if upload_file is None:
+                upload_file = getattr(document, "upload_file", None)
 
-            upload_file = document.upload_file
             documents_status.append({
                 "id": document.id,
                 "name": document.name,
-                "size": upload_file.size,
-                "extension": upload_file.extension,
-                "mime_type": upload_file.mime_type,
+                "size": getattr(upload_file, "size", 0) if upload_file else 0,
+                "extension": getattr(upload_file, "extension", "") if upload_file else "",
+                "mime_type": getattr(upload_file, "mime_type", "") if upload_file else "",
                 "position": document.position,
-                "segment_count": segment_count,
-                "completed_segment_count": completed_segment_count,
+                "segment_count": segment_counts.get(document.id, 0),
+                "completed_segment_count": completed_counts.get(document.id, 0),
                 "error": document.error,
                 "status": document.status,
                 "processing_started_at": datetime_to_timestamp(document.processing_started_at),
