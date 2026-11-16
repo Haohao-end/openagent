@@ -41,6 +41,8 @@ class ConversationService(BaseService):
     _conversation_name_cache_lock: ClassVar[RLock] = RLock()
     _conversation_name_cache: ClassVar[OrderedDict[str, tuple[str, str]]] = OrderedDict()
     _conversation_name_cache_limit: ClassVar[int] = 1024
+    _recent_conversations_min_batch_size: ClassVar[int] = 20
+    _recent_conversations_max_batch_size: ClassVar[int] = 100
 
     @staticmethod
     def _normalize_paginated_ids(paginated_items: list[Any]) -> list[Any]:
@@ -456,97 +458,102 @@ class ConversationService(BaseService):
         if not message_by_conversation:
             return []
 
-        conversation_ids = list(message_by_conversation.keys())
+        ordered_candidate_messages = list(message_by_conversation.values())
 
-        # 3.批量查询会话数据，只允许当前账号私有会话或公开服务会话进入列表
-        conversations = (
-            self.db.session.query(Conversation)
-            .filter(
-                Conversation.id.in_(conversation_ids),
-                (
-                    (Conversation.created_by == account.id)
-                    | (Conversation.invoke_from == InvokeFrom.SERVICE_API.value)
-                ),
-                ~Conversation.is_deleted,
-            )
-            .all()
+        # 3.有界批量查询会话与关联应用，避免一次性加载全部候选数据
+        batch_size = min(
+            max(safe_limit, self._recent_conversations_min_batch_size),
+            self._recent_conversations_max_batch_size,
         )
-        conversation_map = {conversation.id: conversation for conversation in conversations}
-
-        # 4.为调试会话、公开应用会话批量查询应用信息，以及为assistant_agent查询应用名称
-        app_ids = {
-            message.app_id
-            for message in message_by_conversation.values()
-            if message.invoke_from in (
-                InvokeFrom.DEBUGGER.value,
-                InvokeFrom.SERVICE_API.value,
-            )
-        }
-
-        # 添加assistant_agent的应用id
-        assistant_agent_id = current_app.config.get("ASSISTANT_AGENT_ID")
-        for message in message_by_conversation.values():
-            if message.invoke_from == InvokeFrom.ASSISTANT_AGENT.value and assistant_agent_id:
-                app_ids.add(assistant_agent_id)
-
-        apps = (
-            self.db.session.query(App)
-            .filter(App.id.in_(app_ids))
-            .all()
-            if app_ids
-            else []
-        )
-        app_map = {app.id: app for app in apps}
-
-        # 5.组装响应列表
         results = []
-        for message in message_by_conversation.values():
-            conversation = conversation_map.get(message.conversation_id)
-            if not conversation:
-                continue
+        app_map = {}
 
-            source_type = (
-                "assistant_agent"
-                if message.invoke_from == InvokeFrom.ASSISTANT_AGENT.value
-                else "public_app"
-                if message.invoke_from == InvokeFrom.SERVICE_API.value
-                else "app_debugger"
+        for batch_start in range(0, len(ordered_candidate_messages), batch_size):
+            batch_messages = ordered_candidate_messages[batch_start : batch_start + batch_size]
+            batch_conversation_ids = [message.conversation_id for message in batch_messages]
+
+            batch_conversations = (
+                self.db.session.query(Conversation)
+                .filter(
+                    Conversation.id.in_(batch_conversation_ids),
+                    (
+                        (Conversation.created_by == account.id)
+                        | (Conversation.invoke_from == InvokeFrom.SERVICE_API.value)
+                    ),
+                    ~Conversation.is_deleted,
+                )
+                .all()
             )
-            app_id = ""
-            app_name = ""
-            agent_name = ""
-            is_active = False
+            conversation_map = {conversation.id: conversation for conversation in batch_conversations}
 
-            if source_type == "assistant_agent":
-                agent_name = ASSISTANT_AGENT_DISPLAY_NAME
-                is_active = account.assistant_agent_conversation_id == conversation.id
-            else:
-                app = app_map.get(message.app_id)
-                if not app:
+            batch_app_ids = {
+                message.app_id
+                for message in batch_messages
+                if message.conversation_id in conversation_map
+                and message.invoke_from in (
+                    InvokeFrom.DEBUGGER.value,
+                    InvokeFrom.SERVICE_API.value,
+                )
+                and message.app_id
+                and message.app_id not in app_map
+            }
+
+            if batch_app_ids:
+                apps = (
+                    self.db.session.query(App)
+                    .filter(App.id.in_(batch_app_ids))
+                    .all()
+                )
+                for app in apps:
+                    app_map[app.id] = app
+
+            for message in batch_messages:
+                conversation = conversation_map.get(message.conversation_id)
+                if not conversation:
                     continue
-                app_id = str(app.id)
-                app_name = app.name
-                if source_type == "app_debugger":
-                    is_active = app.debug_conversation_id == conversation.id
 
-            results.append(
-                {
-                    "id": str(conversation.id),
-                    "name": conversation.name,
-                    "source_type": source_type,
-                    "app_id": app_id,
-                    "app_name": app_name,
-                    "agent_name": agent_name,
-                    "message_id": str(message.id),
-                    "is_active": is_active,
-                    "latest_message_at": datetime_to_timestamp(message.created_at),
-                    "created_at": datetime_to_timestamp(conversation.created_at),
-                    "human_message": message.query,
-                    "ai_message": message.answer,
-                }
-            )
-            if len(results) >= safe_limit:
-                break
+                source_type = (
+                    "assistant_agent"
+                    if message.invoke_from == InvokeFrom.ASSISTANT_AGENT.value
+                    else "public_app"
+                    if message.invoke_from == InvokeFrom.SERVICE_API.value
+                    else "app_debugger"
+                )
+                app_id = ""
+                app_name = ""
+                agent_name = ""
+                is_active = False
+
+                if source_type == "assistant_agent":
+                    agent_name = ASSISTANT_AGENT_DISPLAY_NAME
+                    is_active = account.assistant_agent_conversation_id == conversation.id
+                else:
+                    app = app_map.get(message.app_id)
+                    if not app:
+                        continue
+                    app_id = str(app.id)
+                    app_name = app.name
+                    if source_type == "app_debugger":
+                        is_active = app.debug_conversation_id == conversation.id
+
+                results.append(
+                    {
+                        "id": str(conversation.id),
+                        "name": conversation.name,
+                        "source_type": source_type,
+                        "app_id": app_id,
+                        "app_name": app_name,
+                        "agent_name": agent_name,
+                        "message_id": str(message.id),
+                        "is_active": is_active,
+                        "latest_message_at": datetime_to_timestamp(message.created_at),
+                        "created_at": datetime_to_timestamp(conversation.created_at),
+                        "human_message": message.query,
+                        "ai_message": message.answer,
+                    }
+                )
+                if len(results) >= safe_limit:
+                    return results
 
         return results
 
