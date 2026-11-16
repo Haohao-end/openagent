@@ -292,6 +292,19 @@ watch(
             </template>
           </a-table-column>
           <a-table-column
+            :title="t('openapi.apiKeys.columns.requestCount')"
+            data-index="request_count"
+            :width="120"
+            header-cell-class="!bg-gray-50 !text-gray-900 !font-semibold !border-b !border-gray-200"
+            cell-class="!py-4"
+          >
+            <template #cell="{ record }">
+              <span class="text-sm text-gray-600 whitespace-nowrap">
+                {{ typeof record.request_count === 'number' && Number.isFinite(record.request_count) ? record.request_count : 0 }}
+              </span>
+            </template>
+          </a-table-column>
+          <a-table-column
             :title="t('openapi.apiKeys.columns.scopes')"
             data-index="scopes"
             :width="180"

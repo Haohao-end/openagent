@@ -1022,6 +1022,7 @@ export default {
         createdAt: 'Created At',
         expiresAt: 'Expires At',
         lastUsedAt: 'Last Used',
+        requestCount: 'Request Count',
         scopes: 'Scopes',
         remark: 'Remark',
         actions: 'Actions',
@@ -1501,6 +1502,7 @@ export default {
     versions: {
       title: 'Version Comparison',
       description: 'Compare the configuration differences between the draft and published versions to confirm the scope of the current changes.',
+      loadFailed: 'Failed to load versions',
       currentApp: 'Current app: {name}',
       versionCount: '{count} versions available',
       changedSectionCount: '{count} changed sections',

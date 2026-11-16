@@ -29,6 +29,7 @@ export type GetApiKeysWithPageResponse = BasePaginatorResponse<{
   expires_at?: number | null
   last_used_at?: number | null
   scopes?: string[] | null
+  request_count?: number
   updated_at: number
   created_at: number
 }>

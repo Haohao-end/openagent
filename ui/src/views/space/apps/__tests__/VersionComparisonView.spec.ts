@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { flushPromises, mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import VersionComparisonView from '../VersionComparisonView.vue'
@@ -13,13 +14,27 @@ const mocks = vi.hoisted(() => ({
       app_id: 'app-1',
     },
   },
+  mockMessage: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
 }))
+
+const mockReactiveRoute = reactive(mocks.route)
 
 vi.mock('vue-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('vue-router')>()
   return {
     ...actual,
-    useRoute: () => mocks.route,
+    useRoute: () => mockReactiveRoute,
+  }
+})
+
+vi.mock('@arco-design/web-vue', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@arco-design/web-vue')>()
+  return {
+    ...actual,
+    Message: mocks.mockMessage,
   }
 })
 
@@ -138,6 +153,7 @@ const mountView = async () => {
 describe('VersionComparisonView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockReactiveRoute.params.app_id = 'app-1'
   })
 
   it('keeps the comparison shell full width and the scroll container stable', () => {
@@ -295,5 +311,106 @@ describe('VersionComparisonView', () => {
 
     expect(wrapper.find('[data-testid="comparison-section-dialog_round"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="comparison-section-model_config"]').exists()).toBe(true)
+  })
+
+  it('does not reset manual version selections when a superseded older request fails or resolves', async () => {
+    let rejectA!: (error: Error) => void
+    let resolveB!: (value: any) => void
+    const promiseA = new Promise((_, reject) => { rejectA = reject })
+    const promiseB = new Promise((resolve) => { resolveB = resolve })
+
+    mockReactiveRoute.params.app_id = 'app-A'
+    vi.mocked(appService.getVersions).mockImplementation((appId) => {
+      if (appId === 'app-A') return promiseA as never
+      if (appId === 'app-B') return promiseB as never
+      return Promise.resolve({ data: { list: [] } }) as never
+    })
+
+    const wrapper = mount(VersionComparisonView, {
+      props: {
+        app: {
+          id: 'app-A',
+          name: '应用 A',
+        },
+      },
+      global: {
+        stubs: {
+          'a-spin': slotStub,
+          'a-select': slotStub,
+          'a-option': slotStub,
+          'a-tag': slotStub,
+          'a-avatar': slotStub,
+          'a-switch': switchStub,
+          'a-empty': emptyStub,
+          'icon-apps': true,
+          'icon-storage': true,
+        },
+      },
+    })
+    await flushPromises()
+
+    // 路由切换至 app-B
+    mockReactiveRoute.params.app_id = 'app-B'
+    await flushPromises()
+
+    // app-B 加载成功
+    resolveB({
+      data: {
+        list: [
+          buildVersion({ id: 'b-v1', label: 'V1', is_current_published: false }),
+          buildVersion({ id: 'b-v2', label: 'V2', is_current_published: true }),
+          buildVersion({ id: 'b-v3', label: 'V3', is_current_published: false }),
+        ],
+      },
+    })
+    await flushPromises()
+
+    expect((wrapper.vm as any).leftVersionId).toBe('b-v1')
+    expect((wrapper.vm as any).rightVersionId).toBe('b-v2')
+
+    // 用户手动选择对比版本
+    ;(wrapper.vm as any).leftVersionId = 'b-v3'
+    ;(wrapper.vm as any).rightVersionId = 'b-v3'
+
+    // app-A 旧请求失败
+    rejectA(new Error('app-A network error'))
+    await flushPromises()
+
+    // 用户选择不被重置，且没有弹出 app-A 的错误提示
+    expect((wrapper.vm as any).leftVersionId).toBe('b-v3')
+    expect((wrapper.vm as any).rightVersionId).toBe('b-v3')
+    expect(mocks.mockMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('shows error feedback when current request fails and keeps selection empty', async () => {
+    mockReactiveRoute.params.app_id = 'app-error'
+    vi.mocked(appService.getVersions).mockRejectedValueOnce(new Error('获取版本失败'))
+
+    const wrapper = mount(VersionComparisonView, {
+      props: {
+        app: {
+          id: 'app-error',
+          name: '错误应用',
+        },
+      },
+      global: {
+        stubs: {
+          'a-spin': slotStub,
+          'a-select': slotStub,
+          'a-option': slotStub,
+          'a-tag': slotStub,
+          'a-avatar': slotStub,
+          'a-switch': switchStub,
+          'a-empty': emptyStub,
+          'icon-apps': true,
+          'icon-storage': true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(mocks.mockMessage.error).toHaveBeenCalledWith('获取版本失败')
+    expect((wrapper.vm as any).leftVersionId).toBe('')
+    expect((wrapper.vm as any).rightVersionId).toBe('')
   })
 })
