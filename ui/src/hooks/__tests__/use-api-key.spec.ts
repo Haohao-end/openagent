@@ -255,4 +255,67 @@ describe('useGetApiKeysWithPage', () => {
     expect(loading.value).toBe(false)
   })
 
+  it('allows newer pagination requests to supersede active ones when route page changes', async () => {
+    type PageResult = {
+      data: {
+        list: Array<{ id: string }>
+        paginator: { current_page: number; page_size: number; total_page: number; total_record: number }
+      }
+    }
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((res) => {
+        resolve = res
+      })
+      return { promise, resolve }
+    }
+
+    const page2Deferred = deferred<PageResult>()
+    const page3Deferred = deferred<PageResult>()
+    mocks.getApiKeysWithPage
+      .mockReturnValueOnce(page2Deferred.promise)
+      .mockReturnValueOnce(page3Deferred.promise)
+
+    const { api_keys, paginator, loading, loadApiKeys } = useGetApiKeysWithPage()
+    paginator.value = { current_page: 1, page_size: 20, total_page: 3, total_record: 50 }
+
+    // 路由变更至第 2 页，触发分页请求
+    mocks.routeQuery = { current_page: '2', page_size: '20' }
+    const page2Request = loadApiKeys(false)
+    expect(loading.value).toBe(true)
+
+    // 用户快速跳转或浏览历史前进至第 3 页，触发新的分页请求
+    mocks.routeQuery = { current_page: '3', page_size: '20' }
+    const page3Request = loadApiKeys(false)
+    expect(loading.value).toBe(true)
+    expect(mocks.getApiKeysWithPage).toHaveBeenCalledTimes(2)
+
+    // 此时第 2 页旧请求先返回
+    page2Deferred.resolve({
+      data: {
+        list: [{ id: 'key-page-2' }],
+        paginator: { current_page: 2, page_size: 20, total_page: 3, total_record: 50 },
+      },
+    })
+    await page2Request
+
+    // 旧请求已被新请求取代，不提交数据
+    expect(api_keys.value).toEqual([])
+    expect(paginator.value.current_page).toBe(1)
+    expect(loading.value).toBe(true)
+
+    // 第 3 页新请求返回
+    page3Deferred.resolve({
+      data: {
+        list: [{ id: 'key-page-3' }],
+        paginator: { current_page: 3, page_size: 20, total_page: 3, total_record: 50 },
+      },
+    })
+    await page3Request
+
+    // 第 3 页数据与分页状态成功提交
+    expect(api_keys.value).toEqual([{ id: 'key-page-3' }])
+    expect(paginator.value.current_page).toBe(3)
+    expect(loading.value).toBe(false)
+  })
 })

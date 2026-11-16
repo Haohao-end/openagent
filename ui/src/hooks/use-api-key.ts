@@ -33,7 +33,7 @@ export const useGetApiKeysWithPage = () => {
 
   // 2.定义加载数据函数
   const loadApiKeys = async (init: boolean = false) => {
-    if (!init && (loading.value || paginator.value.current_page > paginator.value.total_page)) {
+    if (!init && paginator.value.current_page > paginator.value.total_page) {
       return
     }
 
