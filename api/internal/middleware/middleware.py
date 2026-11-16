@@ -49,9 +49,11 @@ class Middleware:
 
             # 6.判断API密钥记录是否存在/是否被激活 如果不存在则抛出错误
             expires_at = getattr(api_key_record, "expires_at", None) if api_key_record else None
+            account = getattr(api_key_record, "account", None) if api_key_record else None
             if (
                 not api_key_record
                 or not api_key_record.is_active
+                or not account
                 or (
                     expires_at is not None
                     and ensure_utc_naive(expires_at) <= utc_now_naive()
@@ -73,7 +75,7 @@ class Middleware:
                 )
 
             # 7.获取密钥账号信息并返回
-            return api_key_record.account
+            return account
         else:
             return None
 

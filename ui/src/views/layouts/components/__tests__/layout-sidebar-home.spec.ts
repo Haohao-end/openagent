@@ -393,13 +393,13 @@ describe('LayoutSidebar home navigation', () => {
     wrapper.unmount()
   })
 
-  it('halts bootstrap without updating hasMore when loadRecentConversations returns STALE or ERROR', async () => {
+  it('halts bootstrap without updating hasMore when loadRecentConversations returns ERROR', async () => {
     mocks.loadRecentConversations
       .mockImplementationOnce(async () => {
         mocks.recentConversationsRef.value = Array.from({ length: 10 }, (_, i) => createRecentConversation(i))
         return 'APPLIED'
       })
-      .mockResolvedValueOnce('STALE')
+      .mockResolvedValueOnce('ERROR')
 
     const wrapper = mountSidebar()
     const list = wrapper.get('.recent-conversation-list')
@@ -410,6 +410,35 @@ describe('LayoutSidebar home navigation', () => {
     await flushPromises()
 
     expect(mocks.loadRecentConversations).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('restarts bootstrap for the active account when a previous bootstrap run is aborted by STALE', async () => {
+    let listElement: HTMLElement | null = null
+    mocks.loadRecentConversations
+      .mockImplementationOnce(async () => {
+        mocks.recentConversationsRef.value = Array.from({ length: 10 }, (_, i) => createRecentConversation(i))
+        return 'APPLIED'
+      })
+      .mockResolvedValueOnce('STALE')
+      .mockImplementationOnce(async () => {
+        mocks.recentConversationsRef.value = Array.from({ length: 20 }, (_, i) => createRecentConversation(i))
+        if (listElement) {
+          Object.defineProperty(listElement, 'scrollHeight', { value: 600, configurable: true })
+        }
+        return 'APPLIED'
+      })
+
+    const wrapper = mountSidebar()
+    const list = wrapper.get('.recent-conversation-list')
+    listElement = list.element as HTMLElement
+    Object.defineProperties(list.element, {
+      clientHeight: { value: 500, configurable: true },
+      scrollHeight: { value: 300, configurable: true },
+    })
+    await flushPromises()
+
+    expect(mocks.loadRecentConversations).toHaveBeenCalledTimes(3)
     wrapper.unmount()
   })
 
