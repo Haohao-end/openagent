@@ -39,6 +39,21 @@ def test_validate_credential_should_return_credential_when_valid():
     assert credential == "token-123"
 
 
+def test_validate_credential_should_raise_when_bearer_has_no_token():
+    for empty_header in ("Bearer ", "Bearer    ", "Bearer"):
+        request = SimpleNamespace(headers={"Authorization": empty_header})
+        with pytest.raises(UnauthorizedException, match="验证格式失败"):
+            Middleware._validate_credential(request)
+
+
+def test_validate_credential_should_trim_token_whitespace():
+    request = SimpleNamespace(headers={"Authorization": "Bearer   token-456   "})
+
+    credential = Middleware._validate_credential(request)
+
+    assert credential == "token-456"
+
+
 def test_request_loader_should_load_account_for_llmops_blueprint():
     parse_calls = []
     account_calls = []

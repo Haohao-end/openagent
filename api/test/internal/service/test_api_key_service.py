@@ -382,6 +382,43 @@ class TestApiKeyService:
         assert result is legacy_api_key
         assert legacy_api_key.api_key == ApiKeyService.hash_api_key("llmops-v1/demo")
 
+    def test_get_api_by_by_credential_should_return_none_for_empty_or_whitespace_key(self):
+        query_called = []
+        session = SimpleNamespace(query=lambda _m: query_called.append(True))
+        service = ApiKeyService(db=SimpleNamespace(session=session))
+
+        assert service.get_api_by_by_credential("") is None
+        assert service.get_api_by_by_credential("   ") is None
+        assert service.get_api_by_by_credential(None) is None
+        assert query_called == []
+
+    def test_get_api_by_by_credential_should_rollback_and_return_record_when_commit_fails(self):
+        legacy_api_key = SimpleNamespace(id=uuid4(), api_key="llmops-v1/demo")
+        rollback_called = []
+
+        class _FlakySession:
+            def __init__(self):
+                self._queries = [
+                    _QueryStub(one_or_none_result=None),
+                    _QueryStub(one_or_none_result=legacy_api_key),
+                ]
+
+            def query(self, _model):
+                return self._queries.pop(0)
+
+            def commit(self):
+                raise RuntimeError("simulated commit failure")
+
+            def rollback(self):
+                rollback_called.append(True)
+
+        service = ApiKeyService(db=SimpleNamespace(session=_FlakySession()))
+
+        result = service.get_api_by_by_credential("llmops-v1/demo")
+
+        assert result is legacy_api_key
+        assert rollback_called == [True]
+
     def test_get_api_key_should_raise_when_not_owned(self, monkeypatch):
         service = self._build_service()
         account = SimpleNamespace(id=uuid4())
