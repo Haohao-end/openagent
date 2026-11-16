@@ -43,7 +43,7 @@ export const useGetApiKeysWithPage = () => {
         if (paginator.value.current_page > paginator.value.total_page) {
           return
         }
-      } else if (targetPage === (latestRequestedPage ?? 1)) {
+      } else if (loading.value && targetPage === (latestRequestedPage ?? 1)) {
         return
       }
     }

@@ -409,4 +409,36 @@ describe('useGetApiKeysWithPage', () => {
     expect(paginator.value.current_page).toBe(2)
     expect(loading.value).toBe(false)
   })
+
+  it('allows reload after an empty page load when a new API key is created', async () => {
+    mocks.getApiKeysWithPage
+      .mockResolvedValueOnce({
+        data: {
+          list: [],
+          paginator: { current_page: 1, page_size: 20, total_page: 0, total_record: 0 },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          list: [{ id: 'new-key-1' }],
+          paginator: { current_page: 1, page_size: 20, total_page: 1, total_record: 1 },
+        },
+      })
+
+    const { api_keys, paginator, loading, loadApiKeys } = useGetApiKeysWithPage()
+    mocks.routeQuery.current_page = '1'
+
+    // 初次加载空列表
+    await loadApiKeys(true)
+    expect(api_keys.value).toEqual([])
+    expect(paginator.value.total_page).toBe(0)
+    expect(loading.value).toBe(false)
+
+    // 创建模态框提交后，执行刷新回调 loadApiKeys()
+    await loadApiKeys()
+    expect(mocks.getApiKeysWithPage).toHaveBeenCalledTimes(2)
+    expect(api_keys.value).toEqual([{ id: 'new-key-1' }])
+    expect(paginator.value.total_page).toBe(1)
+    expect(loading.value).toBe(false)
+  })
 })
