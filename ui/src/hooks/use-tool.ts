@@ -74,16 +74,15 @@ export const useGetApiToolProvidersWithPage = () => {
     total_page: 0,
     total_record: 0,
   }
-  const paginator = ref(defaultPaginator)
+  const paginator = ref({ ...defaultPaginator })
   let latestProviderRequest = 0
 
   // 2.定义加载数据函数
   const loadApiToolProviders = async (init: boolean = false, search_word: string = '') => {
     // 2.1 判断是否是初始化，如果是的话则先初始化分页器
     if (init) {
-      paginator.value = defaultPaginator
-      Object.assign(paginator, { ...defaultPaginator })
-    } else if (paginator.value.current_page > paginator.value.total_page) {
+      paginator.value = { ...defaultPaginator }
+    } else if (loading.value || paginator.value.current_page > paginator.value.total_page) {
       return
     }
     const requestId = ++latestProviderRequest

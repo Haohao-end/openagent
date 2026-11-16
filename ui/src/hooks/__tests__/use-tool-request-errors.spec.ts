@@ -229,6 +229,49 @@ describe('use-tool request feedback', () => {
     expect(loading.value).toBe(false)
   })
 
+  it('does not invalidate in-flight initial load when concurrent scroll triggers pagination', async () => {
+    const defer = () => {
+      let resolve!: (value: any) => void
+      const promise = new Promise<any>((done) => { resolve = done })
+      return { promise, resolve }
+    }
+    const initialResponse = defer()
+    mocks.getApiToolProvidersWithPage.mockReturnValueOnce(initialResponse.promise)
+
+    const { loading, api_tool_providers, paginator, loadApiToolProviders } = useGetApiToolProvidersWithPage()
+
+    const initialRequest = loadApiToolProviders(true)
+    expect(loading.value).toBe(true)
+
+    const scrollRequest = loadApiToolProviders(false)
+    await scrollRequest
+
+    expect(mocks.getApiToolProvidersWithPage).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    initialResponse.resolve({
+      data: {
+        list: [{ id: 'provider-1' }],
+        paginator: { current_page: 1, page_size: 20, total_page: 2, total_record: 25 },
+      },
+    })
+    await initialRequest
+
+    expect(api_tool_providers.value).toEqual([{ id: 'provider-1' }])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not increment generation or alter loading when pagination is called without more pages', async () => {
+    const { loading, paginator, loadApiToolProviders } = useGetApiToolProvidersWithPage()
+    paginator.value = { current_page: 3, page_size: 20, total_page: 2, total_record: 25 }
+
+    await loadApiToolProviders(false)
+
+    expect(mocks.getApiToolProvidersWithPage).not.toHaveBeenCalled()
+    expect(loading.value).toBe(false)
+  })
+
   it('keeps the latest API tool details when requests resolve out of order', async () => {
     const defer = () => {
       let resolve!: (value: any) => void
