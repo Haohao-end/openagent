@@ -2,6 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { Message } from '@arco-design/web-vue'
+import { getErrorMessage } from '@/utils/error'
 import { useGetVersions } from '@/hooks/use-app'
 import { formatTimestampLong } from '@/utils/time-formatter'
 import VersionComparisonSectionContent from './components/VersionComparisonSectionContent.vue'
@@ -160,9 +162,26 @@ const setDefaultSelectedVersions = () => {
     currentPublishedVersion?.id || fallbackRightVersion?.id || leftVersionId.value
 }
 
+let latestComparisonRequest = 0
+
 const loadComparisonData = async () => {
-  await loadVersions(String(route.params?.app_id))
-  setDefaultSelectedVersions()
+  const currentAppId = String(route.params?.app_id || '')
+  if (!currentAppId) {
+    return
+  }
+
+  const requestId = ++latestComparisonRequest
+  try {
+    const applied = await loadVersions(currentAppId)
+    if (!applied || requestId !== latestComparisonRequest || String(route.params?.app_id || '') !== currentAppId) {
+      return
+    }
+    setDefaultSelectedVersions()
+  } catch (error: unknown) {
+    if (requestId === latestComparisonRequest && String(route.params?.app_id || '') === currentAppId) {
+      Message.error(getErrorMessage(error, t('appStudio.versions.loadFailed')))
+    }
+  }
 }
 
 watch(

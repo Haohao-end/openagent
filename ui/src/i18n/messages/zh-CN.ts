@@ -1482,6 +1482,7 @@ export default {
     versions: {
       title: '版本对比',
       description: '对比草稿与历史发布版本的配置差异，快速确认本次改动范围。',
+      loadFailed: '加载版本列表失败',
       currentApp: '当前应用：{name}',
       versionCount: '共 {count} 个可选版本',
       changedSectionCount: '差异区块 {count}',
