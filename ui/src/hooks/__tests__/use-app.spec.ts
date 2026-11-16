@@ -107,10 +107,10 @@ describe('useGetVersions', () => {
     const oldRequest = loadVersions('app-old')
     const newRequest = loadVersions('app-new')
     resolveNewer({ data: { list: [{ id: 'new-version' }] } })
-    await newRequest
+    await expect(newRequest).resolves.toBe(true)
     rejectOlder(new Error('stale request failed'))
 
-    await expect(oldRequest).resolves.toBeUndefined()
+    await expect(oldRequest).resolves.toBe(false)
     expect(versions.value.map((version) => version.id)).toEqual(['new-version'])
     expect(loading.value).toBe(false)
   })

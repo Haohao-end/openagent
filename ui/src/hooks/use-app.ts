@@ -808,15 +808,17 @@ export const useGetVersions = () => {
   let latestRequest = 0
 
   // 2.定义加载版本数据函数
-  const loadVersions = async (app_id: string) => {
+  const loadVersions = async (app_id: string): Promise<boolean> => {
     const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getVersions(app_id)
-      if (requestId !== latestRequest) return
+      if (requestId !== latestRequest) return false
       versions.value = resp.data.list
+      return true
     } catch (error) {
       if (requestId === latestRequest) throw error
+      return false
     } finally {
       if (requestId === latestRequest) loading.value = false
     }
