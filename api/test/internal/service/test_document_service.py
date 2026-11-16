@@ -44,6 +44,9 @@ class _QueryStub:
     def order_by(self, *_args, **_kwargs):
         return self
 
+    def group_by(self, *_args, **_kwargs):
+        return self
+
     def with_entities(self, *_args, **_kwargs):
         return self
 
@@ -545,13 +548,13 @@ class TestDocumentService:
             def __init__(self):
                 self.calls = 0
 
-            def query(self, _model):
+            def query(self, *entities):
                 self.calls += 1
                 if self.calls == 1:
                     return _QueryStub(all_result=[document])
                 if self.calls == 2:
-                    return _QueryStub(scalar_result=3)
-                return _QueryStub(scalar_result=2)
+                    return _QueryStub(all_result=[(document.id, 3)])
+                return _QueryStub(all_result=[(document.id, 2)])
 
         service = DocumentService(db=SimpleNamespace(session=_Session()), redis_client=_RedisStub())
         monkeypatch.setattr(
@@ -566,6 +569,58 @@ class TestDocumentService:
         assert result[0]["segment_count"] == 3
         assert result[0]["completed_segment_count"] == 2
         assert result[0]["extension"] == "txt"
+
+    def test_get_documents_status_batches_queries_and_handles_missing_upload_file(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        file_id = uuid4()
+        doc1 = SimpleNamespace(
+            id=uuid4(), name="doc-1", position=1, error="", status="completed",
+            upload_file_id=file_id, processing_started_at=None, parsing_completed_at=None,
+            splitting_completed_at=None, indexing_completed_at=None, completed_at=None,
+            stopped_at=None, created_at=None,
+        )
+        doc2 = SimpleNamespace(
+            id=uuid4(), name="doc-2", position=2, error="", status="waiting",
+            upload_file_id=None, processing_started_at=None, parsing_completed_at=None,
+            splitting_completed_at=None, indexing_completed_at=None, completed_at=None,
+            stopped_at=None, created_at=None,
+        )
+        upload_file = SimpleNamespace(id=file_id, size=2048, extension="pdf", mime_type="application/pdf")
+
+        class _Session:
+            def __init__(self):
+                self.queries = []
+
+            def query(self, *entities):
+                self.queries.append(entities)
+                if len(self.queries) == 1:
+                    return _QueryStub(all_result=[doc1, doc2])
+                if len(self.queries) == 2:
+                    return _QueryStub(all_result=[(doc1.id, 5), (doc2.id, 2)])
+                if len(self.queries) == 3:
+                    return _QueryStub(all_result=[(doc1.id, 4)])
+                return _QueryStub(all_result=[upload_file])
+
+        session = _Session()
+        service = DocumentService(db=SimpleNamespace(session=session), redis_client=_RedisStub())
+        monkeypatch.setattr(
+            service, "get",
+            lambda m, _id: SimpleNamespace(id=dataset_id, account_id=account.id) if m is Dataset else None,
+        )
+
+        results = service.get_documents_status(dataset_id, "batch-1", account)
+
+        assert len(results) == 2
+        assert len(session.queries) == 4
+        assert results[0]["segment_count"] == 5
+        assert results[0]["completed_segment_count"] == 4
+        assert results[0]["size"] == 2048
+        assert results[0]["extension"] == "pdf"
+        assert results[1]["segment_count"] == 2
+        assert results[1]["completed_segment_count"] == 0
+        assert results[1]["size"] == 0
+        assert results[1]["extension"] == ""
 
     def test_get_document_should_return_document_when_belongs_to_dataset_and_account(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
