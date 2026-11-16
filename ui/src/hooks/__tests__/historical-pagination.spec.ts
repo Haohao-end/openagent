@@ -867,6 +867,103 @@ describe('historical chat pagination', () => {
     expect(loading.value).toBe(false)
   })
 
+  it('does not invalidate an in-flight initial load when a concurrent scroll event triggers a no-op pagination in assistant-agent', async () => {
+    const initialResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage).mockReturnValueOnce(
+      initialResponse.promise as never,
+    )
+    const { loading, messages, paginator, loadAssistantAgentMessages } =
+      useGetAssistantAgentMessagesWithPage()
+
+    const initialRequest = loadAssistantAgentMessages(true, 'conversation-1')
+    expect(loading.value).toBe(true)
+
+    const scrollRequest = loadAssistantAgentMessages(false, 'conversation-1')
+    await scrollRequest
+
+    expect(assistantAgentService.getAssistantAgentMessagesWithPage).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    initialResponse.resolve(
+      buildPage([buildMessage('agent-1', 100)], {
+        current_page: 1,
+        page_size: 20,
+        total_page: 2,
+        total_record: 25,
+      }),
+    )
+    await initialRequest
+
+    expect(messages.value.map((msg) => msg.id)).toEqual(['agent-1'])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates initial assistant-agent request error even if a concurrent scroll event occurred', async () => {
+    let rejectInitial!: (error: Error) => void
+    const initialPromise = new Promise<ReturnType<typeof buildPage>>((_, reject) => {
+      rejectInitial = reject
+    })
+    vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage).mockReturnValueOnce(
+      initialPromise as never,
+    )
+    const { loading, loadAssistantAgentMessages } = useGetAssistantAgentMessagesWithPage()
+
+    const initialRequest = loadAssistantAgentMessages(true, 'conversation-1')
+    const scrollRequest = loadAssistantAgentMessages(false, 'conversation-1')
+    await scrollRequest
+
+    const expectedError = new Error('initial assistant fetch failed')
+    rejectInitial(expectedError)
+
+    await expect(initialRequest).rejects.toBe(expectedError)
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not increment generation or alter loading when assistant-agent pagination is called with no more pages or while already loading', async () => {
+    const page2Deferred = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage)
+      .mockResolvedValueOnce(
+        buildPage([buildMessage('agent-1', 100)], {
+          current_page: 1,
+          page_size: 20,
+          total_page: 2,
+          total_record: 25,
+        }) as never,
+      )
+      .mockReturnValueOnce(page2Deferred.promise as never)
+
+    const { loading, messages, loadAssistantAgentMessages } =
+      useGetAssistantAgentMessagesWithPage()
+
+    await loadAssistantAgentMessages(true, 'conversation-1')
+    expect(messages.value.map((msg) => msg.id)).toEqual(['agent-1'])
+
+    const page2Request = loadAssistantAgentMessages(false, 'conversation-1')
+    expect(loading.value).toBe(true)
+
+    const redundantScrollRequest = loadAssistantAgentMessages(false, 'conversation-1')
+    await redundantScrollRequest
+
+    expect(assistantAgentService.getAssistantAgentMessagesWithPage).toHaveBeenCalledTimes(2)
+
+    page2Deferred.resolve(
+      buildPage([buildMessage('agent-2', 50)], {
+        current_page: 2,
+        page_size: 20,
+        total_page: 2,
+        total_record: 25,
+      }),
+    )
+    await page2Request
+    expect(messages.value.map((msg) => msg.id)).toEqual(['agent-1', 'agent-2'])
+    expect(loading.value).toBe(false)
+
+    await loadAssistantAgentMessages(false, 'conversation-1')
+    expect(assistantAgentService.getAssistantAgentMessagesWithPage).toHaveBeenCalledTimes(2)
+    expect(loading.value).toBe(false)
+  })
+
   it('does not restore assistant history after logout clears messages', async () => {
     const pendingResponse = createDeferred<ReturnType<typeof buildPage>>()
     vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage)
