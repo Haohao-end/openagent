@@ -439,6 +439,113 @@ describe('historical chat pagination', () => {
     expect(loading.value).toBe(false)
   })
 
+  it('does not invalidate an in-flight initial load when a concurrent scroll event triggers a no-op pagination', async () => {
+    const initialResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(conversationService.getConversationMessages).mockReturnValueOnce(
+      initialResponse.promise as never,
+    )
+    const { loading, messages, paginator, loadConversationMessagesWithPage } =
+      useGetConversationMessagesWithPage()
+
+    // 1. 发起初次加载（例如切换会话）
+    const initialRequest = loadConversationMessagesWithPage('conversation-1', true)
+    expect(loading.value).toBe(true)
+
+    // 2. 初始请求尚未完成时，并发触发滚动事件（init = false）
+    const scrollRequest = loadConversationMessagesWithPage('conversation-1', false)
+    await scrollRequest
+
+    // 确认未发起第二次请求，且 loading 依然保持为 true
+    expect(conversationService.getConversationMessages).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    // 3. 初次加载成功返回
+    initialResponse.resolve(
+      buildPage([buildMessage('msg-1', 100)], {
+        current_page: 1,
+        page_size: 5,
+        total_page: 2,
+        total_record: 10,
+      }),
+    )
+    await initialRequest
+
+    // 验证初次加载数据未被判定为过期，成功应用，loading 正确复位
+    expect(messages.value.map((msg) => msg.id)).toEqual(['msg-1'])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates initial request error even if a concurrent scroll event occurred', async () => {
+    let rejectInitial!: (error: Error) => void
+    const initialPromise = new Promise<ReturnType<typeof buildPage>>((_, reject) => {
+      rejectInitial = reject
+    })
+    vi.mocked(conversationService.getConversationMessages).mockReturnValueOnce(
+      initialPromise as never,
+    )
+    const { loading, loadConversationMessagesWithPage } = useGetConversationMessagesWithPage()
+
+    const initialRequest = loadConversationMessagesWithPage('conversation-1', true)
+    const scrollRequest = loadConversationMessagesWithPage('conversation-1', false)
+    await scrollRequest
+
+    const expectedError = new Error('initial fetch failed')
+    rejectInitial(expectedError)
+
+    await expect(initialRequest).rejects.toBe(expectedError)
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not increment generation or alter loading when pagination is called with no more pages or while already loading', async () => {
+    const page2Deferred = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(conversationService.getConversationMessages)
+      .mockResolvedValueOnce(
+        buildPage([buildMessage('msg-1', 100)], {
+          current_page: 1,
+          page_size: 5,
+          total_page: 2,
+          total_record: 6,
+        }) as never,
+      )
+      .mockReturnValueOnce(page2Deferred.promise as never)
+
+    const { loading, messages, loadConversationMessagesWithPage } =
+      useGetConversationMessagesWithPage()
+
+    await loadConversationMessagesWithPage('conversation-1', true)
+    expect(messages.value.map((msg) => msg.id)).toEqual(['msg-1'])
+
+    // 开始加载第 2 页
+    const page2Request = loadConversationMessagesWithPage('conversation-1', false)
+    expect(loading.value).toBe(true)
+
+    // 在第 2 页加载中再次调用分页（滚动抖动）
+    const redundantScrollRequest = loadConversationMessagesWithPage('conversation-1', false)
+    await redundantScrollRequest
+
+    // 仅发起了一次第 2 页请求
+    expect(conversationService.getConversationMessages).toHaveBeenCalledTimes(2)
+
+    // 完成第 2 页加载
+    page2Deferred.resolve(
+      buildPage([buildMessage('msg-2', 50)], {
+        current_page: 2,
+        page_size: 5,
+        total_page: 2,
+        total_record: 6,
+      }),
+    )
+    await page2Request
+    expect(messages.value.map((msg) => msg.id)).toEqual(['msg-1', 'msg-2'])
+    expect(loading.value).toBe(false)
+
+    // 已经没有更多页（current_page = 3 > total_page = 2），再次触发分页直接无操作
+    await loadConversationMessagesWithPage('conversation-1', false)
+    expect(conversationService.getConversationMessages).toHaveBeenCalledTimes(2)
+    expect(loading.value).toBe(false)
+  })
+
   it('ignores recent conversations from before logout without clearing current loading', async () => {
     const olderResponse = createDeferred<{ data: Array<{ id: string }> }>()
     const newerResponse = createDeferred<{ data: Array<{ id: string }> }>()
