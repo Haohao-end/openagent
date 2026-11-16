@@ -1,7 +1,9 @@
+import pytest
 from types import SimpleNamespace
 from uuid import uuid4
 
 from internal.entity.tag_entity import TagType
+from internal.exception import ValidateErrorException
 from internal.model import AppTag, Tag, WorkflowTag
 from internal.service.tag_service import TagService
 
@@ -66,6 +68,54 @@ def test_update_tag_should_refuse_cross_account_update(monkeypatch):
 
     assert result is None
     assert update_calls == []
+
+
+def test_update_tag_should_filter_unallowed_fields_and_strip_strings(monkeypatch):
+    service = TagService(db=SimpleNamespace(session=SimpleNamespace()))
+    tag = SimpleNamespace(id=uuid4(), name="old", description="old_desc")
+    monkeypatch.setattr(service, "_get_owned_tag", lambda *_args: tag)
+    updates = []
+    monkeypatch.setattr(service, "update", lambda target, **kwargs: updates.append(kwargs) or target)
+
+    result = service.update_tag(
+        tag.id,
+        uuid4(),
+        name="  new_tag  ",
+        description="  new_desc  ",
+        tag_type="system",
+        status="inactive",
+    )
+
+    assert result is tag
+    assert updates == [{"name": "new_tag", "description": "new_desc"}]
+
+
+def test_update_tag_should_validate_name_and_description(monkeypatch):
+    service = TagService(db=SimpleNamespace(session=SimpleNamespace()))
+    tag = SimpleNamespace(id=uuid4(), name="old", description="old_desc")
+    monkeypatch.setattr(service, "_get_owned_tag", lambda *_args: tag)
+
+    with pytest.raises(ValidateErrorException, match="标签名称不能为空"):
+        service.update_tag(tag.id, uuid4(), name="   ")
+
+    with pytest.raises(ValidateErrorException, match="标签名称长度必须在 1-50 个字符之间"):
+        service.update_tag(tag.id, uuid4(), name="a" * 51)
+
+    with pytest.raises(ValidateErrorException, match="标签描述长度不能超过 200 个字符"):
+        service.update_tag(tag.id, uuid4(), description="a" * 201)
+
+
+def test_update_tag_no_update_called_when_all_fields_unallowed(monkeypatch):
+    service = TagService(db=SimpleNamespace(session=SimpleNamespace()))
+    tag = SimpleNamespace(id=uuid4(), name="old", description="old_desc")
+    monkeypatch.setattr(service, "_get_owned_tag", lambda *_args: tag)
+    updates = []
+    monkeypatch.setattr(service, "update", lambda target, **kwargs: updates.append(kwargs) or target)
+
+    result = service.update_tag(tag.id, uuid4(), tag_type="system", status="inactive")
+
+    assert result is tag
+    assert updates == []
 
 
 def test_delete_tag_should_refuse_cross_account_delete(monkeypatch):
