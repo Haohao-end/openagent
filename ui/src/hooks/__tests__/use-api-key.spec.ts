@@ -151,4 +151,58 @@ describe('useGetApiKeysWithPage', () => {
     expect(api_keys.value).toEqual([])
   })
 
+  it('allows route pagination to supersede in-flight load and drops stale results', async () => {
+    type PageResult = {
+      data: {
+        list: Array<{ id: string }>
+        paginator: { current_page: number; page_size: number; total_page: number; total_record: number }
+      }
+    }
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((res) => {
+        resolve = res
+      })
+      return { promise, resolve }
+    }
+
+    const initialDeferred = deferred<PageResult>()
+    const page2Deferred = deferred<PageResult>()
+    mocks.getApiKeysWithPage
+      .mockReturnValueOnce(initialDeferred.promise)
+      .mockReturnValueOnce(page2Deferred.promise)
+
+    const { api_keys, paginator, loading, loadApiKeys } = useGetApiKeysWithPage()
+    mocks.routeQuery.current_page = '1'
+
+    const initialReq = loadApiKeys(true)
+    expect(loading.value).toBe(true)
+
+    // Duplicate call for the same page while loading is ignored
+    await loadApiKeys(false)
+    expect(mocks.getApiKeysWithPage).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    // Route target page changes to page 2: supersedes in-flight page 1 request
+    mocks.routeQuery.current_page = '2'
+    const page2Req = loadApiKeys(false)
+    expect(mocks.getApiKeysWithPage).toHaveBeenCalledTimes(2)
+
+    // Old page 1 resolves, but is dropped
+    initialDeferred.resolve({
+      data: { list: [{ id: 'key-1' }], paginator: { current_page: 1, page_size: 20, total_page: 2, total_record: 25 } },
+    })
+    await initialReq
+    expect(api_keys.value).toEqual([])
+    expect(loading.value).toBe(true)
+
+    // Page 2 resolves and applies
+    page2Deferred.resolve({
+      data: { list: [{ id: 'key-2' }], paginator: { current_page: 2, page_size: 20, total_page: 2, total_record: 25 } },
+    })
+    await page2Req
+    expect(api_keys.value).toEqual([{ id: 'key-2' }])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
 })
