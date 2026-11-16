@@ -210,7 +210,7 @@ class TagService(BaseService):
 
         return normalized_hot_tags
 
-    def add_app_tag(self, account_id: UUID, app_id: UUID, tag_id: UUID) -> AppTag:
+    def add_app_tag(self, account_id: UUID, app_id: UUID, tag_id: UUID) -> Optional[AppTag]:
         """
         为应用添加标签
 
@@ -220,8 +220,12 @@ class TagService(BaseService):
             tag_id: 标签 ID
 
         Returns:
-            AppTag: 应用标签关联
+            Optional[AppTag]: 应用标签关联，若标签不存在或不归属当前账户则返回 None
         """
+        tag = self._get_owned_tag(tag_id, account_id)
+        if not tag:
+            return None
+
         # 检查是否已存在
         existing = self.db.session.query(AppTag).filter(
             and_(
@@ -240,23 +244,22 @@ class TagService(BaseService):
             tag_id=tag_id,
         )
 
-    def remove_app_tag(self, app_id: UUID, tag_id: UUID) -> bool:
+    def remove_app_tag(self, app_id: UUID, tag_id: UUID, account_id: Optional[UUID] = None) -> bool:
         """
         移除应用标签
 
         Args:
             app_id: 应用 ID
             tag_id: 标签 ID
+            account_id: 可选账户 ID，用于限定标签所有权
 
         Returns:
             bool: 是否成功
         """
-        app_tag = self.db.session.query(AppTag).filter(
-            and_(
-                AppTag.app_id == app_id,
-                AppTag.tag_id == tag_id,
-            )
-        ).one_or_none()
+        filters = [AppTag.app_id == app_id, AppTag.tag_id == tag_id]
+        if account_id:
+            filters.append(AppTag.account_id == account_id)
+        app_tag = self.db.session.query(AppTag).filter(and_(*filters)).one_or_none()
 
         if app_tag:
             self.delete(app_tag)
@@ -279,7 +282,7 @@ class TagService(BaseService):
             return []
         return self.db.session.query(Tag).filter(Tag.id.in_(tag_ids)).all()
 
-    def add_workflow_tag(self, account_id: UUID, workflow_id: UUID, tag_id: UUID) -> WorkflowTag:
+    def add_workflow_tag(self, account_id: UUID, workflow_id: UUID, tag_id: UUID) -> Optional[WorkflowTag]:
         """
         为工作流添加标签
 
@@ -289,8 +292,12 @@ class TagService(BaseService):
             tag_id: 标签 ID
 
         Returns:
-            WorkflowTag: 工作流标签关联
+            Optional[WorkflowTag]: 工作流标签关联，若标签不存在或不归属当前账户则返回 None
         """
+        tag = self._get_owned_tag(tag_id, account_id)
+        if not tag:
+            return None
+
         # 检查是否已存在
         existing = self.db.session.query(WorkflowTag).filter(
             and_(
@@ -309,23 +316,22 @@ class TagService(BaseService):
             tag_id=tag_id,
         )
 
-    def remove_workflow_tag(self, workflow_id: UUID, tag_id: UUID) -> bool:
+    def remove_workflow_tag(self, workflow_id: UUID, tag_id: UUID, account_id: Optional[UUID] = None) -> bool:
         """
         移除工作流标签
 
         Args:
             workflow_id: 工作流 ID
             tag_id: 标签 ID
+            account_id: 可选账户 ID，用于限定标签所有权
 
         Returns:
             bool: 是否成功
         """
-        workflow_tag = self.db.session.query(WorkflowTag).filter(
-            and_(
-                WorkflowTag.workflow_id == workflow_id,
-                WorkflowTag.tag_id == tag_id,
-            )
-        ).one_or_none()
+        filters = [WorkflowTag.workflow_id == workflow_id, WorkflowTag.tag_id == tag_id]
+        if account_id:
+            filters.append(WorkflowTag.account_id == account_id)
+        workflow_tag = self.db.session.query(WorkflowTag).filter(and_(*filters)).one_or_none()
 
         if workflow_tag:
             self.delete(workflow_tag)

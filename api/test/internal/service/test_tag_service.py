@@ -193,3 +193,51 @@ def test_get_tag_dimensions_should_return_expected_labels():
         {"value": "system", "label": "系统标签"},
         {"value": "category", "label": "分类标签"},
     ]
+
+
+def test_add_app_and_workflow_tag_should_validate_tag_ownership(monkeypatch):
+    account_id = uuid4()
+    app_id = uuid4()
+    workflow_id = uuid4()
+    unowned_tag_id = uuid4()
+    owned_tag_id = uuid4()
+
+    created = []
+    service = TagService(
+        db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args: _QueryStub(one_or_none_result=None)))
+    )
+    monkeypatch.setattr(
+        service,
+        "_get_owned_tag",
+        lambda tag_id, acc_id: SimpleNamespace(id=tag_id) if tag_id == owned_tag_id else None,
+    )
+    monkeypatch.setattr(service, "create", lambda model, **kwargs: created.append((model, kwargs)) or kwargs)
+
+    assert service.add_app_tag(account_id, app_id, unowned_tag_id) is None
+    assert service.add_workflow_tag(account_id, workflow_id, unowned_tag_id) is None
+    assert created == []
+
+    app_tag = service.add_app_tag(account_id, app_id, owned_tag_id)
+    assert app_tag is not None
+    assert created[0] == (AppTag, {"account_id": account_id, "app_id": app_id, "tag_id": owned_tag_id})
+
+    wf_tag = service.add_workflow_tag(account_id, workflow_id, owned_tag_id)
+    assert wf_tag is not None
+    assert created[1] == (WorkflowTag, {"account_id": account_id, "workflow_id": workflow_id, "tag_id": owned_tag_id})
+
+
+def test_remove_tag_should_scope_to_account_id_when_provided():
+    app_query = _QueryStub(one_or_none_result=SimpleNamespace())
+    wf_query = _QueryStub(one_or_none_result=SimpleNamespace())
+
+    deleted = []
+    service = TagService(db=SimpleNamespace(session=SimpleNamespace()))
+    service.db.session.query = lambda model: app_query if model is AppTag else wf_query
+    service.delete = lambda item: deleted.append(item)
+
+    account_id = uuid4()
+    assert service.remove_app_tag(uuid4(), uuid4(), account_id=account_id) is True
+    assert "app_tag.account_id" in str(app_query.filters[0])
+
+    assert service.remove_workflow_tag(uuid4(), uuid4(), account_id=account_id) is True
+    assert "workflow_tag.account_id" in str(wf_query.filters[0])
