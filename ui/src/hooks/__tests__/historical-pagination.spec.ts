@@ -315,6 +315,113 @@ describe('historical chat pagination', () => {
     ])
   })
 
+  it('does not invalidate an in-flight initial load when a concurrent scroll event triggers a no-op pagination in debug conversation', async () => {
+    const initialResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(appService.getDebugConversationMessagesWithPage).mockReturnValueOnce(
+      initialResponse.promise as never,
+    )
+    const { loading, messages, paginator, loadDebugConversationMessages } =
+      useGetDebugConversationMessagesWithPage()
+
+    // 1. 发起初次加载（例如切换调试会话）
+    const initialRequest = loadDebugConversationMessages('app-1', true, 'conversation-1')
+    expect(loading.value).toBe(true)
+
+    // 2. 初始请求尚未完成时，并发触发滚动事件（init = false）
+    const scrollRequest = loadDebugConversationMessages('app-1', false, 'conversation-1')
+    await scrollRequest
+
+    // 确认未发起第二次请求，且 loading 依然保持为 true
+    expect(appService.getDebugConversationMessagesWithPage).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    // 3. 初次加载成功返回
+    initialResponse.resolve(
+      buildPage([buildMessage('debug-1', 100)], {
+        current_page: 1,
+        page_size: 5,
+        total_page: 2,
+        total_record: 10,
+      }),
+    )
+    await initialRequest
+
+    // 验证初次加载数据未被判定为过期，成功应用，loading 正确复位
+    expect(messages.value.map((msg) => msg.id)).toEqual(['debug-1'])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates initial debug request error even if a concurrent scroll event occurred', async () => {
+    let rejectInitial!: (error: Error) => void
+    const initialPromise = new Promise<ReturnType<typeof buildPage>>((_, reject) => {
+      rejectInitial = reject
+    })
+    vi.mocked(appService.getDebugConversationMessagesWithPage).mockReturnValueOnce(
+      initialPromise as never,
+    )
+    const { loading, loadDebugConversationMessages } = useGetDebugConversationMessagesWithPage()
+
+    const initialRequest = loadDebugConversationMessages('app-1', true, 'conversation-1')
+    const scrollRequest = loadDebugConversationMessages('app-1', false, 'conversation-1')
+    await scrollRequest
+
+    const expectedError = new Error('initial debug fetch failed')
+    rejectInitial(expectedError)
+
+    await expect(initialRequest).rejects.toBe(expectedError)
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not increment generation or alter loading when debug pagination is called with no more pages or while already loading', async () => {
+    const page2Deferred = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(appService.getDebugConversationMessagesWithPage)
+      .mockResolvedValueOnce(
+        buildPage([buildMessage('debug-1', 100)], {
+          current_page: 1,
+          page_size: 5,
+          total_page: 2,
+          total_record: 6,
+        }) as never,
+      )
+      .mockReturnValueOnce(page2Deferred.promise as never)
+
+    const { loading, messages, loadDebugConversationMessages } =
+      useGetDebugConversationMessagesWithPage()
+
+    await loadDebugConversationMessages('app-1', true, 'conversation-1')
+    expect(messages.value.map((msg) => msg.id)).toEqual(['debug-1'])
+
+    // 开始加载第 2 页
+    const page2Request = loadDebugConversationMessages('app-1', false, 'conversation-1')
+    expect(loading.value).toBe(true)
+
+    // 在第 2 页加载中再次调用分页（滚动抖动）
+    const redundantScrollRequest = loadDebugConversationMessages('app-1', false, 'conversation-1')
+    await redundantScrollRequest
+
+    // 仅发起了一次第 2 页请求
+    expect(appService.getDebugConversationMessagesWithPage).toHaveBeenCalledTimes(2)
+
+    // 完成第 2 页加载
+    page2Deferred.resolve(
+      buildPage([buildMessage('debug-2', 50)], {
+        current_page: 2,
+        page_size: 5,
+        total_page: 2,
+        total_record: 6,
+      }),
+    )
+    await page2Request
+    expect(messages.value.map((msg) => msg.id)).toEqual(['debug-1', 'debug-2'])
+    expect(loading.value).toBe(false)
+
+    // 已经没有更多页（current_page = 3 > total_page = 2），再次触发分页直接无操作
+    await loadDebugConversationMessages('app-1', false, 'conversation-1')
+    expect(appService.getDebugConversationMessagesWithPage).toHaveBeenCalledTimes(2)
+    expect(loading.value).toBe(false)
+  })
+
   it('keeps the conversation cursor fixed after the first page', async () => {
     vi.mocked(conversationService.getConversationMessages)
       .mockResolvedValueOnce(
