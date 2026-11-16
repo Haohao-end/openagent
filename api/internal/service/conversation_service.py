@@ -28,8 +28,11 @@ from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
 from internal.core.agent.usage_utils import summarize_agent_thoughts
 from internal.model import App, Conversation, Message, MessageAgentThought, Account
 from internal.schema.conversation_schema import GetConversationMessagesWithPageReq
-from internal.exception import NotFoundException
+from internal.exception import NotFoundException, ValidateErrorException
 from ..core.language_model.entities.model_entity import ModelFeature
+
+
+_CONVERSATION_ALLOWED_UPDATE_FIELDS = frozenset({"name", "is_pinned"})
 
 
 @inject
@@ -660,8 +663,22 @@ class ConversationService(BaseService):
         # 1.获取会话记录并校验权限
         conversation = self.get_conversation(conversation_id, account)
 
+        updates = {k: v for k, v in kwargs.items() if k in _CONVERSATION_ALLOWED_UPDATE_FIELDS}
+        if "name" in updates:
+            name = str(updates["name"] or "").strip()
+            if not name:
+                raise ValidateErrorException("会话名字不能为空")
+            if len(name) > 100:
+                raise ValidateErrorException("会话名字长度不能超过100个字符")
+            updates["name"] = name
+            self._clear_cached_conversation_name(conversation.id)
+
+        if "is_pinned" in updates:
+            updates["is_pinned"] = bool(updates["is_pinned"])
+
         # 2.更新会话信息
-        self.update(conversation, **kwargs)
+        if updates:
+            self.update(conversation, **updates)
 
         return conversation
 
