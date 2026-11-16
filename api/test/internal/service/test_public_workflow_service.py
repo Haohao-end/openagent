@@ -7,11 +7,12 @@ from uuid import uuid4
 
 import pytest
 
+from internal.core.workflow.entities.workflow_entity import WORKFLOW_CONFIG_NAME_PATTERN
 from internal.entity.app_category_entity import AppCategory
 from internal.entity.workflow_entity import WorkflowStatus
 from internal.exception import ForbiddenException, NotFoundException, ValidateErrorException
 from internal.model import Workflow
-from internal.service.public_workflow_service import PublicWorkflowService
+from internal.service.public_workflow_service import MAX_FORK_TOOL_CALL_NAME_LENGTH, PublicWorkflowService
 
 
 @pytest.fixture
@@ -485,7 +486,7 @@ class TestPublicWorkflowService:
             _Query(all_result=[]),
             _Query(one_or_none_result=source),
             second_account_lock,
-            _Query(all_result=[(f"{'a' * 47}_copy_{account.id.hex[:8]}",)]),
+            _Query(all_result=[(f"{'a' * 36}_copy_{account.id.hex[:8]}",)]),
         ])
         service = _build_service(session=session)
         monkeypatch.setattr("internal.service.public_workflow_service.Workflow", _FakeWorkflow)
@@ -493,10 +494,136 @@ class TestPublicWorkflowService:
         first_fork = service.fork_public_workflow(source.id, account)
         second_fork = service.fork_public_workflow(source.id, account)
 
-        assert first_fork.tool_call_name == f"{'a' * 47}_copy_{account.id.hex[:8]}"
-        assert second_fork.tool_call_name == f"{'a' * 45}_copy_{account.id.hex[:8]}_2"
+        assert first_fork.tool_call_name == f"{'a' * 36}_copy_{account.id.hex[:8]}"
+        assert second_fork.tool_call_name == f"{'a' * 34}_copy_{account.id.hex[:8]}_2"
+        assert len(first_fork.tool_call_name) <= MAX_FORK_TOOL_CALL_NAME_LENGTH
+        assert len(second_fork.tool_call_name) <= MAX_FORK_TOOL_CALL_NAME_LENGTH
         assert len(f"wf_{first_fork.tool_call_name}") <= 64
         assert len(f"wf_{second_fork.tool_call_name}") <= 64
+        assert re.match(WORKFLOW_CONFIG_NAME_PATTERN, first_fork.tool_call_name)
+        assert re.match(WORKFLOW_CONFIG_NAME_PATTERN, second_fork.tool_call_name)
+
+    @pytest.mark.parametrize("name_length,expected_first_src_len,expected_second_src_len", [
+        (36, 36, 34),
+        (37, 36, 34),
+        (50, 36, 34),
+    ])
+    def test_fork_public_workflow_tool_name_lengths_36_37_50(
+        self, monkeypatch, name_length, expected_first_src_len, expected_second_src_len
+    ):
+        account = SimpleNamespace(id=uuid4())
+        raw_name = "w" * name_length
+        source = SimpleNamespace(
+            id=uuid4(),
+            is_public=True,
+            status=WorkflowStatus.PUBLISHED.value,
+            name="公开工作流",
+            tool_call_name=raw_name,
+            icon="https://icon",
+            description="desc",
+            graph={"nodes": [], "edges": []},
+            tags=[AppCategory.GENERAL.value],
+        )
+        account_suffix = f"_copy_{account.id.hex[:8]}"
+        first_tool_name = f"{raw_name[:expected_first_src_len]}{account_suffix}"
+        session = _QueueSession([
+            _Query(one_or_none_result=source),
+            _Query(),
+            _Query(all_result=[]),
+            _Query(one_or_none_result=source),
+            _Query(),
+            _Query(all_result=[(first_tool_name,)]),
+        ])
+        service = _build_service(session=session)
+        monkeypatch.setattr("internal.service.public_workflow_service.Workflow", _FakeWorkflow)
+
+        first_fork = service.fork_public_workflow(source.id, account)
+        second_fork = service.fork_public_workflow(source.id, account)
+
+        expected_second_name = f"{raw_name[:expected_second_src_len]}{account_suffix}_2"
+        assert first_fork.tool_call_name == first_tool_name
+        assert second_fork.tool_call_name == expected_second_name
+        assert len(first_fork.tool_call_name) == 50
+        assert len(second_fork.tool_call_name) == 50
+        assert len(first_fork.tool_call_name) <= MAX_FORK_TOOL_CALL_NAME_LENGTH
+        assert len(second_fork.tool_call_name) <= MAX_FORK_TOOL_CALL_NAME_LENGTH
+        assert len(f"wf_{first_fork.tool_call_name}") <= 64
+        assert len(f"wf_{second_fork.tool_call_name}") <= 64
+        assert re.match(WORKFLOW_CONFIG_NAME_PATTERN, first_fork.tool_call_name)
+        assert re.match(WORKFLOW_CONFIG_NAME_PATTERN, second_fork.tool_call_name)
+
+    def test_fork_public_workflow_repeated_forks_generate_unique_names_within_limit(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        source = SimpleNamespace(
+            id=uuid4(),
+            is_public=True,
+            status=WorkflowStatus.PUBLISHED.value,
+            name="公开工作流",
+            tool_call_name="flow_" + "x" * 45,
+            icon="https://icon",
+            description="desc",
+            graph={"nodes": [], "edges": []},
+            tags=[AppCategory.GENERAL.value],
+        )
+        account_suffix = f"_copy_{account.id.hex[:8]}"
+        existing_names = [
+            f"{source.tool_call_name[:36]}{account_suffix}",
+            f"{source.tool_call_name[:34]}{account_suffix}_2",
+            f"{source.tool_call_name[:34]}{account_suffix}_3",
+        ]
+        session = _QueueSession([
+            _Query(one_or_none_result=source),
+            _Query(),
+            _Query(all_result=[(name,) for name in existing_names]),
+        ])
+        service = _build_service(session=session)
+        monkeypatch.setattr("internal.service.public_workflow_service.Workflow", _FakeWorkflow)
+
+        fork = service.fork_public_workflow(source.id, account)
+
+        expected_name = f"{source.tool_call_name[:34]}{account_suffix}_4"
+        assert fork.tool_call_name == expected_name
+        assert len(fork.tool_call_name) <= 50
+        assert len(f"wf_{fork.tool_call_name}") <= 64
+        assert re.match(WORKFLOW_CONFIG_NAME_PATTERN, fork.tool_call_name)
+        assert fork.tool_call_name not in existing_names
+
+    def test_fork_public_workflow_repeated_forks_double_digit_suffix(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        source = SimpleNamespace(
+            id=uuid4(),
+            is_public=True,
+            status=WorkflowStatus.PUBLISHED.value,
+            name="公开工作流",
+            tool_call_name="flow_" + "y" * 45,
+            icon="https://icon",
+            description="desc",
+            graph={"nodes": [], "edges": []},
+            tags=[AppCategory.GENERAL.value],
+        )
+        account_suffix = f"_copy_{account.id.hex[:8]}"
+        existing_names = [f"{source.tool_call_name[:36]}{account_suffix}"]
+        for i in range(2, 10):
+            existing_names.append(f"{source.tool_call_name[:34]}{account_suffix}_{i}")
+
+        session = _QueueSession([
+            _Query(one_or_none_result=source),
+            _Query(),
+            _Query(all_result=[(name,) for name in existing_names]),
+        ])
+        service = _build_service(session=session)
+        monkeypatch.setattr("internal.service.public_workflow_service.Workflow", _FakeWorkflow)
+
+        fork = service.fork_public_workflow(source.id, account)
+
+        # For suffix 10, numeric_suffix "_10" has len 3, so src len = 50 - 14 - 3 = 33
+        expected_name = f"{source.tool_call_name[:33]}{account_suffix}_10"
+        assert fork.tool_call_name == expected_name
+        assert len(fork.tool_call_name) == 50
+        assert len(fork.tool_call_name) <= 50
+        assert len(f"wf_{fork.tool_call_name}") <= 64
+        assert re.match(WORKFLOW_CONFIG_NAME_PATTERN, fork.tool_call_name)
+        assert fork.tool_call_name not in existing_names
 
     def test_get_public_workflow_detail_should_return_detail_and_fork_status(self):
         account = SimpleNamespace(id=uuid4())
