@@ -9,6 +9,7 @@ import {
   useGetAppsWithPage,
   useGetDraftAppConfig,
   useGetPublishedConfig,
+  useGetPublishHistoriesWithPage,
   useGetVersions,
   useShareAppToSquare,
   useUnshareAppFromSquare,
@@ -22,6 +23,7 @@ vi.mock('@/services/app', async () => {
     ...actual,
     getApp: vi.fn(),
     getAppsWithPage: vi.fn(),
+    getPublishHistoriesWithPage: vi.fn(),
     cancelPublish: vi.fn(),
     deleteApp: vi.fn(),
     shareAppToSquare: vi.fn(),
@@ -666,6 +668,57 @@ describe('useGetAppsWithPage', () => {
     await loadApps(false)
 
     expect(appService.getAppsWithPage).not.toHaveBeenCalled()
+    expect(loading.value).toBe(false)
+  })
+})
+
+describe('useGetPublishHistoriesWithPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('does not invalidate in-flight initial load when concurrent scroll triggers pagination', async () => {
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((resolvePromise) => (resolve = resolvePromise))
+      return { promise, resolve }
+    }
+    const initialResponse = deferred<{
+      data: { list: { id: string }[]; paginator: { current_page: number; page_size: number; total_page: number; total_record: number } }
+    }>()
+    vi.mocked(appService.getPublishHistoriesWithPage).mockReturnValueOnce(initialResponse.promise as never)
+
+    const { loading, publishHistories, paginator, loadPublishHistories } = useGetPublishHistoriesWithPage()
+
+    const initialRequest = loadPublishHistories('app-1', true)
+    expect(loading.value).toBe(true)
+
+    const scrollRequest = loadPublishHistories('app-1', false)
+    await scrollRequest
+
+    expect(appService.getPublishHistoriesWithPage).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    initialResponse.resolve({
+      data: {
+        list: [{ id: 'history-1' }],
+        paginator: { current_page: 1, page_size: 20, total_page: 2, total_record: 25 },
+      },
+    })
+    await initialRequest
+
+    expect(publishHistories.value).toEqual([{ id: 'history-1' }])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not increment generation or alter loading when pagination is called without more pages', async () => {
+    const { loading, paginator, loadPublishHistories } = useGetPublishHistoriesWithPage()
+    paginator.value = { current_page: 3, page_size: 20, total_page: 2, total_record: 25 }
+
+    await loadPublishHistories('app-1', false)
+
+    expect(appService.getPublishHistoriesWithPage).not.toHaveBeenCalled()
     expect(loading.value).toBe(false)
   })
 })
