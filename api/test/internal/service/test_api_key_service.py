@@ -448,6 +448,50 @@ class TestApiKeyService:
 
         assert updates == []
 
+    def test_update_api_key_should_filter_unallowed_fields_and_validate_scopes(self, monkeypatch):
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        api_key = SimpleNamespace(id=uuid4(), account_id=account.id)
+        updates = []
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: api_key)
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda *args, **kwargs: updates.append(kwargs),
+        )
+
+        service.update_api_key(
+            api_key.id,
+            account,
+            remark="new-remark",
+            is_active=False,
+            scopes=["openapi:chat"],
+            account_id=uuid4(),
+            request_count=999,
+            api_key="hacked",
+        )
+
+        assert updates == [{
+            "remark": "new-remark",
+            "is_active": False,
+            "scopes": ["openapi:chat"],
+        }]
+
+    def test_update_api_key_should_reject_invalid_scopes(self, monkeypatch):
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        api_key = SimpleNamespace(id=uuid4(), account_id=account.id)
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: api_key)
+
+        with pytest.raises(ValueError, match="unsupported scope"):
+            service.update_api_key(api_key.id, account, scopes=["admin:all"])
+
+        with pytest.raises(ValueError, match="cannot contain duplicates"):
+            service.update_api_key(api_key.id, account, scopes=["openapi:chat", "openapi:chat"])
+
+        with pytest.raises(ValueError, match="list of strings"):
+            service.update_api_key(api_key.id, account, scopes="not-a-list")
+
     def test_delete_api_key_should_reject_deletion_from_another_account(self, monkeypatch):
         service = self._build_service()
         requester = SimpleNamespace(id=uuid4())

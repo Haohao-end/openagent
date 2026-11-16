@@ -12,12 +12,13 @@ from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
 from internal.schema.api_key_schema import CreateApiKeyReq
 from internal.model import Account, ApiKey
-from internal.model.api_key import API_KEY_SCOPE_OPENAPI_CHAT
+from internal.model.api_key import API_KEY_SCOPE_OPENAPI_CHAT, API_KEY_SUPPORTED_SCOPES
 from internal.exception import ForbiddenException
 from internal.lib.helper import ensure_utc_naive, utc_now_naive
 from pkg.paginator import PaginatorReq, Paginator
 
 _LAST_USED_AT_UPDATE_INTERVAL = timedelta(minutes=1)
+_ALLOWED_UPDATE_FIELDS = frozenset({"is_active", "remark", "expires_at", "scopes"})
 logger = logging.getLogger(__name__)
 
 @inject
@@ -31,8 +32,7 @@ class ApiKeyService(BaseService):
         raw_api_key = self.generate_api_key()
         scopes_field = getattr(req, "scopes", None)
         scopes = getattr(scopes_field, "data", None)
-        if scopes is None:
-            scopes = [API_KEY_SCOPE_OPENAPI_CHAT]
+        scopes = self._normalize_scopes(scopes)
         api_key_record = self.create(
             ApiKey,
             account_id=account.id,
@@ -134,10 +134,27 @@ class ApiKeyService(BaseService):
     def update_api_key(self, api_key_id: UUID, account: Account, **kwargs) -> ApiKey:
         """根据传递的信息更新API密钥"""
         api_key = self.get_api_key(api_key_id, account)
-        if "expires_at" in kwargs:
-            kwargs["expires_at"] = self._normalize_expires_at(kwargs["expires_at"])
-        self.update(api_key, **kwargs)
+        updates = {k: v for k, v in kwargs.items() if k in _ALLOWED_UPDATE_FIELDS}
+        if "expires_at" in updates:
+            updates["expires_at"] = self._normalize_expires_at(updates["expires_at"])
+        if "scopes" in updates:
+            updates["scopes"] = self._normalize_scopes(updates["scopes"])
+        if updates:
+            self.update(api_key, **updates)
         return api_key
+
+    @staticmethod
+    def _normalize_scopes(scopes: object) -> list[str]:
+        """Validate and normalize scopes against supported scope set."""
+        if scopes is None:
+            return [API_KEY_SCOPE_OPENAPI_CHAT]
+        if not isinstance(scopes, (list, tuple)) or any(not isinstance(s, str) for s in scopes):
+            raise ValueError("API key scopes must be a list of strings")
+        if len(scopes) != len(set(scopes)):
+            raise ValueError("API key scopes cannot contain duplicates")
+        if not set(scopes).issubset(API_KEY_SUPPORTED_SCOPES):
+            raise ValueError("API key scopes contain unsupported scope")
+        return list(scopes)
 
     @staticmethod
     def _normalize_expires_at(value: int | datetime | None) -> datetime | None:
