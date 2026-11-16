@@ -131,6 +131,73 @@ def test_request_loader_should_raise_when_openapi_api_key_inactive():
             middleware.request_loader(request)
 
 
+def test_request_loader_should_raise_and_not_record_usage_when_api_key_account_missing():
+    recorded = []
+    api_key_record = SimpleNamespace(is_active=True, account=None)
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: api_key_record,
+            record_api_key_request=recorded.append,
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with app.app_context():
+        with pytest.raises(UnauthorizedException, match="不存在或未激活"):
+            middleware.request_loader(request)
+
+    assert recorded == []
+
+
+def test_request_loader_should_return_account_without_secondary_attribute_access_on_failure(caplog):
+    expected_account = {"id": "acc-1"}
+
+    class _FlakyApiKey:
+        is_active = True
+        scopes = None
+        expires_at = None
+
+        def __init__(self):
+            self._account_accessed = 0
+
+        @property
+        def account(self):
+            self._account_accessed += 1
+            if self._account_accessed > 1:
+                raise RuntimeError("SECONDARY_DATABASE_ACCESS_AFTER_ROLLBACK")
+            return expected_account
+
+    flaky_record = _FlakyApiKey()
+
+    def fail_to_record_usage(_record):
+        raise SQLAlchemyError("DATABASE_ERROR_DETAIL_SECRET")
+
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: flaky_record,
+            record_api_key_request=fail_to_record_usage,
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with caplog.at_level(logging.WARNING), app.app_context():
+        account = middleware.request_loader(request)
+
+    assert account == expected_account
+
+
 @pytest.mark.parametrize(
     "include_null_scopes",
     [False, True],
