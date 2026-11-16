@@ -507,14 +507,15 @@ export const useGetDebugConversationMessagesWithPage = () => {
     init: boolean = false,
     conversation_id: string = '',
   ) => {
-    const requestId = ++latestRequest
     // 2.1 判断是否是初始化，如果是则先初始化分页器
     if (init) {
       paginator.value = { ...defaultPaginator }
       created_at.value = 0
-    } else if (paginator.value.current_page > paginator.value.total_page) {
+    } else if (loading.value || paginator.value.current_page > paginator.value.total_page) {
       return
     }
+
+    const requestId = ++latestRequest
 
     // 2.2 加载更多数据
     try {

@@ -315,6 +315,103 @@ describe('historical chat pagination', () => {
     ])
   })
 
+  it('does not invalidate an in-flight initial load when a concurrent scroll event triggers a no-op pagination in debug conversation', async () => {
+    const initialResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(appService.getDebugConversationMessagesWithPage).mockReturnValueOnce(
+      initialResponse.promise as never,
+    )
+    const { loading, messages, paginator, loadDebugConversationMessages } =
+      useGetDebugConversationMessagesWithPage()
+
+    const initialRequest = loadDebugConversationMessages('app-1', true, 'conversation-1')
+    expect(loading.value).toBe(true)
+
+    const scrollRequest = loadDebugConversationMessages('app-1', false, 'conversation-1')
+    await scrollRequest
+
+    expect(appService.getDebugConversationMessagesWithPage).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    initialResponse.resolve(
+      buildPage([buildMessage('debug-1', 100)], {
+        current_page: 1,
+        page_size: 5,
+        total_page: 2,
+        total_record: 10,
+      }),
+    )
+    await initialRequest
+
+    expect(messages.value.map((msg) => msg.id)).toEqual(['debug-1'])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates initial debug request error even if a concurrent scroll event occurred', async () => {
+    let rejectInitial!: (error: Error) => void
+    const initialPromise = new Promise<ReturnType<typeof buildPage>>((_, reject) => {
+      rejectInitial = reject
+    })
+    vi.mocked(appService.getDebugConversationMessagesWithPage).mockReturnValueOnce(
+      initialPromise as never,
+    )
+    const { loading, loadDebugConversationMessages } = useGetDebugConversationMessagesWithPage()
+
+    const initialRequest = loadDebugConversationMessages('app-1', true, 'conversation-1')
+    const scrollRequest = loadDebugConversationMessages('app-1', false, 'conversation-1')
+    await scrollRequest
+
+    const expectedError = new Error('initial debug fetch failed')
+    rejectInitial(expectedError)
+
+    await expect(initialRequest).rejects.toBe(expectedError)
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not increment generation or alter loading when debug pagination is called with no more pages or while already loading', async () => {
+    const page2Deferred = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(appService.getDebugConversationMessagesWithPage)
+      .mockResolvedValueOnce(
+        buildPage([buildMessage('debug-1', 100)], {
+          current_page: 1,
+          page_size: 5,
+          total_page: 2,
+          total_record: 6,
+        }) as never,
+      )
+      .mockReturnValueOnce(page2Deferred.promise as never)
+
+    const { loading, messages, loadDebugConversationMessages } =
+      useGetDebugConversationMessagesWithPage()
+
+    await loadDebugConversationMessages('app-1', true, 'conversation-1')
+    expect(messages.value.map((msg) => msg.id)).toEqual(['debug-1'])
+
+    const page2Request = loadDebugConversationMessages('app-1', false, 'conversation-1')
+    expect(loading.value).toBe(true)
+
+    const redundantScrollRequest = loadDebugConversationMessages('app-1', false, 'conversation-1')
+    await redundantScrollRequest
+
+    expect(appService.getDebugConversationMessagesWithPage).toHaveBeenCalledTimes(2)
+
+    page2Deferred.resolve(
+      buildPage([buildMessage('debug-2', 50)], {
+        current_page: 2,
+        page_size: 5,
+        total_page: 2,
+        total_record: 6,
+      }),
+    )
+    await page2Request
+    expect(messages.value.map((msg) => msg.id)).toEqual(['debug-1', 'debug-2'])
+    expect(loading.value).toBe(false)
+
+    await loadDebugConversationMessages('app-1', false, 'conversation-1')
+    expect(appService.getDebugConversationMessagesWithPage).toHaveBeenCalledTimes(2)
+    expect(loading.value).toBe(false)
+  })
+
   it('keeps the conversation cursor fixed after the first page', async () => {
     vi.mocked(conversationService.getConversationMessages)
       .mockResolvedValueOnce(
