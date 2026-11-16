@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import type { RecentConversation } from '@/models/conversation'
-import { useDeleteConversation, useGetRecentConversations } from '@/hooks/use-conversation'
+import {
+  useDeleteConversation,
+  useGetRecentConversations,
+  type LoadRecentConversationsResult,
+} from '@/hooks/use-conversation'
 import { useCredentialStore } from '@/stores/credential'
 import { isCredentialLoggedIn } from '@/utils/auth'
 import UpdateConversationNameModal from '@/views/layouts/components/UpdateConversationNameModal.vue'
@@ -98,19 +102,27 @@ const bootstrapRecentConversations = async () => {
       !isRecentConversationsScrollable()
     ) {
       const previousCount = recentConversations.value.length
+      const previousLimit = recentConversationsLimit.value
       const nextLimit = Math.min(
-        recentConversationsLimit.value + RECENT_CONVERSATIONS_LOAD_STEP,
+        previousLimit + RECENT_CONVERSATIONS_LOAD_STEP,
         MAX_RECENT_CONVERSATIONS_LIMIT,
       )
 
-      if (nextLimit === recentConversationsLimit.value) {
+      if (nextLimit === previousLimit) {
         hasMoreRecentConversations.value = false
         recentConversationsBottomLocked.value = false
         break
       }
 
       recentConversationsLimit.value = nextLimit
-      await loadRecentConversationsHook(nextLimit)
+      const status = await loadRecentConversationsHook(nextLimit)
+      if (status !== 'APPLIED') {
+        recentConversationsLimit.value = previousLimit
+        if (status === 'ERROR') {
+          console.error('Failed to bootstrap recent conversations:', 'Error')
+        }
+        break
+      }
       const nextCount = recentConversations.value.length
       syncRecentConversationsHasMore(previousCount, nextCount, nextLimit)
       rounds += 1
@@ -129,15 +141,18 @@ const bootstrapRecentConversations = async () => {
 }
 
 // 2.定义加载最近会话列表函数
-const loadRecentConversations = async (reset = false) => {
+const loadRecentConversations = async (
+  reset = false,
+): Promise<LoadRecentConversationsResult> => {
   if (!isLoggedIn.value) {
     recentConversations.value = []
     recentConversationsLimit.value = DEFAULT_RECENT_CONVERSATIONS_LIMIT
     hasMoreRecentConversations.value = true
     recentConversationsBottomLocked.value = false
-    return
+    return 'APPLIED'
   }
 
+  const previousLimit = recentConversationsLimit.value
   if (reset) {
     recentConversationsLimit.value = DEFAULT_RECENT_CONVERSATIONS_LIMIT
     hasMoreRecentConversations.value = true
@@ -147,13 +162,22 @@ const loadRecentConversations = async (reset = false) => {
   const limit = Math.min(recentConversationsLimit.value, MAX_RECENT_CONVERSATIONS_LIMIT)
   const previousCount = reset ? 0 : recentConversations.value.length
   recentConversationsLimit.value = limit
-  await loadRecentConversationsHook(limit)
+  const status = await loadRecentConversationsHook(limit)
+  if (status !== 'APPLIED') {
+    if (reset) {
+      recentConversationsLimit.value = DEFAULT_RECENT_CONVERSATIONS_LIMIT
+    } else {
+      recentConversationsLimit.value = previousLimit
+    }
+    return status
+  }
   syncRecentConversationsHasMore(previousCount, recentConversations.value.length, limit)
   await nextTick()
 
   if (!props.collapsed && !recentConversationsBootstrapRunning.value) {
     await bootstrapRecentConversations()
   }
+  return status
 }
 
 const loadMoreRecentConversations = async () => {
@@ -170,14 +194,22 @@ const loadMoreRecentConversations = async () => {
     previousLimit + RECENT_CONVERSATIONS_LOAD_STEP,
     MAX_RECENT_CONVERSATIONS_LIMIT,
   )
-  if (nextLimit === recentConversationsLimit.value) {
+  if (nextLimit === previousLimit) {
     hasMoreRecentConversations.value = false
     recentConversationsBottomLocked.value = false
     return
   }
   recentConversationsLimit.value = nextLimit
   try {
-    await loadRecentConversations(false)
+    const status = await loadRecentConversations(false)
+    if (status !== 'APPLIED') {
+      recentConversationsLimit.value = previousLimit
+      recentConversationsBottomLocked.value = false
+      if (status === 'ERROR') {
+        console.error('Failed to load more recent conversations:', 'Error')
+      }
+      return
+    }
     if (!hasMoreRecentConversations.value) {
       recentConversationsBottomLocked.value = false
     }

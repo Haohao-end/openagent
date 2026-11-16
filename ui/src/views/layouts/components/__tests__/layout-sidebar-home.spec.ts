@@ -5,7 +5,7 @@ import LayoutSidebar from '@/views/layouts/components/LayoutSidebar.vue'
 
 const mocks = vi.hoisted(() => ({
   loggedIn: true,
-  credentialState: { credential: { access_token: 'token-a' } },
+  credentialState: { credential: { access_token: 'token-a' } as { access_token: string } | null },
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
   route: {
@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   recentConversations: [] as any[],
   recentConversationsRef: undefined as any,
   allRecentConversations: [] as any[],
-  loadRecentConversations: vi.fn(),
+  loadRecentConversations: vi.fn().mockResolvedValue('APPLIED'),
   invalidateRecentConversations: vi.fn(),
   handleDeleteConversation: vi.fn(),
 }))
@@ -128,11 +128,14 @@ describe('LayoutSidebar home navigation', () => {
       mocks.recentConversationsRef.value = []
     }
     mocks.allRecentConversations.splice(0, mocks.allRecentConversations.length)
+    mocks.loadRecentConversations.mockReset()
+    mocks.loadRecentConversations.mockResolvedValue('APPLIED')
   })
 
   it('clears recent conversations and reloads when the authenticated credential changes', async () => {
     mocks.loadRecentConversations.mockImplementationOnce(async () => {
       mocks.recentConversationsRef.value = [createRecentConversation(0)]
+      return 'APPLIED'
     })
     const wrapper = mountSidebar()
     const list = wrapper.get('.recent-conversation-list')
@@ -181,7 +184,10 @@ describe('LayoutSidebar home navigation', () => {
   it('does not log private details when sidebar bootstrap pagination fails', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     mocks.loadRecentConversations
-      .mockImplementationOnce(async () => { mocks.recentConversationsRef.value = [createRecentConversation(0)] })
+      .mockImplementationOnce(async () => {
+        mocks.recentConversationsRef.value = [createRecentConversation(0)]
+        return 'APPLIED'
+      })
       .mockRejectedValueOnce(new Error('private conversation response'))
     const wrapper = mountSidebar()
     try {
@@ -199,7 +205,10 @@ describe('LayoutSidebar home navigation', () => {
     const page = Array.from({ length: 20 }, (_item, index) => createRecentConversation(index))
     mocks.loadRecentConversations
       .mockReset()
-      .mockImplementationOnce(async () => { mocks.recentConversationsRef.value = page as any })
+      .mockImplementationOnce(async () => {
+        mocks.recentConversationsRef.value = page as any
+        return 'APPLIED'
+      })
       .mockRejectedValueOnce(new Error('private conversation response'))
     const wrapper = mountSidebar()
     const list = wrapper.get('.recent-conversation-list')
@@ -251,6 +260,7 @@ describe('LayoutSidebar home navigation', () => {
               ? recentConversationPages[2]
               : recentConversationPages[3]
       mocks.recentConversationsRef.value = nextList as any
+      return 'APPLIED'
     })
 
     const wrapper = mountSidebar()
@@ -289,6 +299,7 @@ describe('LayoutSidebar home navigation', () => {
     mocks.loadRecentConversations.mockImplementation(async (limit: number) => {
       const nextList = mocks.allRecentConversations.slice(0, limit)
       mocks.recentConversationsRef.value = nextList
+      return 'APPLIED'
     })
 
     const wrapper = mountSidebar()
@@ -345,5 +356,107 @@ describe('LayoutSidebar home navigation', () => {
 
     expect(mocks.loadRecentConversations).toHaveBeenCalledTimes(3)
     expect(mocks.loadRecentConversations).not.toHaveBeenCalledWith(80)
+  })
+
+  it('does not update hasMore or limit when loadRecentConversations returns STALE during account switch', async () => {
+    let resolveStaleLoad!: (value: any) => void
+    const staleLoadPromise = new Promise((resolve) => { resolveStaleLoad = resolve })
+
+    mocks.loadRecentConversations.mockImplementationOnce(async () => {
+      mocks.recentConversationsRef.value = Array.from({ length: 20 }, (_, i) => createRecentConversation(i))
+      return 'APPLIED'
+    })
+
+    const wrapper = mountSidebar()
+    await flushPromises()
+
+    mocks.loadRecentConversations.mockImplementationOnce(() => staleLoadPromise as any)
+    const list = wrapper.get('.recent-conversation-list')
+    Object.defineProperties(list.element, {
+      scrollTop: { value: 400, writable: true, configurable: true },
+      clientHeight: { value: 200, configurable: true },
+      scrollHeight: { value: 600, configurable: true },
+    })
+    await list.trigger('scroll')
+
+    mocks.loadRecentConversations.mockImplementationOnce(async () => {
+      mocks.recentConversationsRef.value = []
+      return 'APPLIED'
+    })
+    mocks.credentialState.credential = { access_token: 'token-account-b' }
+    await flushPromises()
+
+    resolveStaleLoad('STALE')
+    await flushPromises()
+
+    expect(mocks.recentConversationsRef.value).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('halts bootstrap without updating hasMore when loadRecentConversations returns STALE or ERROR', async () => {
+    mocks.loadRecentConversations
+      .mockImplementationOnce(async () => {
+        mocks.recentConversationsRef.value = Array.from({ length: 10 }, (_, i) => createRecentConversation(i))
+        return 'APPLIED'
+      })
+      .mockResolvedValueOnce('STALE')
+
+    const wrapper = mountSidebar()
+    const list = wrapper.get('.recent-conversation-list')
+    Object.defineProperties(list.element, {
+      clientHeight: { value: 500, configurable: true },
+      scrollHeight: { value: 300, configurable: true },
+    })
+    await flushPromises()
+
+    expect(mocks.loadRecentConversations).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('reverts limit and unlocks bottom when loadMore encounters an ERROR', async () => {
+    const page = Array.from({ length: 20 }, (_, i) => createRecentConversation(i))
+    mocks.loadRecentConversations
+      .mockImplementationOnce(async () => {
+        mocks.recentConversationsRef.value = page
+        return 'APPLIED'
+      })
+      .mockResolvedValueOnce('ERROR')
+
+    const wrapper = mountSidebar()
+    const list = wrapper.get('.recent-conversation-list')
+    Object.defineProperties(list.element, {
+      scrollTop: { value: 400, writable: true, configurable: true },
+      clientHeight: { value: 200, configurable: true },
+      scrollHeight: { value: 600, configurable: true },
+    })
+    await flushPromises()
+
+    await list.trigger('scroll')
+    await flushPromises()
+
+    mocks.loadRecentConversations.mockResolvedValueOnce('APPLIED')
+    await list.trigger('scroll')
+    await flushPromises()
+
+    expect(mocks.loadRecentConversations).toHaveBeenCalledTimes(3)
+    wrapper.unmount()
+  })
+
+  it('clears conversations and resets pagination state on logout', async () => {
+    mocks.loadRecentConversations.mockImplementationOnce(async () => {
+      mocks.recentConversationsRef.value = [createRecentConversation(0)]
+      return 'APPLIED'
+    })
+    const wrapper = mountSidebar()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Conversation 1')
+
+    mocks.loggedIn = false
+    mocks.credentialState.credential = null
+    await flushPromises()
+
+    expect(mocks.recentConversationsRef.value).toEqual([])
+    expect(wrapper.text()).not.toContain('Conversation 1')
+    wrapper.unmount()
   })
 })

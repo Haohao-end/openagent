@@ -473,20 +473,20 @@ describe('historical chat pagination', () => {
     const olderRequest = hook.loadRecentConversations()
     const newerRequest = hook.loadRecentConversations()
     newerResponse.resolve({ data: [{ id: 'new-session' }] })
-    await newerRequest
+    await expect(newerRequest).resolves.toBe('APPLIED')
     rejectOlder(new Error('stale recent conversations request failed'))
 
-    await expect(olderRequest).resolves.toBeUndefined()
+    await expect(olderRequest).resolves.toBe('STALE')
     expect(hook.conversations.value).toEqual([{ id: 'new-session' }])
     expect(hook.loading.value).toBe(false)
   })
 
-  it('propagates the latest recent conversations error and resets loading', async () => {
+  it('reports ERROR for the latest recent conversations error and resets loading', async () => {
     const requestError = new Error('current recent conversations request failed')
     vi.mocked(conversationService.getRecentConversations).mockRejectedValueOnce(requestError)
     const hook = useGetRecentConversations()
 
-    await expect(hook.loadRecentConversations()).rejects.toBe(requestError)
+    await expect(hook.loadRecentConversations()).resolves.toBe('ERROR')
     expect(hook.loading.value).toBe(false)
   })
 

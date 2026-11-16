@@ -193,6 +193,8 @@ export const useUpdateConversationIsPinned = () => {
   return { loading, handleUpdateConversationIsPinned }
 }
 
+export type LoadRecentConversationsResult = 'APPLIED' | 'STALE' | 'ERROR'
+
 export const useGetRecentConversations = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
@@ -205,16 +207,20 @@ export const useGetRecentConversations = () => {
   }
 
   // 2.定义加载最近会话列表处理器
-  const loadRecentConversations = async (limit: number = 20) => {
+  const loadRecentConversations = async (
+    limit: number = 20,
+  ): Promise<LoadRecentConversationsResult> => {
     const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getRecentConversations(limit)
-      if (requestId !== latestRequest) return
+      if (requestId !== latestRequest) return 'STALE'
       const data = resp.data || []
       conversations.value = data
+      return 'APPLIED'
     } catch (error) {
-      if (requestId === latestRequest) throw error
+      if (requestId !== latestRequest) return 'STALE'
+      return 'ERROR'
     } finally {
       if (requestId === latestRequest) loading.value = false
     }
