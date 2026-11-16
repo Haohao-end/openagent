@@ -722,6 +722,50 @@ class TestDocumentService:
         assert captures["query"] is not None
         assert isinstance(paginator, _Paginator)
 
+    def test_get_documents_with_page_should_batch_preload_hit_counts(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        doc1 = SimpleNamespace(id=uuid4())
+        doc2 = SimpleNamespace(id=uuid4())
+
+        class _Session:
+            def __init__(self):
+                self.queries = []
+
+            def query(self, *entities):
+                self.queries.append(entities)
+                if len(self.queries) == 1:
+                    return _QueryStub()
+                return _QueryStub(all_result=[(doc1.id, 8)])
+
+        session = _Session()
+        service = DocumentService(db=SimpleNamespace(session=session), redis_client=_RedisStub())
+        monkeypatch.setattr(
+            service, "get",
+            lambda m, _id: SimpleNamespace(id=dataset_id, account_id=account.id) if m is Dataset else None,
+        )
+
+        class _Paginator:
+            def __init__(self, db, req):
+                pass
+
+            def paginate(self, _query):
+                return [doc1, doc2]
+
+        monkeypatch.setattr("internal.service.document_service.Paginator", _Paginator)
+        req = SimpleNamespace(
+            current_page=SimpleNamespace(data=1),
+            page_size=SimpleNamespace(data=20),
+            search_word=SimpleNamespace(data=""),
+        )
+
+        documents, _paginator = service.get_documents_with_page(dataset_id, req, account)
+
+        assert len(documents) == 2
+        assert len(session.queries) == 2
+        assert doc1._hit_count == 8
+        assert doc2._hit_count == 0
+
     def test_get_documents_with_page_should_use_stable_tie_breaker(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         dataset_id = uuid4()

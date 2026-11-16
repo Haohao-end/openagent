@@ -155,12 +155,16 @@ class Document(db.Model):
 
     @property
     def segment_count(self) -> int:
+        if getattr(self, "_segment_count", None) is not None:
+            return self._segment_count
         return db.session.query(func.count(Segment.id)).filter(
             Segment.document_id == self.id,
         ).scalar()
 
     @property
     def hit_count(self) -> int:
+        if getattr(self, "_hit_count", None) is not None:
+            return self._hit_count
         return db.session.query(func.coalesce(func.sum(Segment.hit_count)), 0).filter(
             Segment.document_id == self.id,
         ).scalar()
