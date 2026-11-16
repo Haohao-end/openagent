@@ -20,7 +20,7 @@ from internal.entity.conversation_entity import (
     SUGGESTED_QUESTIONS_TEMPLATE,
     SuggestedQuestions, InvokeFrom, MessageStatus,
 )
-from internal.lib.helper import datetime_to_timestamp
+from internal.lib.helper import datetime_to_timestamp, ensure_utc_naive
 from pkg.paginator import Paginator
 from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
@@ -446,14 +446,12 @@ class ConversationService(BaseService):
         message_by_conversation = OrderedDict()
         for message in sorted(
             private_recent_messages + public_recent_messages,
-            key=lambda message: (message.created_at, str(message.id)),
+            key=lambda message: (ensure_utc_naive(message.created_at), str(message.id)),
             reverse=True,
         ):
             if message.conversation_id in message_by_conversation:
                 continue
             message_by_conversation[message.conversation_id] = message
-            if len(message_by_conversation) >= safe_limit:
-                break
 
         if not message_by_conversation:
             return []
@@ -547,6 +545,8 @@ class ConversationService(BaseService):
                     "ai_message": message.answer,
                 }
             )
+            if len(results) >= safe_limit:
+                break
 
         return results
 
