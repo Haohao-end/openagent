@@ -7,7 +7,7 @@ from flask import Flask
 
 from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
 from internal.entity.conversation_entity import InvokeFrom
-from internal.exception import NotFoundException
+from internal.exception import NotFoundException, ValidateErrorException
 from internal.model import Conversation, Message
 from internal.service.conversation_service import ConversationService
 
@@ -743,10 +743,50 @@ class TestConversationServiceBasics:
             lambda target, **kwargs: updates.append((target, kwargs)) or target,
         )
 
-        result = service.update_conversation(conversation.id, account, name="新名字")
+        cleared_cache = []
+        monkeypatch.setattr(service, "_clear_cached_conversation_name", lambda cid: cleared_cache.append(cid))
+
+        result = service.update_conversation(
+            conversation.id,
+            account,
+            name="  新名字  ",
+            is_pinned=True,
+            created_by=uuid4(),
+            is_deleted=True,
+        )
 
         assert result is conversation
-        assert updates == [(conversation, {"name": "新名字"})]
+        assert updates == [(conversation, {"name": "新名字", "is_pinned": True})]
+        assert cleared_cache == [conversation.id]
+
+    def test_update_conversation_should_raise_when_name_invalid(self, monkeypatch):
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        conversation = SimpleNamespace(id=uuid4(), created_by=account.id, is_deleted=False, name="旧名字")
+        monkeypatch.setattr(service, "get_conversation", lambda *_args, **_kwargs: conversation)
+
+        with pytest.raises(ValidateErrorException, match="会话名字不能为空"):
+            service.update_conversation(conversation.id, account, name="   ")
+
+        with pytest.raises(ValidateErrorException, match="会话名字长度不能超过100个字符"):
+            service.update_conversation(conversation.id, account, name="a" * 101)
+
+    def test_update_conversation_no_update_called_when_all_fields_unallowed(self, monkeypatch):
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        conversation = SimpleNamespace(id=uuid4(), created_by=account.id, is_deleted=False, name="旧名字")
+        monkeypatch.setattr(service, "get_conversation", lambda *_args, **_kwargs: conversation)
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        result = service.update_conversation(conversation.id, account, created_by=uuid4(), is_deleted=True)
+
+        assert result is conversation
+        assert updates == []
 
     def test_get_conversation_messages_with_page_should_paginate_and_load_messages(self, monkeypatch):
         service = self._build_service()
