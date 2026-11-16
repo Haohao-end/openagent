@@ -113,10 +113,17 @@ def test_request_loader_should_raise_when_openapi_api_key_not_found():
 
 
 def test_request_loader_should_raise_when_openapi_api_key_inactive():
+    class _InactiveApiKey:
+        is_active = False
+
+        @property
+        def account(self):
+            raise AssertionError("account must not be accessed for inactive api key")
+
     middleware = Middleware(
         jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
         api_key_service=SimpleNamespace(
-            get_api_by_by_credential=lambda _key: SimpleNamespace(is_active=False, account=None)
+            get_api_by_by_credential=lambda _key: _InactiveApiKey()
         ),
         account_service=SimpleNamespace(get_account=lambda _id: None),
     )
@@ -128,6 +135,62 @@ def test_request_loader_should_raise_when_openapi_api_key_inactive():
     app = Flask(__name__)
     with app.app_context():
         with pytest.raises(UnauthorizedException, match="不存在或未激活"):
+            middleware.request_loader(request)
+
+
+def test_request_loader_should_not_access_account_when_api_key_expired():
+    class _ExpiredApiKey:
+        is_active = True
+        expires_at = datetime(2020, 1, 1, 0, 0, 0, tzinfo=UTC)
+
+        @property
+        def account(self):
+            raise AssertionError("account must not be accessed for expired api key")
+
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: _ExpiredApiKey()
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with app.app_context():
+        with pytest.raises(UnauthorizedException, match="不存在或未激活"):
+            middleware.request_loader(request)
+
+
+def test_request_loader_should_not_access_account_when_scope_invalid():
+    class _InvalidScopeApiKey:
+        is_active = True
+        expires_at = None
+        scopes = ["openapi:chat"]
+
+        @property
+        def account(self):
+            raise AssertionError("account must not be accessed when scope check fails")
+
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: _InvalidScopeApiKey()
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        endpoint="openapi.unknown_endpoint",
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with app.app_context():
+        with pytest.raises(ForbiddenException, match="没有调用此接口的权限"):
             middleware.request_loader(request)
 
 
