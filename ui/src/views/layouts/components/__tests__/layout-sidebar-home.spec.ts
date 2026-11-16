@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   recentConversations: [] as any[],
   recentConversationsRef: undefined as any,
   allRecentConversations: [] as any[],
-  loadRecentConversations: vi.fn(),
+  loadRecentConversations: vi.fn().mockResolvedValue('APPLIED'),
   invalidateRecentConversations: vi.fn(),
   handleDeleteConversation: vi.fn(),
 }))
@@ -119,6 +119,7 @@ const createRecentConversation = (index: number) => ({
 describe('LayoutSidebar home navigation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.loadRecentConversations.mockResolvedValue('APPLIED')
     mocks.loggedIn = true
     mocks.route.path = '/space/apps'
     mocks.route.query = {}
@@ -133,6 +134,7 @@ describe('LayoutSidebar home navigation', () => {
   it('clears recent conversations and reloads when the authenticated credential changes', async () => {
     mocks.loadRecentConversations.mockImplementationOnce(async () => {
       mocks.recentConversationsRef.value = [createRecentConversation(0)]
+      return 'APPLIED'
     })
     const wrapper = mountSidebar()
     const list = wrapper.get('.recent-conversation-list')
@@ -146,6 +148,55 @@ describe('LayoutSidebar home navigation', () => {
 
     expect(mocks.loadRecentConversations).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).not.toContain('Conversation 1')
+    wrapper.unmount()
+  })
+
+  it('does not allow a stale loadMore request from a previous account to overwrite the new account pagination limit or list', async () => {
+    let resolveStaleLoad!: (val: string) => void
+    const staleLoadPromise = new Promise((resolve) => {
+      resolveStaleLoad = resolve
+    })
+
+    // 账号 A 初次加载成功（20条）
+    mocks.loadRecentConversations.mockImplementationOnce(async () => {
+      mocks.recentConversationsRef.value = Array.from({ length: 20 }, (_, i) =>
+        createRecentConversation(i),
+      )
+      return 'APPLIED'
+    })
+
+    const wrapper = mountSidebar()
+    const list = wrapper.get('.recent-conversation-list')
+    Object.defineProperties(list.element, {
+      scrollTop: { value: 0, writable: true, configurable: true },
+      clientHeight: { value: 200, configurable: true },
+      scrollHeight: { value: 600, configurable: true },
+    })
+    await flushPromises()
+
+    // 账号 A 触发 loadMore（滚动到底部），发起限额 40 的请求并挂起
+    mocks.loadRecentConversations.mockImplementationOnce(() => staleLoadPromise as any)
+    Object.defineProperty(list.element, 'scrollTop', { value: 400, writable: true, configurable: true })
+    await list.trigger('scroll')
+
+    // 此时用户切换到账号 B
+    mocks.loadRecentConversations.mockImplementationOnce(async () => {
+      mocks.recentConversationsRef.value = [createRecentConversation(100)]
+      return 'APPLIED'
+    })
+    mocks.credentialState.credential = { access_token: 'token-account-b' }
+    await flushPromises()
+
+    // 账号 B 拥有其独立的数据
+    expect(mocks.recentConversationsRef.value.map((c: any) => c.id)).toEqual(['conversation-101'])
+
+    // 账号 A 挂起的旧请求返回 'STALE'
+    resolveStaleLoad('STALE')
+    await flushPromises()
+
+    // 验证账号 B 的数据未被旧请求覆盖
+    expect(mocks.recentConversationsRef.value.map((c: any) => c.id)).toEqual(['conversation-101'])
+
     wrapper.unmount()
   })
 
@@ -181,7 +232,10 @@ describe('LayoutSidebar home navigation', () => {
   it('does not log private details when sidebar bootstrap pagination fails', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     mocks.loadRecentConversations
-      .mockImplementationOnce(async () => { mocks.recentConversationsRef.value = [createRecentConversation(0)] })
+      .mockImplementationOnce(async () => {
+        mocks.recentConversationsRef.value = [createRecentConversation(0)]
+        return 'APPLIED'
+      })
       .mockRejectedValueOnce(new Error('private conversation response'))
     const wrapper = mountSidebar()
     try {
@@ -199,7 +253,10 @@ describe('LayoutSidebar home navigation', () => {
     const page = Array.from({ length: 20 }, (_item, index) => createRecentConversation(index))
     mocks.loadRecentConversations
       .mockReset()
-      .mockImplementationOnce(async () => { mocks.recentConversationsRef.value = page as any })
+      .mockImplementationOnce(async () => {
+        mocks.recentConversationsRef.value = page as any
+        return 'APPLIED'
+      })
       .mockRejectedValueOnce(new Error('private conversation response'))
     const wrapper = mountSidebar()
     const list = wrapper.get('.recent-conversation-list')
@@ -251,6 +308,7 @@ describe('LayoutSidebar home navigation', () => {
               ? recentConversationPages[2]
               : recentConversationPages[3]
       mocks.recentConversationsRef.value = nextList as any
+      return 'APPLIED'
     })
 
     const wrapper = mountSidebar()
@@ -289,6 +347,7 @@ describe('LayoutSidebar home navigation', () => {
     mocks.loadRecentConversations.mockImplementation(async (limit: number) => {
       const nextList = mocks.allRecentConversations.slice(0, limit)
       mocks.recentConversationsRef.value = nextList
+      return 'APPLIED'
     })
 
     const wrapper = mountSidebar()
