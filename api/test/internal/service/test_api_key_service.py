@@ -601,6 +601,42 @@ class TestApiKeyService:
 
         assert updates == [(api_key, {"expires_at": None})]
 
+    @pytest.mark.parametrize("invalid_remark", [123, "a" * 101])
+    def test_update_api_key_should_reject_invalid_remark(self, monkeypatch, invalid_remark):
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        api_key = SimpleNamespace(id=uuid4(), account_id=account.id)
+        monkeypatch.setattr(service, "get_api_key", lambda *_args, **_kwargs: api_key)
+
+        with pytest.raises(ValueError):
+            service.update_api_key(api_key.id, account, remark=invalid_remark)
+
+    def test_update_api_key_should_strip_remark(self, monkeypatch):
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        api_key = SimpleNamespace(id=uuid4(), account_id=account.id)
+        monkeypatch.setattr(service, "get_api_key", lambda *_args, **_kwargs: api_key)
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        service.update_api_key(api_key.id, account, remark="  trimmed  ")
+
+        assert updates == [(api_key, {"remark": "trimmed"})]
+
+    @pytest.mark.parametrize("invalid_ts", [0, -1, -100])
+    def test_update_api_key_should_reject_non_positive_expiration(self, monkeypatch, invalid_ts):
+        service = self._build_service()
+        account = SimpleNamespace(id=uuid4())
+        api_key = SimpleNamespace(id=uuid4(), account_id=account.id)
+        monkeypatch.setattr(service, "get_api_key", lambda *_args, **_kwargs: api_key)
+
+        with pytest.raises(ValueError, match="positive"):
+            service.update_api_key(api_key.id, account, expires_at=invalid_ts)
+
     def test_generate_api_key_should_keep_prefix(self):
         key = ApiKeyService.generate_api_key("prefix/")
         assert key.startswith("prefix/")

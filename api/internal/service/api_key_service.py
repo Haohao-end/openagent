@@ -33,12 +33,13 @@ class ApiKeyService(BaseService):
         scopes_field = getattr(req, "scopes", None)
         scopes = getattr(scopes_field, "data", None)
         scopes = self._normalize_scopes(scopes)
+        remark = self._normalize_remark(getattr(getattr(req, "remark", None), "data", None))
         api_key_record = self.create(
             ApiKey,
             account_id=account.id,
             api_key=self.hash_api_key(raw_api_key),
             is_active=req.is_active.data,
-            remark=req.remark.data,
+            remark=remark,
             expires_at=self._normalize_expires_at(req.expires_at.data),
             scopes=scopes,
         )
@@ -135,6 +136,8 @@ class ApiKeyService(BaseService):
         """根据传递的信息更新API密钥"""
         api_key = self.get_api_key(api_key_id, account)
         updates = {k: v for k, v in kwargs.items() if k in _ALLOWED_UPDATE_FIELDS}
+        if "remark" in updates:
+            updates["remark"] = self._normalize_remark(updates["remark"])
         if "expires_at" in updates:
             updates["expires_at"] = self._normalize_expires_at(updates["expires_at"])
         if "scopes" in updates:
@@ -157,6 +160,18 @@ class ApiKeyService(BaseService):
         return list(scopes)
 
     @staticmethod
+    def _normalize_remark(remark: object) -> str:
+        """Validate and normalize remark string."""
+        if remark is None:
+            return ""
+        if not isinstance(remark, str):
+            raise ValueError("API key remark must be a string")
+        stripped = remark.strip()
+        if len(stripped) > 100:
+            raise ValueError("API key remark cannot exceed 100 characters")
+        return stripped
+
+    @staticmethod
     def _normalize_expires_at(value: int | datetime | None) -> datetime | None:
         """Convert API timestamps to the naive UTC value used by database columns."""
         if value is None:
@@ -164,7 +179,12 @@ class ApiKeyService(BaseService):
         if isinstance(value, bool):
             raise ValueError("API key expiration must be a Unix timestamp")
         if isinstance(value, int):
-            value = datetime.fromtimestamp(value, UTC)
+            if value <= 0:
+                raise ValueError("API key expiration must be a positive Unix timestamp")
+            try:
+                value = datetime.fromtimestamp(value, UTC)
+            except (OverflowError, OSError, ValueError) as err:
+                raise ValueError("API key expiration timestamp out of range") from err
         if not isinstance(value, datetime):
             raise ValueError("API key expiration must be a Unix timestamp")
         return ensure_utc_naive(value)
