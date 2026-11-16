@@ -1598,6 +1598,146 @@ class TestConversationServiceBasics:
 
         assert conversations == []
 
+    def test_get_recent_conversations_should_backfill_when_newer_candidate_is_deleted(self, app_ctx):
+        service = self._build_service()
+        account_id = uuid4()
+        now = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
+        older = datetime(2026, 3, 1, 11, 0, 0, tzinfo=UTC)
+
+        deleted_conv = SimpleNamespace(
+            id=uuid4(),
+            name="已删除会话",
+            created_by=account_id,
+            is_deleted=True,
+            created_at=now,
+        )
+        active_conv = SimpleNamespace(
+            id=uuid4(),
+            name="有效会话",
+            created_by=account_id,
+            is_deleted=False,
+            created_at=older,
+        )
+
+        msg_deleted = SimpleNamespace(
+            id=UUID(int=2),
+            conversation_id=deleted_conv.id,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            app_id=None,
+            query="deleted query",
+            answer="deleted answer",
+            created_at=now,
+        )
+        msg_active = SimpleNamespace(
+            id=UUID(int=1),
+            conversation_id=active_conv.id,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            app_id=None,
+            query="active query",
+            answer="active answer",
+            created_at=older,
+        )
+
+        class _Query:
+            def __init__(self, all_result):
+                self._all_result = all_result
+
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def order_by(self, *_args, **_kwargs):
+                return self
+
+            def limit(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return self._all_result
+
+        class _Session:
+            def query(self, model):
+                model_name = getattr(model, "__name__", "")
+                if model_name == "Message":
+                    return _Query([msg_deleted, msg_active])
+                if model_name == "Conversation":
+                    return _Query([active_conv])
+                if model_name == "App":
+                    return _Query([])
+                raise AssertionError(f"unexpected model: {model_name}")
+
+        service.db = SimpleNamespace(session=_Session())
+        account = SimpleNamespace(id=account_id, assistant_agent_conversation_id=None)
+
+        # limit=1 must skip deleted_conv and return the active_conv
+        conversations = service.get_recent_conversations(account, limit=1)
+
+        assert len(conversations) == 1
+        assert conversations[0]["id"] == str(active_conv.id)
+        assert conversations[0]["name"] == "有效会话"
+
+    def test_get_recent_conversations_should_handle_mixed_aware_and_naive_message_timestamps(self, app_ctx):
+        service = self._build_service()
+        account_id = uuid4()
+        dt_aware = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
+        dt_naive = datetime(2026, 3, 1, 11, 0, 0)
+
+        conv_aware = SimpleNamespace(id=uuid4(), name="Aware", created_by=account_id, is_deleted=False, created_at=dt_aware)
+        conv_naive = SimpleNamespace(id=uuid4(), name="Naive", created_by=account_id, is_deleted=False, created_at=dt_naive)
+
+        msg_aware = SimpleNamespace(
+            id=UUID(int=2),
+            conversation_id=conv_aware.id,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            app_id=None,
+            query="aware",
+            answer="aware answer",
+            created_at=dt_aware,
+        )
+        msg_naive = SimpleNamespace(
+            id=UUID(int=1),
+            conversation_id=conv_naive.id,
+            invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+            app_id=None,
+            query="naive",
+            answer="naive answer",
+            created_at=dt_naive,
+        )
+
+        class _Query:
+            def __init__(self, all_result):
+                self._all_result = all_result
+
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def order_by(self, *_args, **_kwargs):
+                return self
+
+            def limit(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return self._all_result
+
+        class _Session:
+            def query(self, model):
+                model_name = getattr(model, "__name__", "")
+                if model_name == "Message":
+                    return _Query([msg_aware, msg_naive])
+                if model_name == "Conversation":
+                    return _Query([conv_aware, conv_naive])
+                if model_name == "App":
+                    return _Query([])
+                raise AssertionError(f"unexpected model: {model_name}")
+
+        service.db = SimpleNamespace(session=_Session())
+        account = SimpleNamespace(id=account_id, assistant_agent_conversation_id=None)
+
+        conversations = service.get_recent_conversations(account, limit=2)
+
+        assert len(conversations) == 2
+        assert [c["id"] for c in conversations] == [str(conv_aware.id), str(conv_naive.id)]
+
     def test_delete_conversation_should_skip_debugger_pointer_clear_when_app_not_active(self, monkeypatch):
         service = self._build_service()
         account = SimpleNamespace(id=uuid4(), assistant_agent_conversation_id=None)
