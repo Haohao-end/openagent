@@ -86,8 +86,8 @@ export const useGetAppsWithPage = () => {
   const loadApps = async (init: boolean = false, search_word: string = '') => {
     // 2.1 判断是否是初始化，如果是的话则先初始化分页器
     if (init) {
-      paginator.value = defaultPaginator
-    } else if (paginator.value.current_page > paginator.value.total_page) {
+      paginator.value = { ...defaultPaginator }
+    } else if (loading.value || paginator.value.current_page > paginator.value.total_page) {
       return
     }
     const requestId = ++latestRequest
