@@ -12,10 +12,14 @@ from injector import inject
 from sqlalchemy import and_, desc, func
 
 from internal.entity.tag_entity import TagStatus, TagType
+from internal.exception import ValidateErrorException
 from internal.model import AppTag, Tag, WorkflowTag
 from internal.service.base_service import BaseService
 from pkg.paginator import Paginator, PaginatorReq
 from pkg.sqlalchemy import SQLAlchemy
+
+
+_TAG_ALLOWED_UPDATE_FIELDS = frozenset({"name", "description"})
 
 
 @inject
@@ -79,7 +83,25 @@ class TagService(BaseService):
         tag = self._get_owned_tag(tag_id, account_id)
         if not tag:
             return None
-        return self.update(tag, **kwargs)
+
+        updates = {k: v for k, v in kwargs.items() if k in _TAG_ALLOWED_UPDATE_FIELDS}
+        if "name" in updates:
+            name = str(updates["name"] or "").strip()
+            if not name:
+                raise ValidateErrorException("标签名称不能为空")
+            if len(name) > 50:
+                raise ValidateErrorException("标签名称长度必须在 1-50 个字符之间")
+            updates["name"] = name
+
+        if "description" in updates:
+            description = str(updates["description"] or "").strip()
+            if len(description) > 200:
+                raise ValidateErrorException("标签描述长度不能超过 200 个字符")
+            updates["description"] = description
+
+        if updates:
+            self.update(tag, **updates)
+        return tag
 
     def delete_tag(self, tag_id: UUID, account_id: UUID) -> Optional[Tag]:
         """
