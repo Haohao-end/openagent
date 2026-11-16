@@ -220,6 +220,28 @@ class TestAnalysisService:
         assert len(trend["active_accounts_trend"]["y_axis"]) == 7
         assert len(trend["avg_of_conversation_messages_trend"]["y_axis"]) == 7
         assert len(trend["cost_consumption_trend"]["y_axis"]) == 7
+        expected_first_x = int(datetime(2024, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp())
+        assert trend["total_messages_trend"]["x_axis"][0] == expected_first_x
+        assert trend["active_accounts_trend"]["x_axis"][0] == expected_first_x
+        assert trend["avg_of_conversation_messages_trend"]["x_axis"][0] == expected_first_x
+        assert trend["cost_consumption_trend"]["x_axis"][0] == expected_first_x
+
+    def test_calculate_trend_by_messages_should_maintain_utc_x_axis_under_local_timezone(self):
+        import os, time
+        previous_tz = os.environ.get("TZ")
+        os.environ["TZ"] = "Asia/Shanghai"
+        time.tzset()
+        try:
+            end_at = datetime(2024, 1, 8, 18, 30, 0)
+            trend = AnalysisService.calculate_trend_by_messages(end_at=end_at, days_ago=7, messages=[])
+            expected_first_x = int(datetime(2024, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp())
+            assert trend["total_messages_trend"]["x_axis"][0] == expected_first_x
+        finally:
+            if previous_tz is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = previous_tz
+            time.tzset()
 
     def test_calculate_trend_by_messages_should_accept_aware_utc_datetimes(self, monkeypatch):
         monkeypatch.setattr(

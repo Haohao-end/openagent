@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID
 from injector import inject
 from sqlalchemy import func
-from internal.lib.helper import ensure_utc_naive, utc_midnight_naive, utc_now_naive
+from internal.lib.helper import datetime_to_timestamp, ensure_utc_naive, utc_midnight_naive, utc_now_naive
 from internal.model import Account, App, Message, MessageAgentThought
 from internal.core.agent.entities.queue_entity import QueueEvent
 from pkg.sqlalchemy import SQLAlchemy
@@ -195,12 +195,14 @@ class AnalysisService(BaseService):
             else:
                 trend_end_at = trend_start_at + timedelta(days=1)
 
+            trend_timestamp = datetime_to_timestamp(trend_start_at)
+
             # 6.计算全部会话趋势
             total_messages_trend_y_axis = len([
                 message for created_at, message in normalized_messages
                 if trend_start_at <= created_at < trend_end_at
             ])
-            total_messages_trend["x_axis"].append(int(trend_start_at.timestamp()))
+            total_messages_trend["x_axis"].append(trend_timestamp)
             total_messages_trend["y_axis"].append(total_messages_trend_y_axis)
 
             # 7.计算激活用户趋势数据
@@ -208,7 +210,7 @@ class AnalysisService(BaseService):
                 message.created_by for created_at, message in normalized_messages
                 if trend_start_at <= created_at < trend_end_at
             })
-            active_accounts_trend["x_axis"].append(int(trend_start_at.timestamp()))
+            active_accounts_trend["x_axis"].append(trend_timestamp)
             active_accounts_trend["y_axis"].append(active_accounts_trend_y_axis)
 
             # 8.计算平均会话互动趋势
@@ -219,7 +221,7 @@ class AnalysisService(BaseService):
             })
             if conversation_count != 0:
                 avg_of_conversation_messages_trend_y_axis = total_messages_trend_y_axis / conversation_count
-            avg_of_conversation_messages_trend["x_axis"].append(int(trend_start_at.timestamp()))
+            avg_of_conversation_messages_trend["x_axis"].append(trend_timestamp)
             avg_of_conversation_messages_trend["y_axis"].append(float(avg_of_conversation_messages_trend_y_axis))
 
             # 9.计算费用消耗趋势
@@ -227,7 +229,7 @@ class AnalysisService(BaseService):
                 message.total_price for created_at, message in normalized_messages
                 if trend_start_at <= created_at < trend_end_at
             )
-            cost_consumption_trend["x_axis"].append(int(trend_start_at.timestamp()))
+            cost_consumption_trend["x_axis"].append(trend_timestamp)
             cost_consumption_trend["y_axis"].append(float(cost_consumption_trend_y_axis))
 
         # 10.返回数据
