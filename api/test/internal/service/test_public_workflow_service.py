@@ -661,7 +661,7 @@ class TestPublicWorkflowService:
         assert re.match(WORKFLOW_CONFIG_NAME_PATTERN, fork.tool_call_name)
         assert fork.tool_call_name not in existing_names
 
-    def test_get_public_workflow_detail_should_return_detail_and_fork_status(self):
+    def test_get_public_workflow_detail_should_return_detail_and_fork_status(self, _asia_shanghai_timezone):
         account = SimpleNamespace(id=uuid4())
         workflow = SimpleNamespace(
             id=uuid4(),
@@ -673,9 +673,9 @@ class TestPublicWorkflowService:
             icon="https://icon",
             description="desc",
             tags=[AppCategory.GENERAL.value],
-            published_at=datetime(2026, 1, 1, tzinfo=UTC),
-            created_at=datetime(2025, 1, 1, tzinfo=UTC),
-            updated_at=datetime(2026, 1, 2, tzinfo=UTC),
+            published_at=datetime(2026, 1, 1),
+            created_at=datetime(2025, 1, 1),
+            updated_at=datetime(2026, 1, 2),
         )
         creator = SimpleNamespace(id=workflow.account_id, name="Owner", avatar="https://avatar")
         session = _QueueSession(
@@ -700,11 +700,38 @@ class TestPublicWorkflowService:
             "is_debug_passed": True,
             "account_name": "Owner",
             "account_avatar": "https://avatar",
-            "published_at": int(workflow.published_at.timestamp()),
-            "created_at": int(workflow.created_at.timestamp()),
-            "updated_at": int(workflow.updated_at.timestamp()),
+            "published_at": int(datetime(2026, 1, 1, tzinfo=UTC).timestamp()),
+            "created_at": int(datetime(2025, 1, 1, tzinfo=UTC).timestamp()),
+            "updated_at": int(datetime(2026, 1, 2, tzinfo=UTC).timestamp()),
             "is_forked": True,
         }
+
+    def test_get_public_workflow_detail_should_handle_none_updated_at(self):
+        workflow = SimpleNamespace(
+            id=uuid4(),
+            account_id=uuid4(),
+            is_public=True,
+            status=WorkflowStatus.PUBLISHED.value,
+            is_debug_passed=False,
+            name="wf",
+            icon="https://icon",
+            description="desc",
+            tags=[AppCategory.GENERAL.value],
+            published_at=datetime(2026, 1, 1, tzinfo=UTC),
+            created_at=datetime(2025, 1, 1, tzinfo=UTC),
+            updated_at=None,
+        )
+        session = _QueueSession(
+            [
+                _Query(one_or_none_result=workflow),
+                _Query(one_or_none_result=None),
+            ]
+        )
+        service = _build_service(session=session)
+
+        detail = service.get_public_workflow_detail(workflow.id, None)
+
+        assert detail["updated_at"] == 0
 
     def test_get_public_workflow_detail_should_default_fork_flag_when_account_absent(self):
         workflow = SimpleNamespace(

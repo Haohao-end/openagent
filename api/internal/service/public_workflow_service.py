@@ -319,7 +319,7 @@ class PublicWorkflowService(BaseService):
             "account_avatar": getattr(account_obj, "avatar", "") if account_obj else "",
             "published_at": datetime_to_timestamp(workflow.published_at),
             "created_at": datetime_to_timestamp(workflow.created_at),
-            "updated_at": int(workflow.updated_at.timestamp()),
+            "updated_at": datetime_to_timestamp(workflow.updated_at),
             "is_forked": False,  # 是否已fork
         }
 
