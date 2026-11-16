@@ -200,6 +200,50 @@ describe('LayoutSidebar home navigation', () => {
     wrapper.unmount()
   })
 
+  it('does not allow account A at maximum pagination limit to disable hasMore for new account B', async () => {
+    // 1. 账号 A 自动 bootstrap 达到上限 1000
+    mocks.loadRecentConversations.mockImplementation(async (limit: number) => {
+      mocks.recentConversationsRef.value = Array.from({ length: limit }, (_, i) =>
+        createRecentConversation(i),
+      )
+      return 'APPLIED'
+    })
+
+    const wrapper = mountSidebar()
+    const list = wrapper.get('.recent-conversation-list')
+    Object.defineProperties(list.element, {
+      scrollTop: { value: 0, writable: true, configurable: true },
+      clientHeight: { value: 400, configurable: true },
+      scrollHeight: { value: 400, configurable: true },
+    })
+    await flushPromises()
+
+    // 账号 A 在达到 1000 触发 scroll 达到 capped-pagination 分支
+    await list.trigger('scroll')
+    await flushPromises()
+
+    // 2. 切换至账号 B（账号 B 数据为可滚动列表）
+    mocks.loadRecentConversations.mockReset()
+    mocks.loadRecentConversations.mockImplementation(async (limit: number) => {
+      mocks.recentConversationsRef.value = Array.from({ length: limit }, (_, i) =>
+        createRecentConversation(1000 + i),
+      )
+      return 'APPLIED'
+    })
+    Object.defineProperty(list.element, 'scrollHeight', { value: 800, configurable: true })
+    mocks.credentialState.credential = { access_token: 'token-account-b' }
+    await flushPromises()
+
+    // 3. 验证账号 B 可以发起下一次分页请求（hasMore 未被旧账号锁死为 false）
+    mocks.loadRecentConversations.mockClear()
+    Object.defineProperty(list.element, 'scrollTop', { value: 500, writable: true, configurable: true })
+    await list.trigger('scroll')
+    await flushPromises()
+
+    expect(mocks.loadRecentConversations).toHaveBeenCalledWith(40)
+    wrapper.unmount()
+  })
+
   it('navigates to plain home when a logged-in user clicks Home', async () => {
     const wrapper = mountSidebar()
     await flushPromises()

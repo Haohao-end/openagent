@@ -113,8 +113,10 @@ const bootstrapRecentConversations = async () => {
       )
 
       if (nextLimit === previousLimit) {
-        hasMoreRecentConversations.value = false
-        recentConversationsBottomLocked.value = false
+        if (session === sidebarSessionId) {
+          hasMoreRecentConversations.value = false
+          recentConversationsBottomLocked.value = false
+        }
         break
       }
 
@@ -193,8 +195,10 @@ const loadMoreRecentConversations = async () => {
     MAX_RECENT_CONVERSATIONS_LIMIT,
   )
   if (nextLimit === previousLimit) {
-    hasMoreRecentConversations.value = false
-    recentConversationsBottomLocked.value = false
+    if (session === sidebarSessionId) {
+      hasMoreRecentConversations.value = false
+      recentConversationsBottomLocked.value = false
+    }
     return
   }
   try {
