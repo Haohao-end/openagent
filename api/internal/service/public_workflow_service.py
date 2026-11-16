@@ -25,6 +25,9 @@ from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
 
 
+MAX_FORK_TOOL_CALL_NAME_LENGTH = 50
+
+
 @inject
 @dataclass
 class PublicWorkflowService(BaseService):
@@ -182,7 +185,7 @@ class PublicWorkflowService(BaseService):
             raise NotFoundException("公共工作流不存在或未公开")
 
         account_tool_suffix = f"_copy_{account.id.hex[:8]}"
-        max_tool_call_name_length = 64 - len("wf_")
+        max_tool_call_name_length = MAX_FORK_TOOL_CALL_NAME_LENGTH
         source_prefixes = "|".join(
             re.escape(public_workflow.tool_call_name[:length])
             for length in range(len(public_workflow.tool_call_name), -1, -1)
