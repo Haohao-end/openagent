@@ -3,12 +3,12 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from injector import inject
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 
 from internal.entity.dataset_entity import DEFAULT_DATASET_DESCRIPTION_FORMATTER
 from internal.exception import ValidateErrorException, NotFoundException, FailException
 from internal.lib.helper import datetime_to_timestamp
-from internal.model import Dataset, Segment, DatasetQuery, AppDatasetJoin, Account
+from internal.model import Dataset, Document, Segment, DatasetQuery, AppDatasetJoin, Account
 from internal.schema.dataset_schema import (
     CreateDatasetReq,
     UpdateDatasetReq,
@@ -122,6 +122,33 @@ class DatasetService(BaseService):
                 desc(Dataset.created_at), desc(Dataset.id)
             )
         )
+
+        # 4.预加载当前页知识库指标，消除序列化阶段针对每条记录的 N+1 查询
+        dataset_ids = [d.id for d in datasets if hasattr(d, "id")]
+        if dataset_ids:
+            doc_stats = {
+                row[0]: (row[1], row[2])
+                for row in self.db.session.query(
+                    Document.dataset_id,
+                    func.count(Document.id),
+                    func.coalesce(func.sum(Document.character_count), 0),
+                )
+                .filter(Document.dataset_id.in_(dataset_ids))
+                .group_by(Document.dataset_id)
+                .all()
+            }
+            app_counts = dict(
+                self.db.session.query(AppDatasetJoin.dataset_id, func.count(AppDatasetJoin.id))
+                .filter(AppDatasetJoin.dataset_id.in_(dataset_ids))
+                .group_by(AppDatasetJoin.dataset_id)
+                .all()
+            )
+            for d in datasets:
+                if hasattr(d, "id"):
+                    counts = doc_stats.get(d.id)
+                    d._document_count = counts[0] if counts else 0
+                    d._character_count = int(counts[1]) if counts else 0
+                    d._related_app_count = app_counts.get(d.id, 0)
 
         return datasets, paginator
 

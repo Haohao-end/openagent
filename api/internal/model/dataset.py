@@ -55,6 +55,8 @@ class Dataset(db.Model):
     @property
     def document_count(self) -> int:
         """只读属性，获取知识库下的文档数"""
+        if getattr(self, "_document_count", None) is not None:
+            return self._document_count
         return (
             db.session.
             query(func.count(Document.id)).
@@ -65,6 +67,8 @@ class Dataset(db.Model):
     @property
     def hit_count(self) -> int:
         """只读属性，获取该知识库的命中次数"""
+        if getattr(self, "_hit_count", None) is not None:
+            return self._hit_count
         return (
             db.session.
             query(func.coalesce(func.sum(Segment.hit_count), 0)).
@@ -75,6 +79,8 @@ class Dataset(db.Model):
     @property
     def related_app_count(self) -> int:
         """只读属性，获取该知识库关联的应用数"""
+        if getattr(self, "_related_app_count", None) is not None:
+            return self._related_app_count
         return (
             db.session.
             query(func.count(AppDatasetJoin.id)).
@@ -85,6 +91,8 @@ class Dataset(db.Model):
     @property
     def character_count(self) -> int:
         """只读属性，获取该知识库下的字符总数"""
+        if getattr(self, "_character_count", None) is not None:
+            return self._character_count
         return (
             db.session.
             query(func.coalesce(func.sum(Document.character_count), 0)).
