@@ -627,6 +627,44 @@ describe('useGetDatasetsWithPage', () => {
     mocks.getDatasetsWithPage.mockRejectedValueOnce(new Error('latest failure'))
     await expect(loadDatasets(true, 'latest')).rejects.toThrow('latest failure')
   })
+
+  it('does not invalidate in-flight initial load when concurrent scroll triggers pagination', async () => {
+    const initialResponse = createDeferred<DatasetsPageResponse>()
+    mocks.getDatasetsWithPage.mockReturnValueOnce(initialResponse.promise)
+
+    const { loading, datasets, paginator, loadDatasets } = useGetDatasetsWithPage()
+
+    const initialRequest = loadDatasets(true)
+    expect(loading.value).toBe(true)
+
+    const scrollRequest = loadDatasets(false)
+    await scrollRequest
+
+    expect(mocks.getDatasetsWithPage).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    initialResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 2, total_record: 25 },
+        list: [{ id: 'dataset-1' }],
+      },
+    })
+    await initialRequest
+
+    expect(datasets.value).toEqual([{ id: 'dataset-1' }])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not increment generation or alter loading when pagination is called without more pages', async () => {
+    const { loading, paginator, loadDatasets } = useGetDatasetsWithPage()
+    paginator.value = { current_page: 3, page_size: 20, total_page: 2, total_record: 25 }
+
+    await loadDatasets(false)
+
+    expect(mocks.getDatasetsWithPage).not.toHaveBeenCalled()
+    expect(loading.value).toBe(false)
+  })
 })
 
 describe('useGetSegmentsWithPage', () => {
