@@ -277,6 +277,22 @@ class DocumentService(BaseService):
             )
         )
 
+        # 5.批量预加载当前页文档命中次数，消除序列化时的 N+1 查询
+        doc_ids = [doc.id for doc in documents if hasattr(doc, "id")]
+        if doc_ids:
+            hit_counts = dict(
+                self.db.session.query(
+                    Segment.document_id,
+                    func.coalesce(func.sum(Segment.hit_count), 0),
+                )
+                .filter(Segment.document_id.in_(doc_ids))
+                .group_by(Segment.document_id)
+                .all()
+            )
+            for doc in documents:
+                if hasattr(doc, "id"):
+                    doc._hit_count = int(hit_counts.get(doc.id, 0))
+
         return documents, paginator
 
     def get_latest_document_position(self, dataset_id: UUID) -> int:
