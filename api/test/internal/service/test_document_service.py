@@ -663,10 +663,48 @@ class TestDocumentService:
             lambda target, **kwargs: updates.append((target, kwargs)) or target,
         )
 
-        result = service.update_document(dataset_id, document.id, account, name="new")
+        result = service.update_document(
+            dataset_id,
+            document.id,
+            account,
+            name="  new  ",
+            account_id=uuid4(),
+            status="completed",
+        )
 
         assert result is document
         assert updates == [(document, {"name": "new"})]
+
+    def test_update_document_should_raise_when_name_invalid(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        document = SimpleNamespace(id=uuid4(), dataset_id=dataset_id, account_id=account.id, name="old")
+        service = DocumentService(db=SimpleNamespace(session=SimpleNamespace()), redis_client=_RedisStub())
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: document)
+
+        with pytest.raises(ValidateErrorException, match="文档名称不能为空"):
+            service.update_document(dataset_id, document.id, account, name="   ")
+
+        with pytest.raises(ValidateErrorException, match="文档的名称长度不能超过100"):
+            service.update_document(dataset_id, document.id, account, name="a" * 101)
+
+    def test_update_document_no_update_called_when_all_fields_unallowed(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        document = SimpleNamespace(id=uuid4(), dataset_id=dataset_id, account_id=account.id, name="old")
+        service = DocumentService(db=SimpleNamespace(session=SimpleNamespace()), redis_client=_RedisStub())
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: document)
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        result = service.update_document(dataset_id, document.id, account, account_id=uuid4())
+
+        assert result is document
+        assert updates == []
 
     def test_update_document_should_raise_when_not_found(self, monkeypatch):
         service = DocumentService(db=SimpleNamespace(session=SimpleNamespace()), redis_client=_RedisStub())
