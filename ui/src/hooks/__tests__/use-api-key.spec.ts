@@ -205,4 +205,32 @@ describe('useGetApiKeysWithPage', () => {
     expect(paginator.value.current_page).toBe(2)
     expect(loading.value).toBe(false)
   })
+
+  it('allows out-of-range route to reach the server and trigger the last-page fallback', async () => {
+    mocks.getApiKeysWithPage
+      .mockResolvedValueOnce({
+        data: {
+          list: [],
+          paginator: { current_page: 5, page_size: 20, total_page: 2, total_record: 25 },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          list: [{ id: 'fallback-page-2' }],
+          paginator: { current_page: 2, page_size: 20, total_page: 2, total_record: 25 },
+        },
+      })
+
+    const { api_keys, paginator, loading, loadApiKeys } = useGetApiKeysWithPage()
+    paginator.value = { current_page: 1, page_size: 20, total_page: 2, total_record: 25 }
+
+    mocks.routeQuery.current_page = '5'
+    await loadApiKeys(false)
+
+    expect(mocks.getApiKeysWithPage).toHaveBeenNthCalledWith(1, { current_page: 5, page_size: 20 })
+    expect(mocks.getApiKeysWithPage).toHaveBeenNthCalledWith(2, { current_page: 2, page_size: 20 })
+    expect(api_keys.value).toEqual([{ id: 'fallback-page-2' }])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
 })
