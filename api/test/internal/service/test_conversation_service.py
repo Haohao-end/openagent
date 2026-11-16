@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -1924,3 +1924,394 @@ class TestConversationServiceBasics:
             results = service.get_recent_conversations(account)
 
         assert [item["human_message"] for item in results] == ["owned prompt"]
+
+    @staticmethod
+    def _build_batch_test_session(messages, conversations, apps, public_messages=None):
+        class _BatchTestSession:
+            def __init__(self, msgs, convs, app_list, pub_msgs=None):
+                self.messages = msgs
+                self.public_messages = pub_msgs if pub_msgs is not None else []
+                self.conversations = {c.id: c for c in convs}
+                self.apps = {a.id: a for a in app_list}
+                self.conversation_batches = []
+                self.app_batches = []
+                self._message_call_count = 0
+
+            def query(self, model):
+                model_name = getattr(model, "__name__", "")
+                session = self
+
+                class _Query:
+                    def __init__(self):
+                        self.ids = None
+
+                    def filter(self, *criteria):
+                        for crit in criteria:
+                            right = getattr(crit, "right", None)
+                            val = getattr(right, "value", None)
+                            if isinstance(val, (list, tuple, set)):
+                                self.ids = list(val)
+                        return self
+
+                    def order_by(self, *_args, **_kwargs):
+                        return self
+
+                    def limit(self, *_args, **_kwargs):
+                        return self
+
+                    def all(self):
+                        if model_name == "Message":
+                            session._message_call_count += 1
+                            if session._message_call_count == 1:
+                                return session.messages
+                            return session.public_messages
+                        if model_name == "Conversation":
+                            session.conversation_batches.append(list(self.ids) if self.ids else [])
+                            if self.ids is not None:
+                                return [
+                                    session.conversations[cid]
+                                    for cid in self.ids
+                                    if cid in session.conversations
+                                    and not getattr(session.conversations[cid], "is_deleted", False)
+                                ]
+                            return [
+                                c for c in session.conversations.values()
+                                if not getattr(c, "is_deleted", False)
+                            ]
+                        if model_name == "App":
+                            session.app_batches.append(list(self.ids) if self.ids else [])
+                            if self.ids is not None:
+                                return [
+                                    session.apps[aid]
+                                    for aid in self.ids
+                                    if aid in session.apps
+                                ]
+                            return list(session.apps.values())
+                        raise AssertionError(f"unexpected model: {model_name}")
+
+                return _Query()
+
+        return _BatchTestSession(messages, conversations, apps, public_messages)
+
+    def test_get_recent_conversations_candidate_count_exceeds_batch_size_and_stops_early(self, app_ctx):
+        service = self._build_service()
+        account_id = uuid4()
+        now = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
+
+        conversations = []
+        messages = []
+        for i in range(25):
+            conv_id = uuid4()
+            conv = SimpleNamespace(
+                id=conv_id,
+                name=f"会话_{i}",
+                created_by=account_id,
+                is_deleted=False,
+                created_at=now,
+            )
+            conversations.append(conv)
+            msg = SimpleNamespace(
+                id=UUID(int=100 + i),
+                conversation_id=conv_id,
+                invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+                app_id=None,
+                query=f"query {i}",
+                answer=f"answer {i}",
+                created_at=now - timedelta(minutes=i),
+            )
+            messages.append(msg)
+
+        session = self._build_batch_test_session(messages, conversations, [])
+        service.db = SimpleNamespace(session=session)
+        account = SimpleNamespace(id=account_id, assistant_agent_conversation_id=None)
+
+        results = service.get_recent_conversations(account, limit=5)
+
+        assert len(results) == 5
+        assert len(session.conversation_batches) == 1
+        assert len(session.conversation_batches[0]) == 20
+        assert results[0]["name"] == "会话_0"
+        assert results[4]["name"] == "会话_4"
+
+    def test_get_recent_conversations_first_batch_all_deleted_backfills_from_second_batch(self, app_ctx):
+        service = self._build_service()
+        account_id = uuid4()
+        now = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
+
+        conversations = []
+        messages = []
+        for i in range(25):
+            conv_id = uuid4()
+            conv = SimpleNamespace(
+                id=conv_id,
+                name=f"会话_{i}",
+                created_by=account_id,
+                is_deleted=(i < 20),
+                created_at=now,
+            )
+            conversations.append(conv)
+            msg = SimpleNamespace(
+                id=UUID(int=200 + i),
+                conversation_id=conv_id,
+                invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+                app_id=None,
+                query=f"query {i}",
+                answer=f"answer {i}",
+                created_at=now - timedelta(minutes=i),
+            )
+            messages.append(msg)
+
+        session = self._build_batch_test_session(messages, conversations, [])
+        service.db = SimpleNamespace(session=session)
+        account = SimpleNamespace(id=account_id, assistant_agent_conversation_id=None)
+
+        results = service.get_recent_conversations(account, limit=3)
+
+        assert len(results) == 3
+        assert len(session.conversation_batches) == 2
+        assert len(session.conversation_batches[0]) == 20
+        assert len(session.conversation_batches[1]) == 5
+        assert results[0]["name"] == "会话_20"
+        assert results[1]["name"] == "会话_21"
+        assert results[2]["name"] == "会话_22"
+
+    def test_get_recent_conversations_first_batch_all_missing_app_backfills(self, app_ctx):
+        service = self._build_service()
+        account_id = uuid4()
+        now = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
+
+        valid_app = SimpleNamespace(id=uuid4(), name="有效应用", debug_conversation_id=None)
+        conversations = []
+        messages = []
+        for i in range(25):
+            conv_id = uuid4()
+            conv = SimpleNamespace(
+                id=conv_id,
+                name=f"调试会话_{i}",
+                created_by=account_id,
+                is_deleted=False,
+                created_at=now,
+            )
+            conversations.append(conv)
+            app_id = uuid4() if i < 20 else valid_app.id
+            msg = SimpleNamespace(
+                id=UUID(int=300 + i),
+                conversation_id=conv_id,
+                invoke_from=InvokeFrom.DEBUGGER.value,
+                app_id=app_id,
+                query=f"query {i}",
+                answer=f"answer {i}",
+                created_at=now - timedelta(minutes=i),
+            )
+            messages.append(msg)
+
+        session = self._build_batch_test_session(messages, conversations, [valid_app])
+        service.db = SimpleNamespace(session=session)
+        account = SimpleNamespace(id=account_id, assistant_agent_conversation_id=None)
+
+        results = service.get_recent_conversations(account, limit=3)
+
+        assert len(results) == 3
+        assert len(session.conversation_batches) == 2
+        assert results[0]["name"] == "调试会话_20"
+        assert results[1]["name"] == "调试会话_21"
+        assert results[2]["name"] == "调试会话_22"
+        assert results[0]["app_name"] == "有效应用"
+
+    def test_get_recent_conversations_cross_batch_backfill_collects_target_limit(self, app_ctx):
+        service = self._build_service()
+        account_id = uuid4()
+        now = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
+
+        conversations = []
+        messages = []
+        for i in range(30):
+            conv_id = uuid4()
+            # Batch 1 (0..19): even deleted, odd active (10 active, 10 deleted)
+            # Batch 2 (20..29): all active (10 active)
+            is_deleted = (i < 20 and i % 2 == 0)
+            conv = SimpleNamespace(
+                id=conv_id,
+                name=f"会话_{i}",
+                created_by=account_id,
+                is_deleted=is_deleted,
+                created_at=now,
+            )
+            conversations.append(conv)
+            msg = SimpleNamespace(
+                id=UUID(int=400 + i),
+                conversation_id=conv_id,
+                invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+                app_id=None,
+                query=f"query {i}",
+                answer=f"answer {i}",
+                created_at=now - timedelta(minutes=i),
+            )
+            messages.append(msg)
+
+        session = self._build_batch_test_session(messages, conversations, [])
+        service.db = SimpleNamespace(session=session)
+        account = SimpleNamespace(id=account_id, assistant_agent_conversation_id=None)
+
+        # limit=15: batch 1 has 10 active, batch 2 fills remaining 5
+        results = service.get_recent_conversations(account, limit=15)
+
+        assert len(results) == 15
+        assert len(session.conversation_batches) == 2
+        assert len(session.conversation_batches[0]) == 20
+        assert len(session.conversation_batches[1]) == 10
+
+    def test_get_recent_conversations_exhausted_candidates_with_insufficient_data(self, app_ctx):
+        service = self._build_service()
+        account_id = uuid4()
+        now = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
+
+        conversations = []
+        messages = []
+        for i in range(25):
+            conv_id = uuid4()
+            # Only index 0, 1 in batch 1 and index 22 in batch 2 are active
+            is_deleted = i not in (0, 1, 22)
+            conv = SimpleNamespace(
+                id=conv_id,
+                name=f"会话_{i}",
+                created_by=account_id,
+                is_deleted=is_deleted,
+                created_at=now,
+            )
+            conversations.append(conv)
+            msg = SimpleNamespace(
+                id=UUID(int=500 + i),
+                conversation_id=conv_id,
+                invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+                app_id=None,
+                query=f"query {i}",
+                answer=f"answer {i}",
+                created_at=now - timedelta(minutes=i),
+            )
+            messages.append(msg)
+
+        session = self._build_batch_test_session(messages, conversations, [])
+        service.db = SimpleNamespace(session=session)
+        account = SimpleNamespace(id=account_id, assistant_agent_conversation_id=None)
+
+        results = service.get_recent_conversations(account, limit=20)
+
+        assert len(results) == 3
+        assert [r["name"] for r in results] == ["会话_0", "会话_1", "会话_22"]
+        assert len(session.conversation_batches) == 2
+
+    def test_get_recent_conversations_limit_one_only_queries_one_batch(self, app_ctx):
+        service = self._build_service()
+        account_id = uuid4()
+        now = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
+
+        conversations = []
+        messages = []
+        for i in range(30):
+            conv_id = uuid4()
+            conv = SimpleNamespace(
+                id=conv_id,
+                name=f"会话_{i}",
+                created_by=account_id,
+                is_deleted=False,
+                created_at=now,
+            )
+            conversations.append(conv)
+            msg = SimpleNamespace(
+                id=UUID(int=600 + i),
+                conversation_id=conv_id,
+                invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+                app_id=None,
+                query=f"query {i}",
+                answer=f"answer {i}",
+                created_at=now - timedelta(minutes=i),
+            )
+            messages.append(msg)
+
+        session = self._build_batch_test_session(messages, conversations, [])
+        service.db = SimpleNamespace(session=session)
+        account = SimpleNamespace(id=account_id, assistant_agent_conversation_id=None)
+
+        results = service.get_recent_conversations(account, limit=1)
+
+        assert len(results) == 1
+        assert len(session.conversation_batches) == 1
+        assert len(session.conversation_batches[0]) == 20
+        assert results[0]["name"] == "会话_0"
+
+    def test_get_recent_conversations_limit_thousand_bounded_batch_size(self, app_ctx):
+        service = self._build_service()
+        account_id = uuid4()
+        now = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
+
+        conversations = []
+        messages = []
+        for i in range(150):
+            conv_id = uuid4()
+            conv = SimpleNamespace(
+                id=conv_id,
+                name=f"会话_{i}",
+                created_by=account_id,
+                is_deleted=False,
+                created_at=now,
+            )
+            conversations.append(conv)
+            msg = SimpleNamespace(
+                id=UUID(int=1000 + i),
+                conversation_id=conv_id,
+                invoke_from=InvokeFrom.ASSISTANT_AGENT.value,
+                app_id=None,
+                query=f"query {i}",
+                answer=f"answer {i}",
+                created_at=now - timedelta(seconds=i),
+            )
+            messages.append(msg)
+
+        session = self._build_batch_test_session(messages, conversations, [])
+        service.db = SimpleNamespace(session=session)
+        account = SimpleNamespace(id=account_id, assistant_agent_conversation_id=None)
+
+        results = service.get_recent_conversations(account, limit=1000)
+
+        assert len(results) == 150
+        assert len(session.conversation_batches) == 2
+        assert len(session.conversation_batches[0]) == 100
+        assert len(session.conversation_batches[1]) == 50
+
+    def test_get_recent_conversations_mixed_timezones_ordered_by_recency(self, app_ctx):
+        service = self._build_service()
+        account_id = uuid4()
+
+        # 4 messages with different timezone representations:
+        # 1. 12:30 UTC aware -> newest
+        # 2. 20:15 UTC+8 (= 12:15 UTC) -> 2nd newest
+        # 3. 12:00 UTC naive -> 3rd newest
+        # 4. 11:45 UTC aware -> oldest
+        dt_aware_newest = datetime(2026, 3, 1, 12, 30, 0, tzinfo=UTC)
+        dt_offset_second = datetime(2026, 3, 1, 20, 15, 0, tzinfo=timezone(timedelta(hours=8)))
+        dt_naive_third = datetime(2026, 3, 1, 12, 0, 0)
+        dt_aware_oldest = datetime(2026, 3, 1, 11, 45, 0, tzinfo=UTC)
+
+        convs = [
+            SimpleNamespace(id=uuid4(), name="Newest", created_by=account_id, is_deleted=False, created_at=dt_aware_newest),
+            SimpleNamespace(id=uuid4(), name="Second", created_by=account_id, is_deleted=False, created_at=dt_offset_second),
+            SimpleNamespace(id=uuid4(), name="Third", created_by=account_id, is_deleted=False, created_at=dt_naive_third),
+            SimpleNamespace(id=uuid4(), name="Oldest", created_by=account_id, is_deleted=False, created_at=dt_aware_oldest),
+        ]
+        # Feed messages in arbitrary (non-sorted) order to test sorting
+        msgs = [
+            SimpleNamespace(id=UUID(int=1), conversation_id=convs[2].id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, query="3", answer="a3", created_at=dt_naive_third),
+            SimpleNamespace(id=UUID(int=2), conversation_id=convs[0].id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, query="1", answer="a1", created_at=dt_aware_newest),
+            SimpleNamespace(id=UUID(int=3), conversation_id=convs[3].id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, query="4", answer="a4", created_at=dt_aware_oldest),
+            SimpleNamespace(id=UUID(int=4), conversation_id=convs[1].id, invoke_from=InvokeFrom.ASSISTANT_AGENT.value, app_id=None, query="2", answer="a2", created_at=dt_offset_second),
+        ]
+
+        session = self._build_batch_test_session(msgs, convs, [])
+        service.db = SimpleNamespace(session=session)
+        account = SimpleNamespace(id=account_id, assistant_agent_conversation_id=None)
+
+        results = service.get_recent_conversations(account, limit=10)
+
+        assert len(results) == 4
+        assert [r["name"] for r in results] == ["Newest", "Second", "Third", "Oldest"]
