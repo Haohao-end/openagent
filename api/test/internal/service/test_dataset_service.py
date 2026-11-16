@@ -42,6 +42,9 @@ class _QueryStub:
     def order_by(self, *_args, **_kwargs):
         return self
 
+    def group_by(self, *_args, **_kwargs):
+        return self
+
     def with_entities(self, *_args, **_kwargs):
         return self
 
@@ -398,6 +401,54 @@ class TestDatasetService:
 
         assert datasets == ["dataset-1"]
         assert len(query.filter_calls[0]) == 1
+
+    def test_get_datasets_with_page_should_batch_preload_metrics(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        d1 = SimpleNamespace(id=uuid4())
+        d2 = SimpleNamespace(id=uuid4())
+
+        class _Session:
+            def __init__(self):
+                self.queries = []
+
+            def query(self, *entities):
+                self.queries.append(entities)
+                if len(self.queries) == 1:
+                    return _QueryStub()
+                if len(self.queries) == 2:
+                    return _QueryStub(all_result=[(d1.id, 10, 5000), (d2.id, 3, 1200)])
+                return _QueryStub(all_result=[(d1.id, 2)])
+
+        session = _Session()
+        service = _new_dataset_service(
+            db=SimpleNamespace(session=session),
+            retrieval_service=SimpleNamespace(),
+        )
+
+        class _Paginator:
+            def __init__(self, db, req):
+                pass
+
+            def paginate(self, _query):
+                return [d1, d2]
+
+        monkeypatch.setattr("internal.service.dataset_service.Paginator", _Paginator)
+        req = SimpleNamespace(
+            current_page=SimpleNamespace(data=1),
+            page_size=SimpleNamespace(data=20),
+            search_word=SimpleNamespace(data=""),
+        )
+
+        datasets, _paginator = service.get_datasets_with_page(req, account)
+
+        assert len(datasets) == 2
+        assert len(session.queries) == 3
+        assert d1._document_count == 10
+        assert d1._character_count == 5000
+        assert d1._related_app_count == 2
+        assert d2._document_count == 3
+        assert d2._character_count == 1200
+        assert d2._related_app_count == 0
 
     def test_hit_should_keep_retrieval_order_and_attach_scores(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
