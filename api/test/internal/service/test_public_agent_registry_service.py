@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -430,3 +430,92 @@ class TestPublicAgentRegistryService:
             "exclude_app_ids": None,
             "has_app_context": True,
         }
+
+    def test_build_metadata_should_normalize_naive_and_timezone_aware_published_at(self):
+        service = _build_service()
+        app_id = uuid4()
+
+        # None -> 0
+        app_none = SimpleNamespace(id=app_id, is_public=True, published_at=None)
+        assert service.build_metadata(app_none)["published_at"] == 0
+
+        # Naive UTC
+        expected_ts = int(datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC).timestamp())
+        app_naive = SimpleNamespace(id=app_id, is_public=True, published_at=datetime(2026, 3, 1, 12, 0, 0))
+        assert service.build_metadata(app_naive)["published_at"] == expected_ts
+
+        # Timezone-aware UTC+8 (20:00:00+08:00 is 12:00:00 UTC)
+        app_aware = SimpleNamespace(
+            id=app_id,
+            is_public=True,
+            published_at=datetime(2026, 3, 1, 20, 0, 0, tzinfo=timezone(timedelta(hours=8))),
+        )
+        assert service.build_metadata(app_aware)["published_at"] == expected_ts
+
+    def test_search_public_apps_from_db_should_batch_preload_app_configs(self):
+        app1_id = uuid4()
+        app2_id = uuid4()
+        cfg1_id = uuid4()
+        cfg2_id = uuid4()
+
+        cfg1 = SimpleNamespace(id=cfg1_id, opening_statement="配置1开场白", tools=[], mcp_bindings=[], workflows=[])
+        cfg2 = SimpleNamespace(id=cfg2_id, opening_statement="配置2开场白", tools=[], mcp_bindings=[], workflows=[])
+
+        dt_aware = datetime(2026, 3, 1, 20, 0, 0, tzinfo=timezone(timedelta(hours=8)))
+        app1 = SimpleNamespace(
+            id=app1_id,
+            name="检索Agent",
+            description="描述1",
+            tags=["AI"],
+            app_config_id=cfg1_id,
+            app_config=None,
+            published_at=dt_aware,
+        )
+        app2 = SimpleNamespace(
+            id=app2_id,
+            name="分析Agent",
+            description="描述2",
+            tags=["数据"],
+            app_config_id=cfg2_id,
+            app_config=None,
+            published_at=None,
+        )
+
+        query_counts = {"App": 0, "AppConfig": 0}
+
+        class _Query:
+            def __init__(self, items):
+                self.items = items
+
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return self.items
+
+        class _Session:
+            def query(self, model):
+                name = getattr(model, "__name__", "")
+                query_counts[name] = query_counts.get(name, 0) + 1
+                if name == "App":
+                    return _Query([app1, app2])
+                if name == "AppConfig":
+                    return _Query([cfg1, cfg2])
+                raise AssertionError(f"unexpected model: {name}")
+
+        service = _build_service(db=SimpleNamespace(session=_Session()))
+
+        results = service._search_public_apps_from_db(
+            query="Agent",
+            limit=10,
+            exclude_app_ids=[],
+        )
+
+        assert len(results) == 2
+        # Verify batch preloading: exactly 1 query for App and 1 batch query for AppConfig (no N+1)
+        assert query_counts["App"] == 1
+        assert query_counts["AppConfig"] == 1
+        # Verify timestamps normalized to UTC
+        expected_ts = int(datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC).timestamp())
+        assert results[0]["published_at"] == expected_ts
+        assert results[1]["published_at"] == 0

@@ -14,7 +14,8 @@ from openai import APIConnectionError
 from pydantic import BaseModel, Field
 
 from internal.entity.app_entity import AppStatus
-from internal.model import App, Workflow
+from internal.lib.helper import datetime_to_timestamp
+from internal.model import App, AppConfig, Workflow
 from pkg.sqlalchemy import SQLAlchemy
 
 from .base_service import BaseService
@@ -263,13 +264,20 @@ class PublicAgentRegistryService(BaseService):
             App.is_public == True,
         ).all()
 
+        config_ids = [app.app_config_id for app in app_rows if getattr(app, "app_config_id", None)]
+        config_map = {}
+        if config_ids:
+            configs = self.db.session.query(AppConfig).filter(AppConfig.id.in_(config_ids)).all()
+            config_map = {cfg.id: cfg for cfg in configs}
+
         scored_results = []
         for app in app_rows:
             app_id = str(app.id)
             if app_id in excluded_ids:
                 continue
 
-            searchable_text = self._build_searchable_text(app).lower()
+            app_config = config_map.get(app.app_config_id) if getattr(app, "app_config_id", None) else getattr(app, "app_config", None)
+            searchable_text = self._build_searchable_text(app, app_config=app_config).lower()
             if not searchable_text:
                 continue
 
@@ -279,19 +287,20 @@ class PublicAgentRegistryService(BaseService):
             if score <= 0:
                 continue
 
+            published_at = datetime_to_timestamp(app.published_at)
             scored_results.append(
                 (
                     score,
-                    int(app.published_at.replace(tzinfo=UTC).timestamp()) if app.published_at else 0,
+                    published_at,
                     {
                         "app_id": app_id,
                         "name": app.name,
                         "description": app.description,
                         "tags": app.tags or [],
-                        "published_at": int(app.published_at.replace(tzinfo=UTC).timestamp()) if app.published_at else 0,
+                        "published_at": published_at,
                         "a2a_card_url": self.build_agent_card_url(app.id),
                         "a2a_message_url": self.build_agent_message_url(app.id),
-                        "page_content": self.build_page_content(app, app.app_config),
+                        "page_content": self.build_page_content(app, app_config),
                     },
                 )
             )
@@ -299,9 +308,10 @@ class PublicAgentRegistryService(BaseService):
         scored_results.sort(key=lambda item: (item[0], item[1]), reverse=True)
         return [item[2] for item in scored_results[:limit]]
 
-    def _build_searchable_text(self, app: App) -> str:
+    def _build_searchable_text(self, app: App, app_config: Any = None) -> str:
         """拼接可用于数据库兜底匹配的文本。"""
-        app_config = app.app_config
+        if app_config is None:
+            app_config = getattr(app, "app_config", None)
         tags = " ".join(app.tags or [])
         opening_statement = app_config.opening_statement if app_config else ""
         tools_summary = self._build_tools_summary(app_config.tools if app_config else [])
@@ -379,14 +389,10 @@ class PublicAgentRegistryService(BaseService):
 
     def build_metadata(self, app: App) -> dict[str, Any]:
         """构建公共Agent检索元数据。"""
-        published_at = 0
-        if app.published_at:
-            published_at = int(app.published_at.replace(tzinfo=UTC).timestamp())
-
         return {
             "app_id": str(app.id),
             "is_public": bool(app.is_public),
-            "published_at": published_at,
+            "published_at": datetime_to_timestamp(app.published_at),
             "a2a_card_url": self.build_agent_card_url(app.id),
             "a2a_message_url": self.build_agent_message_url(app.id),
         }
