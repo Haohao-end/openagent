@@ -272,7 +272,7 @@ export const useGetPublishHistoriesWithPage = () => {
     total_record: 0,
   }
   const publishHistories = ref<Record<string, any>[]>([])
-  const paginator = ref(defaultPaginator)
+  const paginator = ref({ ...defaultPaginator })
   let latestRequest = 0
 
   const invalidatePublishHistoryRequests = () => {
@@ -286,8 +286,8 @@ export const useGetPublishHistoriesWithPage = () => {
     try {
       // 2.1 判断是否为初始化，如果是则先初始化分页器
       if (init) {
-        paginator.value = defaultPaginator
-      } else if (paginator.value.current_page > paginator.value.total_page) {
+        paginator.value = { ...defaultPaginator }
+      } else if (loading.value || paginator.value.current_page > paginator.value.total_page) {
         return
       }
 
