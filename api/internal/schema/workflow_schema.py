@@ -31,14 +31,14 @@ class CreateWorkflowReq(FlaskForm):
 
 
 class UpdateWorkflowReq(FlaskForm):
-    """创建工作流基础请求"""
+    """更新工作流基础请求"""
     name = StringField("name", validators=[
         DataRequired("工作流名称不能为空"),
         Length(max=50, message="工作流名称长度不能超过50"),
     ])
     tool_call_name = StringField("tool_call_name", validators=[
         DataRequired("英文名称不能为空"),
-        Length(max=50, message="英文名称不能超过50个字符"),
+        Length(max=61, message="英文名称不能超过61个字符"),
         Regexp(WORKFLOW_CONFIG_NAME_PATTERN, message="英文名称仅支持字母、数字和下划线，且以字母/下划线为开头")
     ])
     icon = StringField("icon", validators=[

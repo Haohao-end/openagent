@@ -943,6 +943,71 @@ class TestWorkflowService:
         assert result is workflow
         assert updates == [(workflow, {"tool_call_name": "wf_new", "name": "new"})]
 
+    def test_update_workflow_historical_long_tool_call_name_allowed_when_unchanged(self, monkeypatch):
+        historical_name = "w" * 60
+        service = _build_service()
+        service.db.session.query_result = None
+        account = SimpleNamespace(id=uuid4())
+        workflow = SimpleNamespace(id=uuid4(), account_id=account.id, tool_call_name=historical_name)
+        monkeypatch.setattr(service, "get_workflow", lambda *_args, **_kwargs: workflow)
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        result = service.update_workflow(
+            workflow.id,
+            account,
+            tool_call_name=historical_name,
+            description="updated desc",
+            icon="https://icon.png",
+        )
+
+        assert result is workflow
+        assert updates == [(workflow, {
+            "tool_call_name": historical_name,
+            "description": "updated desc",
+            "icon": "https://icon.png",
+        })]
+
+    def test_update_workflow_new_tool_call_name_rejects_exceeding_50(self, monkeypatch):
+        service = _build_service()
+        service.db.session.query_result = None
+        account = SimpleNamespace(id=uuid4())
+        workflow = SimpleNamespace(id=uuid4(), account_id=account.id, tool_call_name="existing_name")
+        monkeypatch.setattr(service, "get_workflow", lambda *_args, **_kwargs: workflow)
+
+        with pytest.raises(ValidateErrorException) as exc_info:
+            service.update_workflow(
+                workflow.id,
+                account,
+                tool_call_name="w" * 51,
+            )
+        assert "英文名称不能超过50个字符" in str(exc_info.value)
+
+    def test_update_workflow_new_tool_call_name_allows_50(self, monkeypatch):
+        service = _build_service()
+        service.db.session.query_result = None
+        account = SimpleNamespace(id=uuid4())
+        workflow = SimpleNamespace(id=uuid4(), account_id=account.id, tool_call_name="existing_name")
+        monkeypatch.setattr(service, "get_workflow", lambda *_args, **_kwargs: workflow)
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        result = service.update_workflow(
+            workflow.id,
+            account,
+            tool_call_name="w" * 50,
+        )
+        assert result is workflow
+        assert updates == [(workflow, {"tool_call_name": "w" * 50})]
+
     def test_publish_workflow_should_set_graph_and_status_when_config_valid(self, monkeypatch):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())

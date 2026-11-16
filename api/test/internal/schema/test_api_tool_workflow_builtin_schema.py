@@ -201,6 +201,58 @@ def test_workflow_forms_should_validate_pattern_and_description(form_request):
     assert not ok
     assert "description" in form.errors
 
+    # CreateWorkflowReq retains 50 char limit
+    ok, form = _validate_form(
+        form_request,
+        CreateWorkflowReq,
+        data={
+            "name": "工作流",
+            "tool_call_name": "w" * 50,
+            "icon": "https://img.example.com/workflow.png",
+            "description": "desc",
+        },
+    )
+    assert ok, form.errors
+
+    ok, form = _validate_form(
+        form_request,
+        CreateWorkflowReq,
+        data={
+            "name": "工作流",
+            "tool_call_name": "w" * 51,
+            "icon": "https://img.example.com/workflow.png",
+            "description": "desc",
+        },
+    )
+    assert not ok
+    assert "tool_call_name" in form.errors
+
+    # UpdateWorkflowReq accommodates historical tool_call_name up to 61 chars (wf_ prefix rule: 64 - 3 = 61)
+    ok, form = _validate_form(
+        form_request,
+        UpdateWorkflowReq,
+        data={
+            "name": "工作流",
+            "tool_call_name": "w" * 61,
+            "icon": "https://img.example.com/workflow.png",
+            "description": "desc",
+        },
+    )
+    assert ok, form.errors
+
+    ok, form = _validate_form(
+        form_request,
+        UpdateWorkflowReq,
+        data={
+            "name": "工作流",
+            "tool_call_name": "w" * 62,
+            "icon": "https://img.example.com/workflow.png",
+            "description": "desc",
+        },
+    )
+    assert not ok
+    assert "tool_call_name" in form.errors
+
 
 def test_workflow_response_schemas_should_count_nodes_from_expected_graph():
     workflow = ns(
