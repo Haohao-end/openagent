@@ -15,6 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from internal.exception import FailException, NotFoundException, UnauthorizedException
 from internal.extension.redis_extension import redis_client
+from internal.lib.helper import datetime_to_timestamp, ensure_utc_naive
 from internal.model import Account, AccountOAuth, AccountSession
 from pkg.password import compare_password, hash_password
 from pkg.sqlalchemy import SQLAlchemy
@@ -272,10 +273,11 @@ class AccountService(BaseService):
         return location
 
     def _resolve_session_status(self, account_session: AccountSession, now: datetime | None = None) -> str:
-        now = now or self._now()
+        current_time = ensure_utc_naive(now) or self._now()
         if account_session.revoked_at is not None:
             return "revoked"
-        if account_session.expires_at and account_session.expires_at < now:
+        expires_at = ensure_utc_naive(account_session.expires_at)
+        if expires_at and expires_at < current_time:
             return "expired"
         return "active"
 
@@ -415,7 +417,7 @@ class AccountService(BaseService):
             "account_id": str(account.id),
             "email": self._normalize_email(account.email),
             "risk_reason": risk_reason,
-            "created_at": int(self._now().replace(tzinfo=UTC).timestamp()),
+            "created_at": datetime_to_timestamp(self._now()),
         }
 
         redis_client.setex(
@@ -629,7 +631,7 @@ class AccountService(BaseService):
                 self._log_session_storage_warning("刷新", e)
                 session = None
 
-        expire_at = int(expire_at_dt.replace(tzinfo=UTC).timestamp())
+        expire_at = datetime_to_timestamp(expire_at_dt)
         payload = {
             "sub": str(account.id),
             "iss": "llmops",
@@ -755,7 +757,8 @@ class AccountService(BaseService):
         for account_session in self._list_account_sessions_for_read(account.id):
             if account_session.revoked_at is not None:
                 continue
-            if account_session.expires_at and account_session.expires_at < now:
+            expires_at = ensure_utc_naive(account_session.expires_at)
+            if expires_at and expires_at < now:
                 continue
 
             sessions.append({
@@ -777,8 +780,8 @@ class AccountService(BaseService):
         sessions.sort(
             key=lambda item: (
                 item.get("current", False),
-                item.get("last_active_at") or datetime.min,
-                item.get("created_at") or datetime.min,
+                ensure_utc_naive(item.get("last_active_at")) or datetime.min,
+                ensure_utc_naive(item.get("created_at")) or datetime.min,
             ),
             reverse=True,
         )
@@ -800,8 +803,8 @@ class AccountService(BaseService):
         chronological_sessions = sorted(
             all_sessions,
             key=lambda item: (
-                item.created_at or datetime.min,
-                item.last_active_at or datetime.min,
+                ensure_utc_naive(item.created_at) or datetime.min,
+                ensure_utc_naive(item.last_active_at) or datetime.min,
                 str(item.id),
             ),
         )
@@ -823,8 +826,8 @@ class AccountService(BaseService):
         recent_sessions = sorted(
             all_sessions,
             key=lambda item: (
-                item.created_at or datetime.min,
-                item.last_active_at or datetime.min,
+                ensure_utc_naive(item.created_at) or datetime.min,
+                ensure_utc_naive(item.last_active_at) or datetime.min,
                 str(item.id),
             ),
             reverse=True,
@@ -916,7 +919,8 @@ class AccountService(BaseService):
                 continue
             if account_session.revoked_at is not None:
                 continue
-            if account_session.expires_at and account_session.expires_at < self._now():
+            expires_at = ensure_utc_naive(account_session.expires_at)
+            if expires_at and expires_at < self._now():
                 continue
             self.update(account_session, revoked_at=self._now())
             revoked_count += 1
