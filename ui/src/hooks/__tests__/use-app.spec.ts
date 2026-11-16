@@ -623,4 +623,49 @@ describe('useGetAppsWithPage', () => {
 
     expect(loading.value).toBe(false)
   })
+
+  it('does not invalidate in-flight initial load when concurrent scroll triggers pagination', async () => {
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((resolvePromise) => (resolve = resolvePromise))
+      return { promise, resolve }
+    }
+    const initialResponse = deferred<{
+      data: { list: { id: string }[]; paginator: { current_page: number; page_size: number; total_page: number; total_record: number } }
+    }>()
+    vi.mocked(appService.getAppsWithPage).mockReturnValueOnce(initialResponse.promise as never)
+
+    const { loading, apps, paginator, loadApps } = useGetAppsWithPage()
+
+    const initialRequest = loadApps(true)
+    expect(loading.value).toBe(true)
+
+    const scrollRequest = loadApps(false)
+    await scrollRequest
+
+    expect(appService.getAppsWithPage).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    initialResponse.resolve({
+      data: {
+        list: [{ id: 'app-1' }],
+        paginator: { current_page: 1, page_size: 20, total_page: 2, total_record: 25 },
+      },
+    })
+    await initialRequest
+
+    expect(apps.value).toEqual([{ id: 'app-1' }])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not increment generation or alter loading when pagination is called without more pages', async () => {
+    const { loading, paginator, loadApps } = useGetAppsWithPage()
+    paginator.value = { current_page: 3, page_size: 20, total_page: 2, total_record: 25 }
+
+    await loadApps(false)
+
+    expect(appService.getAppsWithPage).not.toHaveBeenCalled()
+    expect(loading.value).toBe(false)
+  })
 })
