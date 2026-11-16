@@ -49,6 +49,8 @@ class ApiToolProvider(db.Model):
 
     @property
     def tools(self) -> list["ApiTool"]:
+        if getattr(self, "_tools", None) is not None:
+            return self._tools
         return db.session.query(ApiTool).filter_by(provider_id=self.id).all()
 
 

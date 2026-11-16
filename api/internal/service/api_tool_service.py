@@ -103,7 +103,25 @@ class ApiToolService(BaseService):
                 desc(ApiToolProvider.created_at), desc(ApiToolProvider.id),
             )
         )
-        return api_tool_providers,paginator
+
+        # 4.批量预加载当前页提供者的工具列表，消除序列化阶段的 N+1 查询
+        provider_ids = [p.id for p in api_tool_providers if hasattr(p, "id")]
+        if provider_ids:
+            all_tools = (
+                self.db.session.query(ApiTool)
+                .filter(ApiTool.provider_id.in_(provider_ids))
+                .all()
+            )
+            tools_by_provider: dict[UUID, list[ApiTool]] = {pid: [] for pid in provider_ids}
+            for tool in all_tools:
+                pid = getattr(tool, "provider_id", None)
+                if pid in tools_by_provider:
+                    tools_by_provider[pid].append(tool)
+            for p in api_tool_providers:
+                if hasattr(p, "id"):
+                    p._tools = tools_by_provider.get(p.id, [])
+
+        return api_tool_providers, paginator
 
     def get_api_tool(
             self,
