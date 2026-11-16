@@ -943,6 +943,56 @@ class TestWorkflowService:
         assert result is workflow
         assert updates == [(workflow, {"tool_call_name": "wf_new", "name": "new"})]
 
+    def test_update_workflow_should_filter_unallowed_fields_and_strip_tool_call_name(self, monkeypatch):
+        service = _build_service()
+        account = SimpleNamespace(id=uuid4())
+        workflow = SimpleNamespace(id=uuid4(), account_id=account.id, tool_call_name="existing_tool")
+        service.db.session.query_result = None
+        monkeypatch.setattr(service, "get_workflow", lambda *_args, **_kwargs: workflow)
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        result = service.update_workflow(
+            workflow.id,
+            account,
+            name="Updated Name",
+            tool_call_name="  wf_stripped_tool  ",
+            icon="https://icon.png",
+            description="updated desc",
+            account_id=uuid4(),
+            status="published",
+            draft_graph={"fake": True},
+        )
+
+        assert result is workflow
+        assert updates == [(workflow, {
+            "name": "Updated Name",
+            "tool_call_name": "wf_stripped_tool",
+            "icon": "https://icon.png",
+            "description": "updated desc",
+        })]
+
+    def test_update_workflow_no_update_called_when_all_fields_unallowed(self, monkeypatch):
+        service = _build_service()
+        account = SimpleNamespace(id=uuid4())
+        workflow = SimpleNamespace(id=uuid4(), account_id=account.id, tool_call_name="wf_tool")
+        monkeypatch.setattr(service, "get_workflow", lambda *_args, **_kwargs: workflow)
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        result = service.update_workflow(workflow.id, account, account_id=uuid4(), is_published=True)
+
+        assert result is workflow
+        assert updates == []
+
     def test_update_workflow_historical_long_tool_call_name_allowed_when_unchanged(self, monkeypatch):
         historical_name = "w" * 60
         service = _build_service()

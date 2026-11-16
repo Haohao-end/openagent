@@ -48,6 +48,7 @@ logger = logging.getLogger(__name__)
 _DEBUG_STREAM_SLOTS = threading.BoundedSemaphore(8)
 _DEBUG_STREAM_QUEUE_SIZE = 16
 _DEBUG_STREAM_POLL_INTERVAL = 0.05
+_WORKFLOW_ALLOWED_UPDATE_FIELDS = frozenset({"name", "tool_call_name", "icon", "description"})
 
 
 def _normalize_json_value(value: Any) -> Any:
@@ -119,9 +120,12 @@ class WorkflowService(BaseService):
         # 1.获取工作流基础信息并校验权限
         workflow = self.get_workflow(workflow_id, account)
 
-        # 2.根据传递的工具调用名字查询是否存在重名工作流
-        if "tool_call_name" in kwargs:
-            tool_call_name = kwargs.get("tool_call_name", "").strip()
+        # 2.过滤只允许更新的基础信息字段
+        updates = {k: v for k, v in kwargs.items() if k in _WORKFLOW_ALLOWED_UPDATE_FIELDS}
+
+        # 3.根据传递的工具调用名字查询是否存在重名工作流
+        if "tool_call_name" in updates:
+            tool_call_name = updates["tool_call_name"].strip()
             existing_tool_call_name = getattr(workflow, "tool_call_name", "")
             if tool_call_name != existing_tool_call_name and len(tool_call_name) > 50:
                 raise ValidateErrorException("英文名称不能超过50个字符")
@@ -132,10 +136,12 @@ class WorkflowService(BaseService):
                 Workflow.id != workflow.id,
             ).one_or_none()
             if check_workflow:
-                raise ValidateErrorException(f"在当前账号下已创建[{kwargs.get('tool_call_name', '')}]工作流，不支持重名")
+                raise ValidateErrorException(f"在当前账号下已创建[{tool_call_name}]工作流，不支持重名")
+            updates["tool_call_name"] = tool_call_name
 
-        # 3.更新工作流基础信息
-        self.update(workflow, **kwargs)
+        # 4.更新工作流基础信息
+        if updates:
+            self.update(workflow, **updates)
 
         return workflow
 
