@@ -756,6 +756,44 @@ describe('useGetSegmentsWithPage', () => {
     mocks.getSegmentsWithPage.mockRejectedValueOnce(new Error('latest failure'))
     await expect(loadSegments('dataset-1', 'document-1', true)).rejects.toThrow('latest failure')
   })
+
+  it('does not invalidate in-flight initial load when concurrent scroll triggers pagination', async () => {
+    const initialResponse = createDeferred<SegmentsPageResponse>()
+    mocks.getSegmentsWithPage.mockReturnValueOnce(initialResponse.promise)
+
+    const { loading, segments, paginator, loadSegments } = useGetSegmentsWithPage()
+
+    const initialRequest = loadSegments('dataset-1', 'document-1', true)
+    expect(loading.value).toBe(true)
+
+    const scrollRequest = loadSegments('dataset-1', 'document-1', false)
+    await scrollRequest
+
+    expect(mocks.getSegmentsWithPage).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    initialResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 2, total_record: 25 },
+        list: [{ id: 'segment-1' }],
+      },
+    })
+    await initialRequest
+
+    expect(segments.value).toEqual([{ id: 'segment-1' }])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not increment generation or alter loading when pagination is called without more pages', async () => {
+    const { loading, paginator, loadSegments } = useGetSegmentsWithPage()
+    paginator.value = { current_page: 3, page_size: 20, total_page: 2, total_record: 25 }
+
+    await loadSegments('dataset-1', 'document-1', false)
+
+    expect(mocks.getSegmentsWithPage).not.toHaveBeenCalled()
+    expect(loading.value).toBe(false)
+  })
 })
 
 describe('useGetSegment', () => {

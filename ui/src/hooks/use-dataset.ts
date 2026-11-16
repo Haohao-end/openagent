@@ -303,7 +303,7 @@ export const useGetSegmentsWithPage = () => {
     total_page: 0,
     total_record: 0,
   }
-  const paginator = ref(defaultPaginator)
+  const paginator = ref({ ...defaultPaginator })
 
   // 2.定义加载数据函数
   const loadSegments = async (
@@ -314,8 +314,8 @@ export const useGetSegmentsWithPage = () => {
   ) => {
     // 2.1 判断是否是初始化，如果是的话则先初始化分页器
     if (init) {
-      paginator.value = defaultPaginator
-    } else if (paginator.value.current_page > paginator.value.total_page) {
+      paginator.value = { ...defaultPaginator }
+    } else if (loading.value || paginator.value.current_page > paginator.value.total_page) {
       return
     }
 
