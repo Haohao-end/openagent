@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 import json
 from types import SimpleNamespace
 from uuid import uuid4
@@ -1311,3 +1311,58 @@ class TestAccountService:
         service.reset_password("demo@example.com", "123456", "new-pass")
 
         assert update_password_calls == [("new-pass", account)]
+
+    def test_resolve_session_status_with_timezone_aware_expiration(self):
+        service = _new_account_service(
+            db=SimpleNamespace(session=SimpleNamespace()),
+            jwt_service=SimpleNamespace(),
+        )
+        now_utc = datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC)
+
+        # Future session in UTC+8 (20:00:00+08:00 is 12:00:00 UTC) -> expires at 21:00:00+08:00 (active)
+        future_aware = datetime(2026, 3, 1, 21, 0, 0, tzinfo=timezone(timedelta(hours=8)))
+        session_active = SimpleNamespace(revoked_at=None, expires_at=future_aware)
+        assert service._resolve_session_status(session_active, now=now_utc) == "active"
+
+        # Past session in UTC+8 -> expires at 19:00:00+08:00 (expired)
+        past_aware = datetime(2026, 3, 1, 19, 0, 0, tzinfo=timezone(timedelta(hours=8)))
+        session_expired = SimpleNamespace(revoked_at=None, expires_at=past_aware)
+        assert service._resolve_session_status(session_expired, now=now_utc) == "expired"
+
+    def test_get_account_sessions_should_handle_mixed_naive_and_aware_datetimes(self):
+        account = SimpleNamespace(id=uuid4(), last_login_at=None, last_login_ip="127.0.0.1")
+        tz_offset = timezone(timedelta(hours=8))
+
+        s1 = SimpleNamespace(
+            id=uuid4(),
+            account_id=account.id,
+            user_agent="Device A",
+            last_login_ip="1.1.1.1",
+            revoked_at=None,
+            expires_at=datetime(2030, 1, 1, 12, 0, 0, tzinfo=tz_offset),
+            created_at=datetime(2026, 3, 1, 12, 0, 0, tzinfo=tz_offset),
+            last_active_at=datetime(2026, 3, 2, 12, 0, 0, tzinfo=tz_offset),
+        )
+        s2 = SimpleNamespace(
+            id=uuid4(),
+            account_id=account.id,
+            user_agent="Device B",
+            last_login_ip="2.2.2.2",
+            revoked_at=None,
+            expires_at=datetime(2030, 1, 1, 12, 0, 0),
+            created_at=datetime(2026, 3, 1, 11, 0, 0),
+            last_active_at=datetime(2026, 3, 2, 11, 0, 0),
+        )
+
+        service = _new_account_service(
+            db=SimpleNamespace(session=SimpleNamespace()),
+            jwt_service=SimpleNamespace(),
+        )
+        service._list_account_sessions_for_read = lambda _acc_id: [s1, s2]
+        service._get_cached_ip_location = lambda _ip, _cache: "中国"
+
+        sessions = service.get_account_sessions(account, current_session_id=s1.id)
+
+        assert len(sessions) == 2
+        assert sessions[0]["id"] == s1.id
+        assert sessions[1]["id"] == s2.id
