@@ -1,5 +1,6 @@
-import secrets
 import hashlib
+import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 from injector import inject
@@ -17,6 +18,7 @@ from internal.lib.helper import ensure_utc_naive, utc_now_naive
 from pkg.paginator import PaginatorReq, Paginator
 
 _LAST_USED_AT_UPDATE_INTERVAL = timedelta(minutes=1)
+logger = logging.getLogger(__name__)
 
 @inject
 @dataclass
@@ -46,9 +48,12 @@ class ApiKeyService(BaseService):
             "api_key": raw_api_key,
         }
 
-    def get_api_by_by_credential(self, api_key: str) -> ApiKey:
+    def get_api_by_by_credential(self, api_key: str) -> ApiKey | None:
         """根据传递的凭证信息获取ApiKey记录"""
-        hashed_api_key = self.hash_api_key(api_key)
+        if not api_key or not isinstance(api_key, str) or not api_key.strip():
+            return None
+
+        hashed_api_key = self.hash_api_key(api_key.strip())
         api_key_record = self.db.session.query(ApiKey).filter(
             ApiKey.api_key == hashed_api_key,
         ).one_or_none()
@@ -60,9 +65,17 @@ class ApiKeyService(BaseService):
             ApiKey.api_key == api_key,
         ).one_or_none()
         if legacy_api_key_record and legacy_api_key_record.api_key != hashed_api_key:
-            legacy_api_key_record.api_key = hashed_api_key
-            if hasattr(self.db.session, "commit"):
-                self.db.session.commit()
+            try:
+                legacy_api_key_record.api_key = hashed_api_key
+                if hasattr(self.db.session, "commit"):
+                    self.db.session.commit()
+            except Exception as error:
+                if hasattr(self.db.session, "rollback"):
+                    self.db.session.rollback()
+                logger.warning(
+                    "legacy_api_key_upgrade_failed error_class=%s",
+                    type(error).__name__,
+                )
 
         return legacy_api_key_record
 

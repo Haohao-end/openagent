@@ -84,16 +84,16 @@ class Middleware:
         if not auth_header:
             raise UnauthorizedException("该接口需要授权才能访问 请登陆后重试")
 
-        # 3.请求信息中没有空格分隔符,则校验失败 格式为Authorization:Bearer credential
-        if " " not in auth_header:
+        # 2.分割授权信息 必须符合Bearer credential格式
+        parts = auth_header.strip().split(None, 1)
+        if len(parts) != 2:
             raise UnauthorizedException("该接口需要授权才能访问 验证格式失败")
 
-        # 4.分割授权信息 必须符合Bearer access_token格式
-        auth_schema, credential = auth_header.split(None, 1)
-        if auth_schema.lower() != "bearer":
+        auth_schema, credential = parts
+        if auth_schema.lower() != "bearer" or not credential.strip():
             raise UnauthorizedException("该接口需要授权才能访问 验证格式失败")
 
-        return credential
+        return credential.strip()
 
     @staticmethod
     def _api_key_has_scope(scopes: object, endpoint: Optional[str]) -> bool:
