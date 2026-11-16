@@ -291,4 +291,42 @@ describe('useGetWorkflowsWithPage', () => {
 
     expect(loading.value).toBe(false)
   })
+
+  it('does not invalidate in-flight initial load when concurrent scroll triggers pagination', async () => {
+    const initialResponse = createDeferred<WorkflowPageResponse>()
+    mocks.getWorkflowsWithPage.mockReturnValueOnce(initialResponse.promise)
+
+    const { loading, workflows, paginator, loadWorkflows } = useGetWorkflowsWithPage()
+
+    const initialRequest = loadWorkflows('', '', true)
+    expect(loading.value).toBe(true)
+
+    const scrollRequest = loadWorkflows('', '', false)
+    await scrollRequest
+
+    expect(mocks.getWorkflowsWithPage).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    initialResponse.resolve({
+      data: {
+        paginator: { current_page: 1, page_size: 20, total_page: 2, total_record: 25 },
+        list: [{ id: 'wf-1' }],
+      },
+    })
+    await initialRequest
+
+    expect(workflows.value).toEqual([{ id: 'wf-1' }])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not increment generation or alter loading when pagination is called without more pages', async () => {
+    const { loading, paginator, loadWorkflows } = useGetWorkflowsWithPage()
+    paginator.value = { current_page: 3, page_size: 20, total_page: 2, total_record: 25 }
+
+    await loadWorkflows('', '', false)
+
+    expect(mocks.getWorkflowsWithPage).not.toHaveBeenCalled()
+    expect(loading.value).toBe(false)
+  })
 })

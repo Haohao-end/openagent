@@ -46,8 +46,8 @@ export const useGetWorkflowsWithPage = () => {
   ) => {
     // 2.1 判断是否是初始化，并检查分页器
     if (init) {
-      paginator.value = defaultPaginator
-    } else if (paginator.value.current_page > paginator.value.total_page) {
+      paginator.value = { ...defaultPaginator }
+    } else if (loading.value || paginator.value.current_page > paginator.value.total_page) {
       return
     }
 
