@@ -542,6 +542,48 @@ class TestApiToolService:
         assert records == ["provider-a", "provider-b"]
         assert isinstance(paginator, _Paginator)
 
+    def test_get_api_tool_providers_with_page_should_batch_preload_tools(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        p1 = SimpleNamespace(id=uuid4())
+        p2 = SimpleNamespace(id=uuid4())
+        t1 = SimpleNamespace(id=uuid4(), provider_id=p1.id)
+        t2 = SimpleNamespace(id=uuid4(), provider_id=p1.id)
+        t3 = SimpleNamespace(id=uuid4(), provider_id=p2.id)
+
+        session = _SessionStub({
+            ApiToolProvider: _QueryStub(),
+            ApiTool: _QueryStub(all_result=[t1, t2, t3]),
+        })
+        service = _new_api_tool_service(
+            db=SimpleNamespace(session=session),
+            api_provider_manager=SimpleNamespace(),
+        )
+
+        class _Paginator:
+            def __init__(self, db, req):
+                pass
+
+            def paginate(self, _query):
+                return [p1, p2]
+
+        monkeypatch.setattr("internal.service.api_tool_service.Paginator", _Paginator)
+        req = SimpleNamespace(
+            current_page=SimpleNamespace(data=1),
+            page_size=SimpleNamespace(data=20),
+            search_word=SimpleNamespace(data=""),
+        )
+
+        records, _paginator = service.get_api_tool_providers_wiith_page(req, account)
+
+        assert len(records) == 2
+        assert p1._tools == [t1, t2]
+        assert p2._tools == [t3]
+
+    def test_api_tool_provider_tools_property_uses_preloaded_cache(self):
+        provider = ApiToolProvider()
+        provider._tools = ["cached-tool"]
+        assert provider.tools == ["cached-tool"]
+
     def test_get_api_tool_should_return_record_when_owned(self):
         account_uuid = uuid4()
         api_tool = SimpleNamespace(id=uuid4(), account_id=account_uuid)
