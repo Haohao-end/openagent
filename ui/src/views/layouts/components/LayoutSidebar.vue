@@ -81,10 +81,13 @@ const isRecentConversationsScrollable = () => {
 }
 
 let sidebarSessionId = 0
+let pendingBootstrapSessionId = 0
+let isMounted = false
 
 const bootstrapRecentConversations = async () => {
   const session = sidebarSessionId
   if (
+    !isMounted ||
     recentConversationsBootstrapRunning.value ||
     props.collapsed ||
     !isLoggedIn.value ||
@@ -100,6 +103,7 @@ const bootstrapRecentConversations = async () => {
     let rounds = 0
 
     while (
+      isMounted &&
       session === sidebarSessionId &&
       rounds < maxRounds &&
       hasMoreRecentConversations.value &&
@@ -140,6 +144,15 @@ const bootstrapRecentConversations = async () => {
     console.error('Failed to bootstrap recent conversations:', error instanceof Error ? error.name : 'unknown_error')
   } finally {
     recentConversationsBootstrapRunning.value = false
+    if (
+      isMounted &&
+      pendingBootstrapSessionId === sidebarSessionId &&
+      isLoggedIn.value &&
+      !props.collapsed
+    ) {
+      pendingBootstrapSessionId = 0
+      void bootstrapRecentConversations()
+    }
   }
 }
 
@@ -173,8 +186,12 @@ const loadRecentConversations = async (
   syncRecentConversationsHasMore(previousCount, recentConversations.value.length, limit)
   await nextTick()
 
-  if (!props.collapsed && !recentConversationsBootstrapRunning.value) {
-    await bootstrapRecentConversations()
+  if (!props.collapsed) {
+    if (recentConversationsBootstrapRunning.value) {
+      pendingBootstrapSessionId = session
+    } else {
+      await bootstrapRecentConversations()
+    }
   }
   return status
 }
@@ -374,6 +391,7 @@ watch(
   () => credentialStore.credential,
   async () => {
     sidebarSessionId += 1
+    pendingBootstrapSessionId = 0
     invalidateRecentConversations()
     recentConversations.value = []
     recentConversationsLimit.value = DEFAULT_RECENT_CONVERSATIONS_LIMIT
@@ -393,11 +411,14 @@ watch(
 )
 
 onMounted(() => {
+  isMounted = true
   if (typeof window === 'undefined') return
   window.addEventListener('recent-conversations:refresh', handleRecentConversationsRefresh)
 })
 
 onUnmounted(() => {
+  isMounted = false
+  pendingBootstrapSessionId = 0
   if (typeof window === 'undefined') return
   window.removeEventListener('recent-conversations:refresh', handleRecentConversationsRefresh)
 })
