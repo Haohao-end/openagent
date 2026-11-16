@@ -663,6 +663,113 @@ describe('historical chat pagination', () => {
     expect(loading.value).toBe(false)
   })
 
+  it('does not invalidate an in-flight initial load when a concurrent scroll event triggers a no-op pagination in assistant agent', async () => {
+    const initialResponse = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage).mockReturnValueOnce(
+      initialResponse.promise as never,
+    )
+    const { loading, messages, paginator, loadAssistantAgentMessages } =
+      useGetAssistantAgentMessagesWithPage()
+
+    // 1. 发起初次加载（例如切换智能体历史会话）
+    const initialRequest = loadAssistantAgentMessages(true, 'conversation-1')
+    expect(loading.value).toBe(true)
+
+    // 2. 初始请求尚未完成时，并发触发滚动事件（init = false）
+    const scrollRequest = loadAssistantAgentMessages(false, 'conversation-1')
+    await scrollRequest
+
+    // 确认未发起第二次请求，且 loading 依然保持为 true
+    expect(assistantAgentService.getAssistantAgentMessagesWithPage).toHaveBeenCalledTimes(1)
+    expect(loading.value).toBe(true)
+
+    // 3. 初次加载成功返回
+    initialResponse.resolve(
+      buildPage([buildMessage('agent-1', 100)], {
+        current_page: 1,
+        page_size: 20,
+        total_page: 2,
+        total_record: 30,
+      }),
+    )
+    await initialRequest
+
+    // 验证初次加载数据未被判定为过期，成功应用，loading 正确复位
+    expect(messages.value.map((msg) => msg.id)).toEqual(['agent-1'])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
+
+  it('propagates initial assistant-agent request error even if a concurrent scroll event occurred', async () => {
+    let rejectInitial!: (error: Error) => void
+    const initialPromise = new Promise<ReturnType<typeof buildPage>>((_, reject) => {
+      rejectInitial = reject
+    })
+    vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage).mockReturnValueOnce(
+      initialPromise as never,
+    )
+    const { loading, loadAssistantAgentMessages } = useGetAssistantAgentMessagesWithPage()
+
+    const initialRequest = loadAssistantAgentMessages(true, 'conversation-1')
+    const scrollRequest = loadAssistantAgentMessages(false, 'conversation-1')
+    await scrollRequest
+
+    const expectedError = new Error('initial assistant fetch failed')
+    rejectInitial(expectedError)
+
+    await expect(initialRequest).rejects.toBe(expectedError)
+    expect(loading.value).toBe(false)
+  })
+
+  it('does not increment generation or alter loading when assistant-agent pagination is called with no more pages or while already loading', async () => {
+    const page2Deferred = createDeferred<ReturnType<typeof buildPage>>()
+    vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage)
+      .mockResolvedValueOnce(
+        buildPage([buildMessage('agent-1', 100)], {
+          current_page: 1,
+          page_size: 20,
+          total_page: 2,
+          total_record: 25,
+        }) as never,
+      )
+      .mockReturnValueOnce(page2Deferred.promise as never)
+
+    const { loading, messages, loadAssistantAgentMessages } =
+      useGetAssistantAgentMessagesWithPage()
+
+    await loadAssistantAgentMessages(true, 'conversation-1')
+    expect(messages.value.map((msg) => msg.id)).toEqual(['agent-1'])
+
+    // 开始加载第 2 页
+    const page2Request = loadAssistantAgentMessages(false, 'conversation-1')
+    expect(loading.value).toBe(true)
+
+    // 在第 2 页加载中再次调用分页（滚动抖动）
+    const redundantScrollRequest = loadAssistantAgentMessages(false, 'conversation-1')
+    await redundantScrollRequest
+
+    // 仅发起了一次第 2 页请求
+    expect(assistantAgentService.getAssistantAgentMessagesWithPage).toHaveBeenCalledTimes(2)
+
+    // 完成第 2 页加载
+    page2Deferred.resolve(
+      buildPage([buildMessage('agent-2', 50)], {
+        current_page: 2,
+        page_size: 20,
+        total_page: 2,
+        total_record: 25,
+      }),
+    )
+    await page2Request
+    expect(messages.value.map((msg) => msg.id)).toEqual(['agent-1', 'agent-2'])
+    expect(loading.value).toBe(false)
+
+    // 已经没有更多页（current_page = 3 > total_page = 2），再次触发分页直接无操作
+    await loadAssistantAgentMessages(false, 'conversation-1')
+    expect(assistantAgentService.getAssistantAgentMessagesWithPage).toHaveBeenCalledTimes(2)
+    expect(loading.value).toBe(false)
+  })
+
   it('does not restore assistant history after logout clears messages', async () => {
     const pendingResponse = createDeferred<ReturnType<typeof buildPage>>()
     vi.mocked(assistantAgentService.getAssistantAgentMessagesWithPage)
