@@ -280,12 +280,12 @@ describe('useGetApiKeysWithPage', () => {
     paginator.value = { current_page: 1, page_size: 20, total_page: 3, total_record: 50 }
 
     // 路由变更至第 2 页，触发分页请求
-    mocks.routeQuery = { current_page: '2', page_size: '20' }
+    mocks.routeQuery.current_page = '2'
     const page2Request = loadApiKeys(false)
     expect(loading.value).toBe(true)
 
     // 用户快速跳转或浏览历史前进至第 3 页，触发新的分页请求
-    mocks.routeQuery = { current_page: '3', page_size: '20' }
+    mocks.routeQuery.current_page = '3'
     const page3Request = loadApiKeys(false)
     expect(loading.value).toBe(true)
     expect(mocks.getApiKeysWithPage).toHaveBeenCalledTimes(2)
@@ -316,6 +316,68 @@ describe('useGetApiKeysWithPage', () => {
     // 第 3 页数据与分页状态成功提交
     expect(api_keys.value).toEqual([{ id: 'key-page-3' }])
     expect(paginator.value.current_page).toBe(3)
+    expect(loading.value).toBe(false)
+  })
+
+  it('allows route page changes during uninitialized in-flight initial load to supersede initial load', async () => {
+    type PageResult = {
+      data: {
+        list: Array<{ id: string }>
+        paginator: { current_page: number; page_size: number; total_page: number; total_record: number }
+      }
+    }
+    const deferred = <T,>() => {
+      let resolve!: (value: T) => void
+      const promise = new Promise<T>((res) => {
+        resolve = res
+      })
+      return { promise, resolve }
+    }
+
+    const initialDeferred = deferred<PageResult>()
+    const routePage2Deferred = deferred<PageResult>()
+    mocks.getApiKeysWithPage
+      .mockReturnValueOnce(initialDeferred.promise)
+      .mockReturnValueOnce(routePage2Deferred.promise)
+
+    const { api_keys, paginator, loading, loadApiKeys } = useGetApiKeysWithPage()
+
+    // 初始加载触发（paginator 尚处于默认未初始化状态 total_page: 0）
+    mocks.routeQuery.current_page = '1'
+    const initialRequest = loadApiKeys(true)
+    expect(loading.value).toBe(true)
+
+    // 用户在初次加载未完成时切换路由至第 2 页，触发 loadApiKeys(false)
+    mocks.routeQuery.current_page = '2'
+    const routePage2Request = loadApiKeys(false)
+    expect(loading.value).toBe(true)
+    expect(mocks.getApiKeysWithPage).toHaveBeenCalledTimes(2)
+
+    // 初次加载慢速返回，但其已被第 2 页请求取代
+    initialDeferred.resolve({
+      data: {
+        list: [{ id: 'key-page-1' }],
+        paginator: { current_page: 1, page_size: 20, total_page: 2, total_record: 30 },
+      },
+    })
+    await initialRequest
+
+    // 第 1 页旧结果不覆盖页面
+    expect(api_keys.value).toEqual([])
+    expect(loading.value).toBe(true)
+
+    // 第 2 页新结果返回
+    routePage2Deferred.resolve({
+      data: {
+        list: [{ id: 'key-page-2' }],
+        paginator: { current_page: 2, page_size: 20, total_page: 2, total_record: 30 },
+      },
+    })
+    await routePage2Request
+
+    // 第 2 页数据与分页状态提交
+    expect(api_keys.value).toEqual([{ id: 'key-page-2' }])
+    expect(paginator.value.current_page).toBe(2)
     expect(loading.value).toBe(false)
   })
 })

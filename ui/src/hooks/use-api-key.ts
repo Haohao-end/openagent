@@ -30,13 +30,25 @@ export const useGetApiKeysWithPage = () => {
   }
   const paginator = ref({ ...defaultPaginator })
   let latestLoadRequest = 0
+  let latestRequestedPage: number | null = null
 
   // 2.定义加载数据函数
   const loadApiKeys = async (init: boolean = false) => {
-    if (!init && paginator.value.current_page > paginator.value.total_page) {
-      return
+    const targetPage = parsePositiveIntegerQuery(route.query?.current_page, 1)
+
+    if (init) {
+      paginator.value = { ...defaultPaginator }
+    } else {
+      if (paginator.value.total_page > 0) {
+        if (targetPage > paginator.value.total_page || paginator.value.current_page > paginator.value.total_page) {
+          return
+        }
+      } else if (targetPage === latestRequestedPage) {
+        return
+      }
     }
 
+    latestRequestedPage = targetPage
     const requestId = ++latestLoadRequest
     const credential = credentialStore.credential
 
