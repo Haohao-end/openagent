@@ -1004,6 +1004,7 @@ export default {
         createdAt: '创建时间',
         expiresAt: '失效时间',
         lastUsedAt: '最后使用',
+        requestCount: '请求次数',
         scopes: '权限范围',
         remark: '备注',
         actions: '操作',

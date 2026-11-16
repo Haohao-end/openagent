@@ -1022,6 +1022,7 @@ export default {
         createdAt: 'Created At',
         expiresAt: 'Expires At',
         lastUsedAt: 'Last Used',
+        requestCount: 'Request Count',
         scopes: 'Scopes',
         remark: 'Remark',
         actions: 'Actions',
