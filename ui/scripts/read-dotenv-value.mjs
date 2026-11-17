@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import process from 'node:process'
 
 const [, , filePath, targetKey] = process.argv
 
