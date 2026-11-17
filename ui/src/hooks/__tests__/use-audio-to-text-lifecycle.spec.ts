@@ -40,3 +40,27 @@ it('only propagates transcription errors while mounted', async () => {
   await expect(pending).resolves.toBeUndefined()
   expect(removed.loading.value).toBe(true)
 })
+
+it('keeps the latest transcription when requests resolve out of order', async () => {
+  let finishOld!: (value: { data: { text: string } }) => void
+  let finishNew!: (value: { data: { text: string } }) => void
+  mocks.audioToText
+    .mockReset()
+    .mockReturnValueOnce(new Promise((resolve) => { finishOld = resolve }))
+    .mockReturnValueOnce(new Promise((resolve) => { finishNew = resolve }))
+
+  const wrapper = mountHook()
+  const { loading, text, handleAudioToText } = mocks.state!
+
+  const oldRequest = handleAudioToText(new Blob(['old']))
+  const newRequest = handleAudioToText(new Blob(['new']))
+
+  finishNew({ data: { text: 'new transcript' } })
+  await newRequest
+  finishOld({ data: { text: 'old transcript' } })
+  await oldRequest
+
+  expect(text.value).toBe('new transcript')
+  expect(loading.value).toBe(false)
+  wrapper.unmount()
+})
