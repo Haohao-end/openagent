@@ -68,14 +68,21 @@ export const useGenerateAssistantAgentIntroduction = () => {
 export const useGetAssistantAgentCapabilities = () => {
   const loading = ref(false)
   const capabilities = ref<Record<string, any>>({})
+  let latestRequest = 0
 
   const loadAssistantAgentCapabilities = async () => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getAssistantAgentCapabilities()
-      capabilities.value = resp.data?.capabilities || {}
+      if (requestId === latestRequest) {
+        capabilities.value = resp.data?.capabilities || {}
+      }
+      return resp
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
