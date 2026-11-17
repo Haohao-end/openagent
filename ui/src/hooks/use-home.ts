@@ -4,14 +4,18 @@ import type { HomeIntentData } from '@/models/home'
 
 export const useGetHomeIntent = () => {
   const loading = ref(false)
+  let latestRequest = 0
 
   const loadHomeIntent = async (): Promise<HomeIntentData> => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getHomeIntent()
       return resp.data
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
