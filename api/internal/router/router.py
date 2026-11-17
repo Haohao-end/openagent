@@ -541,6 +541,10 @@ class Router:
         bp.add_url_rule("/workflows", methods=["POST"], view_func=self.workflow_handler.create_workflow)
         bp.add_url_rule("/workflows/<uuid:workflow_id>", view_func=self.workflow_handler.get_workflow)
         bp.add_url_rule(
+            "/workflows/<uuid:workflow_id>/results/<uuid:result_id>/trace",
+            view_func=self.workflow_handler.get_workflow_result_trace,
+        )
+        bp.add_url_rule(
             "/workflows/<uuid:workflow_id>",
             methods=["POST"],
             view_func=self.workflow_handler.update_workflow,

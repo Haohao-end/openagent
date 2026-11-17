@@ -62,6 +62,12 @@ class WorkflowHandler:
         return success_json(resp.dump(workflow))
 
     @login_required
+    def get_workflow_result_trace(self, workflow_id: UUID, result_id: UUID):
+        """根据工作流id与结果id获取执行跟踪Trace详情"""
+        trace = self.workflow_service.get_workflow_result_trace(workflow_id, result_id, current_user)
+        return success_json(trace)
+
+    @login_required
     def get_workflows_with_page(self):
         """获取当前登录账号下的工作流分页列表数据"""
         # 1.提取请求并校验
