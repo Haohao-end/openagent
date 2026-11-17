@@ -13,7 +13,12 @@ from injector import inject
 import requests
 from sqlalchemy.exc import SQLAlchemyError
 
-from internal.exception import FailException, NotFoundException, UnauthorizedException
+from internal.exception import (
+    FailException,
+    NotFoundException,
+    UnauthorizedException,
+    ValidateErrorException,
+)
 from internal.extension.redis_extension import redis_client
 from internal.lib.helper import datetime_to_timestamp, ensure_utc_naive
 from internal.model import Account, AccountOAuth, AccountSession
@@ -22,6 +27,9 @@ from pkg.sqlalchemy import SQLAlchemy
 from .base_service import BaseService
 from .email_service import EmailService
 from .jwt_service import JwtService
+
+
+_ACCOUNT_ALLOWED_UPDATE_FIELDS = frozenset({"name", "avatar", "password", "password_salt", "email"})
 
 
 @inject
@@ -742,7 +750,17 @@ class AccountService(BaseService):
 
     def update_account(self, account: Account, **kwargs) -> Account:
         """根据传递的信息更新账号"""
-        self.update(account, **kwargs)
+        updates = {k: v for k, v in kwargs.items() if k in _ACCOUNT_ALLOWED_UPDATE_FIELDS}
+        if "name" in updates:
+            name = str(updates["name"] or "").strip()
+            if not name:
+                raise ValidateErrorException("账号名称不能为空")
+            if len(name) > 30:
+                raise ValidateErrorException("账号名称长度不能超过30个字符")
+            updates["name"] = name
+
+        if updates:
+            self.update(account, **updates)
         return account
 
     def get_account_sessions(
