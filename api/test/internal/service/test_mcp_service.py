@@ -1,11 +1,13 @@
 from contextlib import contextmanager
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from internal.exception import ValidateErrorException
 from internal.lib.helper import sanitize_public_url
+from internal.model import McpProvider
 import internal.service.mcp_service as mcp_service_module
 from internal.service.mcp_service import McpService
 
@@ -374,3 +376,65 @@ def test_get_public_mcp_providers_with_page_uses_defaults_for_empty_page_values(
     assert len(providers) == 1
     assert paginator.current_page == (current_page or 1)
     assert paginator.page_size == (page_size or 20)
+
+
+def test_create_mcp_provider_should_reject_duplicate_name():
+    service = _build_service(table_exists=True)
+    account = SimpleNamespace(id=uuid4())
+    existing = McpProvider(id=uuid4(), account_id=account.id, name="dup-tool")
+    service.db.session.query = lambda *args: SimpleNamespace(
+        filter=lambda *args: SimpleNamespace(one_or_none=lambda: existing)
+    )
+
+    req = SimpleNamespace(
+        name=SimpleNamespace(data="dup-tool"),
+        label=SimpleNamespace(data=""),
+        icon=SimpleNamespace(data=""),
+        description=SimpleNamespace(data="test"),
+        category=SimpleNamespace(data="other"),
+        transport=SimpleNamespace(data="streamable_http"),
+        url=SimpleNamespace(data="https://example.com"),
+        command=SimpleNamespace(data=""),
+        headers=SimpleNamespace(data=[]),
+        tool_names=SimpleNamespace(data=[]),
+        args=SimpleNamespace(data=[]),
+        env=SimpleNamespace(data={}),
+        timeout_seconds=SimpleNamespace(data=30),
+    )
+
+    with pytest.raises(ValidateErrorException) as exc_info:
+        service.create_mcp_provider(req, account)
+    assert "已经存在" in str(exc_info.value)
+
+
+def test_update_mcp_provider_should_reject_duplicate_name():
+    service = _build_service(table_exists=True)
+    account = SimpleNamespace(id=uuid4())
+    provider_id = uuid4()
+    current_provider = McpProvider(id=provider_id, account_id=account.id, name="tool-1")
+    other_provider = McpProvider(id=uuid4(), account_id=account.id, name="tool-2")
+
+    service._resolve_private_provider = lambda *args: current_provider
+    service.db.session.query = lambda *args: SimpleNamespace(
+        filter=lambda *args: SimpleNamespace(one_or_none=lambda: other_provider)
+    )
+
+    req = SimpleNamespace(
+        name=SimpleNamespace(data="tool-2"),
+        label=SimpleNamespace(data=""),
+        icon=SimpleNamespace(data=""),
+        description=SimpleNamespace(data="test"),
+        category=SimpleNamespace(data="other"),
+        transport=SimpleNamespace(data="streamable_http"),
+        url=SimpleNamespace(data="https://example.com"),
+        command=SimpleNamespace(data=""),
+        headers=SimpleNamespace(data=[]),
+        tool_names=SimpleNamespace(data=[]),
+        args=SimpleNamespace(data=[]),
+        env=SimpleNamespace(data={}),
+        timeout_seconds=SimpleNamespace(data=30),
+    )
+
+    with pytest.raises(ValidateErrorException) as exc_info:
+        service.update_mcp_provider(provider_id, req, account)
+    assert "已经存在" in str(exc_info.value)

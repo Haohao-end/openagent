@@ -548,11 +548,26 @@ class McpService(BaseService):
 
     def create_mcp_provider(self, req: CreateMcpProviderReq, account: Account) -> McpProvider:
         self._ensure_mcp_provider_table()
-        label = _normalize_text(req.label.data) or _normalize_text(req.name.data)
-        category = normalize_mcp_category(req.category.data, name=req.name.data, description=req.description.data)
+        name = req.name.data.strip()
+        if not name:
+            raise ValidateErrorException("MCP工具提供者名字不能为空")
+
+        existing = (
+            self.db.session.query(McpProvider)
+            .filter(
+                McpProvider.account_id == account.id,
+                McpProvider.name == name,
+            )
+            .one_or_none()
+        )
+        if existing:
+            raise ValidateErrorException(f"该MCP工具提供者名字{name}已经存在")
+
+        label = _normalize_text(req.label.data) or name
+        category = normalize_mcp_category(req.category.data, name=name, description=req.description.data)
         provider = McpProvider(
             account_id=account.id,
-            name=req.name.data.strip(),
+            name=name,
             label=label,
             icon=_normalize_text(req.icon.data),
             description=req.description.data.strip(),
@@ -576,11 +591,27 @@ class McpService(BaseService):
 
     def update_mcp_provider(self, provider_id: UUID, req: UpdateMcpProviderReq, account: Account) -> McpProvider:
         provider = self._resolve_private_provider(provider_id, account)
-        label = _normalize_text(req.label.data) or _normalize_text(req.name.data)
-        category = normalize_mcp_category(req.category.data, name=req.name.data, description=req.description.data)
+        name = req.name.data.strip()
+        if not name:
+            raise ValidateErrorException("MCP工具提供者名字不能为空")
+
+        existing = (
+            self.db.session.query(McpProvider)
+            .filter(
+                McpProvider.account_id == account.id,
+                McpProvider.name == name,
+                McpProvider.id != provider.id,
+            )
+            .one_or_none()
+        )
+        if existing:
+            raise ValidateErrorException(f"该MCP工具提供者名字{name}已经存在")
+
+        label = _normalize_text(req.label.data) or name
+        category = normalize_mcp_category(req.category.data, name=name, description=req.description.data)
         self.update(
             provider,
-            name=req.name.data.strip(),
+            name=name,
             label=label,
             icon=_normalize_text(req.icon.data),
             description=req.description.data.strip(),
