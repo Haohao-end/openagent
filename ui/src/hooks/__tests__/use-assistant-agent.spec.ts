@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAssistantAgentChat, useDeleteAssistantAgentConversation } from '@/hooks/use-assistant-agent'
+import {
+  useAssistantAgentChat,
+  useDeleteAssistantAgentConversation,
+  useGetAssistantAgentConversations,
+} from '@/hooks/use-assistant-agent'
 import * as assistantAgentService from '@/services/assistant-agent'
 import { Message } from '@arco-design/web-vue'
 
@@ -66,5 +70,51 @@ describe('useAssistantAgentChat', () => {
       false,
       controller.signal,
     )
+  })
+})
+
+describe('useGetAssistantAgentConversations race conditions', () => {
+  it('loads conversations and resets loading state', async () => {
+    const list = [{ id: 'conv-1', name: 'Chat 1' }]
+    vi.mocked(assistantAgentService.getAssistantAgentConversations).mockResolvedValue({
+      data: list,
+    } as never)
+
+    const { loading, conversations, loadAssistantAgentConversations } =
+      useGetAssistantAgentConversations()
+
+    await loadAssistantAgentConversations()
+
+    expect(conversations.value).toEqual(list)
+    expect(loading.value).toBe(false)
+  })
+
+  it('discards stale conversations and preserves loading until latest resolves', async () => {
+    let resolveFirst: (v: any) => void = () => {}
+    let resolveSecond: (v: any) => void = () => {}
+
+    vi.mocked(assistantAgentService.getAssistantAgentConversations)
+      .mockImplementationOnce(() => new Promise((res) => { resolveFirst = res }))
+      .mockImplementationOnce(() => new Promise((res) => { resolveSecond = res }))
+
+    const { loading, conversations, loadAssistantAgentConversations } =
+      useGetAssistantAgentConversations()
+
+    const call1 = loadAssistantAgentConversations()
+    const call2 = loadAssistantAgentConversations()
+
+    expect(loading.value).toBe(true)
+
+    resolveFirst({ data: [{ id: 'stale', name: 'Stale' }] })
+    await Promise.resolve()
+
+    expect(conversations.value).toEqual([])
+    expect(loading.value).toBe(true)
+
+    resolveSecond({ data: [{ id: 'latest', name: 'Latest' }] })
+    await Promise.all([call1, call2])
+
+    expect(conversations.value).toEqual([{ id: 'latest', name: 'Latest' }])
+    expect(loading.value).toBe(false)
   })
 })

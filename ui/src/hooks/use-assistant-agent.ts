@@ -189,15 +189,22 @@ export const useGetAssistantAgentConversations = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const conversations = ref<GetAssistantAgentConversationsResponse['data']>([])
+  let latestRequest = 0
 
   // 2.定义加载辅助Agent最近会话列表函数
   const loadAssistantAgentConversations = async (limit: number = 20) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getAssistantAgentConversations(limit)
-      conversations.value = resp.data || []
+      if (requestId === latestRequest) {
+        conversations.value = resp.data || []
+      }
+      return resp
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
