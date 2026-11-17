@@ -23,8 +23,11 @@ def _message(created_at: datetime, conversation_id=None, created_by=None, latenc
 
 
 def _build_service(app=None):
+    dummy_query = SimpleNamespace(
+        filter=lambda *_args: SimpleNamespace(scalar=lambda: None, one_or_none=lambda: None)
+    )
     return AnalysisService(
-        db=SimpleNamespace(session=SimpleNamespace()),
+        db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args, **_kwargs: dummy_query)),
         app_service=SimpleNamespace(get_app=lambda *_args, **_kwargs: app or SimpleNamespace(id=uuid4())),
     )
 
@@ -79,6 +82,7 @@ class TestAnalysisService:
             assert actual_pop == pytest.approx(expected_rag_latency_pop)
         assert len(result["total_messages_trend"]["x_axis"]) == 7
         assert len(result["total_messages_trend"]["y_axis"]) == 7
+        assert "rag_hit_rate" in result
 
     def test_get_app_analysis_should_handle_empty_messages(self, monkeypatch):
         """测试空消息列表的处理"""
@@ -257,3 +261,27 @@ class TestAnalysisService:
         trend = AnalysisService.calculate_trend_by_messages(end_at=end_at, days_ago=7, messages=messages)
 
         assert trend["total_messages_trend"]["y_axis"][0] == 2
+
+    def test_get_rag_hit_rate_by_time_range_should_calculate_ratio(self):
+        app = SimpleNamespace(id=uuid4())
+        start_at = datetime(2024, 1, 1, 0, 0, 0)
+        end_at = datetime(2024, 1, 8, 0, 0, 0)
+
+        # 1. Total > 0
+        service = _build_service(app=app)
+        service.db.session.query = lambda *_args: SimpleNamespace(
+            filter=lambda *_f: SimpleNamespace(one_or_none=lambda: SimpleNamespace(total=10, hits=8))
+        )
+        assert service.get_rag_hit_rate_by_time_range(app, start_at, end_at) == pytest.approx(0.8)
+
+        # 2. Total == 0 -> None
+        service.db.session.query = lambda *_args: SimpleNamespace(
+            filter=lambda *_f: SimpleNamespace(one_or_none=lambda: SimpleNamespace(total=0, hits=0))
+        )
+        assert service.get_rag_hit_rate_by_time_range(app, start_at, end_at) is None
+
+        # 3. None row -> None
+        service.db.session.query = lambda *_args: SimpleNamespace(
+            filter=lambda *_f: SimpleNamespace(one_or_none=lambda: None)
+        )
+        assert service.get_rag_hit_rate_by_time_range(app, start_at, end_at) is None
