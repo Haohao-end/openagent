@@ -705,6 +705,10 @@ class Router:
             methods=["POST"],
             view_func=self.conversation_handler.compare_messages,
         )
+        bp.add_url_rule(
+            "/conversations/messages/<uuid:message_id>/trace",
+            view_func=self.conversation_handler.get_message_trace,
+        )
 
         # 17.语音转换模块
         bp.add_url_rule(

@@ -40,3 +40,21 @@ class TestConversationCompareHandler:
         assert resp.status_code == 200
         assert resp.json["code"] == "success"
         assert resp.json["data"]["diff"]["answer_match"] is True
+
+    def test_get_message_trace_delegates_to_service(self, http_client, current_user, monkeypatch):
+        msg_id = "00000000-0000-0000-0000-000000000002"
+        mock_service = MagicMock()
+        mock_service.get_message_trace.return_value = {
+            "message_id": msg_id,
+            "timeline": [{"position": 1, "tool": "search"}],
+        }
+        monkeypatch.setattr(
+            "internal.handler.conversation_handler.ConversationService.get_message_trace",
+            mock_service.get_message_trace,
+        )
+
+        resp = http_client.get(f"/conversations/messages/{msg_id}/trace")
+        assert resp.status_code == 200
+        assert resp.json["code"] == "success"
+        assert resp.json["data"]["message_id"] == msg_id
+        assert len(resp.json["data"]["timeline"]) == 1

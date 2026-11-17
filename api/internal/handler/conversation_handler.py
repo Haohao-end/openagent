@@ -145,3 +145,9 @@ class ConversationHandler:
             current_user,
         )
         return success_json(comparison)
+
+    @login_required
+    def get_message_trace(self, message_id: UUID):
+        """根据传递的消息id获取该消息对应的执行 Trace 时间线"""
+        trace = self.conversation_service.get_message_trace(message_id, current_user)
+        return success_json(trace)
