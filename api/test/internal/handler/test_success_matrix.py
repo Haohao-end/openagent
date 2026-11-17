@@ -1142,6 +1142,18 @@ CASES += [
         "assertion": _assert_get_workflows_with_page,
     },
     {
+        "name": "get_workflow_result_trace_success",
+        "method": "get",
+        "url": f"/workflows/{WORKFLOW_ID}/results/{MESSAGE_ID}/trace",
+        "kwargs": {},
+        "patches": [
+            (
+                "internal.service.workflow_service.WorkflowService.get_workflow_result_trace",
+                {"id": str(MESSAGE_ID), "status": "succeeded", "steps": []},
+            )
+        ],
+    },
+    {
         "name": "get_dataset_detail_serialization_success",
         "method": "get",
         "url": f"/datasets/{DATASET_ID}",
