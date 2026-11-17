@@ -448,9 +448,11 @@ export const useGetPublicWorkflows = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const workflows = ref<GetWorkflowsWithPageResponse['data']['list']>([])
+  let latestRequest = 0
 
   // 2.定义加载数据函数
   const loadPublicWorkflows = async (search_word: string = '') => {
+    const requestId = ++latestRequest
     try {
       // 3.调用接口获取响应数据
       loading.value = true
@@ -460,9 +462,12 @@ export const useGetPublicWorkflows = () => {
         search_word,
         status: '',
       }, true)
+      if (requestId !== latestRequest) return
       workflows.value = resp.data.list
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
