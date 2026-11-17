@@ -24,13 +24,24 @@ export const useGetWebApp = () => {
   // 1.定义自定义hooks所需数据
   const loading = ref(false)
   const web_app = ref<Record<string, any>>({})
+  let latestRequest = 0
 
   // 2.定义加载数据处理器
   const loadWebApp = async (token: string) => {
-    await runWithLoading(loading, '加载应用失败，请稍后重试', async () => {
+    const requestId = ++latestRequest
+    try {
+      loading.value = true
       const resp = await getWebApp(token)
+      if (requestId !== latestRequest) return false
       web_app.value = resp.data
-    })
+      return true
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      Message.error(getErrorMessage(error, '加载应用失败，请稍后重试'))
+      throw error
+    } finally {
+      if (requestId === latestRequest) loading.value = false
+    }
   }
 
   return { loading, web_app, loadWebApp }
@@ -81,18 +92,28 @@ export const useGetAppConversations = () => {
   const loading = ref(false)
   const pinned_conversations = ref<Record<string, any>[]>([])
   const unpinned_conversations = ref<Record<string, any>[]>([])
+  let latestRequest = 0
 
   // 2.定义加载数据处理器
   const loadWebAppConversations = async (token: string) => {
-    await runWithLoading(loading, '加载会话列表失败，请稍后重试', async () => {
+    const requestId = ++latestRequest
+    try {
+      loading.value = true
       const [pinned_resp, unpinned_resp] = await Promise.all([
         getWebAppConversations(token, true),
         getWebAppConversations(token, false),
       ])
-
+      if (requestId !== latestRequest) return false
       pinned_conversations.value = pinned_resp.data
       unpinned_conversations.value = unpinned_resp.data
-    })
+      return true
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      Message.error(getErrorMessage(error, '加载会话列表失败，请稍后重试'))
+      throw error
+    } finally {
+      if (requestId === latestRequest) loading.value = false
+    }
   }
 
   return { loading, pinned_conversations, unpinned_conversations, loadWebAppConversations }
