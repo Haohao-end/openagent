@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useProvider } from '@/hooks/use-oauth'
+import { useAuthorize, useProvider } from '@/hooks/use-oauth'
 import * as oauthService from '@/services/oauth'
+
+vi.mock('@arco-design/web-vue', () => ({
+  Message: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}))
 
 vi.mock('@/services/oauth', () => ({
   provider: vi.fn(),
@@ -60,6 +67,58 @@ describe('useProvider race conditions', () => {
 
     const { loading, handleProvider } = useProvider()
     await expect(handleProvider('github')).rejects.toThrow('Network error')
+
+    expect(loading.value).toBe(false)
+  })
+})
+
+describe('useAuthorize race conditions', () => {
+  it('updates authorization and resets loading', async () => {
+    vi.mocked(oauthService.authorize).mockResolvedValue({
+      data: { access_token: 'auth-token-123' },
+    } as never)
+
+    const { loading, authorization, handleAuthorize } = useAuthorize()
+    await handleAuthorize('github', 'oauth-code-1')
+
+    expect(oauthService.authorize).toHaveBeenCalledWith('github', 'oauth-code-1', 'login')
+    expect(authorization.value).toEqual({ access_token: 'auth-token-123' })
+    expect(loading.value).toBe(false)
+  })
+
+  it('discards stale authorization and maintains loading while newer request is pending', async () => {
+    let resolveFirst: (v: any) => void = () => {}
+    let resolveSecond: (v: any) => void = () => {}
+
+    vi.mocked(oauthService.authorize)
+      .mockImplementationOnce(() => new Promise((res) => { resolveFirst = res }))
+      .mockImplementationOnce(() => new Promise((res) => { resolveSecond = res }))
+
+    const { loading, authorization, handleAuthorize } = useAuthorize()
+
+    const call1 = handleAuthorize('github', 'code-old')
+    const call2 = handleAuthorize('github', 'code-new')
+
+    expect(loading.value).toBe(true)
+
+    resolveFirst({ data: { access_token: 'old-token' } })
+    await Promise.resolve()
+
+    expect(authorization.value).toEqual({})
+    expect(loading.value).toBe(true)
+
+    resolveSecond({ data: { access_token: 'new-token' } })
+    await Promise.all([call1, call2])
+
+    expect(authorization.value).toEqual({ access_token: 'new-token' })
+    expect(loading.value).toBe(false)
+  })
+
+  it('resets loading when authorization fails', async () => {
+    vi.mocked(oauthService.authorize).mockRejectedValue(new Error('oauth error'))
+
+    const { loading, handleAuthorize } = useAuthorize()
+    await expect(handleAuthorize('github', 'code')).rejects.toThrow('oauth error')
 
     expect(loading.value).toBe(false)
   })

@@ -33,25 +33,32 @@ export const useAuthorize = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const authorization = ref<LoginAuthorizationData>({})
+  let latestRequest = 0
 
   // 2.定义第三方授权认证处理器
   const handleAuthorize = async (
     provider_name: string,
     code: string,
     intent: 'login' | 'bind' = 'login',
-    ) => {
-      try {
-        loading.value = true
-        const resp = await authorize(provider_name, code, intent)
+  ) => {
+    const requestId = ++latestRequest
+    try {
+      loading.value = true
+      const resp = await authorize(provider_name, code, intent)
+      if (requestId === latestRequest) {
         authorization.value = resp.data
         if (intent === 'bind') {
           Message.success('绑定成功，正在返回设置中心')
         } else if (!resp.data.challenge_required) {
           Message.success('登录成功，正在跳转')
         }
-      } finally {
+      }
+      return resp
+    } finally {
+      if (requestId === latestRequest) {
         loading.value = false
       }
+    }
   }
 
   return { loading, authorization, handleAuthorize }
