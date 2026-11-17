@@ -495,3 +495,64 @@ def test_request_loader_should_return_none_for_unmatched_blueprint():
     app = Flask(__name__)
     with app.app_context():
         assert middleware.request_loader(request) is None
+
+
+def test_request_loader_should_reject_when_rate_limit_exceeded():
+    expected_account = {"id": "acc-1"}
+    api_key_record = SimpleNamespace(
+        is_active=True,
+        scopes=["openapi:chat"],
+        account=expected_account,
+    )
+    recorded_calls = []
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: api_key_record,
+            check_rate_limit=lambda _record: (False, 61, 30),
+            record_api_key_request=recorded_calls.append,
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        endpoint="openapi.chat",
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with app.app_context(), pytest.raises(ForbiddenException, match="超出限制"):
+        middleware.request_loader(request)
+
+    assert recorded_calls == []
+
+
+def test_request_loader_should_allow_and_record_when_rate_limit_permitted():
+    expected_account = {"id": "acc-1"}
+    api_key_record = SimpleNamespace(
+        is_active=True,
+        scopes=["openapi:chat"],
+        account=expected_account,
+    )
+    recorded_calls = []
+    middleware = Middleware(
+        jwt_service=SimpleNamespace(parse_token=lambda _token: {}),
+        api_key_service=SimpleNamespace(
+            get_api_by_by_credential=lambda _key: api_key_record,
+            check_rate_limit=lambda _record: (True, 1, 60),
+            record_api_key_request=recorded_calls.append,
+        ),
+        account_service=SimpleNamespace(get_account=lambda _id: None),
+    )
+    request = SimpleNamespace(
+        blueprint="openapi",
+        endpoint="openapi.chat",
+        headers={"Authorization": "Bearer api-key"},
+    )
+
+    app = Flask(__name__)
+    with app.app_context():
+        account = middleware.request_loader(request)
+
+    assert account == expected_account
+    assert recorded_calls == [api_key_record]

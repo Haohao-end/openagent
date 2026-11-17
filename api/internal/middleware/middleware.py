@@ -62,6 +62,12 @@ class Middleware:
             if not account:
                 raise UnauthorizedException("该密钥不存在或未激活")
 
+            # 7.校验接口调用配额与速率限制
+            if hasattr(self.api_key_service, "check_rate_limit"):
+                allowed, _, _ = self.api_key_service.check_rate_limit(api_key_record)
+                if not allowed:
+                    raise ForbiddenException("API密钥调用频率超出限制，请稍后重试")
+
             try:
                 self.api_key_service.record_api_key_request(api_key_record)
             except Exception as error:
