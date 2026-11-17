@@ -128,6 +128,7 @@ export const useUpdatePassword = () => {
 
 export const useGetAccountSessions = () => {
   const loading = ref(false)
+  const credentialStore = useCredentialStore()
   let requestId = 0
   const session_state = ref<{
     session_capable: boolean
@@ -141,10 +142,15 @@ export const useGetAccountSessions = () => {
 
   const loadAccountSessions = async () => {
     const currentRequestId = ++requestId
+    const credential = credentialStore.credential
     try {
       loading.value = true
       const resp = await getAccountSessions()
-      if (currentRequestId === requestId) session_state.value = resp.data
+      if (currentRequestId === requestId && credential === credentialStore.credential) {
+        session_state.value = resp.data
+      }
+    } catch (error) {
+      if (currentRequestId === requestId && credential === credentialStore.credential) throw error
     } finally {
       if (currentRequestId === requestId) loading.value = false
     }

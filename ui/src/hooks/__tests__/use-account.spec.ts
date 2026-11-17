@@ -101,4 +101,17 @@ describe('useGetAccountSessions', () => {
     await newRequest
     expect(loading.value).toBe(false)
   })
+
+  it('ignores a session response that resolves after credential changes', async () => {
+    const request = deferred()
+    mocks.credentialStore.credential = { access_token: 'user-a' }
+    mocks.getAccountSessions.mockReturnValueOnce(request.promise)
+    const { session_state, loadAccountSessions } = useGetAccountSessions()
+    const pending = loadAccountSessions()
+    mocks.credentialStore.credential = { access_token: 'user-b' }
+    request.resolve({ data: { sessions: [{ id: 'user-a-session' }], session_capable: true, current_session_id: 'user-a-session' } })
+    await pending
+
+    expect(session_state.value.sessions).toEqual([])
+  })
 })
