@@ -291,3 +291,23 @@ def test_remove_tag_should_scope_to_account_id_when_provided():
 
     assert service.remove_workflow_tag(uuid4(), uuid4(), account_id=account_id) is True
     assert "workflow_tag.account_id" in str(wf_query.filters[0])
+
+
+def test_create_tag_should_validate_and_normalize_name_and_description():
+    created = []
+    service = TagService(db=SimpleNamespace(session=SimpleNamespace()))
+    service.create = lambda model, **kwargs: created.append((model, kwargs)) or kwargs
+
+    account_id = uuid4()
+    with pytest.raises(ValidateErrorException, match="标签名称不能为空"):
+        service.create_tag(account_id, "   ")
+
+    with pytest.raises(ValidateErrorException, match="长度必须在 1-50 个字符之间"):
+        service.create_tag(account_id, "a" * 51)
+
+    with pytest.raises(ValidateErrorException, match="长度不能超过 200 个字符"):
+        service.create_tag(account_id, "valid-name", "d" * 201)
+
+    res = service.create_tag(account_id, "  trimmed-name  ", "  trimmed-desc  ")
+    assert res["name"] == "trimmed-name"
+    assert res["description"] == "trimmed-desc"
