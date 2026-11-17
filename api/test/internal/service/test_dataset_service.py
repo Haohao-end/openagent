@@ -773,3 +773,55 @@ class TestDatasetService:
 
         assert marker not in caplog.text
         assert "error_type=RuntimeError" in caplog.text
+
+    def test_create_and_update_dataset_should_strip_name_and_validate(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset = SimpleNamespace(id=uuid4(), account_id=account.id, name="orig", description="")
+        session = SimpleNamespace(query=lambda _model: _QueryStub(one_or_none_result=None))
+        service = _new_dataset_service(
+            db=SimpleNamespace(session=session),
+            retrieval_service=SimpleNamespace(),
+        )
+        created = []
+        updates = []
+        monkeypatch.setattr(service, "create", lambda _cls, **kwargs: created.append(kwargs) or dataset)
+        monkeypatch.setattr(service, "get", lambda _cls, _id: dataset)
+        monkeypatch.setattr(service, "update", lambda _inst, **kwargs: updates.append(kwargs) or dataset)
+
+        create_req = SimpleNamespace(
+            name=SimpleNamespace(data="  new-dataset  "),
+            icon=SimpleNamespace(data="https://icon.png"),
+            description=SimpleNamespace(data="  custom desc  "),
+        )
+        service.create_dataset(create_req, account)
+        assert created == [{
+            "account_id": account.id,
+            "name": "new-dataset",
+            "icon": "https://icon.png",
+            "description": "custom desc",
+        }]
+
+        update_req = SimpleNamespace(
+            name=SimpleNamespace(data="  updated-dataset  "),
+            icon=SimpleNamespace(data="https://new-icon.png"),
+            description=SimpleNamespace(data=""),
+        )
+        service.update_dataset(dataset.id, update_req, account)
+        assert len(updates) == 1
+        assert updates[0]["name"] == "updated-dataset"
+        assert "updated-dataset" in updates[0]["description"]
+
+        for invalid_name, error_msg in [("   ", "知识库名称不能为空"), ("a" * 101, "知识库名称长度不能超过100字符")]:
+            with pytest.raises(ValidateErrorException, match=error_msg):
+                service.create_dataset(SimpleNamespace(
+                    name=SimpleNamespace(data=invalid_name),
+                    icon=SimpleNamespace(data="https://icon.png"),
+                    description=SimpleNamespace(data=""),
+                ), account)
+
+            with pytest.raises(ValidateErrorException, match=error_msg):
+                service.update_dataset(dataset.id, SimpleNamespace(
+                    name=SimpleNamespace(data=invalid_name),
+                    icon=SimpleNamespace(data="https://icon.png"),
+                    description=SimpleNamespace(data=""),
+                ), account)
