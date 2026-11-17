@@ -973,6 +973,13 @@ CASES = [
         "kwargs": {"json": {"target_message_id": MESSAGE_ID, "base_message_id": MESSAGE_ID}},
         "patches": [("internal.service.conversation_service.ConversationService.compare_messages", {"diff": {}})],
     },
+    {
+        "name": "get_message_trace_success",
+        "method": "get",
+        "url": f"/conversations/messages/{MESSAGE_ID}/trace",
+        "kwargs": {},
+        "patches": [("internal.service.conversation_service.ConversationService.get_message_trace", {"timeline": []})],
+    },
     # api key
     {
         "name": "create_api_key_success",
