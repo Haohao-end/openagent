@@ -575,36 +575,50 @@ class ConversationService(BaseService):
         return message
 
     def compare_messages(self, target_message_id: UUID, base_message_id: UUID, account: Account) -> dict[str, Any]:
-        """比较两次运行消息在耗时、Token 消耗、费用和状态上的差异。"""
+        """比较两次运行消息在耗时、Token 消耗、费用、文本差异和状态上的差异。"""
         target = self.get_message(target_message_id, account)
         base = self.get_message(base_message_id, account)
 
+        target_error = str(getattr(target, "error", "") or "")
+        base_error = str(getattr(base, "error", "") or "")
+        target_answer = str(getattr(target, "answer", "") or "")
+        base_answer = str(getattr(base, "answer", "") or "")
+
         latency_diff = round(float(target.latency or 0.0) - float(base.latency or 0.0), 4)
         token_count_diff = int(target.total_token_count or 0) - int(base.total_token_count or 0)
+        message_token_count_diff = int(getattr(target, "message_token_count", 0) or 0) - int(getattr(base, "message_token_count", 0) or 0)
+        answer_token_count_diff = int(getattr(target, "answer_token_count", 0) or 0) - int(getattr(base, "answer_token_count", 0) or 0)
         price_diff = round(float(target.total_price or 0.0) - float(base.total_price or 0.0), 7)
 
         return {
             "target": {
                 "id": str(target.id),
                 "status": target.status,
+                "error": target_error,
                 "latency": float(target.latency or 0.0),
                 "total_token_count": int(target.total_token_count or 0),
                 "total_price": float(target.total_price or 0.0),
-                "answer_length": len(str(target.answer or "")),
+                "answer_length": len(target_answer),
             },
             "base": {
                 "id": str(base.id),
                 "status": base.status,
+                "error": base_error,
                 "latency": float(base.latency or 0.0),
                 "total_token_count": int(base.total_token_count or 0),
                 "total_price": float(base.total_price or 0.0),
-                "answer_length": len(str(base.answer or "")),
+                "answer_length": len(base_answer),
             },
             "diff": {
                 "latency_diff": latency_diff,
                 "total_token_count_diff": token_count_diff,
+                "message_token_count_diff": message_token_count_diff,
+                "answer_token_count_diff": answer_token_count_diff,
                 "total_price_diff": price_diff,
                 "status_changed": target.status != base.status,
+                "error_changed": target_error != base_error,
+                "answer_match": target_answer == base_answer,
+                "answer_length_diff": len(target_answer) - len(base_answer),
             },
         }
 

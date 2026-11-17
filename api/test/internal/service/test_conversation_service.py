@@ -2363,7 +2363,10 @@ class TestConversationServiceBasics:
             created_by=account.id,
             is_deleted=False,
             status="normal",
+            error="",
             latency=2.5,
+            message_token_count=100,
+            answer_token_count=50,
             total_token_count=150,
             total_price=0.03,
             answer="hello world",
@@ -2373,7 +2376,10 @@ class TestConversationServiceBasics:
             created_by=account.id,
             is_deleted=False,
             status="error",
+            error="rate limit",
             latency=1.2,
+            message_token_count=80,
+            answer_token_count=20,
             total_token_count=100,
             total_price=0.01,
             answer="err",
@@ -2385,11 +2391,18 @@ class TestConversationServiceBasics:
         res = service.compare_messages(m1.id, m2.id, account)
 
         assert res["target"]["id"] == str(m1.id)
+        assert res["target"]["error"] == ""
         assert res["base"]["id"] == str(m2.id)
+        assert res["base"]["error"] == "rate limit"
         assert res["diff"]["latency_diff"] == pytest.approx(1.3)
         assert res["diff"]["total_token_count_diff"] == 50
+        assert res["diff"]["message_token_count_diff"] == 20
+        assert res["diff"]["answer_token_count_diff"] == 30
         assert res["diff"]["total_price_diff"] == pytest.approx(0.02)
         assert res["diff"]["status_changed"] is True
+        assert res["diff"]["error_changed"] is True
+        assert res["diff"]["answer_match"] is False
+        assert res["diff"]["answer_length_diff"] == 8
         assert res["target"]["answer_length"] == 11
         assert res["base"]["answer_length"] == 3
 
