@@ -42,27 +42,32 @@ class ApiToolService(BaseService):
         # 2.校验openapi_schema数据
         openapi_schema = self.parse_openapi_schema(req.openapi_schema.data)
 
-        # 3.检测当前账号是否已经创建了除了此id以外同名的工具提供者 如果是则抛出错误
+        # 3.规范化工具提供者名称并校验非空
+        name = (req.name.data or "").strip()
+        if not name:
+            raise ValidateErrorException("工具提供者名字不能为空")
+
+        # 4.检测当前账号是否已经创建了除了此id以外同名的工具提供者 如果是则抛出错误
         check_api_tool_provider = self.db.session.query(ApiToolProvider).filter(
             ApiToolProvider.account_id == account.id,
-            ApiToolProvider.name == req.name.data,
+            ApiToolProvider.name == name,
             ApiToolProvider.id != api_tool_provider.id,
         ).one_or_none()
         if check_api_tool_provider:
-            raise ValidateErrorException(f"该工具提供者名字{req.name.data}已经存在")
+            raise ValidateErrorException(f"该工具提供者名字{name}已经存在")
 
-        # 4.开启数据库的自动提交
+        # 5.开启数据库的自动提交
         with self.db.auto_commit():
-            # 5.先删除该工具提供者下的所有工具
+            # 6.先删除该工具提供者下的所有工具
             self.db.session.query(ApiTool).filter(
                 ApiTool.provider_id == api_tool_provider.id,
                 ApiTool.account_id == account.id,
             ).delete()
 
-        # 6.修改工具提供者信息
+        # 7.修改工具提供者信息
         self.update(
             api_tool_provider,
-            name=req.name.data,
+            name=name,
             icon=req.icon.data,
             headers=req.headers.data,
             description=openapi_schema.description,
@@ -162,20 +167,25 @@ class ApiToolService(BaseService):
         # 1.检验并提取吧openapi_schema对应的数据
         openapi_schema = self.parse_openapi_schema(req.openapi_schema.data)
 
-        # 2.查询当前登陆的账号是否已经创建了同名的工具提供者 如果是则抛出错误
+        # 2.规范化工具提供者名称并校验非空
+        name = (req.name.data or "").strip()
+        if not name:
+            raise ValidateErrorException("工具提供者名字不能为空")
+
+        # 3.查询当前登陆的账号是否已经创建了同名的工具提供者 如果是则抛出错误
         api_tool_provider = self.db.session.query(ApiToolProvider).filter_by(
             account_id=account.id,
-            name=req.name.data
+            name=name
         ).one_or_none()
         if api_tool_provider:
-            raise ValidateErrorException(f"该工具提供者名字{req.name.data}已存在")
+            raise ValidateErrorException(f"该工具提供者名字{name}已存在")
 
 
-        # 3.首先创建工具提供者 并获取工具提供者的id信息 然后创建工具信息
+        # 4.首先创建工具提供者 并获取工具提供者的id信息 然后创建工具信息
         api_tool_provider = self.create(
             ApiToolProvider,
             account_id=account.id,
-            name=req.name.data,
+            name=name,
             icon=req.icon.data,
             description=openapi_schema.description,
             openapi_schema=req.openapi_schema.data,

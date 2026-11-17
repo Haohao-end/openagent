@@ -444,6 +444,47 @@ class TestApiToolService:
         with pytest.raises(ValidateErrorException):
             service.update_api_tool_provider(provider.id, self._req(), account)
 
+    def test_create_and_update_api_tool_provider_should_strip_name_and_reject_blank(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        provider = SimpleNamespace(id=uuid4(), account_id=account.id)
+        db = _DBStub(_SessionStub({ApiToolProvider: _QueryStub(one_or_none_result=None), ApiTool: _QueryStub()}))
+        service = _new_api_tool_service(db=db, api_provider_manager=SimpleNamespace())
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: provider)
+        monkeypatch.setattr(
+            service,
+            "parse_openapi_schema",
+            lambda _schema: SimpleNamespace(description="desc", server="https://api", paths={}),
+        )
+
+        create_calls = []
+        monkeypatch.setattr(service, "create", lambda model, **kwargs: create_calls.append((model, kwargs)) or SimpleNamespace(id=uuid4()))
+        update_calls = []
+        monkeypatch.setattr(service, "update", lambda target, **kwargs: update_calls.append((target, kwargs)))
+
+        blank_req = SimpleNamespace(
+            name=SimpleNamespace(data="   "),
+            openapi_schema=SimpleNamespace(data="{}"),
+            icon=SimpleNamespace(data=""),
+            headers=SimpleNamespace(data=[]),
+        )
+        with pytest.raises(ValidateErrorException, match="工具提供者名字不能为空"):
+            service.create_api_tool(blank_req, account)
+
+        with pytest.raises(ValidateErrorException, match="工具提供者名字不能为空"):
+            service.update_api_tool_provider(provider.id, blank_req, account)
+
+        padded_req = SimpleNamespace(
+            name=SimpleNamespace(data="  trimmed_provider  "),
+            openapi_schema=SimpleNamespace(data="{}"),
+            icon=SimpleNamespace(data="icon.png"),
+            headers=SimpleNamespace(data=[]),
+        )
+        service.create_api_tool(padded_req, account)
+        assert create_calls[0][1]["name"] == "trimmed_provider"
+
+        service.update_api_tool_provider(provider.id, padded_req, account)
+        assert update_calls[0][1]["name"] == "trimmed_provider"
+
     def test_get_api_tool_providers_with_page_should_delegate_to_paginator(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         service = _new_api_tool_service(
