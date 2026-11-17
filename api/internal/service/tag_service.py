@@ -60,6 +60,16 @@ class TagService(BaseService):
         Returns:
             Tag: 创建的标签
         """
+        name = str(name or "").strip()
+        if not name:
+            raise ValidateErrorException("标签名称不能为空")
+        if len(name) > 50:
+            raise ValidateErrorException("标签名称长度必须在 1-50 个字符之间")
+
+        description = str(description or "").strip()
+        if len(description) > 200:
+            raise ValidateErrorException("标签描述长度不能超过 200 个字符")
+
         return self.create(
             Tag,
             account_id=account_id,
