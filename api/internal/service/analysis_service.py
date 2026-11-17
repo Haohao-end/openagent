@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 from injector import inject
-from sqlalchemy import func
+from sqlalchemy import case, func
 from internal.lib.helper import datetime_to_timestamp, ensure_utc_naive, utc_midnight_naive, utc_now_naive
 from internal.model import Account, App, Message, MessageAgentThought
 from internal.core.agent.entities.queue_entity import QueueEvent
@@ -35,6 +35,8 @@ class AnalysisService(BaseService):
         fourteen_days_messages = self.get_messages_by_time_range(app, fourteen_days_ago, seven_days_ago)
         current_rag_latency = self.get_rag_latency_by_time_range(app, seven_days_ago, now)
         previous_rag_latency = self.get_rag_latency_by_time_range(app, fourteen_days_ago, seven_days_ago)
+        current_rag_hit_rate = self.get_rag_hit_rate_by_time_range(app, seven_days_ago, now)
+        previous_rag_hit_rate = self.get_rag_hit_rate_by_time_range(app, fourteen_days_ago, seven_days_ago)
 
         # 4.计算概览指标，涵盖会话活跃度、响应时延、Token输出速度与费用消耗
         seven_overview_indicators = self.calculate_overview_indicators_by_messages(seven_days_messages)
@@ -45,6 +47,11 @@ class AnalysisService(BaseService):
         rag_latency_pop = (
             (current_rag_latency - previous_rag_latency) / previous_rag_latency
             if current_rag_latency is not None and previous_rag_latency not in (None, 0)
+            else None
+        )
+        rag_hit_rate_pop = (
+            (current_rag_hit_rate - previous_rag_hit_rate) / previous_rag_hit_rate
+            if current_rag_hit_rate is not None and previous_rag_hit_rate not in (None, 0)
             else None
         )
 
@@ -64,6 +71,10 @@ class AnalysisService(BaseService):
                 "data": current_rag_latency,
                 "pop": rag_latency_pop,
             },
+            "rag_hit_rate": {
+                "data": current_rag_hit_rate,
+                "pop": rag_hit_rate_pop,
+            },
             **{
                 field: {
                     "data": seven_overview_indicators.get(field),
@@ -73,6 +84,32 @@ class AnalysisService(BaseService):
         }
 
         return app_analysis
+
+    def get_rag_hit_rate_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
+        """根据传递的时间范围计算指定应用的知识库检索命中率。"""
+        no_hit_text = "知识库内没有检索到对应内容"
+        row = self.db.session.query(
+            func.count(MessageAgentThought.id).label("total"),
+            func.count(
+                case(
+                    (
+                        (MessageAgentThought.observation != "")
+                        & (MessageAgentThought.observation != no_hit_text),
+                        MessageAgentThought.id,
+                    ),
+                    else_=None,
+                )
+            ).label("hits"),
+        ).filter(
+            MessageAgentThought.app_id == app.id,
+            MessageAgentThought.event == QueueEvent.DATASET_RETRIEVAL.value,
+            MessageAgentThought.created_at >= start_at,
+            MessageAgentThought.created_at < end_at,
+        ).one_or_none()
+
+        if not row or not getattr(row, "total", 0):
+            return None
+        return float(row.hits / row.total)
 
     def get_rag_latency_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
         return self.db.session.query(
