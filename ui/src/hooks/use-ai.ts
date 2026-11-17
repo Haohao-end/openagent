@@ -36,22 +36,33 @@ export const useOptimizePrompt = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const optimize_prompt = ref('')
+  let requestGeneration = 0
+
+  const clearOptimizePrompt = () => {
+    requestGeneration += 1
+    optimize_prompt.value = ''
+    loading.value = false
+  }
 
   // 2.定义优化prompt处理器
   const handleOptimizePrompt = async (prompt: string) => {
+    const currentGeneration = ++requestGeneration
     try {
       // 2.1 发起优化prompt请求，并将optimize_prompt先设置成空
       loading.value = true
       optimize_prompt.value = ''
       await optimizePrompt(prompt, (event_response) => {
+        if (currentGeneration !== requestGeneration) return
         // 2.2 提取数据并更新optimize_prompt
         const data = event_response.data
         optimize_prompt.value += data?.optimize_prompt
       })
     } finally {
-      loading.value = false
+      if (currentGeneration === requestGeneration) {
+        loading.value = false
+      }
     }
   }
 
-  return { loading, optimize_prompt, handleOptimizePrompt }
+  return { loading, optimize_prompt, handleOptimizePrompt, clearOptimizePrompt }
 }
