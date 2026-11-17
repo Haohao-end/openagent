@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   useAssistantAgentChat,
   useDeleteAssistantAgentConversation,
+  useGetAssistantAgentCapabilities,
   useGetAssistantAgentConversations,
 } from '@/hooks/use-assistant-agent'
 import * as assistantAgentService from '@/services/assistant-agent'
@@ -12,6 +13,7 @@ vi.mock('@/services/assistant-agent', () => ({
   assistantAgentChat: vi.fn(),
   assistantAgentGenerateIntroduction: vi.fn(),
   deleteAssistantAgentConversation: vi.fn(),
+  getAssistantAgentCapabilities: vi.fn(),
   getAssistantAgentConversations: vi.fn(),
   getAssistantAgentMessagesWithPage: vi.fn(),
   stopAssistantAgentChat: vi.fn(),
@@ -115,6 +117,51 @@ describe('useGetAssistantAgentConversations race conditions', () => {
     await Promise.all([call1, call2])
 
     expect(conversations.value).toEqual([{ id: 'latest', name: 'Latest' }])
+    expect(loading.value).toBe(false)
+  })
+})
+
+describe('useGetAssistantAgentCapabilities race conditions', () => {
+  it('loads capabilities and resets loading state', async () => {
+    vi.mocked(assistantAgentService.getAssistantAgentCapabilities).mockResolvedValue({
+      data: { capabilities: { web_search: true } },
+    } as never)
+
+    const { loading, capabilities, loadAssistantAgentCapabilities } =
+      useGetAssistantAgentCapabilities()
+
+    await loadAssistantAgentCapabilities()
+
+    expect(capabilities.value).toEqual({ web_search: true })
+    expect(loading.value).toBe(false)
+  })
+
+  it('discards stale capabilities and preserves loading until latest resolves', async () => {
+    let resolveFirst: (v: any) => void = () => {}
+    let resolveSecond: (v: any) => void = () => {}
+
+    vi.mocked(assistantAgentService.getAssistantAgentCapabilities)
+      .mockImplementationOnce(() => new Promise((res) => { resolveFirst = res }))
+      .mockImplementationOnce(() => new Promise((res) => { resolveSecond = res }))
+
+    const { loading, capabilities, loadAssistantAgentCapabilities } =
+      useGetAssistantAgentCapabilities()
+
+    const call1 = loadAssistantAgentCapabilities()
+    const call2 = loadAssistantAgentCapabilities()
+
+    expect(loading.value).toBe(true)
+
+    resolveFirst({ data: { capabilities: { web_search: false } } })
+    await Promise.resolve()
+
+    expect(capabilities.value).toEqual({})
+    expect(loading.value).toBe(true)
+
+    resolveSecond({ data: { capabilities: { web_search: true, code_exec: true } } })
+    await Promise.all([call1, call2])
+
+    expect(capabilities.value).toEqual({ web_search: true, code_exec: true })
     expect(loading.value).toBe(false)
   })
 })
