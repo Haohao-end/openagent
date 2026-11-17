@@ -779,3 +779,41 @@ class TestApiKeyService:
         key = SimpleNamespace(id=uuid4(), account_id=uuid4())
         assert service.check_rate_limit(key, client=_FailingRedis(), fail_closed=False)[0] is True
         assert service.check_rate_limit(key, client=_FailingRedis(), fail_closed=True)[0] is False
+
+    def test_check_rate_limit_should_use_atomic_lua_when_supported(self):
+        service = ApiKeyService(db=SimpleNamespace())
+        key = SimpleNamespace(id=uuid4(), account_id=uuid4())
+        eval_calls = []
+
+        class _EvalRedis:
+            def eval(self, script, numkeys, cache_key, window_seconds):
+                eval_calls.append((script, numkeys, cache_key, window_seconds))
+                return [1, window_seconds]
+
+        allowed, count, ttl = service.check_rate_limit(key, max_requests=5, window_seconds=60, client=_EvalRedis())
+        assert allowed is True
+        assert count == 1
+        assert ttl == 60
+        assert len(eval_calls) == 1
+        assert "INCR" in eval_calls[0][0]
+
+    def test_check_rate_limit_should_heal_ttl_when_negative(self):
+        service = ApiKeyService(db=SimpleNamespace())
+        key = SimpleNamespace(id=uuid4(), account_id=uuid4())
+        expired_calls = []
+
+        class _MissingTtlRedis:
+            def incr(self, _key):
+                return 2
+
+            def expire(self, key, seconds):
+                expired_calls.append((key, seconds))
+
+            def ttl(self, _key):
+                return -1
+
+        allowed, count, ttl = service.check_rate_limit(key, max_requests=5, window_seconds=60, client=_MissingTtlRedis())
+        assert allowed is True
+        assert count == 2
+        assert ttl == 60
+        assert len(expired_calls) == 1

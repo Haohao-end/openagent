@@ -19,6 +19,18 @@ from pkg.paginator import PaginatorReq, Paginator
 
 _LAST_USED_AT_UPDATE_INTERVAL = timedelta(minutes=1)
 _ALLOWED_UPDATE_FIELDS = frozenset({"is_active", "remark", "expires_at", "scopes"})
+_RATE_LIMIT_LUA = """
+local current = redis.call('INCR', KEYS[1])
+if current == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+local ttl = redis.call('TTL', KEYS[1])
+if ttl < 0 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+    ttl = tonumber(ARGV[1])
+end
+return {current, ttl}
+"""
 logger = logging.getLogger(__name__)
 
 @inject
@@ -154,6 +166,13 @@ class ApiKeyService(BaseService):
             return not fail_closed, 0, window_seconds
 
         try:
+            eval_fn = getattr(redis, "eval", None)
+            if callable(eval_fn):
+                res = eval_fn(_RATE_LIMIT_LUA, 1, cache_key, window_seconds)
+                if isinstance(res, (list, tuple)) and len(res) == 2:
+                    current_count, ttl = int(res[0]), int(res[1])
+                    return current_count <= max_requests, current_count, ttl
+
             current_count = int(redis.incr(cache_key))
             if current_count == 1:
                 redis.expire(cache_key, window_seconds)
