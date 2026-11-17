@@ -552,3 +552,63 @@ class TestPublicAgentRegistryService:
 
         service_empty = _build_service(db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args: _EmptyQuery())))
         assert service_empty._has_public_apps() is False
+
+    def test_rebuild_public_agent_index_should_batch_preload_app_config(self):
+        cfg_id = uuid4()
+        cfg = SimpleNamespace(
+            id=cfg_id,
+            opening_statement="statement",
+            tools=[],
+            mcp_bindings=[],
+            workflows=[],
+        )
+        app = App(
+            id=uuid4(),
+            name="app",
+            description="desc",
+            tags=[],
+            is_public=True,
+            app_config_id=cfg_id,
+            published_at=datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC),
+        )
+
+        query_counts = {"App": 0, "AppConfig": 0}
+
+        class _Query:
+            def __init__(self, items):
+                self.items = items
+
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def all(self):
+                return self.items
+
+        class _Session:
+            def query(self, model):
+                name = getattr(model, "__name__", "")
+                query_counts[name] = query_counts.get(name, 0) + 1
+                if name == "App":
+                    return _Query([app])
+                if name == "AppConfig":
+                    return _Query([cfg])
+                raise AssertionError(f"unexpected model: {name}")
+
+        service = _build_service(
+            db=SimpleNamespace(session=_Session()),
+            faiss_service=SimpleNamespace(
+                recreate_public_agent_store=lambda: None,
+                upsert_documents=lambda _docs: None,
+            ),
+        )
+
+        count = service.rebuild_public_agent_index()
+        assert count == 1
+        assert query_counts["App"] == 1
+        assert query_counts["AppConfig"] == 1
+        assert getattr(app, "_app_config", None) is cfg
+
+    def test_app_model_app_config_property_uses_preloaded_cache(self):
+        app = App()
+        app._app_config = "preloaded-config"
+        assert app.app_config == "preloaded-config"
