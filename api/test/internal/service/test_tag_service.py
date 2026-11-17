@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from internal.entity.tag_entity import TagType
 from internal.exception import ValidateErrorException
-from internal.model import AppTag, Tag, WorkflowTag
+from internal.model import App, AppTag, Tag, Workflow, WorkflowTag
 from internal.service.tag_service import TagService
 
 
@@ -245,7 +245,7 @@ def test_get_tag_dimensions_should_return_expected_labels():
     ]
 
 
-def test_add_app_and_workflow_tag_should_validate_tag_ownership(monkeypatch):
+def test_add_app_and_workflow_tag_should_validate_tag_and_resource_ownership(monkeypatch):
     account_id = uuid4()
     app_id = uuid4()
     workflow_id = uuid4()
@@ -256,15 +256,23 @@ def test_add_app_and_workflow_tag_should_validate_tag_ownership(monkeypatch):
     service = TagService(
         db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args: _QueryStub(one_or_none_result=None)))
     )
-    monkeypatch.setattr(
-        service,
-        "_get_owned_tag",
-        lambda tag_id, acc_id: SimpleNamespace(id=tag_id) if tag_id == owned_tag_id else None,
-    )
+
+    def _fake_owned_resource(model, res_id, acc_id):
+        if model is Tag and res_id == owned_tag_id and acc_id == account_id:
+            return SimpleNamespace(id=res_id)
+        if model is App and res_id == app_id and acc_id == account_id:
+            return SimpleNamespace(id=res_id)
+        if model is Workflow and res_id == workflow_id and acc_id == account_id:
+            return SimpleNamespace(id=res_id)
+        return None
+
+    monkeypatch.setattr(service, "_get_owned_resource", _fake_owned_resource)
     monkeypatch.setattr(service, "create", lambda model, **kwargs: created.append((model, kwargs)) or kwargs)
 
     assert service.add_app_tag(account_id, app_id, unowned_tag_id) is None
     assert service.add_workflow_tag(account_id, workflow_id, unowned_tag_id) is None
+    assert service.add_app_tag(account_id, uuid4(), owned_tag_id) is None
+    assert service.add_workflow_tag(account_id, uuid4(), owned_tag_id) is None
     assert created == []
 
     app_tag = service.add_app_tag(account_id, app_id, owned_tag_id)
@@ -276,21 +284,75 @@ def test_add_app_and_workflow_tag_should_validate_tag_ownership(monkeypatch):
     assert created[1] == (WorkflowTag, {"account_id": account_id, "workflow_id": workflow_id, "tag_id": owned_tag_id})
 
 
-def test_remove_tag_should_scope_to_account_id_when_provided():
-    app_query = _QueryStub(one_or_none_result=SimpleNamespace())
-    wf_query = _QueryStub(one_or_none_result=SimpleNamespace())
+def test_remove_app_and_workflow_tag_isolation_and_scoping(monkeypatch):
+    account_a = uuid4()
+    account_b = uuid4()
+    app_a = uuid4()
+    app_b = uuid4()
+    workflow_a = uuid4()
+    workflow_b = uuid4()
+    tag_id = uuid4()
 
     deleted = []
     service = TagService(db=SimpleNamespace(session=SimpleNamespace()))
-    service.db.session.query = lambda model: app_query if model is AppTag else wf_query
     service.delete = lambda item: deleted.append(item)
 
-    account_id = uuid4()
-    assert service.remove_app_tag(uuid4(), uuid4(), account_id=account_id) is True
-    assert "app_tag.account_id" in str(app_query.filters[0])
+    def _fake_owned_resource(model, res_id, acc_id):
+        if model is App and ((res_id == app_a and acc_id == account_a) or (res_id == app_b and acc_id == account_b)):
+            return SimpleNamespace(id=res_id)
+        if model is Workflow and ((res_id == workflow_a and acc_id == account_a) or (res_id == workflow_b and acc_id == account_b)):
+            return SimpleNamespace(id=res_id)
+        return None
 
-    assert service.remove_workflow_tag(uuid4(), uuid4(), account_id=account_id) is True
-    assert "workflow_tag.account_id" in str(wf_query.filters[0])
+    monkeypatch.setattr(service, "_get_owned_resource", _fake_owned_resource)
+
+    app_tag_a = SimpleNamespace(account_id=account_a, app_id=app_a, tag_id=tag_id)
+    wf_tag_a = SimpleNamespace(account_id=account_a, workflow_id=workflow_a, tag_id=tag_id)
+
+    def _query(model):
+        query = _QueryStub()
+        def _one():
+            if not query.filters:
+                return None
+            f = query.filters[0]
+            values = {c.left.name: c.right.value for c in getattr(f, "clauses", [f]) if hasattr(c, "left") and hasattr(c, "right")}
+            if model is AppTag and values.get("account_id") == account_a and values.get("app_id") == app_a and values.get("tag_id") == tag_id:
+                return app_tag_a
+            if model is WorkflowTag and values.get("account_id") == account_a and values.get("workflow_id") == workflow_a and values.get("tag_id") == tag_id:
+                return wf_tag_a
+            return None
+        query.one_or_none = _one
+        return query
+
+    service.db.session.query = _query
+
+    # 1. 账号 A 删除自己 App 的 Tag -> True
+    assert service.remove_app_tag(app_a, tag_id, account_a) is True
+    assert deleted == [app_tag_a]
+    deleted.clear()
+
+    # 2. 账号 A 删除自己 Workflow 的 Tag -> True
+    assert service.remove_workflow_tag(workflow_a, tag_id, account_a) is True
+    assert deleted == [wf_tag_a]
+    deleted.clear()
+
+    # 3. 账号 A 尝试删除账号 B 的 App Tag -> False
+    assert service.remove_app_tag(app_b, tag_id, account_a) is False
+    assert deleted == []
+
+    # 4. 账号 A 尝试删除账号 B 的 Workflow Tag -> False
+    assert service.remove_workflow_tag(workflow_b, tag_id, account_a) is False
+    assert deleted == []
+
+    # 5. account_id 缺失 -> False
+    assert service.remove_app_tag(app_a, tag_id, None) is False
+    assert service.remove_workflow_tag(workflow_a, tag_id, None) is False
+    assert deleted == []
+
+    # 6. 关联记录不存在 -> False
+    assert service.remove_app_tag(app_a, uuid4(), account_a) is False
+    assert service.remove_workflow_tag(workflow_a, uuid4(), account_a) is False
+    assert deleted == []
 
 
 def test_create_tag_should_validate_and_normalize_name_and_description():
