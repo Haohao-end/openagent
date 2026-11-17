@@ -125,6 +125,51 @@ class ApiKeyService(BaseService):
                 synchronize_session=False,
             )
 
+    def check_rate_limit(
+        self,
+        api_key_record: ApiKey,
+        *,
+        max_requests: int = 60,
+        window_seconds: int = 60,
+        client: object = None,
+        fail_closed: bool = False,
+    ) -> tuple[bool, int, int]:
+        """Check sliding fixed-window rate limit for an authorized API key."""
+        if not api_key_record or not getattr(api_key_record, "id", None):
+            return False, 0, 0
+
+        account_id = getattr(api_key_record, "account_id", None)
+        api_key_id = api_key_record.id
+        cache_key = f"rate_limit:apikey:{account_id}:{api_key_id}"
+
+        redis = client
+        if redis is None:
+            try:
+                from internal.extension.redis_extension import redis_client
+                redis = redis_client
+            except Exception:
+                redis = None
+
+        if redis is None:
+            return not fail_closed, 0, window_seconds
+
+        try:
+            current_count = int(redis.incr(cache_key))
+            if current_count == 1:
+                redis.expire(cache_key, window_seconds)
+            ttl = int(redis.ttl(cache_key))
+            if ttl < 0:
+                redis.expire(cache_key, window_seconds)
+                ttl = window_seconds
+            return current_count <= max_requests, current_count, ttl
+        except Exception as error:
+            logger.warning(
+                "api_key_rate_limit_check_failed api_key_id=%s error_class=%s",
+                api_key_id,
+                type(error).__name__,
+            )
+            return not fail_closed, 0, window_seconds
+
     def get_api_key(self, api_key_id: UUID, account: Account) -> ApiKey:
         """根据传递的密钥id+账号信息获取记录"""
         api_key = self.get(ApiKey, api_key_id)
