@@ -5,16 +5,23 @@ import { getLanguageModel, getLanguageModels } from '@/services/language-model'
 export const useGetLanguageModels = () => {
   // 1.定义自定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const language_models = ref<GetLanguageModelsResponse['data']>([])
 
   // 2.定义加载数据函数
   const loadLanguageModels = async () => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getLanguageModels()
+      if (requestId !== latestRequest) return false
       language_models.value = resp.data
+      return true
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
