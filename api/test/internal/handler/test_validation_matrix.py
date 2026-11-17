@@ -147,6 +147,18 @@ CASES = [
         "url": f"/conversations/{CONVERSATION_ID}/name",
         "kwargs": {"json": {}},
     },
+    {
+        "name": "compare_messages_missing_required",
+        "method": "post",
+        "url": "/conversations/messages/compare",
+        "kwargs": {"json": {}},
+    },
+    {
+        "name": "compare_messages_invalid_uuid",
+        "method": "post",
+        "url": "/conversations/messages/compare",
+        "kwargs": {"json": {"target_message_id": "invalid-uuid", "base_message_id": "invalid-uuid"}},
+    },
 ]
 
 CASES += [

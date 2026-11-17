@@ -966,6 +966,13 @@ CASES = [
         "kwargs": {"json": {"is_pinned": True}},
         "patches": [("internal.service.conversation_service.ConversationService.update_conversation", None)],
     },
+    {
+        "name": "compare_messages_success",
+        "method": "post",
+        "url": "/conversations/messages/compare",
+        "kwargs": {"json": {"target_message_id": MESSAGE_ID, "base_message_id": MESSAGE_ID}},
+        "patches": [("internal.service.conversation_service.ConversationService.compare_messages", {"diff": {}})],
+    },
     # api key
     {
         "name": "create_api_key_success",

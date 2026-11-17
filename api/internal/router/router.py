@@ -700,6 +700,11 @@ class Router:
             "/conversations/search",
             view_func=self.conversation_handler.search_conversations,
         )
+        bp.add_url_rule(
+            "/conversations/messages/compare",
+            methods=["POST"],
+            view_func=self.conversation_handler.compare_messages,
+        )
 
         # 17.语音转换模块
         bp.add_url_rule(
