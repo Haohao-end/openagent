@@ -11,7 +11,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from internal.core.language_model.providers.deepseek.chat import Chat
 from internal.entity.assistant_agent_entity import ASSISTANT_AGENT_DISPLAY_NAME
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, asc
 from sqlalchemy.orm import selectinload
 from internal.entity.conversation_entity import (
     SUMMARIZER_TEMPLATE,
@@ -620,6 +620,49 @@ class ConversationService(BaseService):
                 "answer_match": target_answer == base_answer,
                 "answer_length_diff": len(target_answer) - len(base_answer),
             },
+        }
+
+    def get_message_trace(self, message_id: UUID, account: Account) -> dict[str, Any]:
+        """根据消息id获取该次运行的 Trace 时间线，按 position 递增返回各推理步骤。"""
+        message = self.get_message(message_id, account)
+        thoughts = (
+            self.db.session.query(MessageAgentThought)
+            .filter(
+                MessageAgentThought.message_id == message.id,
+                MessageAgentThought.created_by == account.id,
+            )
+            .order_by(asc(MessageAgentThought.position), asc(MessageAgentThought.created_at))
+            .all()
+        )
+
+        timeline = [
+            {
+                "id": str(t.id),
+                "position": int(t.position or 0),
+                "event": t.event,
+                "thought": str(t.thought or ""),
+                "observation": str(t.observation or ""),
+                "tool": str(t.tool or ""),
+                "tool_input": t.tool_input or {},
+                "latency": float(t.latency or 0.0),
+                "total_token_count": int(t.total_token_count or 0),
+                "total_price": float(t.total_price or 0.0),
+                "created_at": datetime_to_timestamp(t.created_at),
+            }
+            for t in thoughts
+        ]
+
+        return {
+            "message_id": str(message.id),
+            "conversation_id": str(message.conversation_id),
+            "app_id": str(message.app_id),
+            "status": message.status,
+            "error": str(getattr(message, "error", "") or ""),
+            "latency": float(message.latency or 0.0),
+            "total_token_count": int(message.total_token_count or 0),
+            "total_price": float(message.total_price or 0.0),
+            "created_at": datetime_to_timestamp(message.created_at),
+            "timeline": timeline,
         }
 
     def get_conversation_messages_with_page(
