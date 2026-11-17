@@ -2355,3 +2355,48 @@ class TestConversationServiceBasics:
 
         assert len(results) == 4
         assert [r["name"] for r in results] == ["Newest", "Second", "Third", "Oldest"]
+
+    def test_compare_messages_should_compute_run_differences(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        m1 = SimpleNamespace(
+            id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            status="normal",
+            latency=2.5,
+            total_token_count=150,
+            total_price=0.03,
+            answer="hello world",
+        )
+        m2 = SimpleNamespace(
+            id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            status="error",
+            latency=1.2,
+            total_token_count=100,
+            total_price=0.01,
+            answer="err",
+        )
+        service = ConversationService(db=SimpleNamespace())
+        messages_by_id = {m1.id: m1, m2.id: m2}
+        monkeypatch.setattr(service, "get", lambda _cls, msg_id: messages_by_id.get(msg_id))
+
+        res = service.compare_messages(m1.id, m2.id, account)
+
+        assert res["target"]["id"] == str(m1.id)
+        assert res["base"]["id"] == str(m2.id)
+        assert res["diff"]["latency_diff"] == pytest.approx(1.3)
+        assert res["diff"]["total_token_count_diff"] == 50
+        assert res["diff"]["total_price_diff"] == pytest.approx(0.02)
+        assert res["diff"]["status_changed"] is True
+        assert res["target"]["answer_length"] == 11
+        assert res["base"]["answer_length"] == 3
+
+    def test_compare_messages_should_raise_when_not_found(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        service = ConversationService(db=SimpleNamespace())
+        monkeypatch.setattr(service, "get", lambda _cls, _id: None)
+
+        with pytest.raises(NotFoundException):
+            service.compare_messages(uuid4(), uuid4(), account)
