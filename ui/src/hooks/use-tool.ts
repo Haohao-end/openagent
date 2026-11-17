@@ -23,15 +23,22 @@ export const useGetApiToolProvider = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const api_tool_provider = ref<Record<string, any>>({})
+  let latestRequest = 0
 
   // 2.定义加载数据函数
   const loadApiToolProvider = async (provider_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await getApiToolProvider(provider_id)
-      api_tool_provider.value = resp.data
+      if (requestId === latestRequest) {
+        api_tool_provider.value = resp.data
+      }
+      return resp
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 

@@ -4,6 +4,7 @@ import { createRequestError } from '@/utils/error'
 import {
   useCreateApiToolProvider,
   useDeleteApiToolProvider,
+  useGetApiToolProvider,
   useUpdateApiToolProvider,
   useGetApiTool,
   useGetApiToolProvidersWithPage,
@@ -327,6 +328,54 @@ describe('use-tool request feedback', () => {
     const { loading, loadApiTool } = useGetApiTool()
 
     await expect(loadApiTool('provider', 'current')).rejects.toBe(requestError)
+    expect(loading.value).toBe(false)
+  })
+})
+
+describe('useGetApiToolProvider race conditions', () => {
+  it('loads provider details and resets loading', async () => {
+    mocks.getApiToolProvider.mockResolvedValueOnce({ data: { id: 'p1', name: 'Provider 1' } })
+    const { loading, api_tool_provider, loadApiToolProvider } = useGetApiToolProvider()
+
+    await loadApiToolProvider('p1')
+
+    expect(api_tool_provider.value).toEqual({ id: 'p1', name: 'Provider 1' })
+    expect(loading.value).toBe(false)
+  })
+
+  it('discards stale provider response and maintains loading while newer request is pending', async () => {
+    let resolveOlder: (v: any) => void = () => {}
+    let resolveNewer: (v: any) => void = () => {}
+
+    mocks.getApiToolProvider
+      .mockImplementationOnce(() => new Promise((res) => { resolveOlder = res }))
+      .mockImplementationOnce(() => new Promise((res) => { resolveNewer = res }))
+
+    const { loading, api_tool_provider, loadApiToolProvider } = useGetApiToolProvider()
+
+    const call1 = loadApiToolProvider('p-old')
+    const call2 = loadApiToolProvider('p-new')
+
+    expect(loading.value).toBe(true)
+
+    resolveOlder({ data: { id: 'p-old', name: 'Old' } })
+    await Promise.resolve()
+
+    expect(api_tool_provider.value).toEqual({})
+    expect(loading.value).toBe(true)
+
+    resolveNewer({ data: { id: 'p-new', name: 'New' } })
+    await Promise.all([call1, call2])
+
+    expect(api_tool_provider.value).toEqual({ id: 'p-new', name: 'New' })
+    expect(loading.value).toBe(false)
+  })
+
+  it('resets loading when latest provider request fails', async () => {
+    mocks.getApiToolProvider.mockRejectedValueOnce(new Error('fetch error'))
+    const { loading, loadApiToolProvider } = useGetApiToolProvider()
+
+    await expect(loadApiToolProvider('p1')).rejects.toThrow('fetch error')
     expect(loading.value).toBe(false)
   })
 })
