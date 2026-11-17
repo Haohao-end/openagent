@@ -159,7 +159,7 @@ export const getContinueConversationOutput = (locale: SupportedLocale = 'zh-CN')
         "id": "6aab9a7f-3d80-4c9b-97ea-b8be8e7b3b07",
         "latency": 2.0619137420435436,
         "observation": "",
-        "thought": "Based on the current conversation, you last said \"hello\". If you have any other questions or need further help, just let me know!",
+        "thought": "Based on the current conversation, you last said "hello". If you have any other questions or need further help, just let me know!",
         "tool": "",
         "tool_input": {}
       },
@@ -174,7 +174,7 @@ export const getContinueConversationOutput = (locale: SupportedLocale = 'zh-CN')
         "tool_input": {}
       }
     ],
-    "answer": "Based on the current conversation, you last said \"hello\". If you have any other questions or need further help, just let me know!",
+    "answer": "Based on the current conversation, you last said "hello". If you have any other questions or need further help, just let me know!",
     "conversation_id": "06becaaf-4118-49ee-b2b2-2d87dd84004f",
     "end_user_id": "d1d619ac-43a3-4c71-82f9-3f2e00f39a14",
     "id": "bb732c00-0c7c-4541-be0a-52139d624425",
@@ -195,7 +195,7 @@ export const getContinueConversationOutput = (locale: SupportedLocale = 'zh-CN')
         "id": "6aab9a7f-3d80-4c9b-97ea-b8be8e7b3b07",
         "latency": 2.0619137420435436,
         "observation": "",
-        "thought": "根据当前的对话记录，你上次说的是\"你好\"。如果你有其他问题或需要进一步的帮助，请随时告诉我！",
+        "thought": "根据当前的对话记录，你上次说的是"你好"。如果你有其他问题或需要进一步的帮助，请随时告诉我！",
         "tool": "",
         "tool_input": {}
       },
@@ -210,7 +210,7 @@ export const getContinueConversationOutput = (locale: SupportedLocale = 'zh-CN')
         "tool_input": {}
       }
     ],
-    "answer": "根据当前的对话记录，你上次说的是\"你好\"。如果你有其他问题或需要进一步的帮助，请随时告诉我！",
+    "answer": "根据当前的对话记录，你上次说的是"你好"。如果你有其他问题或需要进一步的帮助，请随时告诉我！",
     "conversation_id": "06becaaf-4118-49ee-b2b2-2d87dd84004f",
     "end_user_id": "d1d619ac-43a3-4c71-82f9-3f2e00f39a14",
     "id": "bb732c00-0c7c-4541-be0a-52139d624425",
