@@ -37,6 +37,8 @@ class AnalysisService(BaseService):
         previous_rag_latency = self.get_rag_latency_by_time_range(app, fourteen_days_ago, seven_days_ago)
         current_rag_hit_rate = self.get_rag_hit_rate_by_time_range(app, seven_days_ago, now)
         previous_rag_hit_rate = self.get_rag_hit_rate_by_time_range(app, fourteen_days_ago, seven_days_ago)
+        current_tool_call_success_rate = self.get_tool_call_success_rate_by_time_range(app, seven_days_ago, now)
+        previous_tool_call_success_rate = self.get_tool_call_success_rate_by_time_range(app, fourteen_days_ago, seven_days_ago)
 
         # 4.计算概览指标，涵盖会话活跃度、响应时延、Token输出速度与费用消耗
         seven_overview_indicators = self.calculate_overview_indicators_by_messages(seven_days_messages)
@@ -52,6 +54,11 @@ class AnalysisService(BaseService):
         rag_hit_rate_pop = (
             (current_rag_hit_rate - previous_rag_hit_rate) / previous_rag_hit_rate
             if current_rag_hit_rate is not None and previous_rag_hit_rate not in (None, 0)
+            else None
+        )
+        tool_call_success_rate_pop = (
+            (current_tool_call_success_rate - previous_tool_call_success_rate) / previous_tool_call_success_rate
+            if current_tool_call_success_rate is not None and previous_tool_call_success_rate not in (None, 0)
             else None
         )
 
@@ -74,6 +81,10 @@ class AnalysisService(BaseService):
             "rag_hit_rate": {
                 "data": current_rag_hit_rate,
                 "pop": rag_hit_rate_pop,
+            },
+            "tool_call_success_rate": {
+                "data": current_tool_call_success_rate,
+                "pop": tool_call_success_rate_pop,
             },
             **{
                 field: {
@@ -110,6 +121,31 @@ class AnalysisService(BaseService):
         if not row or not getattr(row, "total", 0):
             return None
         return float(row.hits / row.total)
+
+    def get_tool_call_success_rate_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
+        """根据传递的时间范围计算指定应用的工具调用成功率。"""
+        error_prefix = "工具执行出错:"
+        row = self.db.session.query(
+            func.count(MessageAgentThought.id).label("total"),
+            func.count(
+                case(
+                    (
+                        ~MessageAgentThought.observation.like(f"{error_prefix}%"),
+                        MessageAgentThought.id,
+                    ),
+                    else_=None,
+                )
+            ).label("success_count"),
+        ).filter(
+            MessageAgentThought.app_id == app.id,
+            MessageAgentThought.event == QueueEvent.AGENT_ACTION.value,
+            MessageAgentThought.created_at >= start_at,
+            MessageAgentThought.created_at < end_at,
+        ).one_or_none()
+
+        if not row or not getattr(row, "total", 0):
+            return None
+        return float(row.success_count / row.total)
 
     def get_rag_latency_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
         return self.db.session.query(
