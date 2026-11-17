@@ -196,13 +196,16 @@ export const useGetDraftGraph = () => {
   const loading = ref(false)
   const nodes = ref<any[]>([])
   const edges = ref<any[]>([])
+  let latestRequest = 0
 
   // 2.定义加载数据函数
   const loadDraftGraph = async (workflow_id: string) => {
+    const requestId = ++latestRequest
     try {
       // 3.调用api获取数据
       loading.value = true
       const resp = await getDraftGraph(workflow_id)
+      if (requestId !== latestRequest) return
       const data = resp.data
 
       // 4.处理节点数据并赋值
@@ -236,8 +239,10 @@ export const useGetDraftGraph = () => {
           style: { strokeWidth: 2, stroke: '#9ca3af' },
         }
       })
+    } catch (error: unknown) {
+      if (requestId === latestRequest) throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
