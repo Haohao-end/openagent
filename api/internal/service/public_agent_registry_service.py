@@ -241,11 +241,14 @@ class PublicAgentRegistryService(BaseService):
 
     def _has_public_apps(self) -> bool:
         """检测数据库中是否存在公开且已发布的应用。"""
-        apps = self.db.session.query(App).filter(
+        query = self.db.session.query(App).filter(
             App.status == AppStatus.PUBLISHED.value,
             App.is_public == True,
-        ).all()
-        return len(apps) > 0
+        )
+        first_fn = getattr(query, "first", None)
+        if callable(first_fn):
+            return first_fn() is not None
+        return len(query.all()) > 0
 
     def _search_public_apps_from_db(
         self,

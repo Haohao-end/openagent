@@ -6,6 +6,7 @@ import httpx
 from flask import Flask, has_app_context
 from openai import APIConnectionError
 
+from internal.model import App
 from internal.service.public_agent_registry_service import PublicAgentRegistryService
 
 
@@ -519,3 +520,35 @@ class TestPublicAgentRegistryService:
         expected_ts = int(datetime(2026, 3, 1, 12, 0, 0, tzinfo=UTC).timestamp())
         assert results[0]["published_at"] == expected_ts
         assert results[1]["published_at"] == 0
+
+    def test_has_public_apps_should_use_first_limit(self):
+        queried_entities = []
+
+        class _Query:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def first(self):
+                return (uuid4(),)
+
+            def all(self):
+                raise AssertionError("all() should not be called")
+
+        class _Session:
+            def query(self, *entities):
+                queried_entities.append(entities)
+                return _Query()
+
+        service = _build_service(db=SimpleNamespace(session=_Session()))
+        assert service._has_public_apps() is True
+        assert queried_entities[0][0] is App
+
+        class _EmptyQuery:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def first(self):
+                return None
+
+        service_empty = _build_service(db=SimpleNamespace(session=SimpleNamespace(query=lambda *_args: _EmptyQuery())))
+        assert service_empty._has_public_apps() is False
