@@ -5,6 +5,7 @@ import {
   useDebugWorkflow,
   useDeleteWorkflow,
   useGenerateIconPreview,
+  useGetPublicWorkflows,
   useGetWorkflowsWithPage,
   useRegenerateIcon,
   useUpdateDraftGraph,
@@ -328,5 +329,45 @@ describe('useGetWorkflowsWithPage', () => {
 
     expect(mocks.getWorkflowsWithPage).not.toHaveBeenCalled()
     expect(loading.value).toBe(false)
+  })
+
+  describe('useGetPublicWorkflows', () => {
+    it('loads public workflows successfully', async () => {
+      mocks.getWorkflowsWithPage.mockResolvedValueOnce({
+        data: { list: [{ id: 'wf-public-1' }] },
+      })
+
+      const { loading, workflows, loadPublicWorkflows } = useGetPublicWorkflows()
+      await loadPublicWorkflows('test')
+
+      expect(workflows.value).toEqual([{ id: 'wf-public-1' }])
+      expect(loading.value).toBe(false)
+    })
+
+    it('ignores stale search results and keeps loading true until the newest request resolves', async () => {
+      const older = createDeferred<{ data: { list: { id: string }[] } }>()
+      const newer = createDeferred<{ data: { list: { id: string }[] } }>()
+      mocks.getWorkflowsWithPage
+        .mockReturnValueOnce(older.promise)
+        .mockReturnValueOnce(newer.promise)
+
+      const { loading, workflows, loadPublicWorkflows } = useGetPublicWorkflows()
+      const req1 = loadPublicWorkflows('first')
+      const req2 = loadPublicWorkflows('second')
+
+      expect(loading.value).toBe(true)
+
+      older.resolve({ data: { list: [{ id: 'wf-first' }] } })
+      await req1
+
+      expect(workflows.value).toEqual([])
+      expect(loading.value).toBe(true)
+
+      newer.resolve({ data: { list: [{ id: 'wf-second' }] } })
+      await req2
+
+      expect(workflows.value).toEqual([{ id: 'wf-second' }])
+      expect(loading.value).toBe(false)
+    })
   })
 })
