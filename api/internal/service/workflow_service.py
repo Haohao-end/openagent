@@ -35,7 +35,7 @@ from internal.core.workflow.nodes import (
 )
 from internal.entity.workflow_entity import WorkflowStatus, DEFAULT_WORKFLOW_CONFIG, WorkflowResultStatus
 from internal.exception import ValidateErrorException, NotFoundException, ForbiddenException, FailException
-from internal.lib.helper import convert_model_to_dict
+from internal.lib.helper import convert_model_to_dict, datetime_to_timestamp
 from internal.model import Account, Workflow, Dataset, ApiTool, WorkflowResult
 from internal.schema.workflow_schema import CreateWorkflowReq, GetWorkflowsWithPageReq
 from pkg.paginator import Paginator
@@ -104,6 +104,35 @@ class WorkflowService(BaseService):
             raise ForbiddenException("当前账号无权限访问该应用，请核实后尝试")
 
         return workflow
+
+    def get_workflow_result(self, workflow_id: UUID, result_id: UUID, account: Account) -> WorkflowResult:
+        """根据工作流id与结果id获取运行结果记录，严格校验账号隔离"""
+        workflow = self.get_workflow(workflow_id, account)
+        result = (
+            self.db.session.query(WorkflowResult)
+            .filter(
+                WorkflowResult.id == result_id,
+                WorkflowResult.workflow_id == workflow.id,
+                WorkflowResult.account_id == account.id,
+            )
+            .one_or_none()
+        )
+        if not result:
+            raise NotFoundException("该工作流运行记录不存在")
+        return result
+
+    def get_workflow_result_trace(self, workflow_id: UUID, result_id: UUID, account: Account) -> dict[str, Any]:
+        """获取工作流运行记录的 Trace Timeline 数据"""
+        result = self.get_workflow_result(workflow_id, result_id, account)
+        return {
+            "id": result.id,
+            "workflow_id": result.workflow_id,
+            "status": result.status,
+            "latency": result.latency,
+            "created_at": datetime_to_timestamp(result.created_at),
+            "updated_at": datetime_to_timestamp(result.updated_at),
+            "steps": result.state if isinstance(result.state, list) else [],
+        }
 
     def delete_workflow(self, workflow_id: UUID, account: Account) -> Workflow:
         """根据传递的工作流id+账号信息，删除指定的工作流"""

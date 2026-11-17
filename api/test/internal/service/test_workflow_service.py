@@ -17,7 +17,7 @@ from internal.exception import (
     NotFoundException,
     ValidateErrorException,
 )
-from internal.model import ApiTool, Dataset, Workflow
+from internal.model import ApiTool, Dataset, Workflow, WorkflowResult
 from internal.service.workflow_service import WorkflowService as _WorkflowService
 from pkg.response import compact_generate_response
 
@@ -2438,3 +2438,90 @@ class TestWorkflowService:
             else:
                 with pytest.raises(ValidateErrorException):
                     service._build_executable_graph(graph)
+
+
+def test_get_workflow_result_success():
+    service = _build_service()
+    account_id = uuid4()
+    account = SimpleNamespace(id=account_id)
+    workflow_id = uuid4()
+    result_id = uuid4()
+
+    workflow = SimpleNamespace(id=workflow_id, account_id=account_id)
+    expected_result = WorkflowResult(
+        id=result_id,
+        workflow_id=workflow_id,
+        account_id=account_id,
+        status="succeeded",
+        latency=1.23,
+        state=[{"node_id": "start", "status": "completed"}],
+    )
+
+    service.get = lambda model, wid: workflow if model is Workflow and wid == workflow_id else None
+    service.db.session.query = lambda *args: SimpleNamespace(
+        filter=lambda *args: SimpleNamespace(one_or_none=lambda: expected_result)
+    )
+
+    res = service.get_workflow_result(workflow_id, result_id, account)
+    assert res == expected_result
+
+
+def test_get_workflow_result_forbidden_when_workflow_belongs_to_other_account():
+    service = _build_service()
+    account_a = SimpleNamespace(id=uuid4())
+    account_b = SimpleNamespace(id=uuid4())
+    workflow_id = uuid4()
+    result_id = uuid4()
+
+    workflow = SimpleNamespace(id=workflow_id, account_id=account_b.id)
+    service.get = lambda model, wid: workflow if model is Workflow and wid == workflow_id else None
+
+    with pytest.raises(ForbiddenException):
+        service.get_workflow_result(workflow_id, result_id, account_a)
+
+
+def test_get_workflow_result_not_found():
+    service = _build_service()
+    account_id = uuid4()
+    account = SimpleNamespace(id=account_id)
+    workflow_id = uuid4()
+    result_id = uuid4()
+
+    workflow = SimpleNamespace(id=workflow_id, account_id=account_id)
+    service.get = lambda model, wid: workflow if model is Workflow and wid == workflow_id else None
+    service.db.session.query = lambda *args: SimpleNamespace(
+        filter=lambda *args: SimpleNamespace(one_or_none=lambda: None)
+    )
+
+    with pytest.raises(NotFoundException):
+        service.get_workflow_result(workflow_id, result_id, account)
+
+
+def test_get_workflow_result_trace():
+    service = _build_service()
+    account_id = uuid4()
+    account = SimpleNamespace(id=account_id)
+    workflow_id = uuid4()
+    result_id = uuid4()
+
+    steps = [{"node_id": "start_1", "status": "completed"}]
+    expected_result = WorkflowResult(
+        id=result_id,
+        workflow_id=workflow_id,
+        account_id=account_id,
+        status="succeeded",
+        latency=0.75,
+        state=steps,
+        created_at=None,
+        updated_at=None,
+    )
+
+    service.get_workflow_result = lambda wid, rid, acc: expected_result
+
+    trace = service.get_workflow_result_trace(workflow_id, result_id, account)
+    assert trace["id"] == result_id
+    assert trace["workflow_id"] == workflow_id
+    assert trace["status"] == "succeeded"
+    assert trace["latency"] == 0.75
+    assert trace["steps"] == steps
+
