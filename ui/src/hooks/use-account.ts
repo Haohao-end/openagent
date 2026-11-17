@@ -161,6 +161,7 @@ export const useGetAccountSessions = () => {
 
 export const useGetAccountLoginHistory = () => {
   const loading = ref(false)
+  const credentialStore = useCredentialStore()
   let requestId = 0
   const history_state = ref<{
     history: Array<Record<string, any>>
@@ -181,10 +182,15 @@ export const useGetAccountLoginHistory = () => {
     page_size?: number
   }) => {
     const currentRequestId = ++requestId
+    const credential = credentialStore.credential
     try {
       loading.value = true
       const resp = await getAccountLoginHistory(params)
-      if (currentRequestId === requestId) history_state.value = resp.data
+      if (currentRequestId === requestId && credential === credentialStore.credential) {
+        history_state.value = resp.data
+      }
+    } catch (error) {
+      if (currentRequestId === requestId && credential === credentialStore.credential) throw error
     } finally {
       if (currentRequestId === requestId) loading.value = false
     }
