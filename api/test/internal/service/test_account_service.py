@@ -1366,3 +1366,59 @@ class TestAccountService:
         assert len(sessions) == 2
         assert sessions[0]["id"] == s1.id
         assert sessions[1]["id"] == s2.id
+
+    def test_update_account_should_filter_fields_to_whitelist_and_strip_name(self, monkeypatch):
+        service = _new_account_service(
+            db=SimpleNamespace(session=SimpleNamespace()),
+            jwt_service=SimpleNamespace(),
+        )
+        account = SimpleNamespace(id=uuid4(), name="old")
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        result = service.update_account(
+            account,
+            name="  new name  ",
+            avatar="https://avatar.png",
+            id=uuid4(),
+            is_deleted=True,
+            status="banned",
+        )
+
+        assert result is account
+        assert updates == [(account, {"name": "new name", "avatar": "https://avatar.png"})]
+
+    def test_update_account_should_raise_when_name_invalid(self):
+        service = _new_account_service(
+            db=SimpleNamespace(session=SimpleNamespace()),
+            jwt_service=SimpleNamespace(),
+        )
+        account = SimpleNamespace(id=uuid4(), name="old")
+
+        with pytest.raises(ValidateErrorException, match="账号名称不能为空"):
+            service.update_account(account, name="   ")
+
+        with pytest.raises(ValidateErrorException, match="账号名称长度不能超过30个字符"):
+            service.update_account(account, name="a" * 31)
+
+    def test_update_account_no_update_called_when_all_fields_unallowed(self, monkeypatch):
+        service = _new_account_service(
+            db=SimpleNamespace(session=SimpleNamespace()),
+            jwt_service=SimpleNamespace(),
+        )
+        account = SimpleNamespace(id=uuid4(), name="old")
+        updates = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+        )
+
+        result = service.update_account(account, id=uuid4(), status="banned")
+
+        assert result is account
+        assert updates == []
