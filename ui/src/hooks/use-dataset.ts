@@ -195,7 +195,7 @@ export const useGetDocumentsWithPage = () => {
     total_page: 0,
     total_record: 0,
   }
-  const paginator = ref(defaultPaginator)
+  const paginator = ref({ ...defaultPaginator })
 
   // 2.加载文档列表数据
   const loadDocuments = async (
@@ -212,7 +212,16 @@ export const useGetDocumentsWithPage = () => {
       loading.value = true
       const resp = await getDocumentsWithPage(dataset_id, req)
       if (requestId !== latestRequest) return
-      const data = resp.data
+      let data = resp.data
+
+      if (data.paginator.total_page > 0 && (req.current_page ?? 1) > data.paginator.total_page) {
+        const fallbackResp = await getDocumentsWithPage(dataset_id, {
+          ...req,
+          current_page: data.paginator.total_page,
+        })
+        if (requestId !== latestRequest) return
+        data = fallbackResp.data
+      }
 
       // 2.2 对于表格式+分页器实现的分页，可以直接填充数据进行替换
       paginator.value = data.paginator

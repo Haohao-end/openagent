@@ -444,6 +444,31 @@ describe('useGetDocumentsWithPage', () => {
     mocks.getDocumentsWithPage.mockRejectedValueOnce(new Error('latest failure'))
     await expect(loadDocuments('dataset-1')).rejects.toThrow('latest failure')
   })
+
+  it('falls back to the last page when requested page exceeds total_page', async () => {
+    mocks.getDocumentsWithPage
+      .mockResolvedValueOnce({
+        data: {
+          list: [],
+          paginator: { current_page: 5, page_size: 20, total_page: 2, total_record: 25 },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          list: [{ id: 'doc-page-2' }],
+          paginator: { current_page: 2, page_size: 20, total_page: 2, total_record: 25 },
+        },
+      })
+
+    const { documents, paginator, loading, loadDocuments } = useGetDocumentsWithPage()
+    await loadDocuments('dataset-1', { current_page: 5, page_size: 20, search_word: '' })
+
+    expect(mocks.getDocumentsWithPage).toHaveBeenNthCalledWith(1, 'dataset-1', { current_page: 5, page_size: 20, search_word: '' })
+    expect(mocks.getDocumentsWithPage).toHaveBeenNthCalledWith(2, 'dataset-1', { current_page: 2, page_size: 20, search_word: '' })
+    expect(documents.value).toEqual([{ id: 'doc-page-2' }])
+    expect(paginator.value.current_page).toBe(2)
+    expect(loading.value).toBe(false)
+  })
 })
 
 describe('useGetDatasetQueries', () => {
