@@ -7,15 +7,22 @@ export const useProvider = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const redirect_url = ref('')
+  let latestRequest = 0
 
   // 2.定义获取提供者授权凭证地址处理器
   const handleProvider = async (provider_name: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await provider(provider_name)
-      redirect_url.value = resp.data.redirect_url
+      if (requestId === latestRequest) {
+        redirect_url.value = resp.data.redirect_url
+      }
+      return resp
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
