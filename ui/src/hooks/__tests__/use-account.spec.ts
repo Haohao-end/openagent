@@ -68,6 +68,19 @@ describe('useGetAccountLoginHistory', () => {
     expect(history_state.value.history).toEqual([{ search: 'new' }])
     expect(loading.value).toBe(false)
   })
+
+  it('ignores a login history response that resolves after credential changes', async () => {
+    const request = deferred()
+    mocks.credentialStore.credential = { access_token: 'user-a' }
+    mocks.getAccountLoginHistory.mockReturnValueOnce(request.promise)
+    const { history_state, loadAccountLoginHistory } = useGetAccountLoginHistory()
+    const pending = loadAccountLoginHistory()
+    mocks.credentialStore.credential = { access_token: 'user-b' }
+    request.resolve({ data: { history: [{ id: 'user-a-history' }], total: 1, current_page: 1, page_size: 5 } })
+    await pending
+
+    expect(history_state.value.history).toEqual([])
+  })
 })
 
 describe('useGetAccountSessions', () => {
