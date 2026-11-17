@@ -1,7 +1,7 @@
 from flask_wtf import FlaskForm
 from marshmallow import Schema, fields, pre_dump
 from wtforms import IntegerField, StringField, BooleanField
-from wtforms.validators import Optional, NumberRange, DataRequired, Length
+from wtforms.validators import Optional, NumberRange, DataRequired, Length, UUID
 from internal.lib.helper import datetime_to_timestamp
 from internal.lib.helper import build_input_parts, build_output_payload
 from internal.model import Message
@@ -125,3 +125,15 @@ class SearchConversationsResp(Schema):
     human_message = fields.String(dump_default="")
     ai_message = fields.String(dump_default="")
     matched_fields = fields.List(fields.String(), dump_default=[])
+
+
+class CompareMessagesReq(FlaskForm):
+    """比较两次运行消息差异请求结构体"""
+    target_message_id = StringField("target_message_id", validators=[
+        DataRequired(message="目标消息ID不能为空"),
+        UUID(message="目标消息ID格式必须为UUID"),
+    ])
+    base_message_id = StringField("base_message_id", validators=[
+        DataRequired(message="基准消息ID不能为空"),
+        UUID(message="基准消息ID格式必须为UUID"),
+    ])

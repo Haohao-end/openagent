@@ -12,6 +12,7 @@ from internal.schema.conversation_schema import (
     UpdateConversationIsPinnedReq,
     SearchConversationsReq,
     SearchConversationsResp,
+    CompareMessagesReq,
 )
 from internal.service import ConversationService
 from pkg.paginator import PageModel
@@ -130,3 +131,17 @@ class ConversationHandler:
         # 3.构建响应结构并返回
         resp = SearchConversationsResp(many=True)
         return success_json(resp.dump(conversations))
+
+    @login_required
+    def compare_messages(self):
+        """比较两次运行消息在状态、耗时、Token 消耗、费用和文本差异上的对比"""
+        req = CompareMessagesReq()
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        comparison = self.conversation_service.compare_messages(
+            UUID(req.target_message_id.data),
+            UUID(req.base_message_id.data),
+            current_user,
+        )
+        return success_json(comparison)
