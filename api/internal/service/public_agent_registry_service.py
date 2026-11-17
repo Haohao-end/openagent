@@ -72,6 +72,15 @@ class PublicAgentRegistryService(BaseService):
             App.is_public == True,
         ).all()
 
+        app_config_ids = [app.app_config_id for app in apps if getattr(app, "app_config_id", None)]
+        if app_config_ids:
+            configs = self.db.session.query(AppConfig).filter(AppConfig.id.in_(app_config_ids)).all()
+            config_map = {cfg.id: cfg for cfg in configs}
+            for app in apps:
+                cfg_id = getattr(app, "app_config_id", None)
+                if cfg_id in config_map:
+                    app._app_config = config_map[cfg_id]
+
         self.faiss_service.recreate_public_agent_store()
         documents = [self.build_public_agent_document(app) for app in apps if app.app_config]
         if documents:

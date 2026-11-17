@@ -68,6 +68,8 @@ class App(db.Model):
     @property
     def app_config(self) -> "AppConfig":
         """只读属性 返回当前应用的运行配置"""
+        if getattr(self, "_app_config", None) is not None:
+            return self._app_config
         if not self.app_config_id:
             return None
         return db.session.query(AppConfig).get(self.app_config_id)
