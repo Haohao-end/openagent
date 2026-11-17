@@ -710,3 +710,72 @@ class TestApiKeyService:
         assert account_filter.right.value == account.id
         assert query.ordering == ("api_key.created_at DESC", "api_key.id DESC")
         assert isinstance(paginator, _Paginator)
+
+    def test_check_rate_limit_should_allow_under_quota_and_block_when_exceeded(self):
+        service = ApiKeyService(db=SimpleNamespace())
+        account_id = uuid4()
+        api_key_record = SimpleNamespace(id=uuid4(), account_id=account_id)
+        store = {}
+        ttls = {}
+
+        class _MockRedis:
+            def incr(self, key):
+                store[key] = store.get(key, 0) + 1
+                return store[key]
+
+            def expire(self, key, seconds):
+                ttls[key] = seconds
+
+            def ttl(self, key):
+                return ttls.get(key, -1)
+
+        mock_redis = _MockRedis()
+        allowed, count, ttl = service.check_rate_limit(api_key_record, max_requests=2, client=mock_redis)
+        assert allowed is True
+        assert count == 1
+        assert ttl == 60
+
+        allowed, count, _ = service.check_rate_limit(api_key_record, max_requests=2, client=mock_redis)
+        assert allowed is True
+        assert count == 2
+
+        allowed, count, _ = service.check_rate_limit(api_key_record, max_requests=2, client=mock_redis)
+        assert allowed is False
+        assert count == 3
+
+    def test_check_rate_limit_should_isolate_accounts_and_keys(self):
+        service = ApiKeyService(db=SimpleNamespace())
+        key1 = SimpleNamespace(id=uuid4(), account_id=uuid4())
+        key2 = SimpleNamespace(id=uuid4(), account_id=uuid4())
+        store = {}
+
+        class _MockRedis:
+            def incr(self, key):
+                store[key] = store.get(key, 0) + 1
+                return store[key]
+
+            def expire(self, key, seconds):
+                pass
+
+            def ttl(self, key):
+                return 60
+
+        mock_redis = _MockRedis()
+        service.check_rate_limit(key1, max_requests=1, client=mock_redis)
+        allowed, count, _ = service.check_rate_limit(key2, max_requests=1, client=mock_redis)
+        assert allowed is True
+        assert count == 1
+        assert len(store) == 2
+
+    def test_check_rate_limit_should_handle_missing_key_and_redis_errors(self):
+        service = ApiKeyService(db=SimpleNamespace())
+        assert service.check_rate_limit(None) == (False, 0, 0)
+        assert service.check_rate_limit(SimpleNamespace(id=None)) == (False, 0, 0)
+
+        class _FailingRedis:
+            def incr(self, _key):
+                raise RuntimeError("Redis connection failure")
+
+        key = SimpleNamespace(id=uuid4(), account_id=uuid4())
+        assert service.check_rate_limit(key, client=_FailingRedis(), fail_closed=False)[0] is True
+        assert service.check_rate_limit(key, client=_FailingRedis(), fail_closed=True)[0] is False
