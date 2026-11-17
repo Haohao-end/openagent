@@ -5,15 +5,22 @@ export const useGetCategories = () => {
   // 1.定义自定义hooks所需数据
   const loading = ref(false)
   const categories = ref<Record<string, any>>([])
+  let requestId = 0
 
   // 2.定义加载数据函数
   const loadCategories = async () => {
+    const currentRequestId = ++requestId
     try {
       loading.value = true
       const resp = await getCategories()
+      if (currentRequestId !== requestId) return false
       categories.value = resp.data
+      return true
+    } catch (error) {
+      if (currentRequestId !== requestId) return false
+      throw error
     } finally {
-      loading.value = false
+      if (currentRequestId === requestId) loading.value = false
     }
   }
 
@@ -50,15 +57,22 @@ export const useGetBuiltinTools = () => {
   // 1.定义自定义hooks所需数据
   const loading = ref(false)
   const builtin_tools = ref<Record<string, any>>([])
+  let requestId = 0
 
   // 2.定义加载数据函数
   const loadBuiltinTools = async () => {
+    const currentRequestId = ++requestId
     try {
       loading.value = true
       const resp = await getBuiltinTools()
+      if (currentRequestId !== requestId) return false
       builtin_tools.value = resp.data
+      return true
+    } catch (error) {
+      if (currentRequestId !== requestId) return false
+      throw error
     } finally {
-      loading.value = false
+      if (currentRequestId === requestId) loading.value = false
     }
   }
 
