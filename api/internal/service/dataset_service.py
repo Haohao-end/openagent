@@ -33,25 +33,32 @@ class DatasetService(BaseService):
 
     def create_dataset(self, req: CreateDatasetReq, account: Account) -> Dataset:
         """根据传递的请求信息创建知识库"""
+        name = str(req.name.data or "").strip()
+        if not name:
+            raise ValidateErrorException("知识库名称不能为空")
+        if len(name) > 100:
+            raise ValidateErrorException("知识库名称长度不能超过100字符")
+
         # 1.检测该账号下是否存在同名知识库
         dataset = self.db.session.query(Dataset).filter_by(
             account_id=account.id,
-            name=req.name.data,
+            name=name,
         ).one_or_none()
         if dataset:
-            raise ValidateErrorException(f"该知识库{req.name.data}已存在")
+            raise ValidateErrorException(f"该知识库{name}已存在")
 
         # 2.检测是否传递了描述信息，如果没有传递需要补充上
-        if req.description.data is None or req.description.data.strip() == "":
-            req.description.data = DEFAULT_DATASET_DESCRIPTION_FORMATTER.format(name=req.name.data)
+        description = (req.description.data or "").strip() if req.description.data else ""
+        if not description:
+            description = DEFAULT_DATASET_DESCRIPTION_FORMATTER.format(name=name)
 
         # 3.创建知识库记录并返回
         return self.create(
             Dataset,
             account_id=account.id,
-            name=req.name.data,
+            name=name,
             icon=req.icon.data,
-            description=req.description.data,
+            description=description,
         )
 
     def get_dataset_queries(self, dataset_id: UUID, account: Account) -> list[DatasetQuery]:
@@ -83,25 +90,32 @@ class DatasetService(BaseService):
         if dataset is None or dataset.account_id != account.id:
             raise NotFoundException("该知识库不存在")
 
+        name = str(req.name.data or "").strip()
+        if not name:
+            raise ValidateErrorException("知识库名称不能为空")
+        if len(name) > 100:
+            raise ValidateErrorException("知识库名称长度不能超过100字符")
+
         # 2.检测修改后的知识库名称是否出现重名
         check_dataset = self.db.session.query(Dataset).filter(
             Dataset.account_id == account.id,
-            Dataset.name == req.name.data,
+            Dataset.name == name,
             Dataset.id != dataset_id,
         ).one_or_none()
         if check_dataset:
-            raise ValidateErrorException(f"该知识库名称{req.name.data}已存在，请修改")
+            raise ValidateErrorException(f"该知识库名称{name}已存在，请修改")
 
         # 3.校验描述信息是否为空，如果为空则人为设置
-        if req.description.data is None or req.description.data.strip() == "":
-            req.description.data = DEFAULT_DATASET_DESCRIPTION_FORMATTER.format(name=req.name.data)
+        description = (req.description.data or "").strip() if req.description.data else ""
+        if not description:
+            description = DEFAULT_DATASET_DESCRIPTION_FORMATTER.format(name=name)
 
         # 4.更新数据
         self.update(
             dataset,
-            name=req.name.data,
+            name=name,
             icon=req.icon.data,
-            description=req.description.data,
+            description=description,
         )
 
         return dataset
