@@ -13,7 +13,7 @@ from sqlalchemy import and_, desc, func
 
 from internal.entity.tag_entity import TagStatus, TagType
 from internal.exception import ValidateErrorException
-from internal.model import AppTag, Tag, WorkflowTag
+from internal.model import App, AppTag, Tag, Workflow, WorkflowTag
 from internal.service.base_service import BaseService
 from pkg.paginator import Paginator, PaginatorReq
 from pkg.sqlalchemy import SQLAlchemy
@@ -34,18 +34,15 @@ class TagService(BaseService):
         {"value": TagType.CATEGORY.value, "label": "分类标签"},
     ]
 
+    def _get_owned_resource(self, model: type, resource_id: UUID, account_id: UUID) -> Any:
+        """只返回归属于当前账号的资源对象。"""
+        return self.db.session.query(model).filter(
+            and_(model.id == resource_id, model.account_id == account_id)
+        ).one_or_none()
+
     def _get_owned_tag(self, tag_id: UUID, account_id: UUID) -> Optional[Tag]:
         """只返回归属于当前账号的标签。"""
-        return (
-            self.db.session.query(Tag)
-            .filter(
-                and_(
-                    Tag.id == tag_id,
-                    Tag.account_id == account_id,
-                )
-            )
-            .one_or_none()
-        )
+        return self._get_owned_resource(Tag, tag_id, account_id)
 
     def create_tag(self, account_id: UUID, name: str, description: str = "", tag_type: str = TagType.CUSTOM.value) -> Tag:
         """
@@ -254,13 +251,21 @@ class TagService(BaseService):
         Returns:
             Optional[AppTag]: 应用标签关联，若标签不存在或不归属当前账户则返回 None
         """
+        if not account_id:
+            return None
+
         tag = self._get_owned_tag(tag_id, account_id)
         if not tag:
+            return None
+
+        app = self._get_owned_resource(App, app_id, account_id)
+        if not app:
             return None
 
         # 检查是否已存在
         existing = self.db.session.query(AppTag).filter(
             and_(
+                AppTag.account_id == account_id,
                 AppTag.app_id == app_id,
                 AppTag.tag_id == tag_id,
             )
@@ -276,22 +281,32 @@ class TagService(BaseService):
             tag_id=tag_id,
         )
 
-    def remove_app_tag(self, app_id: UUID, tag_id: UUID, account_id: Optional[UUID] = None) -> bool:
+    def remove_app_tag(self, app_id: UUID, tag_id: UUID, account_id: UUID) -> bool:
         """
         移除应用标签
 
         Args:
             app_id: 应用 ID
             tag_id: 标签 ID
-            account_id: 可选账户 ID，用于限定标签所有权
+            account_id: 账户 ID，必须指定用于严格多租户校验
 
         Returns:
             bool: 是否成功
         """
-        filters = [AppTag.app_id == app_id, AppTag.tag_id == tag_id]
-        if account_id:
-            filters.append(AppTag.account_id == account_id)
-        app_tag = self.db.session.query(AppTag).filter(and_(*filters)).one_or_none()
+        if not account_id:
+            return False
+
+        app = self._get_owned_resource(App, app_id, account_id)
+        if not app:
+            return False
+
+        app_tag = self.db.session.query(AppTag).filter(
+            and_(
+                AppTag.account_id == account_id,
+                AppTag.app_id == app_id,
+                AppTag.tag_id == tag_id,
+            )
+        ).one_or_none()
 
         if app_tag:
             self.delete(app_tag)
@@ -326,13 +341,21 @@ class TagService(BaseService):
         Returns:
             Optional[WorkflowTag]: 工作流标签关联，若标签不存在或不归属当前账户则返回 None
         """
+        if not account_id:
+            return None
+
         tag = self._get_owned_tag(tag_id, account_id)
         if not tag:
+            return None
+
+        workflow = self._get_owned_resource(Workflow, workflow_id, account_id)
+        if not workflow:
             return None
 
         # 检查是否已存在
         existing = self.db.session.query(WorkflowTag).filter(
             and_(
+                WorkflowTag.account_id == account_id,
                 WorkflowTag.workflow_id == workflow_id,
                 WorkflowTag.tag_id == tag_id,
             )
@@ -348,22 +371,32 @@ class TagService(BaseService):
             tag_id=tag_id,
         )
 
-    def remove_workflow_tag(self, workflow_id: UUID, tag_id: UUID, account_id: Optional[UUID] = None) -> bool:
+    def remove_workflow_tag(self, workflow_id: UUID, tag_id: UUID, account_id: UUID) -> bool:
         """
         移除工作流标签
 
         Args:
             workflow_id: 工作流 ID
             tag_id: 标签 ID
-            account_id: 可选账户 ID，用于限定标签所有权
+            account_id: 账户 ID，必须指定用于严格多租户校验
 
         Returns:
             bool: 是否成功
         """
-        filters = [WorkflowTag.workflow_id == workflow_id, WorkflowTag.tag_id == tag_id]
-        if account_id:
-            filters.append(WorkflowTag.account_id == account_id)
-        workflow_tag = self.db.session.query(WorkflowTag).filter(and_(*filters)).one_or_none()
+        if not account_id:
+            return False
+
+        workflow = self._get_owned_resource(Workflow, workflow_id, account_id)
+        if not workflow:
+            return False
+
+        workflow_tag = self.db.session.query(WorkflowTag).filter(
+            and_(
+                WorkflowTag.account_id == account_id,
+                WorkflowTag.workflow_id == workflow_id,
+                WorkflowTag.tag_id == tag_id,
+            )
+        ).one_or_none()
 
         if workflow_tag:
             self.delete(workflow_tag)
