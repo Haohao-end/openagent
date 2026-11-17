@@ -7,6 +7,7 @@ import {
   useFallbackHistoryToDraft,
   useGetApp,
   useGetAppsWithPage,
+  useGetDebugConversationSummary,
   useGetDraftAppConfig,
   useGetPublishedConfig,
   useGetPublishHistoriesWithPage,
@@ -33,6 +34,7 @@ vi.mock('@/services/app', async () => {
     getPublishedConfig: vi.fn(),
     getVersions: vi.fn(),
     fallbackHistoryToDraft: vi.fn(),
+    getDebugConversationSummary: vi.fn(),
   }
 })
 
@@ -720,5 +722,53 @@ describe('useGetPublishHistoriesWithPage', () => {
 
     expect(appService.getPublishHistoriesWithPage).not.toHaveBeenCalled()
     expect(loading.value).toBe(false)
+  })
+
+  describe('useGetDebugConversationSummary', () => {
+    it('loads debug conversation summary successfully', async () => {
+      vi.mocked(appService.getDebugConversationSummary).mockResolvedValueOnce({
+        data: { summary: 'test summary' },
+      } as never)
+      const { loading, debug_conversation_summary, loadDebugConversationSummary } =
+        useGetDebugConversationSummary()
+
+      await loadDebugConversationSummary('app-1')
+
+      expect(debug_conversation_summary.value).toBe('test summary')
+      expect(loading.value).toBe(false)
+    })
+
+    it('discards stale responses and keeps loading true until the latest request completes', async () => {
+      const deferred = <T,>() => {
+        let resolve!: (value: T) => void
+        const promise = new Promise<T>((r) => { resolve = r })
+        return { promise, resolve }
+      }
+      const older = deferred<{ data: { summary: string } }>()
+      const newer = deferred<{ data: { summary: string } }>()
+      vi.mocked(appService.getDebugConversationSummary)
+        .mockReturnValueOnce(older.promise as never)
+        .mockReturnValueOnce(newer.promise as never)
+
+      const { loading, debug_conversation_summary, loadDebugConversationSummary } =
+        useGetDebugConversationSummary()
+
+      const req1 = loadDebugConversationSummary('app-old')
+      const req2 = loadDebugConversationSummary('app-new')
+
+      expect(loading.value).toBe(true)
+
+      older.resolve({ data: { summary: 'old summary' } })
+      await req1
+
+      expect(debug_conversation_summary.value).toBe('')
+      expect(loading.value).toBe(true)
+
+      newer.resolve({ data: { summary: 'new summary' } })
+      await req2
+
+      expect(debug_conversation_summary.value).toBe('new summary')
+      expect(loading.value).toBe(false)
+    })
   })
 })

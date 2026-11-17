@@ -428,19 +428,23 @@ export const useGetDebugConversationSummary = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const debug_conversation_summary = ref('')
+  let latestRequest = 0
 
   // 2.定义数据加载函数
   const loadDebugConversationSummary = async (app_id: string, isCurrent: () => boolean = () => true) => {
+    const requestId = ++latestRequest
     try {
       // 2.1 调用API获取记忆
       loading.value = true
       const resp = await getDebugConversationSummary(app_id)
-      if (!isCurrent()) return
+      if (requestId !== latestRequest || !isCurrent()) return
       const data = resp.data
 
       debug_conversation_summary.value = data.summary
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
