@@ -2413,3 +2413,54 @@ class TestConversationServiceBasics:
 
         with pytest.raises(NotFoundException):
             service.compare_messages(uuid4(), uuid4(), account)
+
+    def test_get_message_trace_should_return_timeline(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        msg = SimpleNamespace(
+            id=uuid4(),
+            conversation_id=uuid4(),
+            app_id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            status="normal",
+            error="",
+            latency=1.2,
+            total_token_count=100,
+            total_price=0.01,
+            created_at=datetime(2024, 1, 1, 0, 0, 0),
+        )
+        thought = SimpleNamespace(
+            id=uuid4(),
+            position=1,
+            event="agent_action",
+            thought="calling tool",
+            observation="done",
+            tool="search",
+            tool_input={"q": "test"},
+            latency=0.5,
+            total_token_count=50,
+            total_price=0.005,
+            created_at=datetime(2024, 1, 1, 0, 0, 1),
+        )
+        mock_query = SimpleNamespace(
+            filter=lambda *args: SimpleNamespace(
+                order_by=lambda *args: SimpleNamespace(all=lambda: [thought])
+            )
+        )
+        service = ConversationService(db=SimpleNamespace(session=SimpleNamespace(query=lambda *args: mock_query)))
+        monkeypatch.setattr(service, "get", lambda _cls, _id: msg)
+
+        res = service.get_message_trace(msg.id, account)
+        assert res["message_id"] == str(msg.id)
+        assert res["status"] == "normal"
+        assert len(res["timeline"]) == 1
+        assert res["timeline"][0]["tool"] == "search"
+        assert res["timeline"][0]["position"] == 1
+
+    def test_get_message_trace_should_raise_when_message_not_found(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        service = ConversationService(db=SimpleNamespace())
+        monkeypatch.setattr(service, "get", lambda _cls, _id: None)
+
+        with pytest.raises(NotFoundException):
+            service.get_message_trace(uuid4(), account)
