@@ -3,6 +3,7 @@ from typing import Any, List, Optional
 from internal.model import Feedback, App, Message, MessageAgentThought
 from internal.extension.database_extension import db
 from sqlalchemy import desc
+from internal.exception.exception import NotFoundException
 
 class FeedbackService:
     @staticmethod
@@ -14,12 +15,12 @@ class FeedbackService:
         if target_type == 'message':
             msg = db.session.query(Message).filter(Message.id == target_id, Message.app_id == app.id).first()
             if not msg:
-                raise ValueError("Invalid target_id or access denied")
+                raise NotFoundException("Message not found or access denied")
             conversation_id = msg.conversation_id
         elif target_type == 'span':
             thought = db.session.query(MessageAgentThought).filter(MessageAgentThought.id == target_id, MessageAgentThought.app_id == app.id).first()
             if not thought:
-                raise ValueError("Invalid target_id or access denied")
+                raise NotFoundException("Span not found or access denied")
             conversation_id = thought.conversation_id
         else:
             raise ValueError("Invalid target_type")
