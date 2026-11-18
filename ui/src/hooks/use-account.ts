@@ -187,6 +187,19 @@ export const useGetAccountLoginHistory = () => {
     page_size: 5,
   })
 
+  const clearAccountLoginHistory = () => {
+    requestId += 1
+    loading.value = false
+    history_state.value = {
+      history: [],
+      total: 0,
+      current_page: 1,
+      page_size: 5,
+    }
+  }
+
+  watch(() => credentialStore.credential, clearAccountLoginHistory)
+
   const loadAccountLoginHistory = async (params?: {
     status?: string
     search?: string
@@ -208,7 +221,7 @@ export const useGetAccountLoginHistory = () => {
     }
   }
 
-  return { loading, history_state, loadAccountLoginHistory }
+  return { loading, history_state, loadAccountLoginHistory, clearAccountLoginHistory }
 }
 
 export const useRevokeAccountSession = () => {
