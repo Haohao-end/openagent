@@ -42,9 +42,11 @@ import { useRoute } from 'vue-router'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import UpdateNameModal from './components/UpdateNameModal.vue'
+import MessageTraceModal from '@/components/chat/MessageTraceModal.vue'
 
 // 1.定义页面所需数据
 const route = useRoute()
+const messageTraceModalRef = ref<InstanceType<typeof MessageTraceModal> | null>(null)
 const updateConversationNameModalVisible = ref(false)
 const updateConversationNameId = ref('')
 type ConversationSummary = GetWebAppConversationsResponse['data'][number]
@@ -90,6 +92,11 @@ const userStoppedWebAppStreams = new WeakSet<AbortSignal>()
 const scroller = ref<ScrollerLike | null>(null)
 const scrollHeight = ref(0)
 const showScrollToBottomButton = ref(false)
+
+const handleViewTrace = (message_id: string) => {
+  messageTraceModalRef.value?.open(message_id)
+}
+
 const humanMessageElements = ref<HTMLElement[]>([])
 const currentHumanMessageIndex = ref(-1)
 const HUMAN_NAV_BOTTOM_DISTANCE_THRESHOLD = 500
@@ -861,6 +868,7 @@ onUnmounted(() => {
                   :loading="item.id === message_id && webAppChatLoading"
                   :latency="item.latency"
                   :total_token_count="item.total_token_count"
+                  @view-trace="handleViewTrace"
                   :agent_thought_default_visible="false"
                   :agent_thought_follow_latest="false"
                   @select-suggested-question="handleSubmitQuestion"
@@ -958,6 +966,7 @@ onUnmounted(() => {
       v-model:conversation_id="updateConversationNameId"
       :success_callback="successUpdateNameCallback"
     />
+    <message-trace-modal ref="messageTraceModalRef" />
   </div>
 </template>
 

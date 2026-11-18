@@ -1129,6 +1129,10 @@ export default {
       errorMissing: 'This call failed without error details.',
       parent: 'Parent call: {id}',
     },
+    messageTrace: {
+      title: 'Message Trace',
+      status: 'Status',
+    },
     composer: {
       placeholder: 'Send a message',
       uploadDisabled: 'Image upload is not supported here',

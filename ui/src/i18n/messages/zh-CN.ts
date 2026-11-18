@@ -1111,6 +1111,10 @@ export default {
       errorMissing: '调用失败，暂无错误详情。',
       parent: '父级调用：{id}',
     },
+    messageTrace: {
+      title: '消息运行追踪',
+      status: '执行状态',
+    },
     composer: {
       placeholder: '发送消息',
       uploadDisabled: '当前不支持图片上传',
