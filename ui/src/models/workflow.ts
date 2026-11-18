@@ -72,14 +72,18 @@ export type UpdateDraftGraphRequest = {
 
 // 工作流运行追踪步骤与追踪详情响应
 export type WorkflowResultTraceStep = {
-  node_id: string
-  node_type?: string
+  id: string
+  node_data: {
+    id: string
+    node_type: string
+    title: string
+    inputs?: Record<string, any>
+    outputs?: Record<string, any>
+  }
   status: string
-  inputs?: Record<string, any>
-  outputs?: Record<string, any>
   error?: string
   latency?: number
-  created_at?: number
+  created_at: number
 }
 
 export type WorkflowResultTraceData = {
