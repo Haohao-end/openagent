@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import {
   getAccountLoginHistory,
   getAccountSessions,
@@ -140,6 +140,18 @@ export const useGetAccountSessions = () => {
     sessions: [],
   })
 
+  const clearSessionState = () => {
+    requestId += 1
+    loading.value = false
+    session_state.value = {
+      session_capable: false,
+      current_session_id: null,
+      sessions: [],
+    }
+  }
+
+  watch(() => credentialStore.credential, clearSessionState)
+
   const loadAccountSessions = async () => {
     const currentRequestId = ++requestId
     const credential = credentialStore.credential
@@ -156,7 +168,7 @@ export const useGetAccountSessions = () => {
     }
   }
 
-  return { loading, session_state, loadAccountSessions }
+  return { loading, session_state, loadAccountSessions, clearSessionState }
 }
 
 export const useGetAccountLoginHistory = () => {
