@@ -2,6 +2,7 @@ import { get, post } from '@/utils/request'
 import type {
   GetConversationMessagesWithPageRequest,
   GetConversationMessagesWithPageResponse,
+  GetMessageTraceResponse,
   GetRecentConversationsResponse,
 } from '@/models/conversation'
 import type { BaseResponse } from '@/models/base'
@@ -49,4 +50,9 @@ export const getRecentConversations = (limit: number = 20) => {
   return get<GetRecentConversationsResponse>(`/conversations/recent`, {
     params: { limit },
   })
+}
+
+// 获取消息执行 Trace 时间线详情
+export const getMessageTrace = (message_id: string) => {
+  return get<GetMessageTraceResponse>(`/conversations/messages/${message_id}/trace`)
 }
