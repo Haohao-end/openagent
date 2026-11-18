@@ -1429,6 +1429,16 @@ export default {
           help: 'Average recorded duration of dataset retrieval calls over the last 7 days. Shows a dash when no retrieval samples are available.',
           unit: 'seconds',
         },
+        ragHitRate: {
+          title: 'RAG Hit Rate',
+          help: 'Proportion of retrieval requests that successfully recalled relevant knowledge chunks over the last 7 days. Shows a dash when no retrieval samples are available.',
+          unit: '%',
+        },
+        toolCallSuccessRate: {
+          title: 'Tool Call Success Rate',
+          help: 'Percentage of agent tool calls that completed successfully over the last 7 days. Shows a dash when no tool invocations are recorded.',
+          unit: '%',
+        },
         tokenOutputRate: {
           title: 'Token Output Rate',
           help: 'Measures LLM performance by tracking the token output speed from request start to completion.',

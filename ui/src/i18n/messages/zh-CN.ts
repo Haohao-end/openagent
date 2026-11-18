@@ -1410,6 +1410,16 @@ export default {
           help: '根据近 7 天记录的知识库检索调用耗时计算；无检索样本时显示横线。',
           unit: '秒',
         },
+        ragHitRate: {
+          title: 'RAG 命中率',
+          help: '统计近 7 天内知识库检索命中相关内容的请求比例，用于衡量知识库召回效果；无检索样本时显示横线。',
+          unit: '%',
+        },
+        toolCallSuccessRate: {
+          title: '工具调用成功率',
+          help: '统计近 7 天内智能体动作工具调用的成功执行比例，用于衡量工具执行稳定性；无调用记录时显示横线。',
+          unit: '%',
+        },
         tokenOutputRate: {
           title: 'Token 输出速度',
           help: '衡量 LLM 的性能，统计 LLM 从请求到输出完毕这段期间内的 Tokens 输出速度。',
