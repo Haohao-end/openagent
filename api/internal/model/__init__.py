@@ -13,6 +13,7 @@ from .mcp import McpProvider
 from .skill import SkillPackage, SkillPackageVersion
 from .feedback import Feedback
 from .evaluation import Evaluation
+from .evaluation_case import EvaluationCase
 
 __all__ = [
     "App", "AppDatasetJoin", "AppConfig", "AppConfigVersion",
@@ -29,4 +30,5 @@ __all__ = [
     "SkillPackage", "SkillPackageVersion",
     "Feedback",
     "Evaluation",
+    "EvaluationCase",
 ]
