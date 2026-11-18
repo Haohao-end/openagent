@@ -55,7 +55,8 @@ class OpenAPIService(BaseService):
         # 3.判断是否传递了终端用户id，如果传递了则检测终端用户关联的应用
         if req.end_user_id.data:
             end_user = self.get(EndUser, req.end_user_id.data)
-            if not end_user or end_user.app_id != app.id:
+            tenant_id = getattr(end_user, "tenant_id", None)
+            if not end_user or end_user.app_id != app.id or (tenant_id is not None and tenant_id != account.id):
                 raise ForbiddenException("当前账号不存在或不属于该应用，请核实后重试")
         else:
             # 4.如果不存在则创建一个终端用户

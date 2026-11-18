@@ -57,6 +57,21 @@ class TestOpenAPIService:
                 SimpleNamespace(id=uuid4()),
             )
 
+    def test_chat_should_raise_forbidden_when_end_user_belongs_to_different_tenant(self, monkeypatch):
+        service = _build_service()
+        account = SimpleNamespace(id=uuid4())
+        other_tenant_id = uuid4()
+        app = SimpleNamespace(id=uuid4(), status=AppStatus.PUBLISHED.value)
+        service.app_service = SimpleNamespace(get_app=lambda _app_id, _account: app)
+        end_user = SimpleNamespace(id=uuid4(), app_id=app.id, tenant_id=other_tenant_id)
+        monkeypatch.setattr(service, "get", lambda model, _id: end_user if model is EndUser else None)
+
+        with pytest.raises(ForbiddenException, match="当前账号不存在或不属于该应用"):
+            service.chat(
+                _build_req(app.id, end_user_id=str(end_user.id)),
+                account,
+            )
+
     def test_chat_should_raise_forbidden_when_conversation_not_owned(self, monkeypatch):
         service = _build_service()
         app = SimpleNamespace(id=uuid4(), status=AppStatus.PUBLISHED.value)
