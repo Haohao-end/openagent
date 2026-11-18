@@ -4,6 +4,7 @@ import type {
   GetWorkflowsWithPageResponse,
   UpdateDraftGraphRequest,
   UpdateWorkflowRequest,
+  WorkflowResultTraceData,
 } from '@/models/workflow'
 import {
   cancelPublishWorkflow,
@@ -13,6 +14,7 @@ import {
   generateIconPreview,
   getDraftGraph,
   getWorkflow,
+  getWorkflowResultTrace,
   getWorkflowsWithPage,
   publishWorkflow,
   regenerateIcon,
@@ -490,4 +492,34 @@ export const useShareWorkflow = () => {
   }
 
   return { loading, handleShareWorkflow }
+}
+
+export const useGetWorkflowResultTrace = () => {
+  const loading = ref(false)
+  const trace = ref<WorkflowResultTraceData | null>(null)
+  let latestRequest = 0
+
+  const clearWorkflowResultTrace = () => {
+    latestRequest += 1
+    loading.value = false
+    trace.value = null
+  }
+
+  const loadWorkflowResultTrace = async (workflow_id: string, result_id: string) => {
+    const requestId = ++latestRequest
+    try {
+      loading.value = true
+      const resp = await getWorkflowResultTrace(workflow_id, result_id)
+      if (requestId !== latestRequest) return
+      trace.value = resp.data
+      return resp.data
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
+    } finally {
+      if (requestId === latestRequest) loading.value = false
+    }
+  }
+
+  return { loading, trace, loadWorkflowResultTrace, clearWorkflowResultTrace }
 }
