@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
     avg_of_conversation_messages: { data: 4.2, pop: 0.3 },
     avg_latency: { data: 1.5, pop: 0.2 },
     rag_retrieval_latency: { data: 1.25, pop: 0.25 },
+    rag_hit_rate: { data: 0.825, pop: 0.1 },
+    tool_call_success_rate: { data: 0.95, pop: 0.05 },
     token_output_rate: { data: 1280, pop: 18 },
     cost_consumption: { data: 36.5, pop: 2.1 },
     total_messages_trend: {
@@ -79,6 +81,12 @@ vi.mock('vue-i18n', () => {
     'appStudio.analysis.trendCards.ragRetrievalLatency.title': '平均 RAG 检索耗时',
     'appStudio.analysis.trendCards.ragRetrievalLatency.help': '按真实记录的检索耗时计算',
     'appStudio.analysis.trendCards.ragRetrievalLatency.unit': '秒',
+    'appStudio.analysis.trendCards.ragHitRate.title': 'RAG 命中率',
+    'appStudio.analysis.trendCards.ragHitRate.help': '知识库检索命中率说明',
+    'appStudio.analysis.trendCards.ragHitRate.unit': '%',
+    'appStudio.analysis.trendCards.toolCallSuccessRate.title': '工具调用成功率',
+    'appStudio.analysis.trendCards.toolCallSuccessRate.help': '工具调用成功率说明',
+    'appStudio.analysis.trendCards.toolCallSuccessRate.unit': '%',
     'appStudio.analysis.trendCards.tokenOutputRate.title': 'Token 输出速度',
     'appStudio.analysis.trendCards.tokenOutputRate.help': 'Token 输出速度说明',
     'appStudio.analysis.trendCards.tokenOutputRate.unit': 'Ts/秒',
@@ -144,6 +152,8 @@ describe('AnalysisView', () => {
           'icon-bulb': true,
           'icon-clock-circle': true,
           'icon-search': true,
+          'icon-file': true,
+          'icon-tool': true,
           'icon-language': true,
           'icon-code': true,
           'icon-question-circle-fill': true,
@@ -158,6 +168,8 @@ describe('AnalysisView', () => {
     expect(wrapper.text()).toContain('详细指标')
     expect(wrapper.text()).toContain('平均响应耗时')
     expect(wrapper.text()).toContain('平均 RAG 检索耗时')
+    expect(wrapper.text()).toContain('RAG 命中率')
+    expect(wrapper.text()).toContain('工具调用成功率')
     expect(wrapper.text()).not.toContain('统计分析看板')
     expect(wrapper.text()).not.toContain('通过近 7 天会话、活跃与成本趋势，快速洞察应用运营质量和资源消耗变化。')
     expect(wrapper.text()).not.toContain('数据范围：近 7 天')

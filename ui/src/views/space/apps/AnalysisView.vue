@@ -85,6 +85,12 @@ const formatFixed = (value: number, decimals = 0) =>
     maximumFractionDigits: decimals,
   })
 
+const formatRateValue = (val: unknown): number | null => {
+  if (val == null || val === '') return null
+  const num = Number(val)
+  return Number.isFinite(num) ? Math.round(num * 10000) / 100 : null
+}
+
 const formatCardValue = (value: number, card: TrendCard) => formatFixed(value, card.decimals)
 
 const formatTooltipValue = (value: number, card: TrendCard) => {
@@ -324,6 +330,28 @@ watch(() => route.params?.app_id, (appId) => void loadAppAnalysis(String(appId ?
           >
             <template #icon>
               <icon-search class="text-indigo-700" />
+            </template>
+          </overview-indicator>
+          <overview-indicator
+            :title="t('appStudio.analysis.trendCards.ragHitRate.title')"
+            :help="t('appStudio.analysis.trendCards.ragHitRate.help')"
+            :unit="t('appStudio.analysis.trendCards.ragHitRate.unit')"
+            :data="formatRateValue(app_analysis?.rag_hit_rate?.data)"
+            :pop="app_analysis?.rag_hit_rate?.pop"
+          >
+            <template #icon>
+              <icon-file class="text-teal-700" />
+            </template>
+          </overview-indicator>
+          <overview-indicator
+            :title="t('appStudio.analysis.trendCards.toolCallSuccessRate.title')"
+            :help="t('appStudio.analysis.trendCards.toolCallSuccessRate.help')"
+            :unit="t('appStudio.analysis.trendCards.toolCallSuccessRate.unit')"
+            :data="formatRateValue(app_analysis?.tool_call_success_rate?.data)"
+            :pop="app_analysis?.tool_call_success_rate?.pop"
+          >
+            <template #icon>
+              <icon-tool class="text-sky-700" />
             </template>
           </overview-indicator>
           <overview-indicator
