@@ -1,11 +1,13 @@
 import { ref } from 'vue'
 import type {
+  CompareMessagesData,
   GetConversationMessagesWithPageResponse,
   GetRecentConversationsResponse,
   MessageTraceData,
 } from '@/models/conversation'
 import { mergeChatHistoryMessages, type CallableTraceEvent } from '@/views/shared/chat-stream'
 import {
+  compareMessages,
   deleteConversation,
   deleteMessage,
   getRecentConversations,
@@ -259,4 +261,34 @@ export const useGetMessageTrace = () => {
   }
 
   return { loading, trace, loadMessageTrace, clearMessageTrace }
+}
+
+export const useCompareMessages = () => {
+  const loading = ref(false)
+  const comparison = ref<CompareMessagesData | null>(null)
+  let latestRequest = 0
+
+  const clearComparison = () => {
+    latestRequest += 1
+    loading.value = false
+    comparison.value = null
+  }
+
+  const loadComparison = async (target_message_id: string, base_message_id: string) => {
+    const requestId = ++latestRequest
+    try {
+      loading.value = true
+      const resp = await compareMessages({ target_message_id, base_message_id })
+      if (requestId !== latestRequest) return
+      comparison.value = resp.data
+      return resp.data
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
+    } finally {
+      if (requestId === latestRequest) loading.value = false
+    }
+  }
+
+  return { loading, comparison, loadComparison, clearComparison }
 }
