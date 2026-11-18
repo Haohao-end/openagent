@@ -12,7 +12,7 @@ from .tag import Tag, AppTag, WorkflowTag
 from .mcp import McpProvider
 from .skill import SkillPackage, SkillPackageVersion
 from .feedback import Feedback
-
+from .evaluation import Evaluation
 
 __all__ = [
     "App", "AppDatasetJoin", "AppConfig", "AppConfigVersion",
@@ -28,4 +28,5 @@ __all__ = [
     "McpProvider",
     "SkillPackage", "SkillPackageVersion",
     "Feedback",
+    "Evaluation",
 ]
