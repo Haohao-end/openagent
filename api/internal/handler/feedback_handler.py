@@ -12,8 +12,8 @@ class FeedbackHandler:
         app = db.session.query(App).filter(App.id == app_id, App.account_id == current_user.id).first()
         if not app:
             return {"error": "App not found"}, 404
-        req = FeedbackCreateReq()
+        req = FeedbackCreateReq(data=request.get_json())
         if not req.validate():
-            return {"error": "Invalid request"}, 400
+            return {"error": f"Invalid request: {req.errors}"}, 400
         feedback = FeedbackService.create_feedback(app, req, current_user.id)
         return {"id": feedback.id}, 201
