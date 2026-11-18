@@ -8,7 +8,7 @@ from flask import Flask
 from internal.core.agent.entities.queue_entity import AgentThought, QueueEvent
 from internal.entity.conversation_entity import InvokeFrom
 from internal.exception import NotFoundException, ValidateErrorException
-from internal.model import Conversation, Message
+from internal.model import App, Conversation, Message
 from internal.service.conversation_service import ConversationService
 
 
@@ -2464,3 +2464,48 @@ class TestConversationServiceBasics:
 
         with pytest.raises(NotFoundException):
             service.get_message_trace(uuid4(), account)
+
+    def test_build_replay_snapshot_should_extract_snapshots_and_apply_patch(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        msg = SimpleNamespace(
+            id=uuid4(),
+            conversation_id=uuid4(),
+            app_id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            query="hello world",
+            image_urls=["http://img.png"],
+        )
+        app_config = SimpleNamespace(
+            model_config={"model": "gpt-4o"},
+            preset_prompt="base prompt",
+            retrieval_config={"top_k": 3},
+            tools=["search"],
+            datasets=[],
+            workflows=[],
+        )
+        app = SimpleNamespace(id=msg.app_id, draft_app_config=app_config)
+
+        service = ConversationService(db=SimpleNamespace())
+        monkeypatch.setattr(service, "get_message", lambda _mid, _acc: msg)
+        monkeypatch.setattr(service, "get", lambda model, _id: app if model is App else SimpleNamespace())
+
+        patch = {"preset_prompt": "new prompt", "tools": ["python_repl"]}
+        snapshot = service.build_replay_snapshot(msg.id, patch, account)
+
+        assert snapshot["message_id"] == str(msg.id)
+        assert snapshot["input_snapshot"]["query"] == "hello world"
+        assert snapshot["config_snapshot"]["preset_prompt"] == "base prompt"
+        assert snapshot["patched_config"]["preset_prompt"] == "new prompt"
+        assert snapshot["patched_config"]["tools"] == ["python_repl"]
+        assert snapshot["applied_patch_keys"] == ["preset_prompt", "tools"]
+
+    def test_build_replay_snapshot_should_reject_unsupported_patch_keys(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        msg = SimpleNamespace(id=uuid4(), conversation_id=uuid4(), app_id=uuid4())
+        service = ConversationService(db=SimpleNamespace())
+        monkeypatch.setattr(service, "get_message", lambda _mid, _acc: msg)
+        monkeypatch.setattr(service, "get", lambda *_args: None)
+
+        with pytest.raises(ValidateErrorException, match="不支持的回放Patch配置项"):
+            service.build_replay_snapshot(msg.id, {"dangerous_action": True}, account)

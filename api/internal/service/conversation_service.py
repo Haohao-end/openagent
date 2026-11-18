@@ -33,6 +33,9 @@ from ..core.language_model.entities.model_entity import ModelFeature
 
 
 _CONVERSATION_ALLOWED_UPDATE_FIELDS = frozenset({"name", "is_pinned"})
+_ALLOWED_REPLAY_PATCH_KEYS = frozenset({
+    "model_config", "preset_prompt", "retrieval_config", "tools", "datasets", "workflows"
+})
 
 
 @inject
@@ -663,6 +666,45 @@ class ConversationService(BaseService):
             "total_price": float(message.total_price or 0.0),
             "created_at": datetime_to_timestamp(message.created_at),
             "timeline": timeline,
+        }
+
+    def build_replay_snapshot(
+        self,
+        message_id: UUID,
+        patch: Any,
+        account: Account,
+    ) -> dict[str, Any]:
+        """构建运行重放输入快照、配置快照并应用受控Patch白名单校验。"""
+        message = self.get_message(message_id, account)
+        conversation = self.get(Conversation, message.conversation_id)
+        app = self.get(App, message.app_id) if conversation else None
+
+        patch_dict = patch if isinstance(patch, dict) else {}
+        invalid_keys = set(patch_dict.keys()) - _ALLOWED_REPLAY_PATCH_KEYS
+        if invalid_keys:
+            raise ValidateErrorException(f"不支持的回放Patch配置项: {', '.join(sorted(invalid_keys))}")
+
+        app_config = getattr(app, "draft_app_config", None) if app else None
+        config_snapshot = {
+            "model_config": getattr(app_config, "model_config", {}) if app_config else {},
+            "preset_prompt": getattr(app_config, "preset_prompt", "") if app_config else "",
+            "retrieval_config": getattr(app_config, "retrieval_config", {}) if app_config else {},
+            "tools": getattr(app_config, "tools", []) if app_config else [],
+            "datasets": getattr(app_config, "datasets", []) if app_config else [],
+            "workflows": getattr(app_config, "workflows", []) if app_config else [],
+        }
+
+        return {
+            "message_id": str(message.id),
+            "conversation_id": str(message.conversation_id),
+            "app_id": str(message.app_id),
+            "input_snapshot": {
+                "query": message.query,
+                "image_urls": message.image_urls if isinstance(message.image_urls, list) else [],
+            },
+            "config_snapshot": config_snapshot,
+            "patched_config": {**config_snapshot, **patch_dict},
+            "applied_patch_keys": sorted(patch_dict.keys()),
         }
 
     def get_conversation_messages_with_page(
