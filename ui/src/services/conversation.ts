@@ -1,5 +1,7 @@
 import { get, post } from '@/utils/request'
 import type {
+  CompareMessagesRequest,
+  CompareMessagesResponse,
   GetConversationMessagesWithPageRequest,
   GetConversationMessagesWithPageResponse,
   GetMessageTraceResponse,
@@ -55,4 +57,9 @@ export const getRecentConversations = (limit: number = 20) => {
 // 获取消息执行 Trace 时间线详情
 export const getMessageTrace = (message_id: string) => {
   return get<GetMessageTraceResponse>(`/conversations/messages/${message_id}/trace`)
+}
+
+// 比较两次运行消息差异
+export const compareMessages = (req: CompareMessagesRequest) => {
+  return post<CompareMessagesResponse>(`/conversations/messages/compare`, { body: req })
 }

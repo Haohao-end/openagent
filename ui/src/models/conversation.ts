@@ -77,3 +77,42 @@ export type MessageTraceData = {
 }
 
 export type GetMessageTraceResponse = BaseResponse<MessageTraceData>
+
+// 比较运行消息请求结构
+export type CompareMessagesRequest = {
+  target_message_id: string
+  base_message_id: string
+}
+
+// 单次运行概览数据
+export type MessageRunSummary = {
+  id: string
+  status: string
+  error: string
+  latency: number
+  total_token_count: number
+  total_price: number
+  answer_length: number
+}
+
+// 两次运行差异指标
+export type MessageRunDiff = {
+  latency_diff: number
+  total_token_count_diff: number
+  message_token_count_diff: number
+  answer_token_count_diff: number
+  total_price_diff: number
+  status_changed: boolean
+  error_changed: boolean
+  answer_match: boolean
+  answer_length_diff: number
+}
+
+// 比较运行消息差异数据
+export type CompareMessagesData = {
+  target: MessageRunSummary
+  base: MessageRunSummary
+  diff: MessageRunDiff
+}
+
+export type CompareMessagesResponse = BaseResponse<CompareMessagesData>
