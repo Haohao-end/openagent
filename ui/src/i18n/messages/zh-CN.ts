@@ -1115,6 +1115,9 @@ export default {
       title: '消息运行追踪',
       status: '执行状态',
     },
+    compareMessages: {
+      title: '消息对比',
+    },
     composer: {
       placeholder: '发送消息',
       uploadDisabled: '当前不支持图片上传',
