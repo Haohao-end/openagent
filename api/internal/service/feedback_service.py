@@ -7,7 +7,7 @@ from sqlalchemy import desc
 class FeedbackService:
     @staticmethod
     def create_feedback(app: App, req: Any, account_id: UUID) -> Feedback:
-        target_id = UUID(req.target_id)
+        target_id = UUID(req.target_id.data)
         # Verify message existence and ownership
         msg = db.session.query(Message).filter(Message.id == target_id, Message.app_id == app.id).first()
         if not msg:
@@ -17,9 +17,9 @@ class FeedbackService:
             app_id=app.id,
             conversation_id=msg.conversation_id,
             target_id=target_id,
-            target_type=req.target_type,
-            rating=req.rating,
-            content=req.content,
+            target_type=req.target_type.data,
+            rating=req.rating.data,
+            content=req.content.data,
             created_by=account_id
         )
         db.session.add(feedback)
