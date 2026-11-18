@@ -39,6 +39,8 @@ class AnalysisService(BaseService):
         previous_rag_hit_rate = self.get_rag_hit_rate_by_time_range(app, fourteen_days_ago, seven_days_ago)
         current_rag_empty_result_rate = self.get_rag_empty_result_rate_by_time_range(app, seven_days_ago, now)
         previous_rag_empty_result_rate = self.get_rag_empty_result_rate_by_time_range(app, fourteen_days_ago, seven_days_ago)
+        current_rag_failure_rate = self.get_rag_failure_rate_by_time_range(app, seven_days_ago, now)
+        previous_rag_failure_rate = self.get_rag_failure_rate_by_time_range(app, fourteen_days_ago, seven_days_ago)
         current_tool_call_success_rate = self.get_tool_call_success_rate_by_time_range(app, seven_days_ago, now)
         previous_tool_call_success_rate = self.get_tool_call_success_rate_by_time_range(app, fourteen_days_ago, seven_days_ago)
 
@@ -61,6 +63,11 @@ class AnalysisService(BaseService):
         rag_empty_result_rate_pop = (
             (current_rag_empty_result_rate - previous_rag_empty_result_rate) / previous_rag_empty_result_rate
             if current_rag_empty_result_rate is not None and previous_rag_empty_result_rate not in (None, 0)
+            else None
+        )
+        rag_failure_rate_pop = (
+            (current_rag_failure_rate - previous_rag_failure_rate) / previous_rag_failure_rate
+            if current_rag_failure_rate is not None and previous_rag_failure_rate not in (None, 0)
             else None
         )
         tool_call_success_rate_pop = (
@@ -92,6 +99,10 @@ class AnalysisService(BaseService):
             "rag_empty_result_rate": {
                 "data": current_rag_empty_result_rate,
                 "pop": rag_empty_result_rate_pop,
+            },
+            "rag_failure_rate": {
+                "data": current_rag_failure_rate,
+                "pop": rag_failure_rate_pop,
             },
             "tool_call_success_rate": {
                 "data": current_tool_call_success_rate,
@@ -158,6 +169,33 @@ class AnalysisService(BaseService):
         if not row or not getattr(row, "total", 0):
             return None
         return float(row.empty_count / row.total)
+
+    def get_rag_failure_rate_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
+        """根据传递的时间范围计算指定应用的知识库检索失败率。"""
+        error_prefix = "工具执行出错:"
+        alt_error_prefix = "检索出错:"
+        row = self.db.session.query(
+            func.count(MessageAgentThought.id).label("total"),
+            func.count(
+                case(
+                    (
+                        MessageAgentThought.observation.like(f"{error_prefix}%")
+                        | MessageAgentThought.observation.like(f"{alt_error_prefix}%"),
+                        MessageAgentThought.id,
+                    ),
+                    else_=None,
+                )
+            ).label("failure_count"),
+        ).filter(
+            MessageAgentThought.app_id == app.id,
+            MessageAgentThought.event == QueueEvent.DATASET_RETRIEVAL.value,
+            MessageAgentThought.created_at >= start_at,
+            MessageAgentThought.created_at < end_at,
+        ).one_or_none()
+
+        if not row or not getattr(row, "total", 0):
+            return None
+        return float(row.failure_count / row.total)
 
     def get_tool_call_success_rate_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
         """根据传递的时间范围计算指定应用的工具调用成功率。"""
