@@ -83,6 +83,7 @@ class TestAnalysisService:
         assert len(result["total_messages_trend"]["x_axis"]) == 7
         assert len(result["total_messages_trend"]["y_axis"]) == 7
         assert "rag_hit_rate" in result
+        assert "rag_empty_result_rate" in result
         assert "tool_call_success_rate" in result
 
     def test_get_app_analysis_should_handle_empty_messages(self, monkeypatch):
@@ -310,3 +311,27 @@ class TestAnalysisService:
             filter=lambda *_f: SimpleNamespace(one_or_none=lambda: None)
         )
         assert service.get_tool_call_success_rate_by_time_range(app, start_at, end_at) is None
+
+    def test_get_rag_empty_result_rate_by_time_range_should_calculate_ratio(self):
+        app = SimpleNamespace(id=uuid4())
+        start_at = datetime(2024, 1, 1, 0, 0, 0)
+        end_at = datetime(2024, 1, 8, 0, 0, 0)
+
+        # 1. Total > 0
+        service = _build_service(app=app)
+        service.db.session.query = lambda *_args: SimpleNamespace(
+            filter=lambda *_f: SimpleNamespace(one_or_none=lambda: SimpleNamespace(total=10, empty_count=3))
+        )
+        assert service.get_rag_empty_result_rate_by_time_range(app, start_at, end_at) == pytest.approx(0.3)
+
+        # 2. Total == 0 -> None
+        service.db.session.query = lambda *_args: SimpleNamespace(
+            filter=lambda *_f: SimpleNamespace(one_or_none=lambda: SimpleNamespace(total=0, empty_count=0))
+        )
+        assert service.get_rag_empty_result_rate_by_time_range(app, start_at, end_at) is None
+
+        # 3. None row -> None
+        service.db.session.query = lambda *_args: SimpleNamespace(
+            filter=lambda *_f: SimpleNamespace(one_or_none=lambda: None)
+        )
+        assert service.get_rag_empty_result_rate_by_time_range(app, start_at, end_at) is None
