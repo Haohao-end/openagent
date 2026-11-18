@@ -53,27 +53,27 @@ class AnalysisService(BaseService):
         rag_latency_pop = (
             (current_rag_latency - previous_rag_latency) / previous_rag_latency
             if current_rag_latency is not None and previous_rag_latency not in (None, 0)
-            else None
+            else 0 if previous_rag_latency == 0 else None
         )
         rag_hit_rate_pop = (
             (current_rag_hit_rate - previous_rag_hit_rate) / previous_rag_hit_rate
             if current_rag_hit_rate is not None and previous_rag_hit_rate not in (None, 0)
-            else None
+            else 0 if previous_rag_hit_rate == 0 else None
         )
         rag_empty_result_rate_pop = (
             (current_rag_empty_result_rate - previous_rag_empty_result_rate) / previous_rag_empty_result_rate
             if current_rag_empty_result_rate is not None and previous_rag_empty_result_rate not in (None, 0)
-            else None
+            else 0 if previous_rag_empty_result_rate == 0 else None
         )
         rag_failure_rate_pop = (
             (current_rag_failure_rate - previous_rag_failure_rate) / previous_rag_failure_rate
             if current_rag_failure_rate is not None and previous_rag_failure_rate not in (None, 0)
-            else None
+            else 0 if previous_rag_failure_rate == 0 else None
         )
         tool_call_success_rate_pop = (
             (current_tool_call_success_rate - previous_tool_call_success_rate) / previous_tool_call_success_rate
             if current_tool_call_success_rate is not None and previous_tool_call_success_rate not in (None, 0)
-            else None
+            else 0 if previous_tool_call_success_rate == 0 else None
         )
 
         # 6.计算4个指标对应的趋势
