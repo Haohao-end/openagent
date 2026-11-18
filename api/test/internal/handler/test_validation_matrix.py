@@ -10,6 +10,7 @@ DOCUMENT_ID = "00000000-0000-0000-0000-000000000004"
 SEGMENT_ID = "00000000-0000-0000-0000-000000000005"
 WORKFLOW_ID = "00000000-0000-0000-0000-000000000006"
 CONVERSATION_ID = "00000000-0000-0000-0000-000000000007"
+MESSAGE_ID = "00000000-0000-0000-0000-000000000008"
 
 
 CASES = [
@@ -158,6 +159,12 @@ CASES = [
         "method": "post",
         "url": "/conversations/messages/compare",
         "kwargs": {"json": {"target_message_id": "invalid-uuid", "base_message_id": "invalid-uuid"}},
+    },
+    {
+        "name": "replay_message_invalid_patch_type",
+        "method": "post",
+        "url": f"/conversations/messages/{MESSAGE_ID}/replay",
+        "kwargs": {"json": {"patch": "not-a-dict"}},
     },
 ]
 

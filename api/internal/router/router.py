@@ -713,6 +713,11 @@ class Router:
             "/conversations/messages/<uuid:message_id>/trace",
             view_func=self.conversation_handler.get_message_trace,
         )
+        bp.add_url_rule(
+            "/conversations/messages/<uuid:message_id>/replay",
+            methods=["POST"],
+            view_func=self.conversation_handler.replay_message,
+        )
 
         # 17.语音转换模块
         bp.add_url_rule(
