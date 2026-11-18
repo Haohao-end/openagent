@@ -914,7 +914,7 @@ class AppService(BaseService):
 
         # 2.查询指定的历史版本配置id
         app_config_version = self.get(AppConfigVersion, app_config_version_id)
-        if not app_config_version:
+        if not app_config_version or app_config_version.app_id != app.id:
             raise NotFoundException("该历史版本配置不存在，请核实后重试")
 
         # 3.校验历史版本配置信息（剔除已删除的工具、知识库、工作流）
