@@ -114,14 +114,20 @@ export const useDeleteConversation = () => {
 export const useDeleteMessage = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let activeRequests = 0
 
   // 2.定义删除消息处理器
   const handleDeleteMessage = async (conversation_id: string, message_id: string) => {
+    activeRequests++
     try {
       loading.value = true
       await deleteMessage(conversation_id, message_id)
     } finally {
-      loading.value = false
+      activeRequests--
+      if (activeRequests <= 0) {
+        activeRequests = 0
+        loading.value = false
+      }
     }
   }
 
@@ -159,15 +165,22 @@ export const useGetConversationName = () => {
 export const useUpdateConversationName = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新会话名字处理器
   const handleUpdateConversationName = async (conversation_id: string, name: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await updateConversationName(conversation_id, name)
-      Message.success(resp.message)
+      if (requestId === latestRequest) {
+        Message.success(resp.message)
+      }
+      return resp
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
