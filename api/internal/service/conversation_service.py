@@ -678,13 +678,18 @@ class ConversationService(BaseService):
         message = self.get_message(message_id, account)
         conversation = self.get(Conversation, message.conversation_id)
         app = self.get(App, message.app_id) if conversation else None
-
-        patch_dict = patch if isinstance(patch, dict) else {}
-        invalid_keys = set(patch_dict.keys()) - _ALLOWED_REPLAY_PATCH_KEYS
-        if invalid_keys:
-            raise ValidateErrorException(f"不支持的回放Patch配置项: {', '.join(sorted(invalid_keys))}")
-
-        app_config = getattr(app, "draft_app_config", None) if app else None
+        
+        # Verify app ownership
+        if app and app.account_id != account.id:
+            raise NotFoundException("App not found or access denied")
+        
+        # Check invoke_from source
+        if message.invoke_from == InvokeFrom.SERVICE_API.value:
+            # WebApp messages should not leak draft_app_config
+            app_config = None
+        else:
+            app_config = getattr(app, "draft_app_config", None) if app else None
+        
         config_snapshot = {
             "model_config": getattr(app_config, "model_config", {}) if app_config else {},
             "preset_prompt": getattr(app_config, "preset_prompt", "") if app_config else "",
@@ -693,6 +698,11 @@ class ConversationService(BaseService):
             "datasets": getattr(app_config, "datasets", []) if app_config else [],
             "workflows": getattr(app_config, "workflows", []) if app_config else [],
         }
+
+        patch_dict = patch if isinstance(patch, dict) else {}
+        invalid_keys = set(patch_dict.keys()) - _ALLOWED_REPLAY_PATCH_KEYS
+        if invalid_keys:
+            raise ValidateErrorException(f"不支持的回放Patch配置项: {', '.join(sorted(invalid_keys))}")
 
         return {
             "message_id": str(message.id),
