@@ -58,3 +58,25 @@ class TestConversationCompareHandler:
         assert resp.json["code"] == "success"
         assert resp.json["data"]["message_id"] == msg_id
         assert len(resp.json["data"]["timeline"]) == 1
+
+    def test_replay_message_delegates_to_service(self, http_client, current_user, monkeypatch):
+        msg_id = "00000000-0000-0000-0000-000000000002"
+        mock_service = MagicMock()
+        mock_service.build_replay_snapshot.return_value = {
+            "message_id": msg_id,
+            "input_snapshot": {"query": "hello"},
+            "applied_patch_keys": ["preset_prompt"],
+        }
+        monkeypatch.setattr(
+            "internal.handler.conversation_handler.ConversationService.build_replay_snapshot",
+            mock_service.build_replay_snapshot,
+        )
+
+        resp = http_client.post(
+            f"/conversations/messages/{msg_id}/replay",
+            json={"patch": {"preset_prompt": "new prompt"}},
+        )
+        assert resp.status_code == 200
+        assert resp.json["code"] == "success"
+        assert resp.json["data"]["message_id"] == msg_id
+        assert resp.json["data"]["applied_patch_keys"] == ["preset_prompt"]

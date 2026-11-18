@@ -13,6 +13,7 @@ from internal.schema.conversation_schema import (
     SearchConversationsReq,
     SearchConversationsResp,
     CompareMessagesReq,
+    ReplayMessageReq,
 )
 from internal.service import ConversationService
 from pkg.paginator import PageModel
@@ -151,3 +152,17 @@ class ConversationHandler:
         """根据传递的消息id获取该消息对应的执行 Trace 时间线"""
         trace = self.conversation_service.get_message_trace(message_id, current_user)
         return success_json(trace)
+
+    @login_required
+    def replay_message(self, message_id: UUID):
+        """根据消息id和可选Patch参数获取运行回放快照与校验结果"""
+        req = ReplayMessageReq()
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        replay = self.conversation_service.build_replay_snapshot(
+            message_id,
+            req.patch.data,
+            current_user,
+        )
+        return success_json(replay)

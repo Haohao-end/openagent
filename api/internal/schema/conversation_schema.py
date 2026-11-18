@@ -1,7 +1,7 @@
 from flask_wtf import FlaskForm
 from marshmallow import Schema, fields, pre_dump
-from wtforms import IntegerField, StringField, BooleanField
-from wtforms.validators import Optional, NumberRange, DataRequired, Length, UUID
+from wtforms import IntegerField, StringField, BooleanField, Field
+from wtforms.validators import Optional, NumberRange, DataRequired, Length, UUID, ValidationError
 from internal.lib.helper import datetime_to_timestamp
 from internal.lib.helper import build_input_parts, build_output_payload
 from internal.model import Message
@@ -137,3 +137,12 @@ class CompareMessagesReq(FlaskForm):
         DataRequired(message="基准消息ID不能为空"),
         UUID(message="基准消息ID格式必须为UUID"),
     ])
+
+
+class ReplayMessageReq(FlaskForm):
+    """回放消息运行请求结构体"""
+    patch = Field("patch")
+
+    def validate_patch(self, field):
+        if field.data is not None and not isinstance(field.data, dict):
+            raise ValidationError("patch必须为字典格式")

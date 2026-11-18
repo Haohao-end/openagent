@@ -980,6 +980,13 @@ CASES = [
         "kwargs": {},
         "patches": [("internal.service.conversation_service.ConversationService.get_message_trace", {"timeline": []})],
     },
+    {
+        "name": "replay_message_success",
+        "method": "post",
+        "url": f"/conversations/messages/{MESSAGE_ID}/replay",
+        "kwargs": {"json": {"patch": {"preset_prompt": "demo"}}},
+        "patches": [("internal.service.conversation_service.ConversationService.build_replay_snapshot", {"message_id": str(MESSAGE_ID)})],
+    },
     # api key
     {
         "name": "create_api_key_success",
