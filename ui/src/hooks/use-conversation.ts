@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import type {
   GetConversationMessagesWithPageResponse,
   GetRecentConversationsResponse,
+  MessageTraceData,
 } from '@/models/conversation'
 import { mergeChatHistoryMessages, type CallableTraceEvent } from '@/views/shared/chat-stream'
 import {
@@ -10,6 +11,7 @@ import {
   getRecentConversations,
   getConversationMessages,
   getConversationName,
+  getMessageTrace,
   updateConversationIsPinned,
   updateConversationName,
 } from '@/services/conversation'
@@ -227,4 +229,34 @@ export const useGetRecentConversations = () => {
   }
 
   return { loading, conversations, loadRecentConversations, invalidateRecentConversations }
+}
+
+export const useGetMessageTrace = () => {
+  const loading = ref(false)
+  const trace = ref<MessageTraceData | null>(null)
+  let latestRequest = 0
+
+  const clearMessageTrace = () => {
+    latestRequest += 1
+    loading.value = false
+    trace.value = null
+  }
+
+  const loadMessageTrace = async (message_id: string) => {
+    const requestId = ++latestRequest
+    try {
+      loading.value = true
+      const resp = await getMessageTrace(message_id)
+      if (requestId !== latestRequest) return
+      trace.value = resp.data
+      return resp.data
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
+    } finally {
+      if (requestId === latestRequest) loading.value = false
+    }
+  }
+
+  return { loading, trace, loadMessageTrace, clearMessageTrace }
 }
