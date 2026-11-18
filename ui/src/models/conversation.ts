@@ -1,5 +1,4 @@
 import { type BasePaginatorRequest, type BasePaginatorResponse, type BaseResponse } from '@/models/base'
-import type { ChatConversationMessage } from '@/models/chat'
 
 // 获取指定会话消息列表请求结构
 export type GetConversationMessagesWithPageRequest = BasePaginatorRequest & {
@@ -49,3 +48,32 @@ export type RecentConversation = {
 }
 
 export type GetRecentConversationsResponse = BaseResponse<RecentConversation[]>
+
+export type MessageTraceSpan = {
+  id: string
+  position: number
+  event: string
+  thought: string
+  observation: string
+  tool: string
+  tool_input: Record<string, any>
+  latency: number
+  total_token_count: number
+  total_price: number
+  created_at: number
+}
+
+export type MessageTraceData = {
+  message_id: string
+  conversation_id: string
+  app_id: string
+  status: string
+  error: string
+  latency: number
+  total_token_count: number
+  total_price: number
+  created_at: number
+  timeline: MessageTraceSpan[]
+}
+
+export type GetMessageTraceResponse = BaseResponse<MessageTraceData>
