@@ -31,7 +31,8 @@ from internal.handler import (
     SkillHandler,
     HomeHandler,
     NotificationHandler,
-    TagHandler
+    TagHandler,
+    FeedbackHandler
 )
 
 
@@ -68,6 +69,8 @@ class Router:
     home_handler: HomeHandler
     notification_handler: NotificationHandler
     tag_handler: TagHandler
+    feedback_handler: FeedbackHandler
+
 
     def register_router(self, app: Flask):
         """注册路由"""
@@ -777,6 +780,11 @@ class Router:
         bp.add_url_rule(
             "/public/apps/tags",
             view_func=self.public_app_handler.get_app_tags,
+        )
+        bp.add_url_rule(
+            "/apps/<uuid:app_id>/feedbacks",
+            methods=["POST"],
+            view_func=self.feedback_handler.create_feedback,
         )
         bp.add_url_rule(
             "/apps/<uuid:app_id>/share-to-square",

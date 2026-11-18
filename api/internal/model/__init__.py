@@ -11,6 +11,8 @@ from .platform import WechatConfig, WechatEndUser, WechatMessage
 from .tag import Tag, AppTag, WorkflowTag
 from .mcp import McpProvider
 from .skill import SkillPackage, SkillPackageVersion
+from .feedback import Feedback
+
 
 __all__ = [
     "App", "AppDatasetJoin", "AppConfig", "AppConfigVersion",
@@ -25,4 +27,5 @@ __all__ = [
     "Tag", "AppTag", "WorkflowTag",
     "McpProvider",
     "SkillPackage", "SkillPackageVersion",
+    "Feedback",
 ]
