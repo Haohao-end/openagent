@@ -78,7 +78,7 @@ const props = defineProps({
   always_show_actions: { type: Boolean, default: false, required: false },
   audio_stream_id: { type: String, default: '', required: false },
 })
-const emits = defineEmits(['selectSuggestedQuestion', 'viewTrace'])
+const emits = defineEmits(['selectSuggestedQuestion', 'viewTrace', 'compareMessages'])
 const { t } = useI18n()
 const { renderMarkdown, handleMarkdownCopyClick } = useMarkdownRenderer()
 const normalizedArtifacts = computed(() => {
@@ -244,6 +244,12 @@ const handleViewTrace = () => {
   }
 }
 
+const handleCompare = () => {
+  if (props.message_id) {
+    emits('compareMessages', props.message_id)
+  }
+}
+
 const handleMarkdownClick = async (event: MouseEvent) => {
   await handleMarkdownCopyClick(event, { successMessage: t('chat.messages.codeCopied') })
 }
@@ -356,6 +362,11 @@ const handleMarkdownClick = async (event: MouseEvent) => {
               v-if="props.message_id"
               :class="actionIconClass"
               @click="handleViewTrace"
+            />
+            <icon-sync
+              v-if="props.message_id"
+              :class="actionIconClass"
+              @click="handleCompare"
             />
             <icon-copy
               :class="actionIconClass"

@@ -1133,6 +1133,9 @@ export default {
       title: 'Message Trace',
       status: 'Status',
     },
+    compareMessages: {
+      title: 'Compare Messages',
+    },
     composer: {
       placeholder: 'Send a message',
       uploadDisabled: 'Image upload is not supported here',

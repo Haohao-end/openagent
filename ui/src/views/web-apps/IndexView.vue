@@ -43,10 +43,12 @@ import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import UpdateNameModal from './components/UpdateNameModal.vue'
 import MessageTraceModal from '@/components/chat/MessageTraceModal.vue'
+import CompareMessagesModal from '@/components/chat/CompareMessagesModal.vue'
 
 // 1.定义页面所需数据
 const route = useRoute()
 const messageTraceModalRef = ref<InstanceType<typeof MessageTraceModal> | null>(null)
+const compareMessagesModalRef = ref<InstanceType<typeof CompareMessagesModal> | null>(null)
 const updateConversationNameModalVisible = ref(false)
 const updateConversationNameId = ref('')
 type ConversationSummary = GetWebAppConversationsResponse['data'][number]
@@ -96,6 +98,11 @@ const showScrollToBottomButton = ref(false)
 const handleViewTrace = (message_id: string) => {
   messageTraceModalRef.value?.open(message_id)
 }
+
+const handleCompareMessages = (message_id: string) => {
+  compareMessagesModalRef.value?.open(message_id)
+}
+
 
 const humanMessageElements = ref<HTMLElement[]>([])
 const currentHumanMessageIndex = ref(-1)
@@ -869,6 +876,7 @@ onUnmounted(() => {
                   :latency="item.latency"
                   :total_token_count="item.total_token_count"
                   @view-trace="handleViewTrace"
+                  @compare-messages="handleCompareMessages"
                   :agent_thought_default_visible="false"
                   :agent_thought_follow_latest="false"
                   @select-suggested-question="handleSubmitQuestion"
@@ -967,6 +975,7 @@ onUnmounted(() => {
       :success_callback="successUpdateNameCallback"
     />
     <message-trace-modal ref="messageTraceModalRef" />
+    <compare-messages-modal ref="compareMessagesModalRef" />
   </div>
 </template>
 
