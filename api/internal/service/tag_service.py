@@ -9,7 +9,7 @@ from typing import Any, Optional
 from uuid import UUID
 
 from injector import inject
-from sqlalchemy import and_, desc, func
+from sqlalchemy import and_, desc, func, or_
 
 from internal.entity.tag_entity import TagStatus, TagType
 from internal.exception import ValidateErrorException
@@ -313,16 +313,24 @@ class TagService(BaseService):
             return True
         return False
 
-    def get_app_tags(self, app_id: UUID) -> list[Tag]:
+    def get_app_tags(self, app_id: UUID, account_id: Optional[UUID] = None) -> list[Tag]:
         """
         获取应用的所有标签
 
         Args:
             app_id: 应用 ID
+            account_id: 可选账户 ID，指定时仅允许访问公开或归属于该账户的应用标签
 
         Returns:
             List[Tag]: 标签列表
         """
+        if account_id:
+            app = self._get_owned_resource(App, app_id, account_id)
+            if not app:
+                app = self.db.session.query(App).filter(and_(App.id == app_id, App.is_public == True)).one_or_none()
+            if not app:
+                return []
+
         app_tags = self.db.session.query(AppTag).filter(AppTag.app_id == app_id).all()
         tag_ids = [at.tag_id for at in app_tags]
         if not tag_ids:
@@ -403,16 +411,24 @@ class TagService(BaseService):
             return True
         return False
 
-    def get_workflow_tags(self, workflow_id: UUID) -> list[Tag]:
+    def get_workflow_tags(self, workflow_id: UUID, account_id: Optional[UUID] = None) -> list[Tag]:
         """
         获取工作流的所有标签
 
         Args:
             workflow_id: 工作流 ID
+            account_id: 可选账户 ID，指定时仅允许访问公开或归属于该账户的工作流标签
 
         Returns:
             List[Tag]: 标签列表
         """
+        if account_id:
+            workflow = self._get_owned_resource(Workflow, workflow_id, account_id)
+            if not workflow:
+                workflow = self.db.session.query(Workflow).filter(and_(Workflow.id == workflow_id, Workflow.is_public == True)).one_or_none()
+            if not workflow:
+                return []
+
         workflow_tags = self.db.session.query(WorkflowTag).filter(WorkflowTag.workflow_id == workflow_id).all()
         tag_ids = [wt.tag_id for wt in workflow_tags]
         if not tag_ids:

@@ -373,3 +373,45 @@ def test_create_tag_should_validate_and_normalize_name_and_description():
     res = service.create_tag(account_id, "  trimmed-name  ", "  trimmed-desc  ")
     assert res["name"] == "trimmed-name"
     assert res["description"] == "trimmed-desc"
+
+
+def test_get_app_and_workflow_tags_account_isolation(monkeypatch):
+    service = TagService(db=SimpleNamespace(session=SimpleNamespace()))
+    account_a = uuid4()
+    account_b = uuid4()
+    app_id = uuid4()
+    wf_id = uuid4()
+    tag = SimpleNamespace(id=uuid4(), name="demo")
+
+    def _fake_owned(model, res_id, acc_id):
+        if model is App and res_id == app_id and acc_id == account_a:
+            return SimpleNamespace(id=res_id)
+        if model is Workflow and res_id == wf_id and acc_id == account_a:
+            return SimpleNamespace(id=res_id)
+        return None
+
+    monkeypatch.setattr(service, "_get_owned_resource", _fake_owned)
+
+    def _query(model):
+        q = _QueryStub()
+        if model in (AppTag, WorkflowTag):
+            q.all = lambda: [SimpleNamespace(tag_id=tag.id)]
+        elif model is Tag:
+            q.all = lambda: [tag]
+        else:
+            q.one_or_none = lambda: None
+        return q
+
+    service.db.session.query = _query
+
+    # 1. 拥有者查询应用和工作流标签
+    assert service.get_app_tags(app_id, account_id=account_a) == [tag]
+    assert service.get_workflow_tags(wf_id, account_id=account_a) == [tag]
+
+    # 2. 非拥有者查询私有应用和工作流标签 -> 空
+    assert service.get_app_tags(app_id, account_id=account_b) == []
+    assert service.get_workflow_tags(wf_id, account_id=account_b) == []
+
+    # 3. 未传 account_id 保持兼容
+    assert service.get_app_tags(app_id) == [tag]
+    assert service.get_workflow_tags(wf_id) == [tag]
