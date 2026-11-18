@@ -69,3 +69,27 @@ export type UpdateDraftGraphRequest = {
   nodes: Record<string, any>[]
   edges: Record<string, any>[]
 }
+
+// 工作流运行追踪步骤与追踪详情响应
+export type WorkflowResultTraceStep = {
+  node_id: string
+  node_type?: string
+  status: string
+  inputs?: Record<string, any>
+  outputs?: Record<string, any>
+  error?: string
+  latency?: number
+  created_at?: number
+}
+
+export type WorkflowResultTraceData = {
+  id: string
+  workflow_id: string
+  status: string
+  latency: number
+  created_at: number
+  updated_at: number
+  steps: WorkflowResultTraceStep[]
+}
+
+export type GetWorkflowResultTraceResponse = BaseResponse<WorkflowResultTraceData>

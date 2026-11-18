@@ -3,6 +3,7 @@ import type {
   CreateWorkflowRequest,
   GetDraftGraphResponse,
   GetWorkflowResponse,
+  GetWorkflowResultTraceResponse,
   GetWorkflowsWithPageRequest,
   GetWorkflowsWithPageResponse,
   UpdateDraftGraphRequest,
@@ -81,4 +82,9 @@ export const generateIconPreview = (name: string, description: string) => {
 // 分享或取消分享工作流到广场
 export const shareWorkflow = (workflow_id: string, is_public: boolean) => {
   return post<BaseResponse<any>>(`/workflows/${workflow_id}/share`, { body: { is_public } })
+}
+
+// 获取工作流运行记录 Trace 详情
+export const getWorkflowResultTrace = (workflow_id: string, result_id: string) => {
+  return get<GetWorkflowResultTraceResponse>(`/workflows/${workflow_id}/results/${result_id}/trace`)
 }
