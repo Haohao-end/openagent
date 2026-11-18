@@ -360,3 +360,22 @@ class TestAnalysisService:
             filter=lambda *_f: SimpleNamespace(one_or_none=lambda: None)
         )
         assert service.get_rag_failure_rate_by_time_range(app, start_at, end_at) is None
+
+    def test_get_rag_quality_summary_by_time_range(self, monkeypatch):
+        app = SimpleNamespace(id=uuid4())
+        start_at = datetime(2024, 1, 1, 0, 0, 0)
+        end_at = datetime(2024, 1, 8, 0, 0, 0)
+        service = _build_service(app=app)
+
+        monkeypatch.setattr(service, "get_rag_hit_rate_by_time_range", lambda *_args: 0.8)
+        monkeypatch.setattr(service, "get_rag_empty_result_rate_by_time_range", lambda *_args: 0.2)
+        monkeypatch.setattr(service, "get_rag_failure_rate_by_time_range", lambda *_args: 0.05)
+        monkeypatch.setattr(service, "get_rag_latency_by_time_range", lambda *_args: 1.25)
+
+        summary = service.get_rag_quality_summary_by_time_range(app, start_at, end_at)
+        assert summary == {
+            "hit_rate": 0.8,
+            "empty_result_rate": 0.2,
+            "failure_rate": 0.05,
+            "avg_latency": 1.25,
+        }
