@@ -78,7 +78,7 @@ const props = defineProps({
   always_show_actions: { type: Boolean, default: false, required: false },
   audio_stream_id: { type: String, default: '', required: false },
 })
-const emits = defineEmits(['selectSuggestedQuestion'])
+const emits = defineEmits(['selectSuggestedQuestion', 'viewTrace'])
 const { t } = useI18n()
 const { renderMarkdown, handleMarkdownCopyClick } = useMarkdownRenderer()
 const normalizedArtifacts = computed(() => {
@@ -238,6 +238,12 @@ const handleCopyAnswer = async () => {
   Message.success(t('chat.messages.aiCopied'))
 }
 
+const handleViewTrace = () => {
+  if (props.message_id) {
+    emits('viewTrace', props.message_id)
+  }
+}
+
 const handleMarkdownClick = async (event: MouseEvent) => {
   await handleMarkdownCopyClick(event, { successMessage: t('chat.messages.codeCopied') })
 }
@@ -346,6 +352,11 @@ const handleMarkdownClick = async (event: MouseEvent) => {
           </a-space>
           <!-- 播放音频&暂停播放 -->
           <div class="flex items-center gap-2">
+            <icon-search
+              v-if="props.message_id"
+              :class="actionIconClass"
+              @click="handleViewTrace"
+            />
             <icon-copy
               :class="actionIconClass"
               @click="handleCopyAnswer"
