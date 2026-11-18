@@ -271,14 +271,14 @@ class AnalysisService(BaseService):
         # 4.平均会话互动数，使用消息总数/会话总数，涉及除法要做/0判断
         avg_of_conversation_messages = 0
         conversation_count = len({message.conversation_id for message in messages})
-        if conversation_count != 0:
+        if conversation_count > 0:
             avg_of_conversation_messages = total_messages / conversation_count
 
         # 5.Token输出速度，使用总token数/总耗时，涉及除法要做/0判断
         token_output_rate = 0
-        latency_sum = sum(message.latency for message in messages)
-        if latency_sum != 0:
-            token_output_rate = sum(message.total_token_count for message in messages) / latency_sum
+        latency_sum = sum(float(message.latency or 0) for message in messages)
+        if latency_sum > 0:
+            token_output_rate = sum(int(message.total_token_count or 0) for message in messages) / latency_sum
 
         # 6.计算费用消耗，使用总花费进行求和
         cost_consumption = sum(message.total_price for message in messages)
