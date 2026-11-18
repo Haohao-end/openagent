@@ -2232,6 +2232,16 @@ class TestAppService:
         with pytest.raises(NotFoundException):
             service.fallback_history_to_draft(app.id, uuid4(), SimpleNamespace(id=uuid4()))
 
+    def test_fallback_history_to_draft_should_raise_when_history_belongs_to_different_app(self, monkeypatch):
+        service = _build_service()
+        app = SimpleNamespace(id=uuid4(), draft_app_config=SimpleNamespace(id=uuid4()))
+        other_history = SimpleNamespace(id=uuid4(), app_id=uuid4())
+        monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: app)
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: other_history)
+
+        with pytest.raises(NotFoundException, match="该历史版本配置不存在"):
+            service.fallback_history_to_draft(app.id, other_history.id, SimpleNamespace(id=uuid4()))
+
     def test_debug_chat_should_stream_agent_events_and_persist_thoughts(self, monkeypatch, caplog):
         service = _build_service()
         account = SimpleNamespace(id=uuid4())
