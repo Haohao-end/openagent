@@ -197,6 +197,15 @@ class AnalysisService(BaseService):
             return None
         return float(row.failure_count / row.total)
 
+    def get_rag_quality_summary_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> dict[str, Any]:
+        """按指定时间范围聚合统计知识库检索质量指标：命中率、空结果率、失败率与平均延迟。"""
+        return {
+            "hit_rate": self.get_rag_hit_rate_by_time_range(app, start_at, end_at),
+            "empty_result_rate": self.get_rag_empty_result_rate_by_time_range(app, start_at, end_at),
+            "failure_rate": self.get_rag_failure_rate_by_time_range(app, start_at, end_at),
+            "avg_latency": self.get_rag_latency_by_time_range(app, start_at, end_at),
+        }
+
     def get_tool_call_success_rate_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
         """根据传递的时间范围计算指定应用的工具调用成功率。"""
         error_prefix = "工具执行出错:"
