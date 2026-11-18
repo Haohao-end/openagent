@@ -32,7 +32,8 @@ from internal.handler import (
     HomeHandler,
     NotificationHandler,
     TagHandler,
-    FeedbackHandler
+    FeedbackHandler,
+    TraceHandler
 )
 
 
@@ -70,6 +71,7 @@ class Router:
     notification_handler: NotificationHandler
     tag_handler: TagHandler
     feedback_handler: FeedbackHandler
+    trace_handler: TraceHandler
 
 
     def register_router(self, app: Flask):
@@ -785,6 +787,10 @@ class Router:
             "/apps/<uuid:app_id>/feedbacks",
             methods=["POST"],
             view_func=self.feedback_handler.create_feedback,
+        )
+        bp.add_url_rule(
+            "/apps/<uuid:app_id>/messages/<uuid:message_id>/timeline",
+            view_func=self.trace_handler.get_message_timeline,
         )
         bp.add_url_rule(
             "/apps/<uuid:app_id>/share-to-square",

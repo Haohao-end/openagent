@@ -14,6 +14,8 @@ from .openapi_handler import OpenAPIHandler
 from .segment_handler import SegmentHandler
 from .tag_handler import TagHandler
 from .feedback_handler import FeedbackHandler
+from .trace_handler import TraceHandler
+
 
 from .upload_file_handler import UploadFileHandler
 from .workflow_handler import WorkflowHandler
@@ -61,5 +63,6 @@ __all__ = [
     "SkillHandler",
     "HomeHandler",
     "NotificationHandler",
-    "FeedbackHandler"
+    "FeedbackHandler",
+    "TraceHandler"
 ]
