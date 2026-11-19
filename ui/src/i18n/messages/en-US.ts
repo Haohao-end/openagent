@@ -1156,6 +1156,16 @@ export default {
       seconds: '{n}s',
       tokensUnit: '{n} tokens',
     },
+    replayMessage: {
+      title: 'Replay Message & Config Patch',
+      query: 'Input Query',
+      presetPrompt: 'Preset Prompt Patch',
+      presetPromptPlaceholder: 'Leave empty to keep original prompt',
+      appliedPatches: 'Applied Patches',
+      executeReplay: 'Execute Replay',
+      snapshotReady: 'Snapshot and patch built successfully',
+      noPatches: 'No config patch applied',
+    },
     composer: {
       placeholder: 'Send a message',
       uploadDisabled: 'Image upload is not supported here',

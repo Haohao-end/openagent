@@ -6,6 +6,8 @@ import type {
   GetConversationMessagesWithPageResponse,
   GetMessageTraceResponse,
   GetRecentConversationsResponse,
+  ReplayMessageRequest,
+  ReplayMessageResponse,
 } from '@/models/conversation'
 import type { BaseResponse } from '@/models/base'
 
@@ -62,4 +64,11 @@ export const getMessageTrace = (message_id: string) => {
 // 比较两次运行消息差异
 export const compareMessages = (req: CompareMessagesRequest) => {
   return post<CompareMessagesResponse>(`/conversations/messages/compare`, { body: req })
+}
+
+// 重放运行消息并应用 Patch 配置
+export const replayMessage = (message_id: string, req?: ReplayMessageRequest) => {
+  return post<ReplayMessageResponse>(`/conversations/messages/${message_id}/replay`, {
+    body: req ?? {},
+  })
 }

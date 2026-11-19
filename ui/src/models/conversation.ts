@@ -116,3 +116,31 @@ export type CompareMessagesData = {
 }
 
 export type CompareMessagesResponse = BaseResponse<CompareMessagesData>
+
+// 重放运行消息请求
+export type ReplayMessageRequest = {
+  patch?: Record<string, any>
+}
+
+// 重放输入及配置快照
+export type ReplaySnapshotData = {
+  message_id: string
+  conversation_id: string
+  app_id: string
+  input_snapshot: {
+    query: string
+    image_urls: string[]
+  }
+  config_snapshot: {
+    model_config?: Record<string, any>
+    preset_prompt?: string
+    retrieval_config?: Record<string, any>
+    tools?: Array<Record<string, any>>
+    datasets?: Array<Record<string, any>>
+    workflows?: Array<Record<string, any>>
+  }
+  patched_config: Record<string, any>
+  applied_patch_keys: string[]
+}
+
+export type ReplayMessageResponse = BaseResponse<ReplaySnapshotData>
