@@ -41,3 +41,23 @@ def test_assign_tags_by_deepseek_should_redact_provider_exception(caplog):
     assert result == []
     assert secret not in caplog.text
     assert "error_type=RuntimeError" in caplog.text
+
+
+def test_match_tags_by_keywords_handles_none_and_empty_inputs():
+    assert TagAssignmentService.match_tags_by_keywords(None, None) == []
+    assert TagAssignmentService.match_tags_by_keywords("", "") == []
+    assert TagAssignmentService.match_tags_by_keywords("   ", "   ") == []
+
+    # Keyword match with None description
+    tags_coding = TagAssignmentService.match_tags_by_keywords("Python代码助手", None)
+    assert "coding" in tags_coding
+
+    # Keyword match with None name
+    tags_writing = TagAssignmentService.match_tags_by_keywords(None, "帮助用户撰写文案与文章")
+    assert "writing" in tags_writing
+
+
+def test_auto_assign_tags_falls_back_safely_on_none_inputs():
+    with patch.object(TagAssignmentService, "assign_tags_by_deepseek", return_value=[]):
+        tags = TagAssignmentService.auto_assign_tags(None, None)
+    assert tags == ["other"]

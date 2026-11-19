@@ -37,7 +37,12 @@ class TagAssignmentService:
         Returns:
             匹配到的标签列表，按优先级排序
         """
-        text = f"{name} {description}".lower()
+        name_str = (name or "").strip()
+        desc_str = (description or "").strip()
+        if not name_str and not desc_str:
+            return []
+
+        text = f"{name_str} {desc_str}".lower()
         matched_tags = {}
 
         for tag_id, tag_info in TAG_KEYWORDS_MAPPING.items():
@@ -49,7 +54,7 @@ class TagAssignmentService:
             for keyword in tag_info["keywords"]:
                 if keyword.lower() in text:
                     # 名称中的匹配权重更高
-                    if keyword.lower() in name.lower():
+                    if keyword.lower() in name_str.lower():
                         match_score += 2
                     else:
                         match_score += 1
@@ -82,6 +87,8 @@ class TagAssignmentService:
         Returns:
             分配的标签列表
         """
+        name = (name or "").strip()
+        description = (description or "").strip()
         try:
             # 创建LLM实例
             llm = Chat(
