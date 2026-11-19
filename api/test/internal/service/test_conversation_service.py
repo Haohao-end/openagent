@@ -2510,6 +2510,17 @@ class TestConversationServiceBasics:
         with pytest.raises(ValidateErrorException, match="不支持的回放Patch配置项"):
             service.build_replay_snapshot(msg.id, {"dangerous_action": True}, account)
 
+    def test_build_replay_snapshot_should_reject_non_dict_patch(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        msg = SimpleNamespace(id=uuid4(), conversation_id=uuid4(), app_id=uuid4())
+        service = ConversationService(db=SimpleNamespace())
+        monkeypatch.setattr(service, "get_message", lambda _mid, _acc: msg)
+        monkeypatch.setattr(service, "get", lambda *_args: None)
+
+        for invalid_patch in ["string_patch", [1, 2, 3], 12345, True]:
+            with pytest.raises(ValidateErrorException, match="回放Patch配置必须为字典对象"):
+                service.build_replay_snapshot(msg.id, invalid_patch, account)
+
     def test_build_replay_snapshot_should_not_leak_draft_app_config_for_service_api(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         msg = SimpleNamespace(

@@ -683,6 +683,9 @@ class ConversationService(BaseService):
         if app and getattr(app, "account_id", None) is not None and app.account_id != account.id:
             raise NotFoundException("应用不存在或无访问权限")
 
+        if patch is not None and not isinstance(patch, dict):
+            raise ValidateErrorException("回放Patch配置必须为字典对象")
+
         patch_dict = patch if isinstance(patch, dict) else {}
         invalid_keys = set(patch_dict.keys()) - _ALLOWED_REPLAY_PATCH_KEYS
         if invalid_keys:
