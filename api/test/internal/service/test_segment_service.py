@@ -1210,3 +1210,55 @@ class TestSegmentService:
         assert update_calls[-1][0] is document
         assert update_calls[-1][1]["character_count"] == 10
         assert update_calls[-1][1]["token_count"] == 5
+
+    def test_delete_segment_succeeds_when_document_is_none(self, monkeypatch):
+        segment = SimpleNamespace(
+            id=uuid4(),
+            account_id=uuid4(),
+            dataset_id=uuid4(),
+            document_id=uuid4(),
+            node_id=uuid4(),
+            status=SegmentStatus.COMPLETED.value,
+            document=None,
+        )
+        service = self._build_service()
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: segment)
+        segment_deletes = []
+        monkeypatch.setattr(service, "delete", lambda target: segment_deletes.append(target))
+        account = SimpleNamespace(id=segment.account_id)
+
+        result = service.delete_segment(segment.dataset_id, segment.document_id, segment.id, account)
+        assert result is segment
+        assert segment_deletes == [segment]
+
+    def test_update_segment_enabled_succeeds_when_document_is_none(self, monkeypatch):
+        segment = SimpleNamespace(
+            id=uuid4(),
+            account_id=uuid4(),
+            dataset_id=uuid4(),
+            document_id=uuid4(),
+            node_id=uuid4(),
+            status=SegmentStatus.COMPLETED.value,
+            enabled=False,
+            document=None,
+        )
+        keyword_deletes = []
+        service = self._build_service()
+        service.keyword_table_service = SimpleNamespace(
+            add_keyword_table_from_ids=lambda *_args: None,
+            delete_keyword_table_from_ids=lambda _did, ids: keyword_deletes.append(ids),
+        )
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: segment)
+        update_calls = []
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda target, **kwargs: update_calls.append((target, kwargs)) or target,
+        )
+        account = SimpleNamespace(id=segment.account_id)
+
+        service.update_segment_enabled(
+            segment.dataset_id, segment.document_id, segment.id, True, account
+        )
+        assert keyword_deletes == [[segment.id]]
+        assert update_calls[0][1]["enabled"] is True

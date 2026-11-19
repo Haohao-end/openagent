@@ -324,7 +324,7 @@ class SegmentService(BaseService):
 
                 # 7.更新关键词表的对应信息，有可能新增，也有可能删除
                 document = segment.document
-                if enabled is True and document.enabled is True:
+                if enabled is True and document and document.enabled is True:
                     self.keyword_table_service.add_keyword_table_from_ids(dataset_id, [segment_id])
                 else:
                     self.keyword_table_service.delete_keyword_table_from_ids(dataset_id, [segment_id])
@@ -381,14 +381,15 @@ class SegmentService(BaseService):
         self.delete(segment)
 
         # 6.更新文档信息，涵盖字符总数、token总次数
-        document_character_count, document_token_count = self.db.session.query(
-            func.coalesce(func.sum(Segment.character_count), 0),
-            func.coalesce(func.sum(Segment.token_count), 0)
-        ).filter(Segment.document_id == document.id).first()
-        self.update(
-            document,
-            character_count=document_character_count,
-            token_count=document_token_count,
-        )
+        if document:
+            document_character_count, document_token_count = self.db.session.query(
+                func.coalesce(func.sum(Segment.character_count), 0),
+                func.coalesce(func.sum(Segment.token_count), 0)
+            ).filter(Segment.document_id == document.id).first()
+            self.update(
+                document,
+                character_count=document_character_count,
+                token_count=document_token_count,
+            )
 
         return segment
