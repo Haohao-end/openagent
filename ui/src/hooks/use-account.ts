@@ -44,15 +44,22 @@ export const useGetCurrentUser = () => {
 export const useUpdateAvatar = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新头像处理器
   const handleUpdateAvatar = async (avatar: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await updateAvatar(avatar)
+      if (requestId !== latestRequest) return false
       Message.success(resp.message)
+      return true
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -61,14 +68,21 @@ export const useUpdateAvatar = () => {
 
 export const useSendChangeEmailCode = () => {
   const loading = ref(false)
+  let latestRequest = 0
 
   const handleSendChangeEmailCode = async (email: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await sendChangeEmailCode(email)
+      if (requestId !== latestRequest) return false
       Message.success(resp.message)
+      return true
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -78,14 +92,21 @@ export const useSendChangeEmailCode = () => {
 export const useUpdateName = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新名字处理器
   const handleUpdateName = async (name: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
-      await updateName(name)
+      const resp = await updateName(name)
+      if (requestId !== latestRequest) return false
+      return resp
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -94,14 +115,21 @@ export const useUpdateName = () => {
 
 export const useUpdateEmail = () => {
   const loading = ref(false)
+  let latestRequest = 0
 
   const handleUpdateEmail = async (email: string, code: string, current_password: string = '') => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await updateEmail(email, code, current_password)
+      if (requestId !== latestRequest) return false
       Message.success(resp.message)
+      return true
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -111,15 +139,22 @@ export const useUpdateEmail = () => {
 export const useUpdatePassword = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新密码处理器
   const handleUpdatePassword = async (current_password: string, new_password: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await updatePassword(current_password, new_password)
+      if (requestId !== latestRequest) return false
       Message.success(resp.message)
+      return true
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -226,14 +261,21 @@ export const useGetAccountLoginHistory = () => {
 
 export const useRevokeAccountSession = () => {
   const loading = ref(false)
+  let latestRequest = 0
 
   const handleRevokeAccountSession = async (session_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await revokeAccountSession(session_id)
+      if (requestId !== latestRequest) return false
       Message.success(resp.message)
+      return true
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -242,14 +284,21 @@ export const useRevokeAccountSession = () => {
 
 export const useRevokeOtherAccountSessions = () => {
   const loading = ref(false)
+  let latestRequest = 0
 
   const handleRevokeOtherAccountSessions = async () => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await revokeOtherAccountSessions()
+      if (requestId !== latestRequest) return false
       Message.success(resp.message)
+      return true
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -258,14 +307,21 @@ export const useRevokeOtherAccountSessions = () => {
 
 export const useUnbindOAuth = () => {
   const loading = ref(false)
+  let latestRequest = 0
 
   const handleUnbindOAuth = async (provider_name: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await unbindOAuth(provider_name)
+      if (requestId !== latestRequest) return false
       Message.success(resp.message)
+      return true
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
