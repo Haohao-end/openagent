@@ -47,4 +47,4 @@ class FeedbackService:
         query = db.session.query(Feedback).filter(Feedback.app_id == app_id)
         if target_type:
             query = query.filter(Feedback.target_type == target_type)
-        return query.order_by(desc(Feedback.created_at)).offset((page - 1) * limit).limit(limit).all()
+        return query.order_by(desc(Feedback.created_at), desc(Feedback.id)).offset((page - 1) * limit).limit(limit).all()

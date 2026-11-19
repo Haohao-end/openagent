@@ -11,5 +11,5 @@ class FeedbackCreateReq(FlaskForm):
 class FeedbackListReq(FlaskForm):
     app_id = StringField('app_id', validators=[Optional()])
     target_type = StringField('target_type', validators=[Optional(), AnyOf(['message', 'span'])])
-    page = IntegerField('page', validators=[Optional(), NumberRange(min=1)])
+    page = IntegerField('page', validators=[Optional(), NumberRange(min=1, max=100000)])
     limit = IntegerField('limit', validators=[Optional(), NumberRange(min=1, max=100)])

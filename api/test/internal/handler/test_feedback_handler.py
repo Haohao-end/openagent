@@ -200,6 +200,9 @@ class TestFeedbackHandler:
         resp = http_client.get(f"/apps/{app_id}/feedbacks?page=0")
         assert resp.status_code == 400
 
+        resp = http_client.get(f"/apps/{app_id}/feedbacks?page=100001")
+        assert resp.status_code == 400
+
         resp = http_client.get(f"/apps/{app_id}/feedbacks?limit=101")
         assert resp.status_code == 400
 
