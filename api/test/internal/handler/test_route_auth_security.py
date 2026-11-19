@@ -108,10 +108,22 @@ class TestRouteAuthSecurity:
         )
         call_state = {}
 
+        api_key_id = UUID("00000000-0000-0000-0000-000000000044")
         monkeypatch.setattr(
             ApiKeyService,
             "get_api_by_by_credential",
-            lambda _self, credential: SimpleNamespace(is_active=True, account=account, credential=credential),
+            lambda _self, credential: SimpleNamespace(
+                id=api_key_id,
+                account_id=account.id,
+                is_active=True,
+                account=account,
+                credential=credential,
+            ),
+        )
+        monkeypatch.setattr(
+            ApiKeyService,
+            "check_rate_limit",
+            lambda _self, _api_key_record, **_kwargs: (True, 1, 60),
         )
 
         def _chat(_self, req, current_account):
@@ -135,3 +147,44 @@ class TestRouteAuthSecurity:
         assert call_state["account"].id == account.id
         assert call_state["account"].is_authenticated is True
         assert call_state["app_id"] == OPENAPI_APP_ID
+
+    def test_openapi_chat_should_reject_when_rate_limit_exceeded(
+        self,
+        http_client,
+        monkeypatch,
+    ):
+        account = SimpleNamespace(
+            id=OPENAPI_ACCOUNT_ID,
+            is_authenticated=True,
+            name="tester",
+            email="tester@example.com",
+        )
+        api_key_id = UUID("00000000-0000-0000-0000-000000000044")
+
+        monkeypatch.setattr(
+            ApiKeyService,
+            "get_api_by_by_credential",
+            lambda _self, credential: SimpleNamespace(
+                id=api_key_id,
+                account_id=account.id,
+                is_active=True,
+                account=account,
+                credential=credential,
+            ),
+        )
+        monkeypatch.setattr(
+            ApiKeyService,
+            "check_rate_limit",
+            lambda _self, _api_key_record, **_kwargs: (False, 60, 60),
+        )
+
+        resp = http_client.post(
+            "/openapi/chat",
+            headers={"Authorization": "Bearer api-key-token"},
+            json={"app_id": OPENAPI_APP_ID, "query": "hello"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.get_json()
+        assert payload["code"] == HttpCode.FORBIDDEN
+        assert "API密钥调用频率超出限制" in payload["message"]
