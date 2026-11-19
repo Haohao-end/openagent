@@ -13,15 +13,19 @@ import { type LoginAuthorizationData } from '@/models/auth'
 export const useLogout = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义退出登录处理器
   const handleLogout = async () => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await logout()
-      Message.success(resp.message)
+      if (requestId === latestRequest) {
+        Message.success(resp.message)
+      }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -32,15 +36,19 @@ export const usePasswordLogin = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const authorization = ref<LoginAuthorizationData>({})
+  let latestRequest = 0
 
   // 2.定义账号密码处理器
   const handlePasswordLogin = async (email: string, password: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await passwordLogin(email, password)
-      authorization.value = resp.data
+      if (requestId === latestRequest) {
+        authorization.value = resp.data
+      }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -49,14 +57,16 @@ export const usePasswordLogin = () => {
 
 export const usePrepareRegister = () => {
   const loading = ref(false)
+  let latestRequest = 0
 
   const handlePrepareRegister = async (email: string, password: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await prepareRegister(email, password)
       return resp
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -66,14 +76,18 @@ export const usePrepareRegister = () => {
 export const useVerifyRegister = () => {
   const loading = ref(false)
   const authorization = ref<LoginAuthorizationData>({})
+  let latestRequest = 0
 
   const handleVerifyRegister = async (email: string, password: string, code: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await verifyRegister(email, password, code)
-      authorization.value = resp.data
+      if (requestId === latestRequest) {
+        authorization.value = resp.data
+      }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -83,14 +97,18 @@ export const useVerifyRegister = () => {
 export const useVerifyLoginChallenge = () => {
   const loading = ref(false)
   const authorization = ref<LoginAuthorizationData>({})
+  let latestRequest = 0
 
   const handleVerifyLoginChallenge = async (challenge_id: string, code: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await verifyLoginChallenge(challenge_id, code)
-      authorization.value = resp.data
+      if (requestId === latestRequest) {
+        authorization.value = resp.data
+      }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -99,14 +117,18 @@ export const useVerifyLoginChallenge = () => {
 
 export const useResendLoginChallenge = () => {
   const loading = ref(false)
+  let latestRequest = 0
 
   const handleResendLoginChallenge = async (challenge_id: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await resendLoginChallenge(challenge_id)
-      Message.success(resp.message)
+      if (requestId === latestRequest) {
+        Message.success(resp.message)
+      }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
