@@ -582,6 +582,13 @@ class ConversationService(BaseService):
         target = self.get_message(target_message_id, account)
         base = self.get_message(base_message_id, account)
 
+        if (
+            getattr(target, "app_id", None) is not None
+            and getattr(base, "app_id", None) is not None
+            and target.app_id != base.app_id
+        ):
+            raise ValidateErrorException("只能对比同一应用下的运行消息")
+
         target_error = str(getattr(target, "error", "") or "")
         base_error = str(getattr(base, "error", "") or "")
         target_answer = str(getattr(target, "answer", "") or "")
