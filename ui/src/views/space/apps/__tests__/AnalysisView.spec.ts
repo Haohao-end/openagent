@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
     avg_latency: { data: 1.5, pop: 0.2 },
     rag_retrieval_latency: { data: 1.25, pop: 0.25 },
     rag_hit_rate: { data: 0.825, pop: 0.1 },
+    rag_empty_result_rate: { data: 0.05, pop: -0.01 },
+    rag_failure_rate: { data: 0.02, pop: 0 },
     tool_call_success_rate: { data: 0.95, pop: 0.05 },
     token_output_rate: { data: 1280, pop: 18 },
     cost_consumption: { data: 36.5, pop: 2.1 },
@@ -84,6 +86,12 @@ vi.mock('vue-i18n', () => {
     'appStudio.analysis.trendCards.ragHitRate.title': 'RAG 命中率',
     'appStudio.analysis.trendCards.ragHitRate.help': '知识库检索命中率说明',
     'appStudio.analysis.trendCards.ragHitRate.unit': '%',
+    'appStudio.analysis.trendCards.ragEmptyResultRate.title': 'RAG 空结果率',
+    'appStudio.analysis.trendCards.ragEmptyResultRate.help': '知识库空结果率说明',
+    'appStudio.analysis.trendCards.ragEmptyResultRate.unit': '%',
+    'appStudio.analysis.trendCards.ragFailureRate.title': 'RAG 检索失败率',
+    'appStudio.analysis.trendCards.ragFailureRate.help': '知识库检索失败率说明',
+    'appStudio.analysis.trendCards.ragFailureRate.unit': '%',
     'appStudio.analysis.trendCards.toolCallSuccessRate.title': '工具调用成功率',
     'appStudio.analysis.trendCards.toolCallSuccessRate.help': '工具调用成功率说明',
     'appStudio.analysis.trendCards.toolCallSuccessRate.unit': '%',
@@ -153,6 +161,7 @@ describe('AnalysisView', () => {
           'icon-clock-circle': true,
           'icon-search': true,
           'icon-file': true,
+          'icon-close-circle': true,
           'icon-tool': true,
           'icon-language': true,
           'icon-code': true,
@@ -169,6 +178,8 @@ describe('AnalysisView', () => {
     expect(wrapper.text()).toContain('平均响应耗时')
     expect(wrapper.text()).toContain('平均 RAG 检索耗时')
     expect(wrapper.text()).toContain('RAG 命中率')
+    expect(wrapper.text()).toContain('RAG 空结果率')
+    expect(wrapper.text()).toContain('RAG 检索失败率')
     expect(wrapper.text()).toContain('工具调用成功率')
     expect(wrapper.text()).not.toContain('统计分析看板')
     expect(wrapper.text()).not.toContain('通过近 7 天会话、活跃与成本趋势，快速洞察应用运营质量和资源消耗变化。')
