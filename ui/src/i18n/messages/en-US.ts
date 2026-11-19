@@ -1135,6 +1135,18 @@ export default {
     },
     compareMessages: {
       title: 'Compare Messages',
+      target: 'Target Run',
+      base: 'Base Run',
+      metric: 'Metric',
+      diff: 'Diff',
+      status: 'Status',
+      latency: 'Latency',
+      tokens: 'Tokens',
+      price: 'Cost',
+      answerLength: 'Answer Length',
+      error: 'Error',
+      seconds: '{n}s',
+      tokensUnit: '{n} tokens',
     },
     composer: {
       placeholder: 'Send a message',
