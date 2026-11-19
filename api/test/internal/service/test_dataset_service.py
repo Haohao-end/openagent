@@ -587,6 +587,83 @@ class TestDatasetService:
         assert result[1]["document"]["name"] == ""
         assert result[1]["document"]["extension"] == ""
 
+    def test_hit_should_return_empty_list_when_no_documents_retrieved(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        session_queries = []
+
+        def _record_query(model):
+            session_queries.append(model)
+            return _QueryStub(all_result=[])
+
+        session = SimpleNamespace(query=_record_query)
+        service = _new_dataset_service(
+            db=SimpleNamespace(session=session),
+            retrieval_service=SimpleNamespace(search_in_datasets=lambda **_kwargs: []),
+        )
+        monkeypatch.setattr(
+            service,
+            "get",
+            lambda *_args, **_kwargs: SimpleNamespace(id=dataset_id, account_id=account.id),
+        )
+
+        result = service.hit(
+            dataset_id,
+            SimpleNamespace(data={"query": "test", "retrieval_strategy": "semantic", "k": 2, "score": 0}),
+            account,
+        )
+
+        assert result == []
+        assert len(session_queries) == 0
+
+    def test_hit_should_safely_handle_missing_score_and_missing_segment_id(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        dataset_id = uuid4()
+        valid_seg_id = uuid4()
+        segment = SimpleNamespace(
+            id=valid_seg_id,
+            dataset_id=dataset_id,
+            position=1,
+            content="content",
+            keywords=[],
+            character_count=7,
+            token_count=2,
+            hit_count=0,
+            enabled=True,
+            disabled_at=None,
+            status="completed",
+            error="",
+            updated_at=datetime.now(UTC),
+            created_at=datetime.now(UTC),
+            document=None,
+            document_id=None,
+        )
+        lc_documents = [
+            SimpleNamespace(metadata={"segment_id": valid_seg_id}),
+            SimpleNamespace(metadata={"query": "no-segment-id"}),
+            SimpleNamespace(metadata=None),
+        ]
+        session = SimpleNamespace(query=lambda model: _QueryStub(all_result=[segment]) if model is Segment else _QueryStub())
+        service = _new_dataset_service(
+            db=SimpleNamespace(session=session),
+            retrieval_service=SimpleNamespace(search_in_datasets=lambda **_kwargs: lc_documents),
+        )
+        monkeypatch.setattr(
+            service,
+            "get",
+            lambda *_args, **_kwargs: SimpleNamespace(id=dataset_id, account_id=account.id),
+        )
+
+        result = service.hit(
+            dataset_id,
+            SimpleNamespace(data={"query": "test", "retrieval_strategy": "semantic", "k": 2, "score": 0}),
+            account,
+        )
+
+        assert len(result) == 1
+        assert result[0]["id"] == valid_seg_id
+        assert result[0]["score"] == 0.0
+
     def test_hit_should_raise_when_dataset_not_accessible(self, monkeypatch):
         service = _new_dataset_service(
             db=SimpleNamespace(session=SimpleNamespace(query=lambda _model: _QueryStub(all_result=[]))),

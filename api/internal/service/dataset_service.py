@@ -179,11 +179,20 @@ class DatasetService(BaseService):
             account_id=account.id,
             **req.data,
         )
-        lc_document_dict = {str(lc_document.metadata["segment_id"]): lc_document for lc_document in lc_documents}
+        if not lc_documents:
+            return []
+
+        lc_document_dict = {
+            str(lc_document.metadata["segment_id"]): lc_document
+            for lc_document in lc_documents
+            if getattr(lc_document, "metadata", None) and lc_document.metadata.get("segment_id")
+        }
+        if not lc_document_dict:
+            return []
 
         # 3.根据检索到的数据查询对应的片段信息
         segments = self.db.session.query(Segment).filter(
-            Segment.id.in_([str(lc_document.metadata["segment_id"]) for lc_document in lc_documents])
+            Segment.id.in_(list(lc_document_dict.keys()))
         ).all()
         segment_dict = {str(segment.id): segment for segment in segments}
 
@@ -191,7 +200,9 @@ class DatasetService(BaseService):
         sorted_segments = [
             segment_dict[str(lc_document.metadata["segment_id"])]
             for lc_document in lc_documents
-            if str(lc_document.metadata["segment_id"]) in segment_dict
+            if getattr(lc_document, "metadata", None)
+            and lc_document.metadata.get("segment_id")
+            and str(lc_document.metadata["segment_id"]) in segment_dict
         ]
 
         # 5.批量查询关联文档和文件，避免在响应组装时产生 2*N 次单独查询
@@ -218,6 +229,16 @@ class DatasetService(BaseService):
             if upload_file is None and document:
                 upload_file = getattr(document, "upload_file", None)
 
+            lc_doc = lc_document_dict.get(str(segment.id))
+            score = 0.0
+            if lc_doc and getattr(lc_doc, "metadata", None):
+                raw_score = lc_doc.metadata.get("score")
+                if raw_score is not None:
+                    try:
+                        score = float(raw_score)
+                    except (ValueError, TypeError):
+                        score = 0.0
+
             hit_result.append({
                 "id": segment.id,
                 "document": {
@@ -227,7 +248,7 @@ class DatasetService(BaseService):
                     "mime_type": getattr(upload_file, "mime_type", "") if upload_file else "",
                 },
                 "dataset_id": segment.dataset_id,
-                "score": lc_document_dict[str(segment.id)].metadata["score"],
+                "score": score,
                 "position": segment.position,
                 "content": segment.content,
                 "keywords": segment.keywords,
