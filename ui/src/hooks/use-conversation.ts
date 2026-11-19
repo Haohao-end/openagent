@@ -190,6 +190,7 @@ export const useUpdateConversationName = () => {
 export const useUpdateConversationIsPinned = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新置顶状态处理器
   const handleUpdateConversationIsPinned = async (
@@ -197,13 +198,18 @@ export const useUpdateConversationIsPinned = () => {
     is_pinned: boolean = false,
     success_callback?: () => void,
   ) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await updateConversationIsPinned(conversation_id, is_pinned)
-      Message.success(resp.message)
-      success_callback && success_callback()
+      if (requestId === latestRequest) {
+        Message.success(resp.message)
+        success_callback && success_callback()
+      }
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
