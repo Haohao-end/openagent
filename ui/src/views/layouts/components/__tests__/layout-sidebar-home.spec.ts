@@ -203,8 +203,9 @@ describe('LayoutSidebar home navigation', () => {
   it('does not allow account A at maximum pagination limit to disable hasMore for new account B', async () => {
     // 1. 账号 A 自动 bootstrap 达到上限 1000
     mocks.loadRecentConversations.mockImplementation(async (limit: number) => {
-      mocks.recentConversationsRef.value = Array.from({ length: limit }, (_, i) =>
-        createRecentConversation(i),
+      mocks.recentConversationsRef.value = Array.from(
+        { length: Math.floor(limit / 20) },
+        (_, i) => createRecentConversation(i),
       )
       return 'APPLIED'
     })
@@ -225,8 +226,9 @@ describe('LayoutSidebar home navigation', () => {
     // 2. 切换至账号 B（账号 B 数据为可滚动列表）
     mocks.loadRecentConversations.mockReset()
     mocks.loadRecentConversations.mockImplementation(async (limit: number) => {
-      mocks.recentConversationsRef.value = Array.from({ length: limit }, (_, i) =>
-        createRecentConversation(1000 + i),
+      mocks.recentConversationsRef.value = Array.from(
+        { length: Math.min(limit, 20) },
+        (_, i) => createRecentConversation(1000 + i),
       )
       return 'APPLIED'
     })
@@ -274,9 +276,13 @@ describe('LayoutSidebar home navigation', () => {
     const accountBCalledLimits: number[] = []
     mocks.loadRecentConversations.mockImplementation(async (limit: number) => {
       accountBCalledLimits.push(limit)
-      mocks.recentConversationsRef.value = Array.from({ length: limit }, (_, i) =>
-        createRecentConversation(2000 + i),
+      mocks.recentConversationsRef.value = Array.from(
+        { length: Math.min(limit, 40) },
+        (_, i) => createRecentConversation(2000 + i),
       )
+      if (limit >= 40) {
+        Object.defineProperty(list.element, 'scrollHeight', { value: 800, configurable: true })
+      }
       return 'APPLIED'
     })
     mocks.credentialState.credential = { access_token: 'token-account-b' }
