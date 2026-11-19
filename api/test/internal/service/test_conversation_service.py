@@ -2414,6 +2414,29 @@ class TestConversationServiceBasics:
         with pytest.raises(NotFoundException):
             service.compare_messages(uuid4(), uuid4(), account)
 
+    def test_compare_messages_should_raise_when_cross_app(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        m1 = SimpleNamespace(
+            id=uuid4(),
+            app_id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            status="normal",
+        )
+        m2 = SimpleNamespace(
+            id=uuid4(),
+            app_id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            status="normal",
+        )
+        service = ConversationService(db=SimpleNamespace())
+        messages_by_id = {m1.id: m1, m2.id: m2}
+        monkeypatch.setattr(service, "get", lambda _cls, msg_id: messages_by_id.get(msg_id))
+
+        with pytest.raises(ValidateErrorException, match="只能对比同一应用下的运行消息"):
+            service.compare_messages(m1.id, m2.id, account)
+
     def test_get_message_trace_should_return_timeline(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         msg = SimpleNamespace(
