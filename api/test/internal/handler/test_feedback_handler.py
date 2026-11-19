@@ -170,3 +170,75 @@ class TestFeedbackHandler:
         )
         assert resp.status_code == 201
         assert resp.get_json() == {"id": str(feedback_id)}
+
+    def test_get_feedbacks_app_not_found(self, http_client, current_user, monkeypatch):
+        app_id = "00000000-0000-0000-0000-000000000010"
+        mock_query = MagicMock()
+        mock_query.filter.return_value.first.return_value = None
+        monkeypatch.setattr("internal.handler.feedback_handler.db.session.query", lambda _m: mock_query)
+
+        resp = http_client.get(f"/apps/{app_id}/feedbacks")
+        assert resp.status_code == 404
+        assert resp.get_json() == {"error": "App not found"}
+
+    def test_get_feedbacks_invalid_target_type(self, http_client, current_user, monkeypatch):
+        app_id = UUID("00000000-0000-0000-0000-000000000010")
+        mock_query = MagicMock()
+        mock_query.filter.return_value.first.return_value = SimpleNamespace(id=app_id, account_id=current_user.id)
+        monkeypatch.setattr("internal.handler.feedback_handler.db.session.query", lambda _m: mock_query)
+
+        resp = http_client.get(f"/apps/{app_id}/feedbacks?target_type=invalid")
+        assert resp.status_code == 400
+        assert "Invalid request" in resp.get_json()["error"]
+
+    def test_get_feedbacks_invalid_page_or_limit(self, http_client, current_user, monkeypatch):
+        app_id = UUID("00000000-0000-0000-0000-000000000010")
+        mock_query = MagicMock()
+        mock_query.filter.return_value.first.return_value = SimpleNamespace(id=app_id, account_id=current_user.id)
+        monkeypatch.setattr("internal.handler.feedback_handler.db.session.query", lambda _m: mock_query)
+
+        resp = http_client.get(f"/apps/{app_id}/feedbacks?page=0")
+        assert resp.status_code == 400
+
+        resp = http_client.get(f"/apps/{app_id}/feedbacks?limit=101")
+        assert resp.status_code == 400
+
+    def test_get_feedbacks_success_empty(self, http_client, current_user, monkeypatch):
+        app_id = UUID("00000000-0000-0000-0000-000000000010")
+        mock_query = MagicMock()
+        mock_query.filter.return_value.first.return_value = SimpleNamespace(id=app_id, account_id=current_user.id)
+        monkeypatch.setattr("internal.handler.feedback_handler.db.session.query", lambda _m: mock_query)
+        monkeypatch.setattr("internal.handler.feedback_handler.FeedbackService.get_feedbacks", lambda *_args: [])
+
+        resp = http_client.get(f"/apps/{app_id}/feedbacks")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"data": []}
+
+    def test_get_feedbacks_success_with_data(self, http_client, current_user, monkeypatch):
+        app_id = UUID("00000000-0000-0000-0000-000000000010")
+        mock_query = MagicMock()
+        mock_query.filter.return_value.first.return_value = SimpleNamespace(id=app_id, account_id=current_user.id)
+        monkeypatch.setattr("internal.handler.feedback_handler.db.session.query", lambda _m: mock_query)
+
+        fake_feedback = SimpleNamespace(
+            id=UUID("00000000-0000-0000-0000-000000000070"),
+            target_id=UUID("00000000-0000-0000-0000-000000000020"),
+            target_type="message",
+            rating=1,
+            content="Great work",
+        )
+        monkeypatch.setattr("internal.handler.feedback_handler.FeedbackService.get_feedbacks", lambda _aid, _tt, _p, _l: [fake_feedback])
+
+        resp = http_client.get(f"/apps/{app_id}/feedbacks?target_type=message&page=1&limit=10")
+        assert resp.status_code == 200
+        assert resp.get_json() == {
+            "data": [
+                {
+                    "id": "00000000-0000-0000-0000-000000000070",
+                    "target_id": "00000000-0000-0000-0000-000000000020",
+                    "target_type": "message",
+                    "rating": 1,
+                    "content": "Great work",
+                }
+            ]
+        }

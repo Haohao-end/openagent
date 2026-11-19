@@ -789,6 +789,11 @@ class Router:
             view_func=self.feedback_handler.create_feedback,
         )
         bp.add_url_rule(
+            "/apps/<uuid:app_id>/feedbacks",
+            methods=["GET"],
+            view_func=self.feedback_handler.get_feedbacks,
+        )
+        bp.add_url_rule(
             "/apps/<uuid:app_id>/messages/<uuid:message_id>/timeline",
             view_func=self.trace_handler.get_message_timeline,
         )
