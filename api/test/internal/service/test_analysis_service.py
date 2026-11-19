@@ -379,3 +379,21 @@ class TestAnalysisService:
             "failure_rate": 0.05,
             "avg_latency": 1.25,
         }
+
+    def test_rag_metrics_should_return_none_when_start_at_gte_end_at(self):
+        app = SimpleNamespace(id=uuid4())
+        start_at = datetime(2024, 1, 8, 0, 0, 0)
+        end_at = datetime(2024, 1, 1, 0, 0, 0)
+        service = _build_service(app=app)
+
+        assert service.get_rag_hit_rate_by_time_range(app, start_at, end_at) is None
+        assert service.get_rag_empty_result_rate_by_time_range(app, start_at, end_at) is None
+        assert service.get_rag_failure_rate_by_time_range(app, start_at, end_at) is None
+        assert service.get_rag_latency_by_time_range(app, start_at, end_at) is None
+        assert service.get_tool_call_success_rate_by_time_range(app, start_at, end_at) is None
+        assert service.get_rag_quality_summary_by_time_range(app, start_at, end_at) == {
+            "hit_rate": None,
+            "empty_result_rate": None,
+            "failure_rate": None,
+            "avg_latency": None,
+        }

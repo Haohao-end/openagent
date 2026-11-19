@@ -53,27 +53,27 @@ class AnalysisService(BaseService):
         rag_latency_pop = (
             (current_rag_latency - previous_rag_latency) / previous_rag_latency
             if current_rag_latency is not None and previous_rag_latency not in (None, 0)
-            else 0 if previous_rag_latency == 0 else None
+            else None
         )
         rag_hit_rate_pop = (
             (current_rag_hit_rate - previous_rag_hit_rate) / previous_rag_hit_rate
             if current_rag_hit_rate is not None and previous_rag_hit_rate not in (None, 0)
-            else 0 if previous_rag_hit_rate == 0 else None
+            else None
         )
         rag_empty_result_rate_pop = (
             (current_rag_empty_result_rate - previous_rag_empty_result_rate) / previous_rag_empty_result_rate
             if current_rag_empty_result_rate is not None and previous_rag_empty_result_rate not in (None, 0)
-            else 0 if previous_rag_empty_result_rate == 0 else None
+            else None
         )
         rag_failure_rate_pop = (
             (current_rag_failure_rate - previous_rag_failure_rate) / previous_rag_failure_rate
             if current_rag_failure_rate is not None and previous_rag_failure_rate not in (None, 0)
-            else 0 if previous_rag_failure_rate == 0 else None
+            else None
         )
         tool_call_success_rate_pop = (
             (current_tool_call_success_rate - previous_tool_call_success_rate) / previous_tool_call_success_rate
             if current_tool_call_success_rate is not None and previous_tool_call_success_rate not in (None, 0)
-            else 0 if previous_tool_call_success_rate == 0 else None
+            else None
         )
 
         # 6.计算4个指标对应的趋势
@@ -120,6 +120,8 @@ class AnalysisService(BaseService):
 
     def get_rag_hit_rate_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
         """根据传递的时间范围计算指定应用的知识库检索命中率。"""
+        if start_at >= end_at:
+            return None
         no_hit_text = "知识库内没有检索到对应内容"
         row = self.db.session.query(
             func.count(MessageAgentThought.id).label("total"),
@@ -146,6 +148,8 @@ class AnalysisService(BaseService):
 
     def get_rag_empty_result_rate_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
         """根据传递的时间范围计算指定应用的知识库检索空结果率。"""
+        if start_at >= end_at:
+            return None
         no_hit_text = "知识库内没有检索到对应内容"
         row = self.db.session.query(
             func.count(MessageAgentThought.id).label("total"),
@@ -172,6 +176,8 @@ class AnalysisService(BaseService):
 
     def get_rag_failure_rate_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
         """根据传递的时间范围计算指定应用的知识库检索失败率。"""
+        if start_at >= end_at:
+            return None
         error_prefix = "工具执行出错:"
         alt_error_prefix = "检索出错:"
         row = self.db.session.query(
@@ -199,6 +205,13 @@ class AnalysisService(BaseService):
 
     def get_rag_quality_summary_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> dict[str, Any]:
         """按指定时间范围聚合统计知识库检索质量指标：命中率、空结果率、失败率与平均延迟。"""
+        if start_at >= end_at:
+            return {
+                "hit_rate": None,
+                "empty_result_rate": None,
+                "failure_rate": None,
+                "avg_latency": None,
+            }
         return {
             "hit_rate": self.get_rag_hit_rate_by_time_range(app, start_at, end_at),
             "empty_result_rate": self.get_rag_empty_result_rate_by_time_range(app, start_at, end_at),
@@ -208,6 +221,8 @@ class AnalysisService(BaseService):
 
     def get_tool_call_success_rate_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
         """根据传递的时间范围计算指定应用的工具调用成功率。"""
+        if start_at >= end_at:
+            return None
         error_prefix = "工具执行出错:"
         row = self.db.session.query(
             func.count(MessageAgentThought.id).label("total"),
@@ -232,6 +247,8 @@ class AnalysisService(BaseService):
         return float(row.success_count / row.total)
 
     def get_rag_latency_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> float | None:
+        if start_at >= end_at:
+            return None
         return self.db.session.query(
             func.avg(MessageAgentThought.latency),
         ).filter(
