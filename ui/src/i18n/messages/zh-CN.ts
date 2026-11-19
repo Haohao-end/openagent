@@ -1114,6 +1114,14 @@ export default {
     messageTrace: {
       title: '消息运行追踪',
       status: '执行状态',
+      latency: '总耗时',
+      tokens: 'Token 消耗',
+      price: '费用',
+      spans: '执行轨迹',
+      thought: '思考过程',
+      observation: '观测结果',
+      toolInput: '工具参数',
+      noSpans: '暂无轨迹跨度信息',
     },
     compareMessages: {
       title: '消息对比',

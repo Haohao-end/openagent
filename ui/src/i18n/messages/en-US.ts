@@ -1132,6 +1132,14 @@ export default {
     messageTrace: {
       title: 'Message Trace',
       status: 'Status',
+      latency: 'Total Latency',
+      tokens: 'Total Tokens',
+      price: 'Cost',
+      spans: 'Execution Spans',
+      thought: 'Thought',
+      observation: 'Observation',
+      toolInput: 'Tool Input',
+      noSpans: 'No span execution data available',
     },
     compareMessages: {
       title: 'Compare Messages',
