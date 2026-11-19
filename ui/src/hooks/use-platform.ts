@@ -28,15 +28,22 @@ export const useGetWechatConfig = () => {
 export const useUpdateWechatConfig = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新微信配置处理器
   const handleUpdateWechatConfig = async (app_id: string, req: UpdateWechatConfigRequest) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await updateWechatConfig(app_id, req)
+      if (requestId !== latestRequest) return false
       Message.success(resp.message)
+      return true
+    } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
