@@ -1148,6 +1148,14 @@ export default {
       snapshotReady: '快照与补丁构建成功',
       noPatches: '未应用任何配置 Patch',
     },
+    feedback: {
+      title: '提交反馈',
+      like: '赞同',
+      dislike: '不满意',
+      contentPlaceholder: '请详细描述您遇到的问题或建议（可选）...',
+      submitSuccess: '感谢您的反馈！',
+      selectRating: '请选择评价',
+    },
     composer: {
       placeholder: '发送消息',
       uploadDisabled: '当前不支持图片上传',

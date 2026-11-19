@@ -1166,6 +1166,14 @@ export default {
       snapshotReady: 'Snapshot and patch built successfully',
       noPatches: 'No config patch applied',
     },
+    feedback: {
+      title: 'Submit Feedback',
+      like: 'Like',
+      dislike: 'Dislike',
+      contentPlaceholder: 'Describe your feedback or suggestions (optional)...',
+      submitSuccess: 'Thank you for your feedback!',
+      selectRating: 'Please choose a rating',
+    },
     composer: {
       placeholder: 'Send a message',
       uploadDisabled: 'Image upload is not supported here',
