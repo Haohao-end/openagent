@@ -164,6 +164,7 @@ const {
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
 let previewRequestId = 0
+let fitViewTimer: ReturnType<typeof setTimeout> | null = null
 
 // 加载工作流详情
 const loadWorkflow = async (id: string, requestId: number) => {
@@ -181,8 +182,6 @@ const loadWorkflow = async (id: string, requestId: number) => {
     if (requestId === previewRequestId) {
       Message.error(getErrorMessage(error, t('store.workflows.loadFailed')))
     }
-  } finally {
-    if (requestId === previewRequestId) loading.value = false
   }
 }
 
@@ -267,6 +266,10 @@ const loadDraftGraph = async (id: string, requestId: number) => {
 
 const loadPreview = async (id: string) => {
   const requestId = ++previewRequestId
+  if (fitViewTimer) {
+    clearTimeout(fitViewTimer)
+    fitViewTimer = null
+  }
   workflowId.value = id
   workflow.value = null
   nodes.value = []
@@ -275,21 +278,27 @@ const loadPreview = async (id: string) => {
   nodeInfoVisible.value = false
   loading.value = true
 
-  await loadWorkflow(id, requestId)
-  if (requestId !== previewRequestId) return
-  await loadDraftGraph(id, requestId)
-  if (requestId !== previewRequestId) return
+  try {
+    await loadWorkflow(id, requestId)
+    if (requestId !== previewRequestId) return
+    await loadDraftGraph(id, requestId)
+    if (requestId !== previewRequestId) return
 
-  await nextTick()
-  setTimeout(() => {
-    if (requestId === previewRequestId && instance.value && nodes.value.length > 0) {
-      try {
-        instance.value.fitView({ padding: 0.2, duration: 200 })
-      } catch {
-        // Ignore fitView failures when graph is not fully laid out yet.
+    await nextTick()
+    fitViewTimer = setTimeout(() => {
+      if (requestId === previewRequestId && instance.value && nodes.value.length > 0) {
+        try {
+          instance.value.fitView({ padding: 0.2, duration: 200 })
+        } catch {
+          // Ignore fitView failures when graph is not fully laid out yet.
+        }
       }
+    }, 500)
+  } finally {
+    if (requestId === previewRequestId) {
+      loading.value = false
     }
-  }, 500)
+  }
 }
 
 watch(
@@ -302,6 +311,10 @@ watch(
 
 onUnmounted(() => {
   previewRequestId += 1
+  if (fitViewTimer) {
+    clearTimeout(fitViewTimer)
+    fitViewTimer = null
+  }
 })
 
 onPaneReady((vueFlowInstance) => {
