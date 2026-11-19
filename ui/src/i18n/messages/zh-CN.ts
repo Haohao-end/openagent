@@ -1117,6 +1117,18 @@ export default {
     },
     compareMessages: {
       title: '消息对比',
+      target: '目标运行',
+      base: '基准运行',
+      metric: '指标',
+      diff: '差异',
+      status: '执行状态',
+      latency: '耗时',
+      tokens: 'Token 数',
+      price: '费用',
+      answerLength: '回答长度',
+      error: '错误信息',
+      seconds: '{n} 秒',
+      tokensUnit: '{n} tokens',
     },
     composer: {
       placeholder: '发送消息',
