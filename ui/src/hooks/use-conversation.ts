@@ -4,6 +4,8 @@ import type {
   GetConversationMessagesWithPageResponse,
   GetRecentConversationsResponse,
   MessageTraceData,
+  ReplayMessageRequest,
+  ReplaySnapshotData,
 } from '@/models/conversation'
 import { mergeChatHistoryMessages, type CallableTraceEvent } from '@/views/shared/chat-stream'
 import {
@@ -14,6 +16,7 @@ import {
   getConversationMessages,
   getConversationName,
   getMessageTrace,
+  replayMessage,
   updateConversationIsPinned,
   updateConversationName,
 } from '@/services/conversation'
@@ -310,4 +313,34 @@ export const useCompareMessages = () => {
   }
 
   return { loading, comparison, loadComparison, clearComparison }
+}
+
+export const useReplayMessage = () => {
+  const loading = ref(false)
+  const snapshot = ref<ReplaySnapshotData | null>(null)
+  let latestRequest = 0
+
+  const clearReplay = () => {
+    latestRequest += 1
+    loading.value = false
+    snapshot.value = null
+  }
+
+  const executeReplay = async (message_id: string, req?: ReplayMessageRequest) => {
+    const requestId = ++latestRequest
+    try {
+      loading.value = true
+      const resp = await replayMessage(message_id, req)
+      if (requestId !== latestRequest) return
+      snapshot.value = resp.data
+      return resp.data
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
+    } finally {
+      if (requestId === latestRequest) loading.value = false
+    }
+  }
+
+  return { loading, snapshot, executeReplay, clearReplay }
 }

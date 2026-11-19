@@ -1138,6 +1138,16 @@ export default {
       seconds: '{n} 秒',
       tokensUnit: '{n} tokens',
     },
+    replayMessage: {
+      title: '重放运行与配置 Patch',
+      query: '输入查询',
+      presetPrompt: '预设 Prompt Patch',
+      presetPromptPlaceholder: '留空则沿用原 Prompt',
+      appliedPatches: '已生效 Patch 项',
+      executeReplay: '执行重放',
+      snapshotReady: '快照与补丁构建成功',
+      noPatches: '未应用任何配置 Patch',
+    },
     composer: {
       placeholder: '发送消息',
       uploadDisabled: '当前不支持图片上传',
