@@ -102,7 +102,12 @@ class RetrievalService(BaseService):
         lc_documents = lc_documents[:k]
 
         # 4.添加知识库查询记录（只存储唯一记录，也就是一个知识库如果检索了多篇文档，也只存储一条）
-        unique_dataset_ids = list(set(str(lc_document.metadata["dataset_id"]) for lc_document in lc_documents))
+        unique_dataset_ids = list(set(
+            str(lc_document.metadata["dataset_id"])
+            for lc_document in lc_documents
+            if isinstance(getattr(lc_document, "metadata", None), dict)
+            and lc_document.metadata.get("dataset_id")
+        ))
         for dataset_id in unique_dataset_ids:
             self.create(
                 DatasetQuery,
@@ -115,13 +120,20 @@ class RetrievalService(BaseService):
             )
 
         # 5.批量更新片段的命中次数，召回次数，涵盖了构建+执行语句
-        with self.db.auto_commit():
-            stmt = (
-                update(Segment)
-                .where(Segment.id.in_([lc_document.metadata["segment_id"] for lc_document in lc_documents]))
-                .values(hit_count=Segment.hit_count + 1)
-            )
-            self.db.session.execute(stmt)
+        segment_ids = [
+            lc_document.metadata["segment_id"]
+            for lc_document in lc_documents
+            if isinstance(getattr(lc_document, "metadata", None), dict)
+            and lc_document.metadata.get("segment_id")
+        ]
+        if segment_ids:
+            with self.db.auto_commit():
+                stmt = (
+                    update(Segment)
+                    .where(Segment.id.in_(segment_ids))
+                    .values(hit_count=Segment.hit_count + 1)
+                )
+                self.db.session.execute(stmt)
 
         return lc_documents
 

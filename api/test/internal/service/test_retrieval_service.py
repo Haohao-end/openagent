@@ -369,3 +369,108 @@ class TestRetrievalService:
         result = tool.invoke({"query": "找到结果"})
 
         assert result == "combined:1"
+
+    def test_search_in_datasets_should_skip_db_hit_update_when_no_documents_found(self, monkeypatch):
+        account_id = uuid4()
+        dataset_id = uuid4()
+        datasets = [SimpleNamespace(id=dataset_id, account_id=account_id)]
+
+        class _Session:
+            def __init__(self):
+                self.executed = False
+
+            def query(self, model):
+                if model is Dataset:
+                    return _QueryStub(all_result=datasets)
+                return _QueryStub(all_result=[])
+
+            def execute(self, _stmt):
+                self.executed = True
+
+        session = _Session()
+        service = self._build_service(_DBStub(session))
+
+        class _FullTextRetriever:
+            def __init__(self, **_kwargs):
+                pass
+
+            def invoke(self, _query):
+                return []
+
+        monkeypatch.setitem(
+            sys.modules,
+            "internal.core.retrievers",
+            SimpleNamespace(
+                SemanticRetriever=lambda **_kwargs: None,
+                FullTextRetriever=_FullTextRetriever,
+            ),
+        )
+        monkeypatch.setattr(
+            "internal.service.retrieval_service.EnsembleRetriever",
+            lambda retrievers, weights: SimpleNamespace(invoke=lambda _query: []),
+        )
+
+        result = service.search_in_datasets(
+            dataset_ids=[dataset_id],
+            query="空搜索",
+            account_id=account_id,
+            retrieval_strategy="full_text",
+            k=4,
+        )
+
+        assert result == []
+        assert session.executed is False
+
+    def test_search_in_datasets_should_safely_handle_missing_metadata_keys(self, monkeypatch):
+        account_id = uuid4()
+        dataset_id = uuid4()
+        datasets = [SimpleNamespace(id=dataset_id, account_id=account_id)]
+        docs = [
+            SimpleNamespace(metadata={}),
+        ]
+
+        class _Session:
+            def __init__(self):
+                self.executed = False
+
+            def query(self, model):
+                if model is Dataset:
+                    return _QueryStub(all_result=datasets)
+                return _QueryStub(all_result=[])
+
+            def execute(self, _stmt):
+                self.executed = True
+
+        session = _Session()
+        service = self._build_service(_DBStub(session))
+
+        class _FullTextRetriever:
+            def __init__(self, **_kwargs):
+                pass
+
+            def invoke(self, _query):
+                return docs
+
+        monkeypatch.setitem(
+            sys.modules,
+            "internal.core.retrievers",
+            SimpleNamespace(
+                SemanticRetriever=lambda **_kwargs: None,
+                FullTextRetriever=_FullTextRetriever,
+            ),
+        )
+        monkeypatch.setattr(
+            "internal.service.retrieval_service.EnsembleRetriever",
+            lambda retrievers, weights: SimpleNamespace(invoke=lambda _query: []),
+        )
+
+        result = service.search_in_datasets(
+            dataset_ids=[dataset_id],
+            query="测试无元数据",
+            account_id=account_id,
+            retrieval_strategy="full_text",
+            k=1,
+        )
+
+        assert result == docs
+        assert session.executed is False
