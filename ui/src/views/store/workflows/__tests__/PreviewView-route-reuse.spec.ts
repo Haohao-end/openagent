@@ -52,7 +52,16 @@ describe('Public workflow preview route reuse', () => {
 
   it('reloads workflow details and graph when the route id changes', async () => {
     const { default: PreviewView } = await import('../PreviewView.vue')
-    const wrapper = mount(PreviewView, { global: { stubs: { '*': true, VueFlow: false, 'router-link': true } } })
+    const wrapper = mount(PreviewView, {
+      global: {
+        config: {
+          compilerOptions: {
+            isCustomElement: (tag: string) => tag.startsWith('a-') || tag.startsWith('icon-'),
+          },
+        },
+        stubs: { '*': true, VueFlow: false, 'router-link': true },
+      },
+    })
     await flushPromises()
 
     expect(mocks.getDetail).toHaveBeenCalledWith('workflow-a')
@@ -76,7 +85,16 @@ describe('Public workflow preview route reuse', () => {
     mocks.getGraph.mockImplementation((id: string) => id === 'workflow-a' ? graphA.promise : graphB.promise)
 
     const { default: PreviewView } = await import('../PreviewView.vue')
-    const wrapper = mount(PreviewView, { global: { stubs: { '*': true, VueFlow: false, 'router-link': true } } })
+    const wrapper = mount(PreviewView, {
+      global: {
+        config: {
+          compilerOptions: {
+            isCustomElement: (tag: string) => tag.startsWith('a-') || tag.startsWith('icon-'),
+          },
+        },
+        stubs: { '*': true, VueFlow: false, 'router-link': true },
+      },
+    })
     detailA.resolve({ data: { id: 'workflow-a', name: 'workflow-a', icon: '', account_avatar: '' } })
     await flushPromises()
     expect(mocks.getGraph).toHaveBeenCalledWith('workflow-a')
