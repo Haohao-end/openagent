@@ -53,6 +53,8 @@ class TestRouterFullMatrix:
             '/apps/<uuid:app_id>/delete': {'POST'},
             '/apps/<uuid:app_id>/draft-app-config': {'GET', 'POST'},
             '/apps/<uuid:app_id>/fallback-history': {'POST'},
+            '/apps/<uuid:app_id>/feedbacks': {'POST'},
+            '/apps/<uuid:app_id>/messages/<uuid:message_id>/timeline': {'GET'},
             '/apps/<uuid:app_id>/publish': {'POST'},
             '/apps/<uuid:app_id>/publish-histories': {'GET'},
             '/apps/<uuid:app_id>/published-config': {'GET'},
@@ -95,6 +97,9 @@ class TestRouterFullMatrix:
             '/conversations/<uuid:conversation_id>/name': {'GET', 'POST'},
             '/conversations/recent': {'GET'},
             '/conversations/search': {'GET'},
+            '/conversations/messages/<uuid:message_id>/replay': {'POST'},
+            '/conversations/messages/<uuid:message_id>/trace': {'GET'},
+            '/conversations/messages/compare': {'POST'},
             '/datasets': {'GET', 'POST'},
             '/datasets/<uuid:dataset_id>': {'GET', 'POST'},
             '/datasets/<uuid:dataset_id>/delete': {'POST'},
@@ -180,6 +185,7 @@ class TestRouterFullMatrix:
             '/workflows/<uuid:workflow_id>/delete': {'POST'},
             '/workflows/<uuid:workflow_id>/draft-graph': {'GET', 'POST'},
             '/workflows/<uuid:workflow_id>/publish': {'POST'},
+            '/workflows/<uuid:workflow_id>/results/<uuid:result_id>/trace': {'GET'},
             '/workflows/<uuid:workflow_id>/regenerate-icon': {'POST'},
             '/workflows/<uuid:workflow_id>/share': {'POST'},
             '/workflows/<uuid:workflow_id>/share-to-square': {'POST'},
@@ -203,4 +209,4 @@ class TestRouterFullMatrix:
         assert by_blueprint["openapi"] == 1
         assert by_blueprint["llmops"] == len(rules) - 1
         # 当前系统的接口总量是一个重要契约，避免漏挂导致线上能力消失。
-        assert len(rules) == 188
+        assert len(rules) == 194
