@@ -679,12 +679,21 @@ class ConversationService(BaseService):
         conversation = self.get(Conversation, message.conversation_id)
         app = self.get(App, message.app_id) if conversation else None
 
+        # 校验应用归属权
+        if app and getattr(app, "account_id", None) is not None and app.account_id != account.id:
+            raise NotFoundException("应用不存在或无访问权限")
+
         patch_dict = patch if isinstance(patch, dict) else {}
         invalid_keys = set(patch_dict.keys()) - _ALLOWED_REPLAY_PATCH_KEYS
         if invalid_keys:
             raise ValidateErrorException(f"不支持的回放Patch配置项: {', '.join(sorted(invalid_keys))}")
 
-        app_config = getattr(app, "draft_app_config", None) if app else None
+        # 检查 invoke_from 来源，开放 API 服务调用的消息不能泄露草稿配置
+        if getattr(message, "invoke_from", None) == InvokeFrom.SERVICE_API.value:
+            app_config = None
+        else:
+            app_config = getattr(app, "draft_app_config", None) if app else None
+
         config_snapshot = {
             "model_config": getattr(app_config, "model_config", {}) if app_config else {},
             "preset_prompt": getattr(app_config, "preset_prompt", "") if app_config else "",

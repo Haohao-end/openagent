@@ -2509,3 +2509,58 @@ class TestConversationServiceBasics:
 
         with pytest.raises(ValidateErrorException, match="不支持的回放Patch配置项"):
             service.build_replay_snapshot(msg.id, {"dangerous_action": True}, account)
+
+    def test_build_replay_snapshot_should_not_leak_draft_app_config_for_service_api(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        msg = SimpleNamespace(
+            id=uuid4(),
+            conversation_id=uuid4(),
+            app_id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            query="api message query",
+            image_urls=[],
+            invoke_from=InvokeFrom.SERVICE_API.value,
+        )
+        app_config = SimpleNamespace(
+            model_config={"model": "gpt-4o"},
+            preset_prompt="secret system prompt",
+            retrieval_config={"top_k": 5},
+            tools=["secret_tool"],
+            datasets=["secret_dataset"],
+            workflows=["secret_workflow"],
+        )
+        app = SimpleNamespace(id=msg.app_id, account_id=account.id, draft_app_config=app_config)
+
+        service = ConversationService(db=SimpleNamespace())
+        monkeypatch.setattr(service, "get_message", lambda _mid, _acc: msg)
+        monkeypatch.setattr(service, "get", lambda model, _id: app if model is App else SimpleNamespace())
+
+        snapshot = service.build_replay_snapshot(msg.id, {}, account)
+        assert snapshot["config_snapshot"]["preset_prompt"] == ""
+        assert snapshot["config_snapshot"]["model_config"] == {}
+        assert snapshot["config_snapshot"]["tools"] == []
+        assert snapshot["config_snapshot"]["datasets"] == []
+        assert snapshot["config_snapshot"]["workflows"] == []
+
+    def test_build_replay_snapshot_should_raise_not_found_on_app_ownership_mismatch(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        other_account_id = uuid4()
+        msg = SimpleNamespace(
+            id=uuid4(),
+            conversation_id=uuid4(),
+            app_id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            query="test",
+            image_urls=[],
+            invoke_from="debugger",
+        )
+        app = SimpleNamespace(id=msg.app_id, account_id=other_account_id, draft_app_config=None)
+
+        service = ConversationService(db=SimpleNamespace())
+        monkeypatch.setattr(service, "get_message", lambda _mid, _acc: msg)
+        monkeypatch.setattr(service, "get", lambda model, _id: app if model is App else SimpleNamespace())
+
+        with pytest.raises(NotFoundException):
+            service.build_replay_snapshot(msg.id, {}, account)
