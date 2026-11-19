@@ -1422,6 +1422,16 @@ export default {
           help: '统计近 7 天内知识库检索命中相关内容的请求比例，用于衡量知识库召回效果；无检索样本时显示横线。',
           unit: '%',
         },
+        ragEmptyResultRate: {
+          title: 'RAG 空结果率',
+          help: '统计近 7 天内知识库检索返回空分段的请求比例；无检索样本时显示横线。',
+          unit: '%',
+        },
+        ragFailureRate: {
+          title: 'RAG 检索失败率',
+          help: '统计近 7 天内知识库检索请求异常或失败的比例；无检索样本时显示横线。',
+          unit: '%',
+        },
         toolCallSuccessRate: {
           title: '工具调用成功率',
           help: '统计近 7 天内智能体动作工具调用的成功执行比例，用于衡量工具执行稳定性；无调用记录时显示横线。',

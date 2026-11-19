@@ -1441,6 +1441,16 @@ export default {
           help: 'Proportion of retrieval requests that successfully recalled relevant knowledge chunks over the last 7 days. Shows a dash when no retrieval samples are available.',
           unit: '%',
         },
+        ragEmptyResultRate: {
+          title: 'RAG Empty Result Rate',
+          help: 'Proportion of retrieval requests that returned no chunks over the last 7 days. Shows a dash when no retrieval samples are available.',
+          unit: '%',
+        },
+        ragFailureRate: {
+          title: 'RAG Retrieval Failure Rate',
+          help: 'Proportion of retrieval requests that failed or encountered errors over the last 7 days. Shows a dash when no retrieval samples are available.',
+          unit: '%',
+        },
         toolCallSuccessRate: {
           title: 'Tool Call Success Rate',
           help: 'Percentage of agent tool calls that completed successfully over the last 7 days. Shows a dash when no tool invocations are recorded.',

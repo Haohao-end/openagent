@@ -344,6 +344,28 @@ watch(() => route.params?.app_id, (appId) => void loadAppAnalysis(String(appId ?
             </template>
           </overview-indicator>
           <overview-indicator
+            :title="t('appStudio.analysis.trendCards.ragEmptyResultRate.title')"
+            :help="t('appStudio.analysis.trendCards.ragEmptyResultRate.help')"
+            :unit="t('appStudio.analysis.trendCards.ragEmptyResultRate.unit')"
+            :data="formatRateValue(app_analysis?.rag_empty_result_rate?.data)"
+            :pop="app_analysis?.rag_empty_result_rate?.pop"
+          >
+            <template #icon>
+              <icon-file class="text-amber-700" />
+            </template>
+          </overview-indicator>
+          <overview-indicator
+            :title="t('appStudio.analysis.trendCards.ragFailureRate.title')"
+            :help="t('appStudio.analysis.trendCards.ragFailureRate.help')"
+            :unit="t('appStudio.analysis.trendCards.ragFailureRate.unit')"
+            :data="formatRateValue(app_analysis?.rag_failure_rate?.data)"
+            :pop="app_analysis?.rag_failure_rate?.pop"
+          >
+            <template #icon>
+              <icon-close-circle class="text-rose-700" />
+            </template>
+          </overview-indicator>
+          <overview-indicator
             :title="t('appStudio.analysis.trendCards.toolCallSuccessRate.title')"
             :help="t('appStudio.analysis.trendCards.toolCallSuccessRate.help')"
             :unit="t('appStudio.analysis.trendCards.toolCallSuccessRate.unit')"
