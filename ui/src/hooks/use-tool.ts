@@ -151,21 +151,25 @@ export const useDeleteApiToolProvider = () => {
 export const useUpdateApiToolProvider = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新api工具提供者处理器
   const handleUpdateApiToolProvider = async (
     provider_id: string,
     req: UpdateApiToolProviderRequest,
   ) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await updateApiToolProvider(provider_id, req)
+      if (requestId !== latestRequest) return false
       Message.success(resp.message)
       return true
     } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
       return notifyRequestError(error, '更新插件失败，请稍后重试')
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -175,18 +179,22 @@ export const useUpdateApiToolProvider = () => {
 export const useCreateApiToolProvider = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义创建api工具提供者处理器
   const handleCreateApiToolProvider = async (req: CreateApiToolProviderRequest) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await createApiToolProvider(req)
+      if (requestId !== latestRequest) return false
       Message.success(resp.message)
       return true
     } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
       return notifyRequestError(error, '创建插件失败，请稍后重试')
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -196,18 +204,22 @@ export const useCreateApiToolProvider = () => {
 export const useValidateOpenAPISchema = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义校验OpenAPI结构处理器
   const handleValidateOpenAPISchema = async (openapi_schema: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await validateOpenAPISchema(openapi_schema)
+      if (requestId !== latestRequest) return false
       Message.success(resp.message)
       return true
     } catch (error: unknown) {
+      if (requestId !== latestRequest) return false
       return notifyRequestError(error, '校验 OpenAPI Schema 失败，请稍后重试')
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -218,15 +230,19 @@ export const useRegenerateIcon = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const icon = ref<string>('')
+  let latestRequest = 0
 
   // 2.定义重新生成图标函数
   const handleRegenerateIcon = async (provider_id: string, shouldNotifyError = () => true) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await regenerateIcon(provider_id)
+      if (requestId !== latestRequest) return
       icon.value = resp.data.icon
       return resp.data.icon
     } catch (error: unknown) {
+      if (requestId !== latestRequest) return
       let errorMessage = '重新生成图标失败，请稍后重试'
       const normalizedMessage = getErrorMessage(error, '')
       if (normalizedMessage.includes('API_KEY')) {
@@ -235,7 +251,7 @@ export const useRegenerateIcon = () => {
       if (shouldNotifyError()) Message.error(errorMessage)
       throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
@@ -246,6 +262,7 @@ export const useGenerateIconPreview = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const icon = ref<string>('')
+  let latestRequest = 0
 
   // 2.定义生成图标预览函数
   const handleGenerateIconPreview = async (
@@ -253,18 +270,21 @@ export const useGenerateIconPreview = () => {
     description: string,
     shouldNotifyError = () => true,
   ) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await generateIconPreview(name, description)
+      if (requestId !== latestRequest) return
       icon.value = resp.data.icon
       return resp.data.icon
     } catch (error: unknown) {
+      if (requestId !== latestRequest) return
       if (shouldNotifyError()) {
         Message.error(getErrorMessage(error, '生成图标失败，请稍后重试或手动上传图标'))
       }
       throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) loading.value = false
     }
   }
 
