@@ -582,11 +582,9 @@ class ConversationService(BaseService):
         target = self.get_message(target_message_id, account)
         base = self.get_message(base_message_id, account)
 
-        if (
-            getattr(target, "app_id", None) is not None
-            and getattr(base, "app_id", None) is not None
-            and target.app_id != base.app_id
-        ):
+        target_app_id = getattr(target, "app_id", None)
+        base_app_id = getattr(base, "app_id", None)
+        if (target_app_id is not None or base_app_id is not None) and target_app_id != base_app_id:
             raise ValidateErrorException("只能对比同一应用下的运行消息")
 
         target_error = str(getattr(target, "error", "") or "")
@@ -608,6 +606,7 @@ class ConversationService(BaseService):
                 "latency": float(target.latency or 0.0),
                 "total_token_count": int(target.total_token_count or 0),
                 "total_price": float(target.total_price or 0.0),
+                "answer": target_answer,
                 "answer_length": len(target_answer),
             },
             "base": {
@@ -617,6 +616,7 @@ class ConversationService(BaseService):
                 "latency": float(base.latency or 0.0),
                 "total_token_count": int(base.total_token_count or 0),
                 "total_price": float(base.total_price or 0.0),
+                "answer": base_answer,
                 "answer_length": len(base_answer),
             },
             "diff": {
