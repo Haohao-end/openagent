@@ -11,6 +11,7 @@ from internal.schema.evaluation_schema import (
     CreateEvaluationReq,
     GetEvaluationCasesReq,
     GetEvaluationsReq,
+    UpdateEvaluationCaseReq,
     UpdateEvaluationReq,
 )
 from internal.service.evaluation_service import EvaluationService
@@ -83,3 +84,35 @@ class EvaluationHandler:
 
         case = self.evaluation_service.create_evaluation_case(app_id, evaluation_id, req, current_user)
         return success_json(case)
+
+    @login_required
+    def get_evaluation_case(
+        self, app_id: UUID, evaluation_id: UUID, case_id: UUID
+    ) -> ResponseReturnValue:
+        """获取单个评测用例详情"""
+        case = self.evaluation_service.get_evaluation_case(app_id, evaluation_id, case_id, current_user)
+        return success_json(case)
+
+    @login_required
+    def update_evaluation_case(
+        self, app_id: UUID, evaluation_id: UUID, case_id: UUID
+    ) -> ResponseReturnValue:
+        """更新单个评测用例"""
+        req = UpdateEvaluationCaseReq(data=request.get_json())
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        case = self.evaluation_service.update_evaluation_case(
+            app_id, evaluation_id, case_id, req, current_user
+        )
+        return success_json(case)
+
+    @login_required
+    def delete_evaluation_case(
+        self, app_id: UUID, evaluation_id: UUID, case_id: UUID
+    ) -> ResponseReturnValue:
+        """删除单个评测用例"""
+        result = self.evaluation_service.delete_evaluation_case(
+            app_id, evaluation_id, case_id, current_user
+        )
+        return success_json(result)

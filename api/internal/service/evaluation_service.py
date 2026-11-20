@@ -12,6 +12,7 @@ from internal.schema.evaluation_schema import (
     CreateEvaluationReq,
     GetEvaluationCasesReq,
     GetEvaluationsReq,
+    UpdateEvaluationCaseReq,
     UpdateEvaluationReq,
 )
 from internal.service.base_service import BaseService
@@ -243,3 +244,122 @@ class EvaluationService(BaseService):
             "created_at": datetime_to_timestamp(case.created_at),
             "updated_at": datetime_to_timestamp(case.updated_at),
         }
+
+    def get_evaluation_case(
+        self, app_id: UUID, evaluation_id: UUID, case_id: UUID, account: Account
+    ) -> dict:
+        """获取单个评测用例详情"""
+        app = self.get(App, app_id)
+        if not app or app.account_id != account.id:
+            raise NotFoundException("该应用不存在")
+
+        evaluation = (
+            self.db.session.query(Evaluation)
+            .filter(Evaluation.id == evaluation_id, Evaluation.app_id == app_id)
+            .first()
+        )
+        if not evaluation:
+            raise NotFoundException("该评测集不存在")
+
+        case = (
+            self.db.session.query(EvaluationCase)
+            .filter(EvaluationCase.id == case_id, EvaluationCase.evaluation_id == evaluation.id)
+            .first()
+        )
+        if not case:
+            raise NotFoundException("该评测用例不存在")
+
+        return {
+            "id": str(case.id),
+            "evaluation_id": str(case.evaluation_id),
+            "query": case.query,
+            "answer": case.answer or "",
+            "created_at": datetime_to_timestamp(case.created_at),
+            "updated_at": datetime_to_timestamp(case.updated_at),
+        }
+
+    def update_evaluation_case(
+        self,
+        app_id: UUID,
+        evaluation_id: UUID,
+        case_id: UUID,
+        req: UpdateEvaluationCaseReq,
+        account: Account,
+    ) -> dict:
+        """更新单个评测用例"""
+        app = self.get(App, app_id)
+        if not app or app.account_id != account.id:
+            raise NotFoundException("该应用不存在")
+
+        evaluation = (
+            self.db.session.query(Evaluation)
+            .filter(Evaluation.id == evaluation_id, Evaluation.app_id == app_id)
+            .first()
+        )
+        if not evaluation:
+            raise NotFoundException("该评测集不存在")
+
+        case = (
+            self.db.session.query(EvaluationCase)
+            .filter(EvaluationCase.id == case_id, EvaluationCase.evaluation_id == evaluation.id)
+            .first()
+        )
+        if not case:
+            raise NotFoundException("该评测用例不存在")
+
+        if req.query.data is not None:
+            query_text = req.query.data.strip()
+            if not query_text:
+                raise ValidateErrorException("测试用例问题不能为空")
+            case.query = query_text
+
+        if req.answer.data is not None:
+            case.answer = req.answer.data.strip() if req.answer.data else None
+
+        try:
+            self.db.session.commit()
+        except Exception:
+            self.db.session.rollback()
+            raise FailException("更新评测用例失败，请稍后重试")
+
+        return {
+            "id": str(case.id),
+            "evaluation_id": str(case.evaluation_id),
+            "query": case.query,
+            "answer": case.answer or "",
+            "created_at": datetime_to_timestamp(case.created_at),
+            "updated_at": datetime_to_timestamp(case.updated_at),
+        }
+
+    def delete_evaluation_case(
+        self, app_id: UUID, evaluation_id: UUID, case_id: UUID, account: Account
+    ) -> dict:
+        """删除单个评测用例"""
+        app = self.get(App, app_id)
+        if not app or app.account_id != account.id:
+            raise NotFoundException("该应用不存在")
+
+        evaluation = (
+            self.db.session.query(Evaluation)
+            .filter(Evaluation.id == evaluation_id, Evaluation.app_id == app_id)
+            .first()
+        )
+        if not evaluation:
+            raise NotFoundException("该评测集不存在")
+
+        case = (
+            self.db.session.query(EvaluationCase)
+            .filter(EvaluationCase.id == case_id, EvaluationCase.evaluation_id == evaluation.id)
+            .first()
+        )
+        if not case:
+            raise NotFoundException("该评测用例不存在")
+
+        try:
+            self.db.session.delete(case)
+            self.db.session.commit()
+        except Exception:
+            self.db.session.rollback()
+            raise FailException("删除评测用例失败，请稍后重试")
+
+        return {"id": str(case_id)}

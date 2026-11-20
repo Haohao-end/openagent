@@ -53,3 +53,15 @@ class GetEvaluationCasesReq(FlaskForm):
         Optional(),
         NumberRange(min=1, max=100, message="每页数量必须在1到100之间"),
     ])
+
+
+class UpdateEvaluationCaseReq(FlaskForm):
+    """更新评测用例请求"""
+    query = StringField("query", validators=[
+        Optional(),
+        Length(max=10000, message="问题内容不能超过10000个字符"),
+    ])
+    answer = StringField("answer", validators=[
+        Optional(),
+        Length(max=10000, message="预期回答不能超过10000个字符"),
+    ])

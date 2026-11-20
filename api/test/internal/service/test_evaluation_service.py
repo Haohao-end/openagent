@@ -271,3 +271,101 @@ def test_create_evaluation_case_should_validate_blank_query(monkeypatch):
     )
     with pytest.raises(ValidateErrorException, match="测试用例问题不能为空"):
         service.create_evaluation_case(app_id, eval_id, req, account)
+
+
+def test_get_evaluation_case_should_return_detail(monkeypatch):
+    account = SimpleNamespace(id=uuid4())
+    app_id = uuid4()
+    eval_id = uuid4()
+    case_id = uuid4()
+    app = SimpleNamespace(id=app_id, account_id=account.id)
+    eval_record = SimpleNamespace(id=eval_id, app_id=app_id)
+    case_record = SimpleNamespace(
+        id=case_id,
+        evaluation_id=eval_id,
+        query="What is python?",
+        answer="A language",
+        created_at=None,
+        updated_at=None,
+    )
+
+    def _query(cls):
+        if cls is Evaluation:
+            return SimpleNamespace(filter=lambda *_a, **_kw: SimpleNamespace(first=lambda: eval_record))
+        return SimpleNamespace(filter=lambda *_a, **_kw: SimpleNamespace(first=lambda: case_record))
+
+    service = EvaluationService(db=SimpleNamespace(session=SimpleNamespace(query=_query)))
+    monkeypatch.setattr(service, "get", lambda _cls, _id: app)
+
+    res = service.get_evaluation_case(app_id, eval_id, case_id, account)
+    assert res["id"] == str(case_id)
+    assert res["query"] == "What is python?"
+
+
+def test_update_evaluation_case_should_modify_fields(monkeypatch):
+    account = SimpleNamespace(id=uuid4())
+    app_id = uuid4()
+    eval_id = uuid4()
+    case_id = uuid4()
+    app = SimpleNamespace(id=app_id, account_id=account.id)
+    eval_record = SimpleNamespace(id=eval_id, app_id=app_id)
+    case_record = SimpleNamespace(
+        id=case_id,
+        evaluation_id=eval_id,
+        query="Old query",
+        answer="Old answer",
+        created_at=None,
+        updated_at=None,
+    )
+
+    def _query(cls):
+        if cls is Evaluation:
+            return SimpleNamespace(filter=lambda *_a, **_kw: SimpleNamespace(first=lambda: eval_record))
+        return SimpleNamespace(filter=lambda *_a, **_kw: SimpleNamespace(first=lambda: case_record))
+
+    session = SimpleNamespace(
+        query=_query,
+        commit=lambda: None,
+        rollback=lambda: None,
+    )
+    service = EvaluationService(db=SimpleNamespace(session=session))
+    monkeypatch.setattr(service, "get", lambda _cls, _id: app)
+
+    req = SimpleNamespace(
+        query=SimpleNamespace(data="New query"),
+        answer=SimpleNamespace(data="New answer"),
+    )
+    res = service.update_evaluation_case(app_id, eval_id, case_id, req, account)
+    assert res["query"] == "New query"
+    assert res["answer"] == "New answer"
+    assert case_record.query == "New query"
+
+
+def test_delete_evaluation_case_should_remove_case(monkeypatch):
+    account = SimpleNamespace(id=uuid4())
+    app_id = uuid4()
+    eval_id = uuid4()
+    case_id = uuid4()
+    app = SimpleNamespace(id=app_id, account_id=account.id)
+    eval_record = SimpleNamespace(id=eval_id, app_id=app_id)
+    case_record = SimpleNamespace(id=case_id, evaluation_id=eval_id)
+    deleted = []
+
+    def _query(cls):
+        if cls is Evaluation:
+            return SimpleNamespace(filter=lambda *_a, **_kw: SimpleNamespace(first=lambda: eval_record))
+        return SimpleNamespace(filter=lambda *_a, **_kw: SimpleNamespace(first=lambda: case_record))
+
+    session = SimpleNamespace(
+        query=_query,
+        delete=lambda entity: deleted.append(entity),
+        commit=lambda: None,
+        rollback=lambda: None,
+    )
+    service = EvaluationService(db=SimpleNamespace(session=session))
+    monkeypatch.setattr(service, "get", lambda _cls, _id: app)
+
+    res = service.delete_evaluation_case(app_id, eval_id, case_id, account)
+    assert res["id"] == str(case_id)
+    assert len(deleted) == 1
+    assert deleted[0] == case_record
