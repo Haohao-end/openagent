@@ -136,6 +136,9 @@ class ApiKeyService(BaseService):
                 },
                 synchronize_session=False,
             )
+        if hasattr(api_key_record, "request_count"):
+            current_count = getattr(api_key_record, "request_count", None)
+            api_key_record.request_count = (current_count or 0) + 1
 
     def check_rate_limit(
         self,

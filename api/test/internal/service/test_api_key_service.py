@@ -281,7 +281,7 @@ class TestApiKeyService:
                 raise
 
         service = ApiKeyService(db=SimpleNamespace(session=session, auto_commit=auto_commit))
-        api_key_record = SimpleNamespace(id=api_key_id)
+        api_key_record = SimpleNamespace(id=api_key_id, request_count=0)
 
         for request_count, requested_at in enumerate((first_request, second_request), start=1):
             monkeypatch.setattr(
@@ -294,6 +294,7 @@ class TestApiKeyService:
                 {"id": api_key_id.hex},
             ).one()
             assert stored_count == request_count
+            assert api_key_record.request_count == request_count
             assert datetime.fromisoformat(stored_last_used) == first_request
         session.close()
         engine.dispose()
