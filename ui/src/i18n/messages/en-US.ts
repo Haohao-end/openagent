@@ -1153,6 +1153,8 @@ export default {
       price: 'Cost',
       answerLength: 'Answer Length',
       error: 'Error',
+      changed: 'Changed',
+      same: 'Same',
       seconds: '{n}s',
       tokensUnit: '{n} tokens',
     },

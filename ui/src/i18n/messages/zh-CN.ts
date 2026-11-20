@@ -1135,6 +1135,8 @@ export default {
       price: '费用',
       answerLength: '回答长度',
       error: '错误信息',
+      changed: '已变更',
+      same: '无变化',
       seconds: '{n} 秒',
       tokensUnit: '{n} tokens',
     },
