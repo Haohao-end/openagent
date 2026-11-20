@@ -15,6 +15,7 @@ from .segment_handler import SegmentHandler
 from .tag_handler import TagHandler
 from .feedback_handler import FeedbackHandler
 from .trace_handler import TraceHandler
+from .evaluation_handler import EvaluationHandler
 
 
 from .upload_file_handler import UploadFileHandler
@@ -64,5 +65,6 @@ __all__ = [
     "HomeHandler",
     "NotificationHandler",
     "FeedbackHandler",
-    "TraceHandler"
+    "TraceHandler",
+    "EvaluationHandler",
 ]

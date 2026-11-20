@@ -4,6 +4,8 @@ from flask import jsonify
 ROUTE_SPECS = [
     {"method": "POST", "url": "/apps/00000000-0000-0000-0000-000000000000/feedbacks", "endpoint": "llmops.create_feedback"},
     {"method": "GET", "url": "/apps/00000000-0000-0000-0000-000000000000/feedbacks", "endpoint": "llmops.get_feedbacks"},
+    {"method": "GET", "url": "/apps/00000000-0000-0000-0000-000000000000/evaluations", "endpoint": "llmops.get_evaluations"},
+    {"method": "POST", "url": "/apps/00000000-0000-0000-0000-000000000000/evaluations", "endpoint": "llmops.create_evaluation"},
     {"method": "GET", "url": "/assistant-agent/capabilities", "endpoint": "llmops.get_assistant_agent_capabilities"},
     {"method": "GET", "url": "/mcp-providers/categories", "endpoint": "llmops.get_mcp_categories_for_space"},
     {"method": "GET", "url": "/mcp-providers", "endpoint": "llmops.get_mcp_providers_with_page"},

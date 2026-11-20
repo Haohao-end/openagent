@@ -42,6 +42,7 @@ from .public_app_service import PublicAppService
 from .public_workflow_service import PublicWorkflowService
 from .mcp_service import McpService
 from .skill_service import SkillService
+from .evaluation_service import EvaluationService
 
 
 __all__ = [
@@ -89,4 +90,5 @@ __all__ = [
     "NotificationService",
     "McpService",
     "SkillService",
+    "EvaluationService",
 ]
