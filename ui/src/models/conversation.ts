@@ -92,6 +92,7 @@ export type MessageRunSummary = {
   latency: number
   total_token_count: number
   total_price: number
+  answer?: string
   answer_length: number
 }
 

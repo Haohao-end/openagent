@@ -78,7 +78,7 @@ defineExpose({ open, handleCompare })
     v-model:visible="visible"
     :title="t('chat.compareMessages.title')"
     :footer="false"
-    width="640px"
+    width="680px"
     @cancel="close"
   >
     <a-spin :loading="loading" class="w-full">
@@ -99,6 +99,35 @@ defineExpose({ open, handleCompare })
           <div>{{ row.target }}</div>
           <div :class="row.diff.startsWith('+') ? 'text-rose-600' : row.diff.startsWith('-') ? 'text-emerald-600' : 'text-gray-500'">
             {{ row.diff }}
+          </div>
+        </div>
+
+        <div
+          v-if="comparison.base.answer !== undefined || comparison.target.answer !== undefined"
+          class="flex flex-col gap-2 pt-2 border-t"
+        >
+          <div class="flex items-center justify-between text-xs font-semibold text-gray-700">
+            <span>{{ t('chat.compareMessages.answerComparison') }}</span>
+            <span
+              :class="comparison.diff.answer_match ? 'text-emerald-600 bg-emerald-50' : 'text-amber-600 bg-amber-50'"
+              class="px-2 py-0.5 rounded font-medium text-xs"
+            >
+              {{ comparison.diff.answer_match ? t('chat.compareMessages.answerMatch') : t('chat.compareMessages.answerMismatch') }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div class="flex flex-col gap-1 p-2.5 bg-gray-50 border rounded">
+              <div class="font-semibold text-gray-600">{{ t('chat.compareMessages.base') }}</div>
+              <div class="text-gray-800 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+                {{ comparison.base.answer || '-' }}
+              </div>
+            </div>
+            <div class="flex flex-col gap-1 p-2.5 bg-gray-50 border rounded">
+              <div class="font-semibold text-gray-600">{{ t('chat.compareMessages.target') }}</div>
+              <div class="text-gray-800 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+                {{ comparison.target.answer || '-' }}
+              </div>
+            </div>
           </div>
         </div>
       </div>
