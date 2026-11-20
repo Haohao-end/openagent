@@ -1,6 +1,9 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  useCreateDocuments,
+  useCreateOrUpdateDataset,
+  useCreateSegment,
   useDeleteDataset,
   useDeleteDocument,
   useDeleteSegment,
@@ -15,6 +18,7 @@ import {
   useGenerateIconPreview,
   useUpdateDocumentEnabled,
   useUpdateDocumentName,
+  useUpdateSegment,
   useUpdateSegmentEnabled,
 } from '@/hooks/use-dataset'
 
@@ -886,5 +890,111 @@ describe('useGetDocumentsStatus', () => {
 
     await expect(loadDocumentsStatus('dataset-1', 'batch-1')).rejects.toBe(requestError)
     expect(loading.value).toBe(false)
+  })
+})
+
+describe('useCreateOrUpdateDataset', () => {
+  it('drops stale update responses when a newer request completes first', async () => {
+    const olderResponse = createDeferred<{ message: string }>()
+    const newerResponse = createDeferred<{ message: string }>()
+    mocks.updateDataset.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+
+    const { loading, saveDataset } = useCreateOrUpdateDataset()
+    const olderRequest = saveDataset('dataset-1')
+    const newerRequest = saveDataset('dataset-2')
+    expect(loading.value).toBe(true)
+
+    newerResponse.resolve({ message: 'dataset 2 updated' })
+    await newerRequest
+    expect(mocks.messageSuccess).toHaveBeenCalledWith('dataset 2 updated')
+    expect(loading.value).toBe(false)
+
+    olderResponse.resolve({ message: 'dataset 1 updated' })
+    await olderRequest
+    expect(mocks.messageSuccess).not.toHaveBeenCalledWith('dataset 1 updated')
+  })
+
+  it('drops stale create responses when a newer request completes first', async () => {
+    const olderResponse = createDeferred<{ message: string }>()
+    const newerResponse = createDeferred<{ message: string }>()
+    mocks.createDataset.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+
+    const { loading, saveDataset } = useCreateOrUpdateDataset()
+    const olderRequest = saveDataset()
+    const newerRequest = saveDataset()
+    expect(loading.value).toBe(true)
+
+    newerResponse.resolve({ message: 'created second' })
+    await newerRequest
+    expect(mocks.messageSuccess).toHaveBeenCalledWith('created second')
+    expect(loading.value).toBe(false)
+
+    olderResponse.resolve({ message: 'created first' })
+    await olderRequest
+    expect(mocks.messageSuccess).not.toHaveBeenCalledWith('created first')
+  })
+})
+
+describe('useCreateSegment and useUpdateSegment', () => {
+  it('drops stale createSegment responses when a newer request completes first', async () => {
+    const olderResponse = createDeferred<{ message: string }>()
+    const newerResponse = createDeferred<{ message: string }>()
+    mocks.createSegment.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+
+    const { loading, handleCreateSegment } = useCreateSegment()
+    const olderRequest = handleCreateSegment('dataset-1', 'doc-1', { content: 'c1' } as any)
+    const newerRequest = handleCreateSegment('dataset-1', 'doc-1', { content: 'c2' } as any)
+    expect(loading.value).toBe(true)
+
+    newerResponse.resolve({ message: 'created segment 2' })
+    await newerRequest
+    expect(mocks.messageSuccess).toHaveBeenCalledWith('created segment 2')
+    expect(loading.value).toBe(false)
+
+    olderResponse.resolve({ message: 'created segment 1' })
+    await olderRequest
+    expect(mocks.messageSuccess).not.toHaveBeenCalledWith('created segment 1')
+  })
+
+  it('drops stale updateSegment responses when a newer request completes first', async () => {
+    const olderResponse = createDeferred<{ message: string }>()
+    const newerResponse = createDeferred<{ message: string }>()
+    mocks.updateSegment.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+
+    const { loading, handleUpdateSegment } = useUpdateSegment()
+    const olderRequest = handleUpdateSegment('dataset-1', 'doc-1', 'seg-1', { content: 's1' } as any)
+    const newerRequest = handleUpdateSegment('dataset-1', 'doc-1', 'seg-1', { content: 's2' } as any)
+    expect(loading.value).toBe(true)
+
+    newerResponse.resolve({ message: 'updated segment 2' })
+    await newerRequest
+    expect(mocks.messageSuccess).toHaveBeenCalledWith('updated segment 2')
+    expect(loading.value).toBe(false)
+
+    olderResponse.resolve({ message: 'updated segment 1' })
+    await olderRequest
+    expect(mocks.messageSuccess).not.toHaveBeenCalledWith('updated segment 1')
+  })
+})
+
+describe('useCreateDocuments', () => {
+  it('drops stale createDocuments responses when a newer request completes first', async () => {
+    const olderResponse = createDeferred<{ data: { batch: string } }>()
+    const newerResponse = createDeferred<{ data: { batch: string } }>()
+    mocks.createDocuments.mockReturnValueOnce(olderResponse.promise).mockReturnValueOnce(newerResponse.promise)
+
+    const { loading, create_documents_result, handleCreateDocuments } = useCreateDocuments()
+    const olderRequest = handleCreateDocuments('dataset-1', {} as any)
+    const newerRequest = handleCreateDocuments('dataset-1', {} as any)
+    expect(loading.value).toBe(true)
+
+    newerResponse.resolve({ data: { batch: 'batch-2' } })
+    await newerRequest
+    expect(create_documents_result.value).toEqual({ batch: 'batch-2' })
+    expect(loading.value).toBe(false)
+
+    olderResponse.resolve({ data: { batch: 'batch-1' } })
+    await olderRequest
+    expect(create_documents_result.value).toEqual({ batch: 'batch-2' })
   })
 })

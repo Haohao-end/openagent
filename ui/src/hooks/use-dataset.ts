@@ -115,6 +115,7 @@ export const useDeleteDataset = () => {
 export const useCreateOrUpdateDataset = () => {
   // 1.定义新增和更新需要使用的数据
   const loading = ref(false)
+  let latestRequest = 0
   const defaultForm = {
     fileList: [] as any,
     icon: '',
@@ -133,6 +134,7 @@ export const useCreateOrUpdateDataset = () => {
 
   // 3.定义表单提交函数
   const saveDataset = async (dataset_id?: string) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       if (dataset_id !== undefined && dataset_id !== '') {
@@ -141,17 +143,26 @@ export const useCreateOrUpdateDataset = () => {
           name: form.value.name,
           description: form.value.description,
         })
+        if (requestId !== latestRequest) return
         Message.success(resp.message)
+        return resp
       } else {
         const resp = await createDataset({
           icon: form.value.icon,
           name: form.value.name,
           description: form.value.description,
         })
+        if (requestId !== latestRequest) return
         Message.success(resp.message)
+        return resp
       }
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
@@ -479,6 +490,7 @@ export const useHit = () => {
 export const useCreateSegment = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义新增片段处理器
   const handleCreateSegment = async (
@@ -486,12 +498,20 @@ export const useCreateSegment = () => {
     document_id: string,
     req: CreateSegmentRequest,
   ) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await createSegment(dataset_id, document_id, req)
+      if (requestId !== latestRequest) return
       Message.success(resp.message)
+      return resp
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
@@ -501,6 +521,7 @@ export const useCreateSegment = () => {
 export const useUpdateSegment = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新片段处理器
   const handleUpdateSegment = async (
@@ -509,12 +530,20 @@ export const useUpdateSegment = () => {
     segment_id: string,
     req: UpdateSegmentRequest,
   ) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await updateSegment(dataset_id, document_id, segment_id, req)
+      if (requestId !== latestRequest) return
       Message.success(resp.message)
+      return resp
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
@@ -547,16 +576,25 @@ export const useGetSegment = () => {
 export const useCreateDocuments = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
   const create_documents_result = ref<Record<string, any>>({})
 
   // 2.定义创建文档列表处理器
   const handleCreateDocuments = async (dataset_id: string, req: CreateDocumentsRequest) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await createDocuments(dataset_id, req)
+      if (requestId !== latestRequest) return
       create_documents_result.value = resp.data
+      return resp
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
