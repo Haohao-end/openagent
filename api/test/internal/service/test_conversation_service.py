@@ -2358,8 +2358,10 @@ class TestConversationServiceBasics:
 
     def test_compare_messages_should_compute_run_differences(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
+        common_app_id = uuid4()
         m1 = SimpleNamespace(
             id=uuid4(),
+            app_id=common_app_id,
             created_by=account.id,
             is_deleted=False,
             status="normal",
@@ -2373,6 +2375,7 @@ class TestConversationServiceBasics:
         )
         m2 = SimpleNamespace(
             id=uuid4(),
+            app_id=common_app_id,
             created_by=account.id,
             is_deleted=False,
             status="error",
@@ -2462,6 +2465,29 @@ class TestConversationServiceBasics:
         with pytest.raises(ValidateErrorException, match="只能对比同一应用下的运行消息"):
             service.compare_messages(m1.id, m2.id, account)
 
+    def test_compare_messages_should_raise_when_both_have_no_app_id(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        m1 = SimpleNamespace(
+            id=uuid4(),
+            app_id=None,
+            created_by=account.id,
+            is_deleted=False,
+            status="normal",
+        )
+        m2 = SimpleNamespace(
+            id=uuid4(),
+            app_id=None,
+            created_by=account.id,
+            is_deleted=False,
+            status="normal",
+        )
+        service = ConversationService(db=SimpleNamespace())
+        messages_by_id = {m1.id: m1, m2.id: m2}
+        monkeypatch.setattr(service, "get", lambda _cls, msg_id: messages_by_id.get(msg_id))
+
+        with pytest.raises(ValidateErrorException, match="只能对比同一应用下的运行消息"):
+            service.compare_messages(m1.id, m2.id, account)
+
     def test_get_message_trace_should_return_timeline(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
         msg = SimpleNamespace(
@@ -2532,7 +2558,7 @@ class TestConversationServiceBasics:
             datasets=[],
             workflows=[],
         )
-        app = SimpleNamespace(id=msg.app_id, draft_app_config=app_config)
+        app = SimpleNamespace(id=msg.app_id, account_id=account.id, draft_app_config=app_config)
 
         service = ConversationService(db=SimpleNamespace())
         monkeypatch.setattr(service, "get_message", lambda _mid, _acc: msg)
@@ -2623,3 +2649,23 @@ class TestConversationServiceBasics:
 
         with pytest.raises(NotFoundException):
             service.build_replay_snapshot(msg.id, {}, account)
+
+    def test_build_replay_snapshot_should_raise_not_found_on_missing_app(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        msg = SimpleNamespace(
+            id=uuid4(),
+            conversation_id=uuid4(),
+            app_id=uuid4(),
+            created_by=account.id,
+            is_deleted=False,
+            query="test",
+            image_urls=[],
+            invoke_from="debugger",
+        )
+        service = ConversationService(db=SimpleNamespace())
+        monkeypatch.setattr(service, "get_message", lambda _mid, _acc: msg)
+        monkeypatch.setattr(service, "get", lambda model, _id: SimpleNamespace() if model is Conversation else None)
+
+        with pytest.raises(NotFoundException, match="应用不存在或无访问权限"):
+            service.build_replay_snapshot(msg.id, {}, account)
+

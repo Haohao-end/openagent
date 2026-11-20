@@ -584,7 +584,7 @@ class ConversationService(BaseService):
 
         target_app_id = getattr(target, "app_id", None)
         base_app_id = getattr(base, "app_id", None)
-        if (target_app_id is not None or base_app_id is not None) and target_app_id != base_app_id:
+        if not target_app_id or not base_app_id or target_app_id != base_app_id:
             raise ValidateErrorException("只能对比同一应用下的运行消息")
 
         target_error = str(getattr(target, "error", "") or "")
@@ -682,14 +682,6 @@ class ConversationService(BaseService):
         account: Account,
     ) -> dict[str, Any]:
         """构建运行重放输入快照、配置快照并应用受控Patch白名单校验。"""
-        message = self.get_message(message_id, account)
-        conversation = self.get(Conversation, message.conversation_id)
-        app = self.get(App, message.app_id) if conversation else None
-
-        # 校验应用归属权
-        if app and getattr(app, "account_id", None) is not None and app.account_id != account.id:
-            raise NotFoundException("应用不存在或无访问权限")
-
         if patch is not None and not isinstance(patch, dict):
             raise ValidateErrorException("回放Patch配置必须为字典对象")
 
@@ -697,6 +689,14 @@ class ConversationService(BaseService):
         invalid_keys = set(patch_dict.keys()) - _ALLOWED_REPLAY_PATCH_KEYS
         if invalid_keys:
             raise ValidateErrorException(f"不支持的回放Patch配置项: {', '.join(sorted(invalid_keys))}")
+
+        message = self.get_message(message_id, account)
+        conversation = self.get(Conversation, message.conversation_id)
+        app = self.get(App, message.app_id) if conversation else None
+
+        # 校验应用归属权
+        if not app or (getattr(app, "account_id", None) is not None and app.account_id != account.id):
+            raise NotFoundException("应用不存在或无访问权限")
 
         # 检查 invoke_from 来源，开放 API 服务调用的消息不能泄露草稿配置
         if getattr(message, "invoke_from", None) == InvokeFrom.SERVICE_API.value:
