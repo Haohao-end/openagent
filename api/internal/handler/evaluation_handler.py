@@ -6,7 +6,13 @@ from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required
 from injector import inject
 
-from internal.schema.evaluation_schema import CreateEvaluationReq, GetEvaluationsReq, UpdateEvaluationReq
+from internal.schema.evaluation_schema import (
+    CreateEvaluationCaseReq,
+    CreateEvaluationReq,
+    GetEvaluationCasesReq,
+    GetEvaluationsReq,
+    UpdateEvaluationReq,
+)
 from internal.service.evaluation_service import EvaluationService
 from pkg.response import success_json, validate_error_json
 
@@ -57,3 +63,23 @@ class EvaluationHandler:
         """删除评测集"""
         result = self.evaluation_service.delete_evaluation(app_id, evaluation_id, current_user)
         return success_json(result)
+
+    @login_required
+    def get_evaluation_cases(self, app_id: UUID, evaluation_id: UUID) -> ResponseReturnValue:
+        """获取评测集下的用例列表"""
+        req = GetEvaluationCasesReq(request.args)
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        cases = self.evaluation_service.get_evaluation_cases(app_id, evaluation_id, req, current_user)
+        return success_json(cases)
+
+    @login_required
+    def create_evaluation_case(self, app_id: UUID, evaluation_id: UUID) -> ResponseReturnValue:
+        """为评测集创建测试用例"""
+        req = CreateEvaluationCaseReq(data=request.get_json())
+        if not req.validate():
+            return validate_error_json(req.errors)
+
+        case = self.evaluation_service.create_evaluation_case(app_id, evaluation_id, req, current_user)
+        return success_json(case)

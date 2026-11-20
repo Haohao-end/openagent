@@ -7,7 +7,13 @@ from sqlalchemy import desc
 from internal.exception import FailException, NotFoundException, ValidateErrorException
 from internal.lib.helper import datetime_to_timestamp
 from internal.model import Account, App, Evaluation, EvaluationCase
-from internal.schema.evaluation_schema import CreateEvaluationReq, GetEvaluationsReq, UpdateEvaluationReq
+from internal.schema.evaluation_schema import (
+    CreateEvaluationCaseReq,
+    CreateEvaluationReq,
+    GetEvaluationCasesReq,
+    GetEvaluationsReq,
+    UpdateEvaluationReq,
+)
 from internal.service.base_service import BaseService
 from pkg.sqlalchemy import SQLAlchemy
 
@@ -156,3 +162,84 @@ class EvaluationService(BaseService):
             raise FailException("删除评测集失败，请稍后重试")
 
         return {"id": str(evaluation_id)}
+
+    def get_evaluation_cases(
+        self, app_id: UUID, evaluation_id: UUID, req: GetEvaluationCasesReq, account: Account
+    ) -> list[dict]:
+        """获取评测集下的用例列表"""
+        app = self.get(App, app_id)
+        if not app or app.account_id != account.id:
+            raise NotFoundException("该应用不存在")
+
+        evaluation = (
+            self.db.session.query(Evaluation)
+            .filter(Evaluation.id == evaluation_id, Evaluation.app_id == app_id)
+            .first()
+        )
+        if not evaluation:
+            raise NotFoundException("该评测集不存在")
+
+        page = req.page.data or 1
+        limit = req.limit.data or 20
+        cases = (
+            self.db.session.query(EvaluationCase)
+            .filter(EvaluationCase.evaluation_id == evaluation.id)
+            .order_by(desc(EvaluationCase.created_at), desc(EvaluationCase.id))
+            .offset((page - 1) * limit)
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "id": str(c.id),
+                "evaluation_id": str(c.evaluation_id),
+                "query": c.query,
+                "answer": c.answer or "",
+                "created_at": datetime_to_timestamp(c.created_at),
+                "updated_at": datetime_to_timestamp(c.updated_at),
+            }
+            for c in cases
+        ]
+
+    def create_evaluation_case(
+        self, app_id: UUID, evaluation_id: UUID, req: CreateEvaluationCaseReq, account: Account
+    ) -> dict:
+        """为评测集添加测试用例"""
+        app = self.get(App, app_id)
+        if not app or app.account_id != account.id:
+            raise NotFoundException("该应用不存在")
+
+        evaluation = (
+            self.db.session.query(Evaluation)
+            .filter(Evaluation.id == evaluation_id, Evaluation.app_id == app_id)
+            .first()
+        )
+        if not evaluation:
+            raise NotFoundException("该评测集不存在")
+
+        query_text = (req.query.data or "").strip()
+        if not query_text:
+            raise ValidateErrorException("测试用例问题不能为空")
+
+        answer_text = req.answer.data.strip() if req.answer.data else None
+
+        case = EvaluationCase(
+            evaluation_id=evaluation.id,
+            query=query_text,
+            answer=answer_text,
+        )
+        try:
+            self.db.session.add(case)
+            self.db.session.commit()
+        except Exception:
+            self.db.session.rollback()
+            raise FailException("创建评测用例失败，请稍后重试")
+
+        return {
+            "id": str(case.id),
+            "evaluation_id": str(case.evaluation_id),
+            "query": case.query,
+            "answer": case.answer or "",
+            "created_at": datetime_to_timestamp(case.created_at),
+            "updated_at": datetime_to_timestamp(case.updated_at),
+        }
