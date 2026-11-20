@@ -99,4 +99,28 @@ describe('FeedbackModal', () => {
     expect(mockSubmitFeedback).not.toHaveBeenCalled()
     expect(Message.warning).toHaveBeenCalledWith('chat.feedback.selectRating')
   })
+
+  it('does not dispatch submitFeedback when loading is already true', async () => {
+    const wrapper = mount(FeedbackModal, {
+      global: {
+        stubs: {
+          'a-modal': { template: '<div><slot /></div>' },
+          'a-spin': { template: '<div><slot /></div>' },
+          'a-button': true,
+          'a-textarea': true,
+          'icon-thumb-up': true,
+          'icon-thumb-down': true,
+        },
+      },
+    })
+
+    const vm = wrapper.vm as any
+    vm.open('app-test', 'msg-test', 1)
+    await flushPromises()
+
+    mockLoading.value = true
+    await vm.handleSubmit()
+
+    expect(mockSubmitFeedback).not.toHaveBeenCalled()
+  })
 })

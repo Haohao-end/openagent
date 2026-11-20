@@ -34,6 +34,7 @@ const close = () => {
 }
 
 const handleSubmit = async () => {
+  if (loading.value) return
   if (!appId.value || !targetId.value) return
   if (!rating.value) {
     Message.warning(t('chat.feedback.selectRating'))
@@ -103,10 +104,11 @@ defineExpose({ open, handleSubmit })
 
         <!-- Actions -->
         <div class="flex justify-end gap-2 pt-2 border-t">
-          <a-button @click="close">{{ t('common.cancel') }}</a-button>
+          <a-button :disabled="loading" @click="close">{{ t('common.cancel') }}</a-button>
           <a-button
             type="primary"
             :loading="loading"
+            :disabled="loading"
             @click="handleSubmit"
           >
             {{ t('common.submit') }}
