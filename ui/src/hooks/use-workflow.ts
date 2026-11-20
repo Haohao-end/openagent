@@ -94,6 +94,7 @@ export const useCreateWorkflow = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
   const router = useRouter()
+  let latestRequest = 0
 
   // 2.定义创建工作流处理器
   const handleCreateWorkflow = async (
@@ -104,10 +105,12 @@ export const useCreateWorkflow = () => {
       throw new Error('英文名称仅支持字母、数字和下划线，且以字母/下划线为开头')
     }
 
+    const requestId = ++latestRequest
     try {
       // 3.调用API接口创建工作流
       loading.value = true
       const resp = await createWorkflow(req)
+      if (requestId !== latestRequest) return
 
       // 4.创建成功提示并跳转页面
       Message.success('创建工作流成功')
@@ -118,8 +121,14 @@ export const useCreateWorkflow = () => {
           workflow_id: resp.data.id,
         },
       })
+      return resp
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
@@ -129,6 +138,7 @@ export const useCreateWorkflow = () => {
 export const useUpdateWorkflow = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新工作流处理器
   const handleUpdateWorkflow = async (workflow_id: string, req: UpdateWorkflowRequest) => {
@@ -136,13 +146,21 @@ export const useUpdateWorkflow = () => {
       throw new Error('英文名称仅支持字母、数字和下划线，且以字母/下划线为开头')
     }
 
+    const requestId = ++latestRequest
     try {
       // 3.调用api接口更新工作流
       loading.value = true
       const resp = await updateWorkflow(workflow_id, req)
+      if (requestId !== latestRequest) return
       Message.success(resp.message)
+      return resp
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
