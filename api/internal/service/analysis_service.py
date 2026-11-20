@@ -260,6 +260,8 @@ class AnalysisService(BaseService):
 
     def get_messages_by_time_range(self, app: App, start_at: datetime, end_at: datetime) -> list[Message]:
         """根据传递的时间段获取指定应用的消息会话数据"""
+        if start_at >= end_at:
+            return []
         return self.db.session.query(Message).with_entities(
             Message.id, Message.conversation_id, Message.created_by,
             Message.latency, Message.total_token_count, Message.total_price,
@@ -298,7 +300,7 @@ class AnalysisService(BaseService):
             token_output_rate = sum(int(message.total_token_count or 0) for message in messages) / latency_sum
 
         # 6.计算费用消耗，使用总花费进行求和
-        cost_consumption = sum(message.total_price for message in messages)
+        cost_consumption = sum(float(message.total_price or 0.0) for message in messages)
 
         # 7.返回数据，并且对于小数型数据，如果数值过小，需要转换成float，避免Python使用科学计数法进行展示
         return {
@@ -329,11 +331,11 @@ class AnalysisService(BaseService):
             current_value = current_data.get(field)
             previous_value = previous_data.get(field)
 
-            # 4.确保上一时期的数据不为0，避免/0错误
-            if previous_value != 0:
+            # 4.确保上一时期和当前时期数据有效且上一时期不为0，避免/0错误与NoneType异常
+            if current_value is not None and previous_value not in (None, 0, 0.0):
                 pop[field] = float((current_value - previous_value) / previous_value)
             else:
-                # 5.如果前一期数据为0，则直接设置环比为0
+                # 5.如果前一期数据为0或缺失，则直接设置环比为0.0
                 pop[field] = 0.0
 
         return pop
@@ -400,7 +402,7 @@ class AnalysisService(BaseService):
 
             # 9.计算费用消耗趋势
             cost_consumption_trend_y_axis = sum(
-                message.total_price for created_at, message in normalized_messages
+                float(message.total_price or 0.0) for created_at, message in normalized_messages
                 if trend_start_at <= created_at < trend_end_at
             )
             cost_consumption_trend["x_axis"].append(trend_timestamp)

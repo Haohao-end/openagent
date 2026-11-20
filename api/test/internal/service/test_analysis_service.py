@@ -397,3 +397,53 @@ class TestAnalysisService:
             "failure_rate": None,
             "avg_latency": None,
         }
+
+    def test_get_messages_by_time_range_should_return_empty_when_start_at_gte_end_at(self):
+        app = SimpleNamespace(id=uuid4())
+        start_at = datetime(2024, 1, 8, 0, 0, 0)
+        end_at = datetime(2024, 1, 1, 0, 0, 0)
+        service = _build_service(app=app)
+        assert service.get_messages_by_time_range(app, start_at, end_at) == []
+
+    def test_calculate_pop_should_handle_none_values_safely(self):
+        current = {
+            "total_messages": None,
+            "active_accounts": 3,
+            "avg_of_conversation_messages": 2.5,
+            "avg_latency": 6.0,
+            "token_output_rate": 30.0,
+            "cost_consumption": 6.0,
+        }
+        previous = {
+            "total_messages": 5,
+            "active_accounts": None,
+            "avg_of_conversation_messages": 0,
+            "avg_latency": 3.0,
+            "token_output_rate": None,
+            "cost_consumption": 3.0,
+        }
+
+        pop = AnalysisService.calculate_pop_by_overview_indicators(current, previous)
+        assert pop["total_messages"] == 0.0
+        assert pop["active_accounts"] == 0.0
+        assert pop["avg_of_conversation_messages"] == 0.0
+        assert pop["avg_latency"] == pytest.approx(1.0)
+        assert pop["token_output_rate"] == 0.0
+        assert pop["cost_consumption"] == pytest.approx(1.0)
+
+    def test_calculate_overview_indicators_and_trend_should_handle_none_total_price(self):
+        created_at = datetime(2024, 1, 5, 12, 0, 0)
+        msg = _message(created_at=created_at, price=None)
+        msg.total_price = None
+
+        indicators = AnalysisService.calculate_overview_indicators_by_messages([msg])
+        assert indicators["cost_consumption"] == 0.0
+
+        trend = AnalysisService.calculate_trend_by_messages(
+            end_at=datetime(2024, 1, 6, 0, 0, 0),
+            days_ago=3,
+            messages=[msg],
+        )
+        assert "cost_consumption_trend" in trend
+        assert all(isinstance(v, float) for v in trend["cost_consumption_trend"]["y_axis"])
+
