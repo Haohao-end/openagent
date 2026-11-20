@@ -4,6 +4,7 @@ from uuid import UUID
 import pytest
 
 from internal.model import App, Message, MessageAgentThought
+from internal.service.feedback_service import FeedbackService
 
 
 class TestFeedbackHandler:
@@ -245,3 +246,66 @@ class TestFeedbackHandler:
                 }
             ]
         }
+
+    def test_create_feedback_deleted_message_rejected(self, http_client, current_user, monkeypatch):
+        app_id = UUID("00000000-0000-0000-0000-000000000010")
+        msg_id = UUID("00000000-0000-0000-0000-000000000020")
+
+        def _mock_query(model):
+            mock = MagicMock()
+            if model is App:
+                mock.filter.return_value.first.return_value = SimpleNamespace(id=app_id, account_id=current_user.id)
+            elif model is Message:
+                mock.filter.return_value.first.return_value = SimpleNamespace(
+                    id=msg_id,
+                    app_id=app_id,
+                    is_deleted=True,
+                )
+            return mock
+
+        monkeypatch.setattr("internal.handler.feedback_handler.db.session.query", _mock_query)
+        monkeypatch.setattr("internal.service.feedback_service.db.session.query", _mock_query)
+
+        resp = http_client.post(
+            f"/apps/{app_id}/feedbacks",
+            json={"target_id": str(msg_id), "target_type": "message", "rating": 1},
+        )
+        assert resp.status_code == 404
+        assert "Message not found" in resp.get_json()["error"]
+
+    def test_get_feedbacks_service_safeguards_negative_pagination(self, monkeypatch):
+        app_id = UUID("00000000-0000-0000-0000-000000000010")
+        offset_calls = []
+        limit_calls = []
+
+        class DummyQuery:
+            def filter(self, *_args):
+                return self
+
+            def order_by(self, *_args):
+                return self
+
+            def offset(self, val):
+                offset_calls.append(val)
+                return self
+
+            def limit(self, val):
+                limit_calls.append(val)
+                return self
+
+            def all(self):
+                return []
+
+        monkeypatch.setattr("internal.service.feedback_service.db.session.query", lambda _m: DummyQuery())
+
+        FeedbackService.get_feedbacks(app_id, None, page=0, limit=-5)
+        assert offset_calls == [0]
+        assert limit_calls == [1]
+
+        offset_calls.clear()
+        limit_calls.clear()
+
+        FeedbackService.get_feedbacks(app_id, "message", page=-2, limit=200)
+        assert offset_calls == [0]
+        assert limit_calls == [100]
+
