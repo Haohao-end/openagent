@@ -14,7 +14,7 @@ const open = (message_id: string) => {
 }
 
 const handleCompare = async (targetMessageId: string) => {
-  await loadComparison(baseMessageId.value, targetMessageId)
+  await loadComparison(targetMessageId, baseMessageId.value)
 }
 
 const close = () => {
@@ -35,7 +35,7 @@ const diffRows = computed(() => {
       metric: t('chat.compareMessages.status'),
       target: target.status,
       base: base.status,
-      diff: diff.status_changed ? 'Changed' : 'Same',
+      diff: diff.status_changed ? t('chat.compareMessages.changed') : t('chat.compareMessages.same'),
     },
     {
       metric: t('chat.compareMessages.latency'),
@@ -60,6 +60,12 @@ const diffRows = computed(() => {
       target: target.answer_length,
       base: base.answer_length,
       diff: formatNumber(diff.answer_length_diff),
+    },
+    {
+      metric: t('chat.compareMessages.error'),
+      target: target.error || '-',
+      base: base.error || '-',
+      diff: diff.error_changed ? t('chat.compareMessages.changed') : t('chat.compareMessages.same'),
     },
   ]
 })

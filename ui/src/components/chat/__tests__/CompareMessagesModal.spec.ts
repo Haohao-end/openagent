@@ -16,7 +16,7 @@ const mockComparison = {
   target: {
     id: 'target-1',
     status: 'COMPLETED',
-    error: '',
+    error: 'Model timeout',
     latency: 1.5,
     total_token_count: 200,
     total_price: 0.08,
@@ -29,7 +29,7 @@ const mockComparison = {
     answer_token_count_diff: 40,
     total_price_diff: 0.03,
     status_changed: false,
-    error_changed: false,
+    error_changed: true,
     answer_match: false,
     answer_length_diff: 60,
   },
@@ -62,7 +62,7 @@ describe('CompareMessagesModal', () => {
     mockLoading.value = false
   })
 
-  it('renders diff rows when comparison data is available', async () => {
+  it('renders diff rows including error when comparison data is available', async () => {
     const wrapper = mount(CompareMessagesModal, {
       global: {
         stubs: {
@@ -91,5 +91,25 @@ describe('CompareMessagesModal', () => {
     expect(wrapper.text()).toContain('+0.3s')
     expect(wrapper.text()).toContain('chat.compareMessages.tokens')
     expect(wrapper.text()).toContain('+50')
+    expect(wrapper.text()).toContain('chat.compareMessages.error')
+    expect(wrapper.text()).toContain('Model timeout')
+    expect(wrapper.text()).toContain('chat.compareMessages.changed')
+  })
+
+  it('invokes loadComparison with target first and base second', async () => {
+    const wrapper = mount(CompareMessagesModal, {
+      global: {
+        stubs: {
+          'a-modal': { template: '<div><slot /></div>' },
+          'a-spin': { template: '<div><slot /></div>' },
+          'a-empty': { template: '<div class="empty-stub" />' },
+        },
+      },
+    })
+
+    wrapper.vm.open('base-msg-123')
+    await wrapper.vm.handleCompare('target-msg-456')
+
+    expect(mockLoadComparison).toHaveBeenCalledWith('target-msg-456', 'base-msg-123')
   })
 })
