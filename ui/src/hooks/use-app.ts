@@ -132,19 +132,28 @@ export const useCreateApp = () => {
   // 1.定义hooks所需数据
   const router = useRouter()
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义新增应用处理器
   const handleCreateApp = async (req: CreateAppRequest) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await createApp(req)
+      if (requestId !== latestRequest) return
       Message.success(t('appStudio.createModal.createSuccess'))
       await router.push({
         name: 'space-apps-detail',
         params: { app_id: resp.data.id },
       })
+      return resp
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
@@ -154,15 +163,24 @@ export const useCreateApp = () => {
 export const useUpdateApp = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新数据处理器
   const handleUpdateApp = async (app_id: string, req: UpdateAppRequest) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await updateApp(app_id, req)
+      if (requestId !== latestRequest) return
       Message.success(resp.message)
+      return resp
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
@@ -173,19 +191,28 @@ export const useCopyApp = () => {
   // 1.定义hooks所需数据
   const router = useRouter()
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义拷贝应用副本处理器
   const handleCopyApp = async (app_id: string) => {
+    const requestId = ++latestRequest
     try {
       // 2.1 修改loading并发起请求
       loading.value = true
       const resp = await copyApp(app_id)
+      if (requestId !== latestRequest) return
 
       // 2.2 成功修改则进行提示并跳转页面
       Message.success(t('appStudio.list.duplicateSuccess'))
       await router.push({ name: 'space-apps-detail', params: { app_id: resp.data.id } })
+      return resp
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 

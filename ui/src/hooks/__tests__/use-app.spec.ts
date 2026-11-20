@@ -3,6 +3,8 @@ import { Message, Modal } from '@arco-design/web-vue'
 
 import {
   useCancelPublish,
+  useCopyApp,
+  useCreateApp,
   useDeleteApp,
   useFallbackHistoryToDraft,
   useGetApp,
@@ -14,14 +16,27 @@ import {
   useGetVersions,
   useShareAppToSquare,
   useUnshareAppFromSquare,
+  useUpdateApp,
   useUpdateDraftAppConfig,
 } from '@/hooks/use-app'
 import * as appService from '@/services/app'
+
+const mockRouterPush = vi.fn()
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    useRouter: () => ({ push: mockRouterPush }),
+  }
+})
 
 vi.mock('@/services/app', async () => {
   const actual = await vi.importActual<typeof import('@/services/app')>('@/services/app')
   return {
     ...actual,
+    createApp: vi.fn(),
+    updateApp: vi.fn(),
+    copyApp: vi.fn(),
     getApp: vi.fn(),
     getAppsWithPage: vi.fn(),
     getPublishHistoriesWithPage: vi.fn(),
@@ -769,6 +784,89 @@ describe('useGetPublishHistoriesWithPage', () => {
 
       expect(debug_conversation_summary.value).toBe('new summary')
       expect(loading.value).toBe(false)
+    })
+  })
+
+  describe('useCreateApp, useUpdateApp, and useCopyApp race protection', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+    })
+
+    it('drops stale createApp responses when a newer request completes first', async () => {
+      const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+      let resolve1!: (val: any) => void
+      let resolve2!: (val: any) => void
+      const p1 = new Promise((r) => { resolve1 = r })
+      const p2 = new Promise((r) => { resolve2 = r })
+
+      vi.mocked(appService.createApp).mockReturnValueOnce(p1 as never).mockReturnValueOnce(p2 as never)
+
+      const { handleCreateApp, loading } = useCreateApp()
+
+      const req1 = handleCreateApp({ name: 'first' } as any)
+      const req2 = handleCreateApp({ name: 'second' } as any)
+      expect(loading.value).toBe(true)
+
+      resolve2({ data: { id: 'app-2' } })
+      await req2
+      expect(mockRouterPush).toHaveBeenCalledWith({ name: 'space-apps-detail', params: { app_id: 'app-2' } })
+      expect(successSpy).toHaveBeenCalledWith('新增 Agent 应用成功')
+      expect(loading.value).toBe(false)
+
+      resolve1({ data: { id: 'app-1' } })
+      await req1
+      expect(mockRouterPush).not.toHaveBeenCalledWith({ name: 'space-apps-detail', params: { app_id: 'app-1' } })
+    })
+
+    it('drops stale updateApp responses when a newer request completes first', async () => {
+      const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+      let resolve1!: (val: any) => void
+      let resolve2!: (val: any) => void
+      const p1 = new Promise((r) => { resolve1 = r })
+      const p2 = new Promise((r) => { resolve2 = r })
+
+      vi.mocked(appService.updateApp).mockReturnValueOnce(p1 as never).mockReturnValueOnce(p2 as never)
+
+      const { handleUpdateApp, loading } = useUpdateApp()
+
+      const req1 = handleUpdateApp('app-id', { name: 'old' } as any)
+      const req2 = handleUpdateApp('app-id', { name: 'new' } as any)
+      expect(loading.value).toBe(true)
+
+      resolve2({ message: 'updated new' })
+      await req2
+      expect(successSpy).toHaveBeenCalledWith('updated new')
+      expect(loading.value).toBe(false)
+
+      resolve1({ message: 'updated old' })
+      await req1
+      expect(successSpy).not.toHaveBeenCalledWith('updated old')
+    })
+
+    it('drops stale copyApp responses when a newer request completes first', async () => {
+      const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+      let resolve1!: (val: any) => void
+      let resolve2!: (val: any) => void
+      const p1 = new Promise((r) => { resolve1 = r })
+      const p2 = new Promise((r) => { resolve2 = r })
+
+      vi.mocked(appService.copyApp).mockReturnValueOnce(p1 as never).mockReturnValueOnce(p2 as never)
+
+      const { handleCopyApp, loading } = useCopyApp()
+
+      const req1 = handleCopyApp('app-1')
+      const req2 = handleCopyApp('app-2')
+      expect(loading.value).toBe(true)
+
+      resolve2({ data: { id: 'copy-2' } })
+      await req2
+      expect(mockRouterPush).toHaveBeenCalledWith({ name: 'space-apps-detail', params: { app_id: 'copy-2' } })
+      expect(successSpy).toHaveBeenCalledWith('创建应用副本成功')
+      expect(loading.value).toBe(false)
+
+      resolve1({ data: { id: 'copy-1' } })
+      await req1
+      expect(mockRouterPush).not.toHaveBeenCalledWith({ name: 'space-apps-detail', params: { app_id: 'copy-1' } })
     })
   })
 })
