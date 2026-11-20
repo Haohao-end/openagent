@@ -29,6 +29,7 @@ const close = () => {
 }
 
 const handleReplay = async () => {
+  if (loading.value) return
   if (!currentMessageId.value) return
   const patch: Record<string, any> = {}
   if (presetPromptPatch.value.trim()) {
@@ -67,6 +68,7 @@ defineExpose({ open, handleReplay })
           <label class="text-xs font-semibold text-gray-600">{{ t('chat.replayMessage.presetPrompt') }}</label>
           <a-textarea
             v-model="presetPromptPatch"
+            :disabled="loading"
             :placeholder="t('chat.replayMessage.presetPromptPlaceholder')"
             :auto-size="{ minRows: 3, maxRows: 6 }"
           />
@@ -96,10 +98,11 @@ defineExpose({ open, handleReplay })
 
         <!-- Actions -->
         <div class="flex justify-end gap-2 pt-2 border-t">
-          <a-button @click="close">{{ t('common.cancel') }}</a-button>
+          <a-button :disabled="loading" @click="close">{{ t('common.cancel') }}</a-button>
           <a-button
             type="primary"
             :loading="loading"
+            :disabled="loading"
             @click="handleReplay"
           >
             {{ t('chat.replayMessage.executeReplay') }}
