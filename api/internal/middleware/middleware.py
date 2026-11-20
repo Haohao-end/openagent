@@ -54,7 +54,8 @@ class Middleware:
                 raise UnauthorizedException("该密钥不存在或未激活")
 
             scopes = getattr(api_key_record, "scopes", None)
-            if scopes is not None and not self._api_key_has_scope(scopes, request.endpoint):
+            effective_scopes = [API_KEY_SCOPE_OPENAPI_CHAT] if scopes is None else scopes
+            if not self._api_key_has_scope(effective_scopes, request.endpoint):
                 raise ForbiddenException("该密钥没有调用此接口的权限")
 
             # 6.所有凭证与权限校验通过后，再加载绑定账号

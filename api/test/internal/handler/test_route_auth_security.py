@@ -188,3 +188,96 @@ class TestRouteAuthSecurity:
         payload = resp.get_json()
         assert payload["code"] == HttpCode.FORBIDDEN
         assert "API密钥调用频率超出限制" in payload["message"]
+
+    def test_openapi_chat_should_reject_when_scope_unauthorized(
+        self,
+        http_client,
+        monkeypatch,
+    ):
+        account = SimpleNamespace(
+            id=OPENAPI_ACCOUNT_ID,
+            is_authenticated=True,
+            name="tester",
+            email="tester@example.com",
+        )
+        api_key_id = UUID("00000000-0000-0000-0000-000000000044")
+
+        monkeypatch.setattr(
+            ApiKeyService,
+            "get_api_by_by_credential",
+            lambda _self, credential: SimpleNamespace(
+                id=api_key_id,
+                account_id=account.id,
+                is_active=True,
+                account=account,
+                credential=credential,
+                scopes=["unrelated_scope"],
+            ),
+        )
+        monkeypatch.setattr(
+            ApiKeyService,
+            "check_rate_limit",
+            lambda _self, _api_key_record, **_kwargs: (True, 1, 60),
+        )
+
+        resp = http_client.post(
+            "/openapi/chat",
+            headers={"Authorization": "Bearer api-key-token"},
+            json={"app_id": OPENAPI_APP_ID, "query": "hello"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.get_json()
+        assert payload["code"] == HttpCode.FORBIDDEN
+        assert "该密钥没有调用此接口的权限" in payload["message"]
+
+    def test_openapi_chat_should_allow_legacy_key_with_none_scope_for_chat(
+        self,
+        http_client,
+        monkeypatch,
+    ):
+        account = SimpleNamespace(
+            id=OPENAPI_ACCOUNT_ID,
+            is_authenticated=True,
+            name="tester",
+            email="tester@example.com",
+        )
+        api_key_id = UUID("00000000-0000-0000-0000-000000000044")
+
+        monkeypatch.setattr(
+            ApiKeyService,
+            "get_api_by_by_credential",
+            lambda _self, credential: SimpleNamespace(
+                id=api_key_id,
+                account_id=account.id,
+                is_active=True,
+                account=account,
+                credential=credential,
+                scopes=None,
+            ),
+        )
+        monkeypatch.setattr(
+            ApiKeyService,
+            "check_rate_limit",
+            lambda _self, _api_key_record, **_kwargs: (True, 1, 60),
+        )
+        monkeypatch.setattr(
+            OpenAPIService,
+            "chat",
+            lambda _self, req, current_account: Response(
+                code=HttpCode.SUCCESS,
+                data={"ok": True},
+            ),
+        )
+
+        resp = http_client.post(
+            "/openapi/chat",
+            headers={"Authorization": "Bearer api-key-token"},
+            json={"app_id": OPENAPI_APP_ID, "query": "hello"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.get_json()
+        assert payload["code"] == HttpCode.SUCCESS
+        assert payload["data"]["ok"] is True
+
