@@ -52,6 +52,10 @@ class TestRouterFullMatrix:
             '/apps/<uuid:app_id>/copy': {'POST'},
             '/apps/<uuid:app_id>/delete': {'POST'},
             '/apps/<uuid:app_id>/draft-app-config': {'GET', 'POST'},
+            '/apps/<uuid:app_id>/evaluations': {'GET', 'POST'},
+            '/apps/<uuid:app_id>/evaluations/<uuid:evaluation_id>': {'GET', 'PUT', 'DELETE'},
+            '/apps/<uuid:app_id>/evaluations/<uuid:evaluation_id>/cases': {'GET', 'POST'},
+            '/apps/<uuid:app_id>/evaluations/<uuid:evaluation_id>/cases/<uuid:case_id>': {'GET', 'PUT', 'DELETE'},
             '/apps/<uuid:app_id>/fallback-history': {'POST'},
             '/apps/<uuid:app_id>/feedbacks': {'GET', 'POST'},
             '/apps/<uuid:app_id>/messages/<uuid:message_id>/timeline': {'GET'},
@@ -203,10 +207,10 @@ class TestRouterFullMatrix:
         for rule in rules:
             blueprint_name = rule.endpoint.split(".", 1)[0]
             by_blueprint[blueprint_name] += 1
-            assert _methods(rule).issubset({"GET", "POST", "DELETE"})
+            assert _methods(rule).issubset({"GET", "POST", "DELETE", "PUT"})
             assert len(_methods(rule)) >= 1
 
         assert by_blueprint["openapi"] == 1
         assert by_blueprint["llmops"] == len(rules) - 1
         # 当前系统的接口总量是一个重要契约，避免漏挂导致线上能力消失。
-        assert len(rules) == 195
+        assert len(rules) == 205
