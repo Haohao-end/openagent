@@ -199,3 +199,64 @@ def test_create_evaluation_case_should_validate_empty_query(http_client, eval_us
     json_data = resp.get_json()
     assert json_data["code"] == HttpCode.VALIDATE_ERROR
     assert "query" in json_data["data"]
+
+
+def test_get_evaluation_case_should_return_detail(http_client, eval_user, monkeypatch):
+    case_id = "00000000-0000-0000-0000-000000000030"
+    expected_data = {
+        "id": case_id,
+        "evaluation_id": EVAL_ID,
+        "query": "What is Python?",
+        "answer": "A language",
+        "created_at": 1700000000,
+        "updated_at": 1700000000,
+    }
+    monkeypatch.setattr(
+        "internal.service.evaluation_service.EvaluationService.get_evaluation_case",
+        lambda _self, _app_id, _eval_id, _case_id, _account: expected_data,
+    )
+
+    resp = http_client.get(f"/apps/{APP_ID}/evaluations/{EVAL_ID}/cases/{case_id}")
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.SUCCESS
+    assert json_data["data"] == expected_data
+
+
+def test_update_evaluation_case_should_return_updated(http_client, eval_user, monkeypatch):
+    case_id = "00000000-0000-0000-0000-000000000030"
+    expected_data = {
+        "id": case_id,
+        "evaluation_id": EVAL_ID,
+        "query": "Updated query",
+        "answer": "Updated answer",
+        "created_at": 1700000000,
+        "updated_at": 1700000000,
+    }
+    monkeypatch.setattr(
+        "internal.service.evaluation_service.EvaluationService.update_evaluation_case",
+        lambda _self, _app_id, _eval_id, _case_id, _req, _account: expected_data,
+    )
+
+    resp = http_client.put(
+        f"/apps/{APP_ID}/evaluations/{EVAL_ID}/cases/{case_id}",
+        json={"query": "Updated query", "answer": "Updated answer"},
+    )
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.SUCCESS
+    assert json_data["data"] == expected_data
+
+
+def test_delete_evaluation_case_should_return_id(http_client, eval_user, monkeypatch):
+    case_id = "00000000-0000-0000-0000-000000000030"
+    monkeypatch.setattr(
+        "internal.service.evaluation_service.EvaluationService.delete_evaluation_case",
+        lambda _self, _app_id, _eval_id, _case_id, _account: {"id": case_id},
+    )
+
+    resp = http_client.delete(f"/apps/{APP_ID}/evaluations/{EVAL_ID}/cases/{case_id}")
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.SUCCESS
+    assert json_data["data"] == {"id": case_id}
