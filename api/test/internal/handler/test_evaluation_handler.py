@@ -139,3 +139,63 @@ def test_delete_evaluation_should_return_id(http_client, eval_user, monkeypatch)
     json_data = resp.get_json()
     assert json_data["code"] == HttpCode.SUCCESS
     assert json_data["data"] == {"id": EVAL_ID}
+
+
+def test_get_evaluation_cases_should_return_list(http_client, eval_user, monkeypatch):
+    case_id = "00000000-0000-0000-0000-000000000030"
+    expected_data = [
+        {
+            "id": case_id,
+            "evaluation_id": EVAL_ID,
+            "query": "What is Python?",
+            "answer": "A programming language",
+            "created_at": 1700000000,
+            "updated_at": 1700000000,
+        }
+    ]
+    monkeypatch.setattr(
+        "internal.service.evaluation_service.EvaluationService.get_evaluation_cases",
+        lambda _self, _app_id, _eval_id, _req, _account: expected_data,
+    )
+
+    resp = http_client.get(f"/apps/{APP_ID}/evaluations/{EVAL_ID}/cases", query_string={"page": 1, "limit": 20})
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.SUCCESS
+    assert json_data["data"] == expected_data
+
+
+def test_create_evaluation_case_should_return_created(http_client, eval_user, monkeypatch):
+    case_id = "00000000-0000-0000-0000-000000000030"
+    expected_data = {
+        "id": case_id,
+        "evaluation_id": EVAL_ID,
+        "query": "Sample question",
+        "answer": "Sample answer",
+        "created_at": 1700000000,
+        "updated_at": 1700000000,
+    }
+    monkeypatch.setattr(
+        "internal.service.evaluation_service.EvaluationService.create_evaluation_case",
+        lambda _self, _app_id, _eval_id, _req, _account: expected_data,
+    )
+
+    resp = http_client.post(
+        f"/apps/{APP_ID}/evaluations/{EVAL_ID}/cases",
+        json={"query": "Sample question", "answer": "Sample answer"},
+    )
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.SUCCESS
+    assert json_data["data"] == expected_data
+
+
+def test_create_evaluation_case_should_validate_empty_query(http_client, eval_user):
+    resp = http_client.post(
+        f"/apps/{APP_ID}/evaluations/{EVAL_ID}/cases",
+        json={"query": ""},
+    )
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.VALIDATE_ERROR
+    assert "query" in json_data["data"]

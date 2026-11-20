@@ -9,6 +9,8 @@ ROUTE_SPECS = [
     {"method": "GET", "url": "/apps/00000000-0000-0000-0000-000000000000/evaluations/00000000-0000-0000-0000-000000000000", "endpoint": "llmops.get_evaluation"},
     {"method": "PUT", "url": "/apps/00000000-0000-0000-0000-000000000000/evaluations/00000000-0000-0000-0000-000000000000", "endpoint": "llmops.update_evaluation"},
     {"method": "DELETE", "url": "/apps/00000000-0000-0000-0000-000000000000/evaluations/00000000-0000-0000-0000-000000000000", "endpoint": "llmops.delete_evaluation"},
+    {"method": "GET", "url": "/apps/00000000-0000-0000-0000-000000000000/evaluations/00000000-0000-0000-0000-000000000000/cases", "endpoint": "llmops.get_evaluation_cases"},
+    {"method": "POST", "url": "/apps/00000000-0000-0000-0000-000000000000/evaluations/00000000-0000-0000-0000-000000000000/cases", "endpoint": "llmops.create_evaluation_case"},
     {"method": "GET", "url": "/assistant-agent/capabilities", "endpoint": "llmops.get_assistant_agent_capabilities"},
     {"method": "GET", "url": "/mcp-providers/categories", "endpoint": "llmops.get_mcp_categories_for_space"},
     {"method": "GET", "url": "/mcp-providers", "endpoint": "llmops.get_mcp_providers_with_page"},
