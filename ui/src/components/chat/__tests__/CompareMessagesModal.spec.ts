@@ -11,7 +11,8 @@ const mockComparison = {
     latency: 1.2,
     total_token_count: 150,
     total_price: 0.05,
-    answer_length: 200,
+    answer: 'Base answer text',
+    answer_length: 16,
   },
   target: {
     id: 'target-1',
@@ -20,7 +21,8 @@ const mockComparison = {
     latency: 1.5,
     total_token_count: 200,
     total_price: 0.08,
-    answer_length: 260,
+    answer: 'Target answer text differing',
+    answer_length: 28,
   },
   diff: {
     latency_diff: 0.3,
@@ -31,7 +33,7 @@ const mockComparison = {
     status_changed: false,
     error_changed: true,
     answer_match: false,
-    answer_length_diff: 60,
+    answer_length_diff: 12,
   },
 }
 
@@ -62,7 +64,7 @@ describe('CompareMessagesModal', () => {
     mockLoading.value = false
   })
 
-  it('renders diff rows including error when comparison data is available', async () => {
+  it('renders diff rows and side-by-side answers when comparison data is available', async () => {
     const wrapper = mount(CompareMessagesModal, {
       global: {
         stubs: {
@@ -94,6 +96,10 @@ describe('CompareMessagesModal', () => {
     expect(wrapper.text()).toContain('chat.compareMessages.error')
     expect(wrapper.text()).toContain('Model timeout')
     expect(wrapper.text()).toContain('chat.compareMessages.changed')
+    expect(wrapper.text()).toContain('chat.compareMessages.answerComparison')
+    expect(wrapper.text()).toContain('Base answer text')
+    expect(wrapper.text()).toContain('Target answer text differing')
+    expect(wrapper.text()).toContain('chat.compareMessages.answerMismatch')
   })
 
   it('invokes loadComparison with target first and base second', async () => {
