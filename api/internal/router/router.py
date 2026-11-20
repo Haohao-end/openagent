@@ -806,6 +806,21 @@ class Router:
             view_func=self.evaluation_handler.create_evaluation,
         )
         bp.add_url_rule(
+            "/apps/<uuid:app_id>/evaluations/<uuid:evaluation_id>",
+            methods=["GET"],
+            view_func=self.evaluation_handler.get_evaluation,
+        )
+        bp.add_url_rule(
+            "/apps/<uuid:app_id>/evaluations/<uuid:evaluation_id>",
+            methods=["PUT"],
+            view_func=self.evaluation_handler.update_evaluation,
+        )
+        bp.add_url_rule(
+            "/apps/<uuid:app_id>/evaluations/<uuid:evaluation_id>",
+            methods=["DELETE"],
+            view_func=self.evaluation_handler.delete_evaluation,
+        )
+        bp.add_url_rule(
             "/apps/<uuid:app_id>/messages/<uuid:message_id>/timeline",
             view_func=self.trace_handler.get_message_timeline,
         )

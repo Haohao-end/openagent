@@ -84,3 +84,58 @@ def test_create_evaluation_should_validate_empty_name(http_client, eval_user):
     json_data = resp.get_json()
     assert json_data["code"] == HttpCode.VALIDATE_ERROR
     assert "name" in json_data["data"]
+
+
+def test_get_evaluation_should_return_detail(http_client, eval_user, monkeypatch):
+    expected_data = {
+        "id": EVAL_ID,
+        "app_id": APP_ID,
+        "name": "Benchmark Detail",
+        "created_by": str(eval_user.id),
+        "created_at": 1700000000,
+        "updated_at": 1700000000,
+    }
+    monkeypatch.setattr(
+        "internal.service.evaluation_service.EvaluationService.get_evaluation",
+        lambda _self, _app_id, _eval_id, _account: expected_data,
+    )
+
+    resp = http_client.get(f"/apps/{APP_ID}/evaluations/{EVAL_ID}")
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.SUCCESS
+    assert json_data["data"] == expected_data
+
+
+def test_update_evaluation_should_return_updated(http_client, eval_user, monkeypatch):
+    expected_data = {
+        "id": EVAL_ID,
+        "app_id": APP_ID,
+        "name": "Renamed Benchmark",
+        "created_by": str(eval_user.id),
+        "created_at": 1700000000,
+        "updated_at": 1700000000,
+    }
+    monkeypatch.setattr(
+        "internal.service.evaluation_service.EvaluationService.update_evaluation",
+        lambda _self, _app_id, _eval_id, _req, _account: expected_data,
+    )
+
+    resp = http_client.put(f"/apps/{APP_ID}/evaluations/{EVAL_ID}", json={"name": "Renamed Benchmark"})
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.SUCCESS
+    assert json_data["data"] == expected_data
+
+
+def test_delete_evaluation_should_return_id(http_client, eval_user, monkeypatch):
+    monkeypatch.setattr(
+        "internal.service.evaluation_service.EvaluationService.delete_evaluation",
+        lambda _self, _app_id, _eval_id, _account: {"id": EVAL_ID},
+    )
+
+    resp = http_client.delete(f"/apps/{APP_ID}/evaluations/{EVAL_ID}")
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.SUCCESS
+    assert json_data["data"] == {"id": EVAL_ID}
