@@ -84,6 +84,22 @@ const loadApiKeysSafely = async (init: boolean = false) => {
 }
 
 // 3.监听create_api_key是否开启，执行创建操作
+const updatingApiKeyId = ref('')
+
+const handleToggleActive = async (record: { id: string }, nextValue: boolean, rowIndex: number) => {
+  if (updatingApiKeyId.value) return
+  updatingApiKeyId.value = record.id
+  try {
+    await handleUpdateApiKeyIsActive(record.id, nextValue, () => {
+      if (api_keys.value[rowIndex]?.id === record.id) {
+        api_keys.value[rowIndex].is_active = nextValue
+      }
+    })
+  } finally {
+    updatingApiKeyId.value = ''
+  }
+}
+
 watch(
   () => props.create_api_key,
   (value) => {
@@ -109,7 +125,10 @@ watch(
   () => route.query,
   async (newQuery, oldQuery) => {
     if (!isLoggedIn.value) return
-    if (newQuery.current_page != oldQuery.current_page) {
+    if (
+      newQuery?.current_page !== oldQuery?.current_page ||
+      newQuery?.page_size !== oldQuery?.page_size
+    ) {
       await loadApiKeysSafely()
     }
   },
@@ -350,12 +369,11 @@ watch(
                   <a-switch
                     size="small"
                     :model-value="record.is_active"
+                    :loading="updatingApiKeyId === record.id"
+                    :disabled="updatingApiKeyId !== ''"
                     @change="
                       (value: string | number | boolean) => {
-                        const nextValue = Boolean(value)
-                        handleUpdateApiKeyIsActive(record.id, nextValue, () => {
-                          if (api_keys[rowIndex]?.id === record.id) api_keys[rowIndex].is_active = nextValue
-                        })
+                        handleToggleActive(record, Boolean(value), rowIndex)
                       }
                     "
                   />

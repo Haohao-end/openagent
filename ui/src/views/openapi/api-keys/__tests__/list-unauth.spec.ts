@@ -68,8 +68,19 @@ const tableColumnStub = defineComponent({
   setup(_, { slots }) { return () => h('div', mocks.apiKeys.value.map((record, rowIndex) => slots.cell?.({ record, rowIndex }))) },
 })
 const switchStub = defineComponent({
+  props: ['loading', 'disabled', 'modelValue'],
   emits: ['change'],
-  setup(_, { emit }) { return () => h('button', { 'data-testid': 'api-key-toggle', onClick: () => emit('change', false) }) },
+  setup(props, { emit }) {
+    return () =>
+      h('button', {
+        'data-testid': 'api-key-toggle',
+        'data-loading': String(props.loading),
+        'data-disabled': String(props.disabled),
+        onClick: () => {
+          if (!props.disabled) emit('change', false)
+        },
+      })
+  },
 })
 
 describe('openapi api-keys credential state', () => {
@@ -276,5 +287,36 @@ describe('openapi api-keys credential state', () => {
     expect(authRequiredEvents.at(-1)?.detail).toEqual({ redirect: '/openapi/api-keys' })
 
     dispatchSpy.mockRestore()
+  })
+
+  it('locks the switch with loading state during update to prevent duplicate requests', async () => {
+    let resolveUpdate!: () => void
+    const updatePromise = new Promise<void>((resolve) => {
+      resolveUpdate = resolve
+    })
+    mocks.handleUpdateApiKeyIsActive.mockImplementationOnce(() => updatePromise)
+
+    const wrapper = shallowMount(ApiKeysListView, {
+      props: { create_api_key: false },
+      global: { stubs: { 'a-table': tableStub, 'a-table-column': tableColumnStub, 'a-switch': switchStub } },
+    })
+    mocks.credentialState.credential = { access_token: 'token-a', expire_at: 4102444800 }
+    await flushPromises()
+    mocks.apiKeys.value = [{ id: 'key-1', is_active: true }]
+    await flushPromises()
+
+    const toggle = wrapper.find('[data-testid="api-key-toggle"]')
+    await toggle.trigger('click')
+
+    expect(mocks.handleUpdateApiKeyIsActive).toHaveBeenCalledTimes(1)
+    expect(toggle.attributes('data-loading')).toBe('true')
+    expect(toggle.attributes('data-disabled')).toBe('true')
+
+    await toggle.trigger('click')
+    expect(mocks.handleUpdateApiKeyIsActive).toHaveBeenCalledTimes(1)
+
+    resolveUpdate()
+    await flushPromises()
+    expect(toggle.attributes('data-loading')).toBe('false')
   })
 })
