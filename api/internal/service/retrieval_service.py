@@ -28,14 +28,29 @@ class RetrievalService(BaseService):
     vector_database_service: VectorDatabaseService
 
     def _filter_active_documents(self, documents: list[LCDocument], dataset_ids: list[UUID]) -> list[LCDocument]:
-        segment_ids = {UUID(str(doc.metadata["segment_id"])) for doc in documents if doc.metadata.get("segment_id")}
+        segment_ids = set()
+        for doc in documents:
+            metadata = getattr(doc, "metadata", None)
+            if isinstance(metadata, dict) and metadata.get("segment_id"):
+                try:
+                    segment_ids.add(UUID(str(metadata["segment_id"])))
+                except (ValueError, TypeError, AttributeError):
+                    pass
+
+        if not segment_ids or not dataset_ids:
+            return []
+
         rows = self.db.session.query(Segment.id).join(Document, Document.id == Segment.document_id).filter(
             Segment.id.in_(segment_ids), Segment.dataset_id.in_(dataset_ids),
             Segment.status == SegmentStatus.COMPLETED.value, Segment.enabled.is_(True),
             Document.status == DocumentStatus.COMPLETED.value, Document.enabled.is_(True),
         ).all()
         active_ids = {str(row[0]) for row in rows}
-        return [doc for doc in documents if str(doc.metadata.get("segment_id")) in active_ids]
+        return [
+            doc for doc in documents
+            if isinstance(getattr(doc, "metadata", None), dict)
+            and str(doc.metadata.get("segment_id")) in active_ids
+        ]
 
     def search_in_datasets(
             self,

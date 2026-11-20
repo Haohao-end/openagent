@@ -474,3 +474,16 @@ class TestRetrievalService:
 
         assert result == docs
         assert session.executed is False
+
+    def test_filter_active_documents_should_safely_handle_none_and_malformed_metadata(self):
+        service = self._build_service(SimpleNamespace())
+
+        assert service._filter_active_documents([], [uuid4()]) == []
+        assert service._filter_active_documents([SimpleNamespace(metadata=None)], []) == []
+
+        docs = [
+            SimpleNamespace(metadata=None),
+            SimpleNamespace(metadata={}),
+            SimpleNamespace(metadata={"segment_id": "not-a-uuid"}),
+        ]
+        assert service._filter_active_documents(docs, [uuid4()]) == []
