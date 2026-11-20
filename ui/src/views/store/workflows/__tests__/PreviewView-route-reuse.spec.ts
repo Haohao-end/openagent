@@ -41,6 +41,55 @@ vi.mock('@/views/space/workflows/use-workflow-header', () => ({
 }))
 vi.mock('@arco-design/web-vue', () => ({ Message: { error: vi.fn(), success: vi.fn() } }))
 
+const mockComponent = { template: '<div />' }
+vi.mock('@/views/space/workflows/components/nodes/StartNode.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/nodes/LLMNode.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/nodes/DatasetRetrievalNode.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/nodes/CodeNode.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/nodes/HttpRequestNode.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/nodes/ToolNode.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/nodes/TemplateTransformNode.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/nodes/EndNode.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/nodes/TextProcessorNode.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/nodes/VariableAssignerNode.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/nodes/ParameterExtractorNode.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/nodes/IfElseNode.vue', () => ({ default: mockComponent }))
+
+vi.mock('@/views/space/workflows/components/infos/StartNodeInfo.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/infos/LLMNodeInfo.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/infos/TemplateTransformNodeInfo.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/infos/TextProcessorNodeInfo.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/infos/VariableAssignerNodeInfo.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/infos/ParameterExtractorNodeInfo.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/infos/IfElseNodeInfo.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/infos/HttpRequestNodeInfo.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/infos/DatasetRetrievalNodeInfo.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/infos/ToolNodeInfo.vue', () => ({ default: mockComponent }))
+vi.mock('@/views/space/workflows/components/infos/CodeNodeInfo.vue', () => ({ default: mockComponent }))
+
+const mountOptions = {
+  global: {
+    stubs: {
+      '*': true,
+      VueFlow: false,
+      'router-link': true,
+      'a-button': mockComponent,
+      'a-dropdown': mockComponent,
+      'a-doption': mockComponent,
+      'a-space': mockComponent,
+      'a-skeleton-line': mockComponent,
+      'a-tag': mockComponent,
+      'a-divider': mockComponent,
+      'icon-left': mockComponent,
+      'icon-relation': mockComponent,
+      'icon-user': mockComponent,
+      'icon-check-circle': mockComponent,
+      'icon-plus': mockComponent,
+      'icon-down': mockComponent,
+    },
+  },
+}
+
 describe('Public workflow preview route reuse', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -52,16 +101,7 @@ describe('Public workflow preview route reuse', () => {
 
   it('reloads workflow details and graph when the route id changes', async () => {
     const { default: PreviewView } = await import('../PreviewView.vue')
-    const wrapper = mount(PreviewView, {
-      global: {
-        config: {
-          compilerOptions: {
-            isCustomElement: (tag: string) => tag.startsWith('a-') || tag.startsWith('icon-'),
-          },
-        },
-        stubs: { '*': true, VueFlow: false, 'router-link': true },
-      },
-    })
+    const wrapper = mount(PreviewView, mountOptions)
     await flushPromises()
 
     expect(mocks.getDetail).toHaveBeenCalledWith('workflow-a')
@@ -85,16 +125,7 @@ describe('Public workflow preview route reuse', () => {
     mocks.getGraph.mockImplementation((id: string) => id === 'workflow-a' ? graphA.promise : graphB.promise)
 
     const { default: PreviewView } = await import('../PreviewView.vue')
-    const wrapper = mount(PreviewView, {
-      global: {
-        config: {
-          compilerOptions: {
-            isCustomElement: (tag: string) => tag.startsWith('a-') || tag.startsWith('icon-'),
-          },
-        },
-        stubs: { '*': true, VueFlow: false, 'router-link': true },
-      },
-    })
+    const wrapper = mount(PreviewView, mountOptions)
     detailA.resolve({ data: { id: 'workflow-a', name: 'workflow-a', icon: '', account_avatar: '' } })
     await flushPromises()
     expect(mocks.getGraph).toHaveBeenCalledWith('workflow-a')
@@ -112,5 +143,19 @@ describe('Public workflow preview route reuse', () => {
     expect(wrapper.get('[data-testid="preview-graph"]').text()).toContain('node-b')
     expect(wrapper.get('[data-testid="preview-graph"]').text()).not.toContain('node-a')
     wrapper.unmount()
+  })
+
+  it('does not apply async responses after component is unmounted', async () => {
+    const detail = deferred<{ data: { id: string; name: string; icon: string; account_avatar: string } }>()
+    mocks.getDetail.mockImplementation(() => detail.promise)
+
+    const { default: PreviewView } = await import('../PreviewView.vue')
+    const wrapper = mount(PreviewView, mountOptions)
+
+    wrapper.unmount()
+    detail.resolve({ data: { id: 'workflow-a', name: 'workflow-a', icon: '', account_avatar: '' } })
+    await flushPromises()
+
+    expect(mocks.getGraph).not.toHaveBeenCalled()
   })
 })
