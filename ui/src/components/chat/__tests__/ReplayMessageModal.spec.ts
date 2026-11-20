@@ -96,4 +96,28 @@ describe('ReplayMessageModal', () => {
     expect(wrapper.text()).toContain('model_config')
     expect(wrapper.text()).toContain('test snapshot query')
   })
+
+  it('does not dispatch executeReplay when loading is already true', async () => {
+    const wrapper = mount(ReplayMessageModal, {
+      global: {
+        stubs: {
+          'a-modal': { template: '<div><slot /></div>' },
+          'a-spin': { template: '<div><slot /></div>' },
+          'a-button': true,
+          'a-textarea': true,
+          'a-tag': true,
+          'icon-check-circle': true,
+        },
+      },
+    })
+
+    const vm = wrapper.vm as any
+    vm.open('msg-123', 'query text')
+    await flushPromises()
+
+    mockLoading.value = true
+    await vm.handleReplay()
+
+    expect(mockExecuteReplay).not.toHaveBeenCalled()
+  })
 })
