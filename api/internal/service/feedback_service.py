@@ -9,13 +9,13 @@ from sqlalchemy import desc
 class FeedbackService:
     @staticmethod
     def create_feedback(app: App, req: Any, account_id: UUID) -> Feedback:
-        target_id = UUID(req.target_id.data)
+        target_id = UUID(str(req.target_id.data))
         target_type = req.target_type.data
 
         # Verify target existence and ownership
         if target_type == "message":
             msg = db.session.query(Message).filter(Message.id == target_id, Message.app_id == app.id).first()
-            if not msg:
+            if not msg or getattr(msg, "is_deleted", False):
                 raise NotFoundException("Message not found or access denied")
             conversation_id = msg.conversation_id
         elif target_type == "span":
@@ -44,7 +44,10 @@ class FeedbackService:
 
     @staticmethod
     def get_feedbacks(app_id: UUID, target_type: Optional[str], page: int, limit: int) -> List[Feedback]:
+        safe_page = max(int(page or 1), 1)
+        safe_limit = max(min(int(limit or 20), 100), 1)
+        offset = (safe_page - 1) * safe_limit
         query = db.session.query(Feedback).filter(Feedback.app_id == app_id)
         if target_type:
             query = query.filter(Feedback.target_type == target_type)
-        return query.order_by(desc(Feedback.created_at), desc(Feedback.id)).offset((page - 1) * limit).limit(limit).all()
+        return query.order_by(desc(Feedback.created_at), desc(Feedback.id)).offset(offset).limit(safe_limit).all()
