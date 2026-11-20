@@ -105,15 +105,24 @@ export const useDeleteApiKey = () => {
 export const useUpdateApiKey = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新处理器
   const handleUpdateApiKey = async (api_key_id: string, req: UpdateApiKeyRequest) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await updateApiKey(api_key_id, req)
+      if (requestId !== latestRequest) return
       Message.success(resp.message)
+      return resp
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
@@ -123,6 +132,7 @@ export const useUpdateApiKey = () => {
 export const useUpdateApiKeyIsActive = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新处理器
   const handleUpdateApiKeyIsActive = async (
@@ -130,13 +140,21 @@ export const useUpdateApiKeyIsActive = () => {
     is_active: boolean,
     callback?: () => void,
   ) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await updateApiKeyIsActive(api_key_id, is_active)
+      if (requestId !== latestRequest) return
       Message.success(resp.message)
       callback && callback()
+      return resp
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 
@@ -146,16 +164,24 @@ export const useUpdateApiKeyIsActive = () => {
 export const useCreateApiKey = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
+  let latestRequest = 0
 
   // 2.定义更新处理器
   const handleCreateApiKey = async (req: CreateApiKeyRequest) => {
+    const requestId = ++latestRequest
     try {
       loading.value = true
       const resp = await createApiKey(req)
+      if (requestId !== latestRequest) return
       Message.success(resp.message || '创建API密钥成功')
       return String(resp.data?.api_key || '')
+    } catch (error) {
+      if (requestId !== latestRequest) return
+      throw error
     } finally {
-      loading.value = false
+      if (requestId === latestRequest) {
+        loading.value = false
+      }
     }
   }
 

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Message, Modal } from '@arco-design/web-vue'
 
 const mocks = vi.hoisted(() => ({
+  createApiKey: vi.fn(),
+  updateApiKey: vi.fn(),
   updateApiKeyIsActive: vi.fn(),
   deleteApiKey: vi.fn(),
   getApiKeysWithPage: vi.fn(),
@@ -10,10 +12,10 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/services/api-key', () => ({
-  createApiKey: vi.fn(),
+  createApiKey: mocks.createApiKey,
   deleteApiKey: mocks.deleteApiKey,
   getApiKeysWithPage: mocks.getApiKeysWithPage,
-  updateApiKey: vi.fn(),
+  updateApiKey: mocks.updateApiKey,
   updateApiKeyIsActive: mocks.updateApiKeyIsActive,
 }))
 vi.mock('vue-router', async (importOriginal) => {
@@ -23,7 +25,13 @@ vi.mock('vue-router', async (importOriginal) => {
 vi.mock('@arco-design/web-vue', () => ({ Message: { success: vi.fn() }, Modal: { warning: vi.fn() } }))
 vi.mock('@/stores/credential', () => ({ useCredentialStore: () => mocks.credentialStore }))
 
-import { useDeleteApiKey, useGetApiKeysWithPage, useUpdateApiKeyIsActive } from '@/hooks/use-api-key'
+import {
+  useCreateApiKey,
+  useDeleteApiKey,
+  useGetApiKeysWithPage,
+  useUpdateApiKey,
+  useUpdateApiKeyIsActive,
+} from '@/hooks/use-api-key'
 
 describe('useDeleteApiKey', () => {
   beforeEach(() => {
@@ -262,5 +270,101 @@ describe('useGetApiKeysWithPage', () => {
     expect(api_keys.value).toEqual([{ id: 'new-key-1' }])
     expect(paginator.value.total_page).toBe(1)
     expect(loading.value).toBe(false)
+  })
+})
+
+describe('useUpdateApiKeyIsActive race condition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('ignores stale response when a newer request completes first', async () => {
+    let resolve1!: (val: any) => void
+    let resolve2!: (val: any) => void
+    const p1 = new Promise((r) => { resolve1 = r })
+    const p2 = new Promise((r) => { resolve2 = r })
+
+    mocks.updateApiKeyIsActive.mockReturnValueOnce(p1).mockReturnValueOnce(p2)
+
+    const callback1 = vi.fn()
+    const callback2 = vi.fn()
+    const { handleUpdateApiKeyIsActive, loading } = useUpdateApiKeyIsActive()
+
+    const req1 = handleUpdateApiKeyIsActive('key-1', false, callback1)
+    const req2 = handleUpdateApiKeyIsActive('key-1', true, callback2)
+    expect(loading.value).toBe(true)
+
+    resolve2({ message: 'updated 2' })
+    await req2
+    expect(callback2).toHaveBeenCalledOnce()
+    expect(Message.success).toHaveBeenCalledWith('updated 2')
+    expect(loading.value).toBe(false)
+
+    resolve1({ message: 'updated 1' })
+    await req1
+    expect(callback1).not.toHaveBeenCalled()
+    expect(Message.success).not.toHaveBeenCalledWith('updated 1')
+  })
+})
+
+describe('useUpdateApiKey race condition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('ignores stale update response when a newer request was dispatched', async () => {
+    let resolve1!: (val: any) => void
+    let resolve2!: (val: any) => void
+    const p1 = new Promise((r) => { resolve1 = r })
+    const p2 = new Promise((r) => { resolve2 = r })
+
+    mocks.updateApiKey.mockReturnValueOnce(p1).mockReturnValueOnce(p2)
+
+    const { handleUpdateApiKey, loading } = useUpdateApiKey()
+
+    const req1 = handleUpdateApiKey('key-1', { remark: 'old', is_active: true })
+    const req2 = handleUpdateApiKey('key-1', { remark: 'new', is_active: true })
+    expect(loading.value).toBe(true)
+
+    resolve2({ message: 'saved new' })
+    await req2
+    expect(Message.success).toHaveBeenCalledWith('saved new')
+    expect(loading.value).toBe(false)
+
+    resolve1({ message: 'saved old' })
+    await req1
+    expect(Message.success).not.toHaveBeenCalledWith('saved old')
+  })
+})
+
+describe('useCreateApiKey race condition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('ignores stale create response when a newer request was dispatched', async () => {
+    let resolve1!: (val: any) => void
+    let resolve2!: (val: any) => void
+    const p1 = new Promise((r) => { resolve1 = r })
+    const p2 = new Promise((r) => { resolve2 = r })
+
+    mocks.createApiKey.mockReturnValueOnce(p1).mockReturnValueOnce(p2)
+
+    const { handleCreateApiKey, loading } = useCreateApiKey()
+
+    const req1 = handleCreateApiKey({ remark: 'first', is_active: true })
+    const req2 = handleCreateApiKey({ remark: 'second', is_active: true })
+    expect(loading.value).toBe(true)
+
+    resolve2({ message: 'created second', data: { api_key: 'key-2' } })
+    const res2 = await req2
+    expect(res2).toBe('key-2')
+    expect(Message.success).toHaveBeenCalledWith('created second')
+    expect(loading.value).toBe(false)
+
+    resolve1({ message: 'created first', data: { api_key: 'key-1' } })
+    const res1 = await req1
+    expect(res1).toBeUndefined()
+    expect(Message.success).not.toHaveBeenCalledWith('created first')
   })
 })
