@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, shallowMount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
+import { Message } from '@arco-design/web-vue'
 import ApiKeysListView from '@/views/openapi/api-keys/ListView.vue'
 
 enableAutoUnmount(afterEach)
@@ -287,6 +288,29 @@ describe('openapi api-keys credential state', () => {
     expect(authRequiredEvents.at(-1)?.detail).toEqual({ redirect: '/openapi/api-keys' })
 
     dispatchSpy.mockRestore()
+  })
+
+  it('shows the backend error and unlocks the switch when toggling fails', async () => {
+    const errorSpy = vi.spyOn(Message, 'error').mockImplementation(() => undefined as never)
+    mocks.handleUpdateApiKeyIsActive.mockRejectedValueOnce(new Error('toggle failed'))
+
+    const wrapper = shallowMount(ApiKeysListView, {
+      props: { create_api_key: false },
+      global: { stubs: { 'a-table': tableStub, 'a-table-column': tableColumnStub, 'a-switch': switchStub } },
+    })
+    mocks.credentialState.credential = { access_token: 'token-a', expire_at: 4102444800 }
+    await flushPromises()
+    mocks.apiKeys.value = [{ id: 'key-1', is_active: true }]
+    await flushPromises()
+
+    const toggle = wrapper.find('[data-testid="api-key-toggle"]')
+    await toggle.trigger('click')
+    await flushPromises()
+
+    expect(errorSpy).toHaveBeenCalledWith('toggle failed')
+    expect(toggle.attributes('data-loading')).toBe('false')
+    expect(toggle.attributes('data-disabled')).toBe('false')
+    errorSpy.mockRestore()
   })
 
   it('locks the switch with loading state during update to prevent duplicate requests', async () => {
