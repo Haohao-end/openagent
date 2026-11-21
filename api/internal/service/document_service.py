@@ -61,39 +61,39 @@ class DocumentService(BaseService):
             )
             raise FailException("暂未解析到合法文件，请重新上传")
 
-        # 3.创建批次与处理规则并记录到数据库中
+        # 3.创建批次与处理规则，并在同一事务中写入全部文档记录
         batch = time.strftime("%Y%m%d%H%M%S") + str(random.randint(100000, 999999))
-        process_rule = self.create(
-            ProcessRule,
-            account_id=account.id,
-            dataset_id=dataset_id,
-            mode=process_type,
-            rule=rule,
-        )
-
-        # 4.获取当前知识库的最新文档位置
         position = self.get_latest_document_position(dataset_id)
-
-        # 5.循环遍历所有合法的上传文件列表并记录
-        documents = []
-        for upload_file in upload_files:
-            position += 1
-            document = self.create(
-                Document,
+        documents: list[Document] = []
+        with self.db.auto_commit():
+            process_rule = ProcessRule(
                 account_id=account.id,
                 dataset_id=dataset_id,
-                upload_file_id=upload_file.id,
-                process_rule_id=process_rule.id,
-                batch=batch,
-                name=upload_file.name,
-                position=position,
+                mode=process_type,
+                rule=rule,
             )
-            documents.append(document)
+            self.db.session.add(process_rule)
+            self.db.session.flush()
 
-        # 6.调用异步任务，完成后续操作
+            for upload_file in upload_files:
+                position += 1
+                document = Document(
+                    account_id=account.id,
+                    dataset_id=dataset_id,
+                    upload_file_id=upload_file.id,
+                    process_rule_id=process_rule.id,
+                    batch=batch,
+                    name=upload_file.name,
+                    position=position,
+                )
+                self.db.session.add(document)
+                documents.append(document)
+            self.db.session.flush()
+
+        # 4.调用异步任务，完成后续操作
         build_documents.delay([document.id for document in documents])
 
-        # 7.返回文档列表与处理批次
+        # 5.返回文档列表与处理批次
         return documents, batch
 
     def get_documents_status(self, dataset_id: UUID, batch: str, account: Account) -> list[dict]:
