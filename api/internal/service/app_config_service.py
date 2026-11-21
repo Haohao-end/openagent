@@ -394,10 +394,18 @@ class AppConfigService(BaseService):
         datasets, validate_datasets = self._process_and_validate_datasets(origin_datasets)
 
         # 6.判断是否存在已删除的知识库，如果存在则更新
+        # 精确定位当前应用失效的关联记录，避免按dataset_id误删其他应用/账号的绑定
         if persist_changes:
-            for dataset_id in (set(origin_datasets) - set(validate_datasets)):
+            valid_dataset_ids = set(validate_datasets)
+            stale_join_ids = [
+                join.id for join in app_dataset_joins
+                if str(join.dataset_id) not in valid_dataset_ids
+            ]
+            if stale_join_ids:
                 with self.db.auto_commit():
-                    self.db.session.query(AppDatasetJoin).filter(AppDatasetJoin.dataset_id == dataset_id).delete()
+                    self.db.session.query(AppDatasetJoin).filter(
+                        AppDatasetJoin.id.in_(stale_join_ids),
+                    ).delete()
 
         # 7.校验工作流列表对应的数据
         workflows, validate_workflows = self._process_and_validate_workflows(app_config.workflows)
