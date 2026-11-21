@@ -23,6 +23,7 @@ from internal.model import (
     Account,
     ApiToolProvider,
     ApiTool,
+    Dataset,
     Workflow,
 )
 from internal.schema.public_app_schema import GetPublicAppsWithPageReq
@@ -448,11 +449,23 @@ class PublicAppService(BaseService):
             # 9.更新应用的草稿配置ID
             new_app.draft_app_config_id = new_draft_config.id
 
-            # 10.复制知识库关联(如果有)
+            # 10.复制知识库关联(仅保留当前账号名下的知识库，避免跨账号引用)
             dataset_joins = app_config.app_dataset_joins
+            candidate_dataset_ids = {join.dataset_id for join in dataset_joins}
+            owned_dataset_ids: set[UUID] = set()
+            if candidate_dataset_ids:
+                owned_dataset_ids = {
+                    dataset.id
+                    for dataset in self.db.session.query(Dataset).filter(
+                        Dataset.id.in_(candidate_dataset_ids),
+                        Dataset.account_id == account.id,
+                    ).all()
+                }
             copied_dataset_ids: set[UUID] = set()
             for join in dataset_joins:
-                # 仅复制关联关系，不复制知识库数据本体。
+                # 仅复制关联关系，不复制知识库数据本体；无权限的知识库直接跳过。
+                if join.dataset_id not in owned_dataset_ids:
+                    continue
                 if join.dataset_id in copied_dataset_ids:
                     continue
                 copied_dataset_ids.add(join.dataset_id)
