@@ -1397,6 +1397,7 @@ export default {
         '取消发布后，应用将从应用广场移除，WebApp 以及发布的社交平台均无法使用该 Agent。',
       cancelPublishSuccess: '应用已取消发布并从应用广场移除',
       updateDraftFailed: '更新应用草稿配置失败',
+      loadGraphFailed: '加载工作流图失败',
       workflowNotDebuggedTitle: '工作流未调试',
       workflowNotDebuggedContent:
         '该工作流尚未调试成功，是否确认发布？发布后将更新草稿配置并发布到工作流广场。',

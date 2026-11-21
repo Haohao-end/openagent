@@ -10,6 +10,7 @@ const keys = [
   'space.tools.edit',
   'space.tools.parameters',
   'space.mcp.aiDescriptionRequired',
+  'appStudio.shell.loadGraphFailed',
 ]
 
 describe('i18n keys rendered by chat, workflow and space pages', () => {
@@ -26,6 +27,8 @@ describe('i18n keys rendered by chat, workflow and space pages', () => {
     ['en-US', 'space.tools.parameters'],
     ['zh-CN', 'space.mcp.aiDescriptionRequired'],
     ['en-US', 'space.mcp.aiDescriptionRequired'],
+    ['zh-CN', 'appStudio.shell.loadGraphFailed'],
+    ['en-US', 'appStudio.shell.loadGraphFailed'],
   ])('resolves %s for %s', (locale, key) => {
     const i18n = createTestI18n(locale)
     const message = i18n.global.t(key)
