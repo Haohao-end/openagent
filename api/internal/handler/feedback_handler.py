@@ -10,11 +10,23 @@ from internal.service.feedback_service import FeedbackService
 
 class FeedbackHandler:
     @staticmethod
+    def _unauthorized():
+        if not current_user or not getattr(current_user, "is_authenticated", False):
+            return {"error": "Unauthorized"}, 401
+        return None
+
+    @staticmethod
     def create_feedback(app_id: UUID):
+        unauthorized = FeedbackHandler._unauthorized()
+        if unauthorized:
+            return unauthorized
         app = db.session.query(App).filter(App.id == app_id, App.account_id == current_user.id).first()
         if not app:
             return {"error": "App not found"}, 404
-        req = FeedbackCreateReq(data=request.get_json())
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return {"error": "Request body must be a JSON object"}, 400
+        req = FeedbackCreateReq(formdata=None, data=payload)
         if not req.validate():
             return {"error": f"Invalid request: {req.errors}"}, 400
         try:
@@ -27,6 +39,9 @@ class FeedbackHandler:
 
     @staticmethod
     def get_feedbacks(app_id: UUID):
+        unauthorized = FeedbackHandler._unauthorized()
+        if unauthorized:
+            return unauthorized
         app = db.session.query(App).filter(App.id == app_id, App.account_id == current_user.id).first()
         if not app:
             return {"error": "App not found"}, 404

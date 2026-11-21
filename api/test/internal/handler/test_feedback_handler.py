@@ -309,3 +309,39 @@ class TestFeedbackHandler:
         assert offset_calls == [0]
         assert limit_calls == [100]
 
+
+
+def test_create_feedback_requires_authentication(app, monkeypatch):
+    monkeypatch.setattr("internal.handler.feedback_handler.current_user", None)
+    with app.test_client() as client:
+        resp = client.post(
+            "/apps/00000000-0000-0000-0000-000000000010/feedbacks",
+            json={"target_id": "00000000-0000-0000-0000-000000000020", "target_type": "message"},
+        )
+    assert resp.status_code == 401
+    assert resp.get_json() == {"error": "Unauthorized"}
+
+
+def test_get_feedbacks_requires_authentication(app, monkeypatch):
+    monkeypatch.setattr("internal.handler.feedback_handler.current_user", None)
+    with app.test_client() as client:
+        resp = client.get("/apps/00000000-0000-0000-0000-000000000010/feedbacks")
+    assert resp.status_code == 401
+    assert resp.get_json() == {"error": "Unauthorized"}
+
+
+def test_create_feedback_rejects_non_object_json_body(app, monkeypatch):
+    app_id = UUID("00000000-0000-0000-0000-000000000010")
+    account = SimpleNamespace(
+        id=UUID("00000000-0000-0000-0000-000000000001"),
+        is_authenticated=True,
+    )
+    monkeypatch.setattr("internal.handler.feedback_handler.current_user", account)
+    mock_query = MagicMock()
+    mock_query.filter.return_value.first.return_value = SimpleNamespace(id=app_id, account_id=account.id)
+    monkeypatch.setattr("internal.handler.feedback_handler.db.session.query", lambda _m: mock_query)
+
+    with app.test_client() as client:
+        resp = client.post(f"/apps/{app_id}/feedbacks", json=["not", "an", "object"])
+    assert resp.status_code == 400
+    assert resp.get_json() == {"error": "Request body must be a JSON object"}
