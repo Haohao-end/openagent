@@ -57,12 +57,20 @@ class _SessionStub:
     def __init__(self, query_map: dict):
         self._query_map = query_map
         self.deleted_entities = []
+        self.added_entities = []
+        self.flush_calls = 0
 
     def query(self, model):
         result = self._query_map.get(model, _QueryStub())
         if isinstance(result, list):
             return result.pop(0)
         return result
+
+    def add(self, entity):
+        self.added_entities.append(entity)
+
+    def flush(self):
+        self.flush_calls += 1
 
     def delete(self, entity):
         self.deleted_entities.append(entity)
@@ -386,30 +394,29 @@ class TestApiToolService:
                 },
             ),
         )
-        updates = []
         monkeypatch.setattr(
             service,
             "update",
-            lambda target, **kwargs: updates.append((target, kwargs)) or target,
+            lambda *_args, **_kwargs: pytest.fail("provider update must share the batch transaction"),
         )
-        create_calls = []
         monkeypatch.setattr(
             service,
             "create",
-            lambda model, **kwargs: create_calls.append((model, kwargs)) or SimpleNamespace(**kwargs),
+            lambda *_args, **_kwargs: pytest.fail("tools must be inserted in the batch transaction"),
         )
 
         service.update_api_tool_provider(provider.id, req, account)
 
         assert tool_delete_query.deleted is True
-        assert updates[0][0] is provider
-        assert updates[0][1]["name"] == req.name.data
-        assert updates[0][1]["description"] == "new-desc"
-        assert len(create_calls) == 1
-        assert create_calls[0][0] is ApiTool
-        assert create_calls[0][1]["provider_id"] == provider.id
-        assert create_calls[0][1]["url"] == "https://api.example.com/weather"
-        assert create_calls[0][1]["method"] == "get"
+        assert provider.name == req.name.data
+        assert provider.description == "new-desc"
+        assert provider.openapi_schema == req.openapi_schema.data
+        assert len(db.session.added_entities) == 1
+        created_tool = db.session.added_entities[0]
+        assert isinstance(created_tool, ApiTool)
+        assert created_tool.provider_id == provider.id
+        assert created_tool.url == "https://api.example.com/weather"
+        assert created_tool.method == "get"
 
     def test_update_api_tool_provider_should_raise_when_provider_missing_or_not_owned(self):
         service = _new_api_tool_service(
@@ -458,8 +465,11 @@ class TestApiToolService:
 
         create_calls = []
         monkeypatch.setattr(service, "create", lambda model, **kwargs: create_calls.append((model, kwargs)) or SimpleNamespace(id=uuid4()))
-        update_calls = []
-        monkeypatch.setattr(service, "update", lambda target, **kwargs: update_calls.append((target, kwargs)))
+        monkeypatch.setattr(
+            service,
+            "update",
+            lambda *_args, **_kwargs: pytest.fail("provider update must share the batch transaction"),
+        )
 
         blank_req = SimpleNamespace(
             name=SimpleNamespace(data="   "),
@@ -483,7 +493,7 @@ class TestApiToolService:
         assert create_calls[0][1]["name"] == "trimmed_provider"
 
         service.update_api_tool_provider(provider.id, padded_req, account)
-        assert update_calls[0][1]["name"] == "trimmed_provider"
+        assert provider.name == "trimmed_provider"
 
     def test_get_api_tool_providers_with_page_should_delegate_to_paginator(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())

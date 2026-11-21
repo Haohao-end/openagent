@@ -56,7 +56,8 @@ class ApiToolService(BaseService):
         if check_api_tool_provider:
             raise ValidateErrorException(f"该工具提供者名字{name}已经存在")
 
-        # 5.开启数据库的自动提交
+        # 5.在同一事务内完成覆盖更新：删除旧工具、更新提供者、写入新工具
+        # 避免中途失败后出现"旧工具已删除但新工具未写入"的空提供者
         with self.db.auto_commit():
             # 6.先删除该工具提供者下的所有工具
             self.db.session.query(ApiTool).filter(
@@ -64,29 +65,25 @@ class ApiToolService(BaseService):
                 ApiTool.account_id == account.id,
             ).delete()
 
-        # 7.修改工具提供者信息
-        self.update(
-            api_tool_provider,
-            name=name,
-            icon=req.icon.data,
-            headers=req.headers.data,
-            description=openapi_schema.description,
-            openapi_schema=req.openapi_schema.data,
-        )
+            # 7.修改工具提供者信息
+            api_tool_provider.name = name
+            api_tool_provider.icon = req.icon.data
+            api_tool_provider.headers = req.headers.data
+            api_tool_provider.description = openapi_schema.description
+            api_tool_provider.openapi_schema = req.openapi_schema.data
 
-        # 7.新增工具信息从而完成覆盖更新
-        for path, path_item in openapi_schema.paths.items():
-            for method, method_item in path_item.items():
-                self.create(
-                    ApiTool,
-                    account_id=account.id,
-                    provider_id=api_tool_provider.id,
-                    name=method_item.get("operationId"),
-                    description=method_item.get("description"),
-                    url=f"{openapi_schema.server}{path}",
-                    method=method,
-                    parameters=method_item.get("parameters", []),
-                )
+            # 8.新增工具信息从而完成覆盖更新
+            for path, path_item in openapi_schema.paths.items():
+                for method, method_item in path_item.items():
+                    self.db.session.add(ApiTool(
+                        account_id=account.id,
+                        provider_id=api_tool_provider.id,
+                        name=method_item.get("operationId"),
+                        description=method_item.get("description"),
+                        url=f"{openapi_schema.server}{path}",
+                        method=method,
+                        parameters=method_item.get("parameters", []),
+                    ))
 
     def get_api_tool_providers_wiith_page(
             self,
