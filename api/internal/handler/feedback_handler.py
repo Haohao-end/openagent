@@ -26,7 +26,7 @@ class FeedbackHandler:
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict):
             return {"error": "Request body must be a JSON object"}, 400
-        req = FeedbackCreateReq(formdata=None, data=payload)
+        req = FeedbackCreateReq()
         if not req.validate():
             return {"error": f"Invalid request: {req.errors}"}, 400
         try:
