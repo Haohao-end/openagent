@@ -42,12 +42,16 @@ class _Session:
         self.lock = threading.Lock()
         self.delete_calls = 0
         self.max_published_version = 0
+        self.added = []
 
     def query(self, model):
         model_name = getattr(model, "__name__", "")
         if model_name == AppDatasetJoin.__name__:
             return _DeleteQuery(self)
         return _ScalarQuery(self)
+
+    def add(self, obj):
+        self.added.append(obj)
 
 
 class _DB:
@@ -269,7 +273,7 @@ class TestAppServiceStateMachine:
 
         assert db.auto_commit_count == publish_count
         assert db.session.delete_calls == publish_count
-        assert sum(1 for model_name, _ in create_calls if model_name == "AppDatasetJoin") == publish_count * 2
+        assert sum(1 for obj in db.session.added if isinstance(obj, AppDatasetJoin)) == publish_count * 2
         assert cancel_success_count >= 1
 
     def test_publish_cancel_concurrency_should_keep_app_state_consistent(self):
@@ -404,8 +408,8 @@ class TestAppServiceStateMachine:
 
         dataset_join_count = sum(
             1
-            for model_name, _kwargs in create_calls
-            if model_name == "AppDatasetJoin"
+            for obj in db.session.added
+            if isinstance(obj, AppDatasetJoin)
         )
         assert dataset_join_count == expected_publish_count * 2
 
@@ -461,8 +465,8 @@ class TestAppServiceStateMachine:
         versions = _extract_versions(create_calls)
         dataset_join_count = sum(
             1
-            for model_name, _kwargs in create_calls
-            if model_name == "AppDatasetJoin"
+            for obj in db.session.added
+            if isinstance(obj, AppDatasetJoin)
         )
 
         assert publish_count == len(versions)
