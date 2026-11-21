@@ -1390,6 +1390,7 @@ export default {
       deleteConfirmTitle: '要删除该应用吗?',
       deleteConfirmContent:
         '删除应用后，发布的 WebApp、开放 API 以及关联的社交媒体平台均无法使用该 Agent 应用。如果需要暂停应用，可使用取消发布功能。',
+      deleteFailed: '删除应用失败',
       publishSharedSuccess: '应用已发布并共享到应用广场！',
       publishUpdatedSuccess: '应用配置已更新！',
       cancelPublishConfirmTitle: '要取消发布该 Agent 应用吗?',

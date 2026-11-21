@@ -226,11 +226,16 @@ export const useDeleteApp = () => {
       content: t('appStudio.shell.deleteConfirmContent'),
       hideCancel: false,
       onOk: async () => {
-        // 1.点击确定后向API接口发起请求
-        const resp = await deleteApp(app_id)
-        Message.success(resp.message)
-        // 2.调用callback函数指定回调功能
-        callback && callback()
+        try {
+          // 1.点击确定后向API接口发起请求
+          const resp = await deleteApp(app_id)
+          Message.success(resp.message)
+          // 2.调用callback函数指定回调功能
+          callback && callback()
+        } catch (error: unknown) {
+          Message.error(getErrorMessage(error, t('appStudio.shell.deleteFailed')))
+          throw error
+        }
       },
     })
   }
