@@ -1,6 +1,7 @@
 import { computed, type Ref } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import { i18n } from '@/i18n'
+import { getErrorMessage } from '@/utils/error'
 type WorkflowRecord = Record<string, unknown>
 
 type UseWorkflowPublishActionsOptions = {
@@ -62,14 +63,19 @@ export const useWorkflowPublishActions = (options: UseWorkflowPublishActionsOpti
     const workflowId = buildWorkflowId(options.workflow.value)
     if (!workflowId) return
 
-    await options.handlePublishWorkflow(workflowId)
+    try {
+      await options.handlePublishWorkflow(workflowId)
 
-    if (shareToSquare && !isPublicWorkflow(options.workflow.value)) {
-      await options.handleShareWorkflow(workflowId, true)
+      if (shareToSquare && !isPublicWorkflow(options.workflow.value)) {
+        await options.handleShareWorkflow(workflowId, true)
+      }
+
+      await options.loadWorkflow(workflowId)
+      Message.success(successMessage)
+    } catch (error: unknown) {
+      // 发布失败需要显式提示，否则按钮点击后无任何反馈
+      Message.error(getErrorMessage(error, t('appStudio.shell.workflowActionFailed')))
     }
-
-    await options.loadWorkflow(workflowId)
-    Message.success(successMessage)
   }
 
   const handleUpdatePublish = async () => {

@@ -1409,6 +1409,7 @@ export default {
       deleteConfirmContent:
         'After deletion, the published WebApp, Open API, and linked social channels will stop working for this agent app. If you only need to pause it, use unpublish instead.',
       deleteFailed: 'Failed to delete the app',
+      workflowActionFailed: 'The workflow action failed. Please try again.',
       publishSharedSuccess: 'The app has been published and shared to the marketplace.',
       publishUpdatedSuccess: 'The app configuration has been updated.',
       cancelPublishConfirmTitle: 'Unpublish this agent app?',
