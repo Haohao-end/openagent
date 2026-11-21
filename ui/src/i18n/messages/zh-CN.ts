@@ -269,9 +269,13 @@ export default {
       containsTools: '包含 {count} 个工具',
       required: '必填',
       noDescription: '暂无说明',
+      loadFailed: '加载插件失败',
+      edit: '编辑工具',
+      parameters: '参数',
     },
       mcp: {
         loadFailed: '加载 MCP 列表失败',
+        aiDescriptionRequired: '请先输入插件能力描述，再执行 AI 补齐',
       deleteConfirmTitle: '删除这个 MCP？',
       deleteConfirmContent: '删除 MCP 是不可逆的，相关绑定配置不会自动恢复。',
       deleteFailed: '删除 MCP 失败',
