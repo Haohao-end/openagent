@@ -915,6 +915,81 @@ class TestPublicAppService:
 
         assert detail["tags"] == ["other"]
 
+    def test_get_public_app_detail_should_enrich_api_tools_by_provider_and_name(self):
+        """发布配置中的 tool_id 是工具名称，公共详情必须按 provider_id+name 解析。"""
+        account = SimpleNamespace(id=uuid4())
+        provider_id = uuid4()
+        app = SimpleNamespace(
+            id=uuid4(),
+            account_id=uuid4(),
+            is_public=True,
+            status=AppStatus.PUBLISHED.value,
+            name="app",
+            icon="https://icon",
+            description="desc",
+            tags=[AppCategory.GENERAL.value],
+            published_at=datetime(2026, 1, 1, tzinfo=UTC),
+            created_at=datetime(2025, 12, 31, tzinfo=UTC),
+            app_config=SimpleNamespace(
+                model_config={"provider": "openai"},
+                dialog_round=4,
+                preset_prompt="prompt",
+                tools=[
+                    {
+                        "type": "api_tool",
+                        "provider_id": str(provider_id),
+                        "tool_id": "get_weather",
+                        "params": {},
+                    }
+                ],
+                mcp_bindings=[],
+                workflows=[],
+                retrieval_config={},
+                long_term_memory={"enable": False},
+                opening_statement="hello",
+                opening_questions=["q1"],
+                speech_to_text={"enable": False},
+                text_to_speech={"enable": False},
+                suggested_after_answer={"enable": True},
+                review_config={"enable": False},
+            ),
+        )
+        api_tool = SimpleNamespace(
+            id=uuid4(),
+            provider_id=provider_id,
+            name="get_weather",
+            description="weather tool",
+        )
+        api_provider = SimpleNamespace(
+            id=provider_id,
+            name="weather-api",
+            icon="https://icon",
+            description="provider",
+        )
+        api_tool_query = _Query(one_or_none_result=api_tool)
+        api_provider_query = _Query(one_or_none_result=api_provider)
+        session = _QueueSession(
+            [
+                _Query(one_or_none_result=app),
+                _Query(one_or_none_result=SimpleNamespace(id=app.account_id, name="Owner")),
+                api_tool_query,
+                api_provider_query,
+            ]
+        )
+        service = _build_service(session=session)
+
+        detail = service.get_public_app_detail(str(app.id), None)
+
+        tools = detail["draft_app_config"]["tools"]
+        assert len(tools) == 1
+        assert tools[0]["type"] == "api_tool"
+        assert tools[0]["tool"]["id"] == str(api_tool.id)
+        assert tools[0]["tool"]["name"] == "get_weather"
+        assert tools[0]["provider"]["id"] == str(provider_id)
+        # tool_id 为工具名称，必须同时按 provider_id + name 过滤，避免 UUID 列与名称比较。
+        assert len(api_tool_query.filter_args) == 2
+        assert api_tool_query.filter_args[1].right.value == "get_weather"
+
     def test_get_public_app_detail_should_raise_when_not_found(self):
         service = _build_service(session=_QueueSession([_Query(one_or_none_result=None)]))
         with pytest.raises(NotFoundException):
