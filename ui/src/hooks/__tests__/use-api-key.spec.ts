@@ -22,7 +22,10 @@ vi.mock('vue-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('vue-router')>()
   return { ...actual, useRoute: () => ({ query: mocks.routeQuery }) }
 })
-vi.mock('@arco-design/web-vue', () => ({ Message: { success: vi.fn() }, Modal: { warning: vi.fn() } }))
+vi.mock('@arco-design/web-vue', () => ({
+  Message: { success: vi.fn(), error: vi.fn() },
+  Modal: { warning: vi.fn() },
+}))
 vi.mock('@/stores/credential', () => ({ useCredentialStore: () => mocks.credentialStore }))
 
 import {
@@ -58,6 +61,7 @@ describe('useDeleteApiKey', () => {
     await expect(onOk()).rejects.toBe(requestError)
     expect(callback).not.toHaveBeenCalled()
     expect(Message.success).not.toHaveBeenCalled()
+    expect(Message.error).toHaveBeenCalledWith('delete failed')
   })
 })
 
