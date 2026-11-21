@@ -384,12 +384,16 @@ class TestAppConfigService:
 
         keep_dataset_id = uuid4()
         remove_dataset_id = uuid4()
+        keep_join_id = uuid4()
+        remove_join_id = uuid4()
 
         class _DeleteQuery:
             def __init__(self):
                 self.deleted = False
+                self.filters = []
 
-            def filter(self, *_args, **_kwargs):
+            def filter(self, *args, **_kwargs):
+                self.filters.extend(args)
                 return self
 
             def delete(self):
@@ -422,8 +426,8 @@ class TestAppConfigService:
             model_config={"provider": "legacy"},
             tools=[{"type": "api_tool", "tool_id": "legacy"}],
             app_dataset_joins=[
-                SimpleNamespace(dataset_id=keep_dataset_id),
-                SimpleNamespace(dataset_id=remove_dataset_id),
+                SimpleNamespace(id=keep_join_id, dataset_id=keep_dataset_id),
+                SimpleNamespace(id=remove_join_id, dataset_id=remove_dataset_id),
             ],
             workflows=["wf-legacy"],
             dialog_round=3,
@@ -481,6 +485,10 @@ class TestAppConfigService:
         result = service.get_app_config(app)
 
         assert delete_query.deleted is True
+        # 只按当前应用自己的失效关联记录主键删除，不能按dataset_id做全局删除
+        assert len(delete_query.filters) == 1
+        stale_ids = getattr(delete_query.filters[0].right, "value", None)
+        assert list(stale_ids) == [remove_join_id]
         assert len(auto_commit_calls) == 1
         assert any("model_config" in payload for _, payload in updates)
         assert any("tools" in payload for _, payload in updates)
@@ -493,12 +501,16 @@ class TestAppConfigService:
     def test_get_app_config_should_not_persist_when_disabled(self, monkeypatch):
         keep_dataset_id = uuid4()
         remove_dataset_id = uuid4()
+        keep_join_id = uuid4()
+        remove_join_id = uuid4()
 
         class _DeleteQuery:
             def __init__(self):
                 self.deleted = False
+                self.filters = []
 
-            def filter(self, *_args, **_kwargs):
+            def filter(self, *args, **_kwargs):
+                self.filters.extend(args)
                 return self
 
             def delete(self):
@@ -531,8 +543,8 @@ class TestAppConfigService:
             model_config={"provider": "legacy"},
             tools=[{"type": "api_tool", "tool_id": "legacy"}],
             app_dataset_joins=[
-                SimpleNamespace(dataset_id=keep_dataset_id),
-                SimpleNamespace(dataset_id=remove_dataset_id),
+                SimpleNamespace(id=keep_join_id, dataset_id=keep_dataset_id),
+                SimpleNamespace(id=remove_join_id, dataset_id=remove_dataset_id),
             ],
             workflows=["wf-legacy"],
             mcp_bindings=[{"name": "legacy-mcp"}],
