@@ -512,7 +512,10 @@ class TestPublicAppService:
             tags=[AppCategory.GENERAL.value],
             app_config=app_config,
         )
-        session = _QueueSession([_Query(one_or_none_result=public_app)])
+        session = _QueueSession([
+            _Query(one_or_none_result=public_app),
+            _Query(all_result=[SimpleNamespace(id=app_config.app_dataset_joins[0].dataset_id)]),
+        ])
         service = _build_service(session=session)
         monkeypatch.setattr("internal.service.public_app_service.App", _FakeApp)
         monkeypatch.setattr("internal.service.public_app_service.AppConfigVersion", _FakeAppConfigVersion)
@@ -525,6 +528,46 @@ class TestPublicAppService:
         copied = service.fork_public_app(str(public_app.id), account)
 
         assert copied.name.endswith("(副本)")
+
+    def test_fork_public_app_should_skip_datasets_not_owned_by_forking_account(self, monkeypatch):
+        account = SimpleNamespace(id=uuid4())
+        foreign_dataset_id = uuid4()
+        app_config = SimpleNamespace(
+            model_config={"provider": "openai"},
+            dialog_round=3,
+            preset_prompt="prompt",
+            tools=[],
+            workflows=[],
+            retrieval_config={},
+            long_term_memory={"enable": True},
+            opening_statement="hello",
+            opening_questions=["q1"],
+            speech_to_text={"enable": False},
+            text_to_speech={"enable": False},
+            suggested_after_answer={"enable": True},
+            review_config={"enable": False},
+            app_dataset_joins=[SimpleNamespace(dataset_id=foreign_dataset_id)],
+        )
+        public_app = SimpleNamespace(
+            id=uuid4(),
+            is_public=True,
+            status=AppStatus.PUBLISHED.value,
+            name="公共应用",
+            icon="https://x",
+            description="desc",
+            tags=[AppCategory.GENERAL.value],
+            app_config=app_config,
+        )
+        dataset_query = _Query(all_result=[])
+        session = _QueueSession([_Query(one_or_none_result=public_app), dataset_query])
+        service = _build_service(session=session)
+        monkeypatch.setattr("internal.service.public_app_service.App", _FakeApp)
+        monkeypatch.setattr("internal.service.public_app_service.AppConfigVersion", _FakeAppConfigVersion)
+
+        service.fork_public_app(str(public_app.id), account)
+
+        assert len(dataset_query.filter_args) == 2
+        assert [obj for obj in session.added if hasattr(obj, "dataset_id")] == []
 
     def test_fork_public_app_should_raise_for_invalid_or_unavailable_source(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
@@ -593,7 +636,10 @@ class TestPublicAppService:
             tags=[AppCategory.GENERAL.value],
             app_config=app_config,
         )
-        session = _QueueSession([_Query(one_or_none_result=public_app)])
+        session = _QueueSession([
+            _Query(one_or_none_result=public_app),
+            _Query(all_result=[SimpleNamespace(id=app_config.app_dataset_joins[0].dataset_id)]),
+        ])
         service = _build_service(session=session)
         monkeypatch.setattr("internal.service.public_app_service.App", _FakeApp)
         monkeypatch.setattr("internal.service.public_app_service.AppConfigVersion", _FakeAppConfigVersion)
@@ -648,7 +694,13 @@ class TestPublicAppService:
             tags=[AppCategory.GENERAL.value],
             app_config=app_config,
         )
-        session = _QueueSession([_Query(one_or_none_result=public_app)])
+        session = _QueueSession([
+            _Query(one_or_none_result=public_app),
+            _Query(all_result=[
+                SimpleNamespace(id=dataset_id_1),
+                SimpleNamespace(id=dataset_id_2),
+            ]),
+        ])
         service = _build_service(session=session)
         monkeypatch.setattr("internal.service.public_app_service.App", _FakeApp)
         monkeypatch.setattr("internal.service.public_app_service.AppConfigVersion", _FakeAppConfigVersion)
