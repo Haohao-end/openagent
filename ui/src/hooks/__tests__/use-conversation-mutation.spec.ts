@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useDeleteMessage, useUpdateConversationName } from '@/hooks/use-conversation'
+import { useDeleteConversation, useDeleteMessage, useUpdateConversationName } from '@/hooks/use-conversation'
 import * as conversationService from '@/services/conversation'
-import { Message } from '@arco-design/web-vue'
+import { Message, Modal } from '@arco-design/web-vue'
 
 vi.mock('@/services/conversation', () => ({
   compareMessages: vi.fn(),
@@ -24,6 +24,31 @@ vi.mock('@arco-design/web-vue', () => ({
     warning: vi.fn(),
   },
 }))
+
+describe('useDeleteConversation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('surfaces the request error and skips the callback when deletion fails', async () => {
+    const callback = vi.fn()
+    const { handleDeleteConversation } = useDeleteConversation()
+    handleDeleteConversation('c1', callback)
+    const onOk = vi.mocked(Modal.warning).mock.calls[0][0].onOk as () => Promise<void>
+
+    const error = new Error('delete failed')
+    vi.mocked(conversationService.deleteConversation).mockRejectedValueOnce(error)
+    await expect(onOk()).rejects.toBe(error)
+    expect(callback).not.toHaveBeenCalled()
+    expect(Message.success).not.toHaveBeenCalled()
+    expect(Message.error).toHaveBeenCalledWith('delete failed')
+
+    vi.mocked(conversationService.deleteConversation).mockResolvedValueOnce({ message: 'deleted' } as any)
+    await onOk()
+    expect(callback).toHaveBeenCalledOnce()
+    expect(Message.success).toHaveBeenCalledWith('deleted')
+  })
+})
 
 describe('useDeleteMessage', () => {
   beforeEach(() => {
