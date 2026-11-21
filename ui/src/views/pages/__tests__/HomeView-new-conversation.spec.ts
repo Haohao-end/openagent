@@ -1,9 +1,32 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
-import { reactive, ref } from 'vue'
+import { defineComponent, reactive, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import HomeView from '@/views/pages/HomeView.vue'
 import { HOME_NEW_CONVERSATION_QUERY_KEY } from '@/views/pages/home-new-conversation'
+
+const traceOpen = vi.fn()
+const compareOpen = vi.fn()
+
+vi.mock('@/components/chat/MessageTraceModal.vue', () => ({
+  default: defineComponent({
+    name: 'MessageTraceModal',
+    setup(_, { expose }) {
+      expose({ open: traceOpen })
+      return () => null
+    },
+  }),
+}))
+
+vi.mock('@/components/chat/CompareMessagesModal.vue', () => ({
+  default: defineComponent({
+    name: 'CompareMessagesModal',
+    setup(_, { expose }) {
+      expose({ open: compareOpen })
+      return () => null
+    },
+  }),
+}))
 
 const mocks = vi.hoisted(() => ({
   route: undefined as any,
@@ -208,6 +231,13 @@ vi.mock('js-audio-recorder', () => ({
 const componentStub = {
   template: '<div />',
 }
+
+const AiMessageStub = defineComponent({
+  name: 'AiMessage',
+  props: ['message_id'],
+  emits: ['viewTrace', 'compareMessages'],
+  template: '<div />',
+})
 
 describe('HomeView sidebar new conversation request', () => {
   beforeEach(() => {
@@ -457,6 +487,41 @@ describe('HomeView sidebar new conversation request', () => {
 
     expect(mocks.invalidateAssistantAgentMessages).toHaveBeenCalledTimes(1)
     expect(mocks.assistantMessages.value).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('opens the trace and compare modals for a historical assistant message', async () => {
+    mocks.assistantMessages = ref([
+      { id: 'message-123', query: 'hello', answer: 'world', agent_thoughts: [], answer_parts: [], artifacts: [], image_urls: [], callable_trace_events: [], suggested_questions: [] },
+    ])
+    const wrapper = shallowMount(HomeView, {
+      global: {
+        stubs: {
+          AiDynamicBackground: componentStub,
+          AiMessage: AiMessageStub,
+          ChatComposer: componentStub,
+          HumanMessage: componentStub,
+          ChatConversationSkeleton: componentStub,
+          LoginModal: componentStub,
+          MessageTraceModal: false,
+          CompareMessagesModal: false,
+          'a-button': componentStub,
+          'icon-down': componentStub,
+          'icon-poweroff': componentStub,
+        },
+      },
+    })
+    await flushPromises()
+
+    const message = wrapper
+      .findAllComponents({ name: 'AiMessage' })
+      .find((item) => item.props('message_id') === 'message-123')
+    expect(message).toBeTruthy()
+    await message!.vm.$emit('viewTrace', 'message-123')
+    await message!.vm.$emit('compareMessages', 'message-123')
+
+    expect(traceOpen).toHaveBeenCalledWith('message-123')
+    expect(compareOpen).toHaveBeenCalledWith('message-123')
     wrapper.unmount()
   })
 })
