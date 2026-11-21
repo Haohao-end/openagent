@@ -713,6 +713,7 @@ export default {
     parameterValue: 'Value',
     inputParameters: 'Input Parameters',
     outputData: 'Output Data',
+    inputData: 'Input Data',
     referencePrefix: 'Reference /',
     bindTool: 'Bind Plugin',
     bindToolHelp: 'Bind a plugin to this tool node. Supports marketplace plugins and custom API plugins.',
