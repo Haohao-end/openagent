@@ -12,6 +12,18 @@ from internal.schema.api_key_schema import (
 from internal.service import ApiKeyService
 from pkg.response import validate_error_json, success_json, success_message
 from pkg.paginator import PageModel, PaginatorReq
+
+
+def _reject_malformed_json():
+    """JSON 请求体解析失败时返回校验错误，避免 WTForms 自动绑定抛出 500。"""
+    if not request.is_json:
+        return None
+    payload = request.get_json(silent=True)
+    if isinstance(payload, dict):
+        return None
+    return validate_error_json({"body": ["请求内容必须为JSON对象"]})
+
+
 @inject
 @dataclass
 class ApiKeyHandler:
@@ -22,6 +34,9 @@ class ApiKeyHandler:
     def create_api_key(self):
         """创建API密钥"""
         # 1.提取请求并校验
+        invalid_body = _reject_malformed_json()
+        if invalid_body:
+            return invalid_body
         req = CreateApiKeyReq()
         if not req.validate():
             return validate_error_json(req.errors)
@@ -46,6 +61,9 @@ class ApiKeyHandler:
     def update_api_key(self, api_key_id: UUID):
         """根据传递的信息更新API密钥"""
         # 1.提取请求并校验
+        invalid_body = _reject_malformed_json()
+        if invalid_body:
+            return invalid_body
         req = UpdateApiKeyReq()
         if not req.validate():
             return validate_error_json(req.errors)
