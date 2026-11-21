@@ -284,6 +284,10 @@ export const useCancelPublish = () => {
           Message.success(t('appStudio.shell.cancelPublishSuccess'))
           // 2.3 调用callback函数指定回调功能
           callback && callback()
+        } catch (error: unknown) {
+          // 弹窗在 onOk 前已关闭，失败时必须显式提示
+          Message.error(getErrorMessage(error, t('appStudio.shell.cancelPublishFailed')))
+          throw error
         } finally {
           loading.value = false
         }
@@ -827,6 +831,9 @@ export const useUnshareAppFromSquare = () => {
           await unshareAppFromSquare(app_id)
           Message.success(t('appStudio.published.square.unsharedSuccess'))
           callback && callback()
+        } catch (error: unknown) {
+          Message.error(getErrorMessage(error, t('appStudio.published.square.unshareFailed')))
+          throw error
         } finally {
           loading.value = false
         }

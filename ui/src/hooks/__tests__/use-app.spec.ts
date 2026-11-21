@@ -480,6 +480,7 @@ describe('useCancelPublish', () => {
     const originalError = new Error('cancel publish failed')
     vi.mocked(appService.cancelPublish).mockRejectedValueOnce(originalError)
     const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+    const errorSpy = vi.spyOn(Message, 'error').mockImplementation(() => undefined as never)
     const { callback, loading, onOk } = await openCancelConfirmation()
 
     const cancelRequest = onOk()
@@ -488,6 +489,7 @@ describe('useCancelPublish', () => {
 
     expect(callback).not.toHaveBeenCalled()
     expect(successSpy).not.toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalledWith('cancel publish failed')
     expect(loading.value).toBe(false)
   })
 })
@@ -561,6 +563,7 @@ describe('useUnshareAppFromSquare', () => {
     const originalError = new Error('unshare failed')
     vi.mocked(appService.unshareAppFromSquare).mockRejectedValueOnce(originalError)
     const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+    const errorSpy = vi.spyOn(Message, 'error').mockImplementation(() => undefined as never)
     const { callback, loading, onOk } = await openUnshareConfirmation()
 
     const unshareRequest = onOk()
@@ -569,6 +572,7 @@ describe('useUnshareAppFromSquare', () => {
 
     expect(callback).not.toHaveBeenCalled()
     expect(successSpy).not.toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalledWith('unshare failed')
     expect(loading.value).toBe(false)
   })
 })
