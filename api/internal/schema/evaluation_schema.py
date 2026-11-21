@@ -1,11 +1,18 @@
 from flask_wtf import FlaskForm
 from wtforms import IntegerField, StringField
-from wtforms.validators import DataRequired, Length, NumberRange, Optional
+from wtforms.validators import DataRequired, Length, NumberRange, Optional, StopValidation
+
+
+def _require_string(_form, field: StringField) -> None:
+    """JSON 请求中非字符串值不会经过 WTForms 强制转换，需显式拦截。"""
+    if field.data is not None and not isinstance(field.data, str):
+        raise StopValidation("该字段必须为字符串")
 
 
 class CreateEvaluationReq(FlaskForm):
     """创建评测集请求"""
     name = StringField("name", validators=[
+        _require_string,
         DataRequired(message="评测集名称不能为空"),
         Length(max=255, message="评测集名称不能超过255个字符"),
     ])
@@ -14,6 +21,7 @@ class CreateEvaluationReq(FlaskForm):
 class UpdateEvaluationReq(FlaskForm):
     """更新评测集请求"""
     name = StringField("name", validators=[
+        _require_string,
         DataRequired(message="评测集名称不能为空"),
         Length(max=255, message="评测集名称不能超过255个字符"),
     ])
@@ -34,10 +42,12 @@ class GetEvaluationsReq(FlaskForm):
 class CreateEvaluationCaseReq(FlaskForm):
     """创建评测用例请求"""
     query = StringField("query", validators=[
+        _require_string,
         DataRequired(message="测试用例问题不能为空"),
         Length(max=10000, message="问题内容不能超过10000个字符"),
     ])
     answer = StringField("answer", validators=[
+        _require_string,
         Optional(),
         Length(max=10000, message="预期回答不能超过10000个字符"),
     ])
@@ -58,10 +68,12 @@ class GetEvaluationCasesReq(FlaskForm):
 class UpdateEvaluationCaseReq(FlaskForm):
     """更新评测用例请求"""
     query = StringField("query", validators=[
+        _require_string,
         Optional(),
         Length(max=10000, message="问题内容不能超过10000个字符"),
     ])
     answer = StringField("answer", validators=[
+        _require_string,
         Optional(),
         Length(max=10000, message="预期回答不能超过10000个字符"),
     ])

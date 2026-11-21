@@ -18,6 +18,12 @@ from internal.service.evaluation_service import EvaluationService
 from pkg.response import success_json, validate_error_json
 
 
+def _json_payload() -> dict:
+    """非 JSON/非对象请求体统一按空字典处理，交给 schema 返回校验错误。"""
+    payload = request.get_json(silent=True)
+    return payload if isinstance(payload, dict) else {}
+
+
 @inject
 @dataclass
 class EvaluationHandler:
@@ -36,7 +42,7 @@ class EvaluationHandler:
     @login_required
     def create_evaluation(self, app_id: UUID) -> ResponseReturnValue:
         """为指定应用创建评测集"""
-        req = CreateEvaluationReq(data=request.get_json())
+        req = CreateEvaluationReq(formdata=None, data=_json_payload())
         if not req.validate():
             return validate_error_json(req.errors)
 
@@ -52,7 +58,7 @@ class EvaluationHandler:
     @login_required
     def update_evaluation(self, app_id: UUID, evaluation_id: UUID) -> ResponseReturnValue:
         """更新评测集名称"""
-        req = UpdateEvaluationReq(data=request.get_json())
+        req = UpdateEvaluationReq(formdata=None, data=_json_payload())
         if not req.validate():
             return validate_error_json(req.errors)
 
@@ -78,7 +84,7 @@ class EvaluationHandler:
     @login_required
     def create_evaluation_case(self, app_id: UUID, evaluation_id: UUID) -> ResponseReturnValue:
         """为评测集创建测试用例"""
-        req = CreateEvaluationCaseReq(data=request.get_json())
+        req = CreateEvaluationCaseReq(formdata=None, data=_json_payload())
         if not req.validate():
             return validate_error_json(req.errors)
 
@@ -98,7 +104,7 @@ class EvaluationHandler:
         self, app_id: UUID, evaluation_id: UUID, case_id: UUID
     ) -> ResponseReturnValue:
         """更新单个评测用例"""
-        req = UpdateEvaluationCaseReq(data=request.get_json())
+        req = UpdateEvaluationCaseReq(formdata=None, data=_json_payload())
         if not req.validate():
             return validate_error_json(req.errors)
 

@@ -260,3 +260,50 @@ def test_delete_evaluation_case_should_return_id(http_client, eval_user, monkeyp
     json_data = resp.get_json()
     assert json_data["code"] == HttpCode.SUCCESS
     assert json_data["data"] == {"id": case_id}
+
+
+def test_create_evaluation_should_reject_non_object_json_body(http_client, eval_user):
+    resp = http_client.post(f"/apps/{APP_ID}/evaluations", json=[{"name": "x"}])
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.VALIDATE_ERROR
+    assert "name" in json_data["data"]
+
+
+def test_create_evaluation_should_reject_non_json_body(http_client, eval_user):
+    resp = http_client.post(
+        f"/apps/{APP_ID}/evaluations",
+        data="name=benchmark",
+        content_type="text/plain",
+    )
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.VALIDATE_ERROR
+    assert "name" in json_data["data"]
+
+
+def test_create_evaluation_should_reject_non_string_name(http_client, eval_user):
+    resp = http_client.post(f"/apps/{APP_ID}/evaluations", json={"name": 123})
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.VALIDATE_ERROR
+    assert json_data["data"]["name"] == ["该字段必须为字符串"]
+
+
+def test_update_evaluation_should_reject_non_object_json_body(http_client, eval_user):
+    resp = http_client.put(f"/apps/{APP_ID}/evaluations/{EVAL_ID}", json=["renamed"])
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.VALIDATE_ERROR
+    assert "name" in json_data["data"]
+
+
+def test_create_evaluation_case_should_reject_non_string_query(http_client, eval_user):
+    resp = http_client.post(
+        f"/apps/{APP_ID}/evaluations/{EVAL_ID}/cases",
+        json={"query": {"text": "nested"}},
+    )
+    assert resp.status_code == 200
+    json_data = resp.get_json()
+    assert json_data["code"] == HttpCode.VALIDATE_ERROR
+    assert json_data["data"]["query"] == ["该字段必须为字符串"]
