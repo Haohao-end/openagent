@@ -96,6 +96,7 @@ describe('use-workflow request hooks', () => {
     await expect(onOk()).rejects.toBe(requestError)
     expect(callback).not.toHaveBeenCalled()
     expect(messageSuccessMock).not.toHaveBeenCalled()
+    expect(messageErrorMock).toHaveBeenCalled()
   })
 
   it('returns true when draft graph save succeeds without notification', async () => {
