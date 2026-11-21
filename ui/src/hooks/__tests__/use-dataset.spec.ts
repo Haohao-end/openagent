@@ -157,6 +157,7 @@ describe('use-dataset action callbacks', () => {
     await expect(modalConfig.onOk()).rejects.toBe(requestError)
     expect(callback).not.toHaveBeenCalled()
     expect(mocks.messageSuccess).not.toHaveBeenCalled()
+    expect(mocks.messageError).toHaveBeenCalledWith('dataset delete failed')
   })
 
   it('only invokes document enabled callback after a successful update', async () => {
