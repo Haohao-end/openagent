@@ -1398,6 +1398,7 @@ export default {
       cancelPublishConfirmContent:
         '取消发布后，应用将从应用广场移除，WebApp 以及发布的社交平台均无法使用该 Agent。',
       cancelPublishSuccess: '应用已取消发布并从应用广场移除',
+      cancelPublishFailed: '取消发布应用失败',
       updateDraftFailed: '更新应用草稿配置失败',
       loadGraphFailed: '加载工作流图失败',
       workflowNotDebuggedTitle: '工作流未调试',
@@ -1534,6 +1535,7 @@ export default {
         categoryRequired: '请选择应用分类',
         sharedSuccess: '已共享到应用广场',
         unsharedSuccess: '已从应用广场取消共享',
+        unshareFailed: '取消共享到应用广场失败',
         shareModalTitle: '共享到应用广场',
         selectTag: '选择应用标签',
         selectTagPlaceholder: '请选择应用标签',

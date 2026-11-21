@@ -1416,6 +1416,7 @@ export default {
       cancelPublishConfirmContent:
         'After unpublishing, the app will be removed from the marketplace, and the WebApp and published social channels will stop working.',
       cancelPublishSuccess: 'The app has been unpublished and removed from the marketplace.',
+      cancelPublishFailed: 'Failed to unpublish the app',
       updateDraftFailed: 'Failed to update the draft app configuration',
       loadGraphFailed: 'Failed to load the workflow graph',
       workflowNotDebuggedTitle: 'Workflow not debugged',
@@ -1553,6 +1554,7 @@ export default {
         categoryRequired: 'Please choose an app category',
         sharedSuccess: 'Shared to the app marketplace',
         unsharedSuccess: 'Removed from the app marketplace',
+        unshareFailed: 'Failed to remove from the app marketplace',
         shareModalTitle: 'Share to App Marketplace',
         selectTag: 'Choose app tag',
         selectTagPlaceholder: 'Select an app tag',
