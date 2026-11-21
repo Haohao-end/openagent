@@ -277,9 +277,13 @@ export default {
       containsTools: 'Contains {count} tools',
       required: 'Required',
       noDescription: 'No description',
+      loadFailed: 'Failed to load plugins',
+      edit: 'Edit Tool',
+      parameters: 'Parameters',
     },
       mcp: {
         loadFailed: 'Failed to load the MCP list',
+      aiDescriptionRequired: 'Please enter a plugin capability description before using AI fill.',
       deleteConfirmTitle: 'Delete this MCP?',
       deleteConfirmContent:
         'Deleting an MCP cannot be undone, and the linked binding configuration will not be restored automatically.',
