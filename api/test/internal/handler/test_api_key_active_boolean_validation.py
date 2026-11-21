@@ -123,3 +123,30 @@ def test_update_api_key_allows_clearing_expiration():
 
     assert response[0].get_json()["code"] == HttpCode.SUCCESS
     assert received == {"expires_at": None}
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/openapi/api-keys",
+        f"/openapi/api-keys/{UUID(int=1)}",
+    ],
+)
+@pytest.mark.parametrize("body", ["", "{", "not-json"])
+def test_api_key_write_endpoints_reject_malformed_json(app, monkeypatch, path, body):
+    """JSON 体解析失败时应返回校验错误，而不是抛出 BadRequest。"""
+    monkeypatch.setattr(
+        "internal.service.api_key_service.ApiKeyService.create_api_key",
+        lambda *_args, **_kwargs: pytest.fail("malformed body reached create service"),
+    )
+    monkeypatch.setattr(
+        "internal.service.api_key_service.ApiKeyService.update_api_key",
+        lambda *_args, **_kwargs: pytest.fail("malformed body reached update service"),
+    )
+
+    with app.test_client() as client:
+        response = client.post(path, data=body, content_type="application/json")
+
+    assert response.status_code == 200
+    assert response.json["code"] == HttpCode.VALIDATE_ERROR
+    assert response.json["data"] == {"body": ["请求内容必须为JSON对象"]}
