@@ -97,9 +97,10 @@ class PublicAppService(BaseService):
                     }
                 })
             elif tool["type"] == "api_tool":
-                # 查询 API 工具
+                # 查询 API 工具，发布配置中 tool_id 存储的是工具名称而非主键
                 api_tool = self.db.session.query(ApiTool).filter(
-                    ApiTool.id == tool.get("tool_id")
+                    ApiTool.provider_id == tool.get("provider_id"),
+                    ApiTool.name == tool.get("tool_id"),
                 ).one_or_none()
 
                 if not api_tool:
