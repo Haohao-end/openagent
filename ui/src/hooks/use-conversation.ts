@@ -21,6 +21,7 @@ import {
   updateConversationName,
 } from '@/services/conversation'
 import { Message, Modal } from '@arco-design/web-vue'
+import { getErrorMessage } from '@/utils/error'
 export const useGetConversationMessagesWithPage = () => {
   // 1.定义hooks所需数据
   const loading = ref(false)
@@ -101,12 +102,17 @@ export const useDeleteConversation = () => {
       content: '删除会话信息后，删除会话后，该会话下的所有聊天记录将被永远删除，无法找回。',
       hideCancel: false,
       onOk: async () => {
-        // 1.点击确定后向API接口发起请求
-        const resp = await deleteConversation(conversation_id)
-        Message.success(resp.message)
+        try {
+          // 1.点击确定后向API接口发起请求
+          const resp = await deleteConversation(conversation_id)
+          Message.success(resp.message)
 
-        // 2.调用callback函数指定回调功能
-        success_callback && success_callback()
+          // 2.调用callback函数指定回调功能
+          success_callback && success_callback()
+        } catch (error: unknown) {
+          Message.error(getErrorMessage(error, '删除会话失败，请稍后重试'))
+          throw error
+        }
       },
     })
   }
