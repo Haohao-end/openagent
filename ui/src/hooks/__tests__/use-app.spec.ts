@@ -429,12 +429,14 @@ describe('useDeleteApp', () => {
     const originalError = new Error('delete failed')
     vi.mocked(appService.deleteApp).mockRejectedValueOnce(originalError)
     const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+    const errorSpy = vi.spyOn(Message, 'error').mockImplementation(() => undefined as never)
     const { callback, onOk } = await openDeleteConfirmation()
 
     await expect(onOk()).rejects.toBe(originalError)
 
     expect(callback).not.toHaveBeenCalled()
     expect(successSpy).not.toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalledWith('delete failed')
   })
 })
 
