@@ -345,3 +345,32 @@ def test_create_feedback_rejects_non_object_json_body(app, monkeypatch):
         resp = client.post(f"/apps/{app_id}/feedbacks", json=["not", "an", "object"])
     assert resp.status_code == 400
     assert resp.get_json() == {"error": "Request body must be a JSON object"}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"target_id": "00000000-0000-0000-0000-000000000020", "target_type": "message", "rating": True},
+        {"target_id": "00000000-0000-0000-0000-000000000020", "target_type": "message", "rating": 1.5},
+        {"target_id": "00000000-0000-0000-0000-000000000020", "target_type": "message", "content": {"nested": 1}},
+        {"target_id": 123, "target_type": "message", "rating": 1},
+        {"target_id": "00000000-0000-0000-0000-000000000020", "target_type": ["message"], "rating": 1},
+    ],
+    ids=["bool-rating", "float-rating", "object-content", "int-target-id", "list-target-type"],
+)
+def test_create_feedback_rejects_mistyped_json_fields(app, monkeypatch, payload):
+    app_id = UUID("00000000-0000-0000-0000-000000000010")
+    account = SimpleNamespace(
+        id=UUID("00000000-0000-0000-0000-000000000001"),
+        is_authenticated=True,
+    )
+    monkeypatch.setattr("internal.handler.feedback_handler.current_user", account)
+    mock_query = MagicMock()
+    mock_query.filter.return_value.first.return_value = SimpleNamespace(id=app_id, account_id=account.id)
+    monkeypatch.setattr("internal.handler.feedback_handler.db.session.query", lambda _m: mock_query)
+
+    with app.test_client() as client:
+        resp = client.post(f"/apps/{app_id}/feedbacks", json=payload)
+
+    assert resp.status_code == 400
+    assert "Invalid request" in resp.get_json()["error"]
