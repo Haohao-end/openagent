@@ -40,6 +40,8 @@ import { useRoute, useRouter } from 'vue-router'
 import 'github-markdown-css'
 import FilingIcon from '@/assets/images/FilingIcon.png'
 import LoginModal from '@/views/auth/components/LoginModal.vue'
+import MessageTraceModal from '@/components/chat/MessageTraceModal.vue'
+import CompareMessagesModal from '@/components/chat/CompareMessagesModal.vue'
 import { useGetCurrentUser } from '@/hooks/use-account'
 import { resolveHomeLoginNavigation } from '@/views/pages/home-login-flow'
 import {
@@ -137,6 +139,8 @@ const accountStore = useAccountStore()
 const credentialStore = useCredentialStore()
 const { current_user, loadCurrentUser } = useGetCurrentUser()
 const loginModalVisible = ref(false)
+const messageTraceModalRef = ref<InstanceType<typeof MessageTraceModal> | null>(null)
+const compareMessagesModalRef = ref<InstanceType<typeof CompareMessagesModal> | null>(null)
 const pendingQueryAfterLogin = ref('')
 const selectedConversationId = ref(String(route.query.conversation_id || '').trim())
 const isHandlingNewConversationRequest = ref(false)
@@ -417,6 +421,14 @@ const tryLoadHomeIntent = async () => {
 
 const handleShowLoginModal = () => {
   loginModalVisible.value = true
+}
+
+const handleViewTrace = (message_id: string) => {
+  messageTraceModalRef.value?.open(message_id)
+}
+
+const handleCompareMessages = (message_id: string) => {
+  compareMessagesModalRef.value?.open(message_id)
 }
 
 const ensureLogin = () => {
@@ -1485,6 +1497,8 @@ onUnmounted(() => {
               agent_thought_variant="inline"
               :agent_thought_default_visible="false"
               @select-suggested-question="handleSubmitQuestion"
+              @view-trace="handleViewTrace"
+              @compare-messages="handleCompareMessages"
             />
           </div>
           <div ref="bottomAnchorRef" class="w-full h-px"></div>
@@ -1692,6 +1706,8 @@ onUnmounted(() => {
       </div>
     </div>
     <login-modal v-model:visible="loginModalVisible" @success="handleLoginSuccess" />
+    <message-trace-modal ref="messageTraceModalRef" />
+    <compare-messages-modal ref="compareMessagesModalRef" />
   </div>
 </template>
 
