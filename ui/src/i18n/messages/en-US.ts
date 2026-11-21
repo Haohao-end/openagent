@@ -44,6 +44,9 @@ export default {
       expired: 'Expired',
       legacy: 'Legacy credential',
     },
+    conversation: {
+      renameFailed: 'Failed to rename conversation. Please try again.',
+    },
     yes: 'Yes',
     no: 'No',
   },
