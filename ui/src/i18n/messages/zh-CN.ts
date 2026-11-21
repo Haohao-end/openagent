@@ -44,6 +44,9 @@ export default {
       expired: '已过期',
       legacy: '旧凭证',
     },
+    conversation: {
+      renameFailed: '重命名会话失败，请重试。',
+    },
     yes: '是',
     no: '否',
   },
