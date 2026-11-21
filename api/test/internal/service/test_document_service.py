@@ -230,38 +230,51 @@ class TestDocumentService:
         with pytest.raises(FailException):
             service.create_documents(dataset_id, [upload_file.id], account=account)
 
-    def test_create_documents_should_create_process_rule_and_documents_then_dispatch_task(self, monkeypatch):
+    def test_create_documents_should_create_process_rule_and_documents_in_one_transaction(self, monkeypatch):
         dataset_id = uuid4()
         account = SimpleNamespace(id=uuid4())
         upload_file_1 = SimpleNamespace(id=uuid4(), extension="txt", name="doc-1.txt")
         upload_file_2 = SimpleNamespace(id=uuid4(), extension="md", name="doc-2.md")
-        session = SimpleNamespace(query=lambda _model: _QueryStub(all_result=[upload_file_1, upload_file_2]))
-        service = DocumentService(db=SimpleNamespace(session=session), redis_client=_RedisStub())
+        document_ids = [uuid4(), uuid4()]
+        added = []
+        commit_calls = []
+
+        class _Session:
+            def query(self, _model):
+                return _QueryStub(all_result=[upload_file_1, upload_file_2])
+
+            def add(self, obj):
+                added.append(obj)
+                if isinstance(obj, ProcessRule):
+                    obj.id = process_rule_id
+                elif isinstance(obj, Document):
+                    obj.id = document_ids[len(added) - 2]
+
+            def flush(self):
+                return None
+
+            def commit(self):
+                commit_calls.append(True)
+
+            def rollback(self):
+                raise AssertionError("rollback should not be called")
+
+        db = _DBStub(_Session())
+        service = DocumentService(db=db, redis_client=_RedisStub())
         monkeypatch.setattr(
             service,
             "get",
             lambda model, _id: SimpleNamespace(id=dataset_id, account_id=account.id) if model is Dataset else None,
         )
         monkeypatch.setattr(service, "get_latest_document_position", lambda _dataset_id: 5)
-
-        process_rule = SimpleNamespace(id=uuid4())
-        create_calls = []
-        document_ids = [uuid4(), uuid4()]
-
-        def _fake_create(model, **kwargs):
-            create_calls.append((model, kwargs))
-            if model is ProcessRule:
-                return process_rule
-            doc_idx = len([item for item in create_calls if item[0] is Document]) - 1
-            return SimpleNamespace(id=document_ids[doc_idx], **kwargs)
-
-        monkeypatch.setattr(service, "create", _fake_create)
+        monkeypatch.setattr(service, "create", lambda *_args, **_kwargs: pytest.fail("create() must not be used"))
         task_calls = []
         monkeypatch.setattr(
             "internal.service.document_service.build_documents.delay",
             lambda ids: task_calls.append(ids),
         )
 
+        process_rule_id = uuid4()
         documents, batch = service.create_documents(
             dataset_id=dataset_id,
             upload_file_ids=[upload_file_1.id, upload_file_2.id],
@@ -272,12 +285,71 @@ class TestDocumentService:
 
         assert len(documents) == 2
         assert batch
-        assert create_calls[0][0] is ProcessRule
-        assert create_calls[0][1]["mode"] == ProcessType.CUSTOM.value
-        assert create_calls[1][0] is Document
-        assert create_calls[1][1]["position"] == 6
-        assert create_calls[2][1]["position"] == 7
+        assert [type(item) for item in added] == [ProcessRule, Document, Document]
+        assert added[0].mode == ProcessType.CUSTOM.value
+        assert [item.position for item in added[1:]] == [6, 7]
+        assert [item.process_rule_id for item in added[1:]] == [process_rule_id, process_rule_id]
+        assert all(item.batch == batch for item in added[1:])
         assert task_calls == [[document_ids[0], document_ids[1]]]
+
+    def test_create_documents_should_not_dispatch_task_when_batch_insert_fails(self, monkeypatch):
+        dataset_id = uuid4()
+        account = SimpleNamespace(id=uuid4())
+        upload_file = SimpleNamespace(id=uuid4(), extension="txt", name="doc.txt")
+        document_ids = [uuid4()]
+        added = []
+        rollback_calls = []
+
+        class _Session:
+            def query(self, _model):
+                return _QueryStub(all_result=[upload_file])
+
+            def add(self, obj):
+                added.append(obj)
+
+            def flush(self):
+                if isinstance(obj := added[-1], Document):
+                    obj.id = document_ids[0]
+
+            def commit(self):
+                raise AssertionError("commit must be skipped when flush fails")
+
+            def rollback(self):
+                rollback_calls.append(True)
+
+        class _FailingDB(_DBStub):
+            @contextmanager
+            def auto_commit(self):
+                try:
+                    yield
+                except Exception:
+                    self.session.rollback()
+                    raise
+
+        service = DocumentService(db=_FailingDB(_Session()), redis_client=_RedisStub())
+        monkeypatch.setattr(
+            service,
+            "get",
+            lambda model, _id: SimpleNamespace(id=dataset_id, account_id=account.id) if model is Dataset else None,
+        )
+        monkeypatch.setattr(service, "get_latest_document_position", lambda _dataset_id: 0)
+
+        class _BoomDocument:
+            def __init__(self, **_kwargs):
+                raise RuntimeError("insert failed")
+
+        monkeypatch.setattr("internal.service.document_service.Document", _BoomDocument)
+        task_calls = []
+        monkeypatch.setattr(
+            "internal.service.document_service.build_documents.delay",
+            lambda ids: task_calls.append(ids),
+        )
+
+        with pytest.raises(RuntimeError):
+            service.create_documents(dataset_id, [upload_file.id], account=account)
+
+        assert rollback_calls == [True]
+        assert task_calls == []
 
     def test_get_documents_status_should_raise_forbidden_when_dataset_not_accessible(self, monkeypatch):
         account = SimpleNamespace(id=uuid4())
