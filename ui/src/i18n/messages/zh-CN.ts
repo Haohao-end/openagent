@@ -702,6 +702,7 @@ export default {
     parameterValue: '值',
     inputParameters: '输入参数',
     outputData: '输出数据',
+    inputData: '输入数据',
     referencePrefix: '引用 /',
     bindTool: '绑定插件',
     bindToolHelp: '为工具节点绑定指定的扩展插件，支持插件广场以及自定义 API 插件。',
