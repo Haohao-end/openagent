@@ -95,6 +95,8 @@ const handleToggleActive = async (record: { id: string }, nextValue: boolean, ro
         api_keys.value[rowIndex].is_active = nextValue
       }
     })
+  } catch (error: unknown) {
+    if (isLoggedIn.value) Message.error(getErrorMessage(error, t('openapi.apiKeys.toggleFailed')))
   } finally {
     updatingApiKeyId.value = ''
   }

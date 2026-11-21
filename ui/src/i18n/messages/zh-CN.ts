@@ -1029,6 +1029,7 @@ export default {
       noRemark: '暂无备注',
       loadFailed: '加载 API 密钥失败，请稍后重试',
       saveFailed: '保存 API 密钥失败，请稍后重试',
+      toggleFailed: '更新 API 密钥状态失败，请稍后重试',
     },
     quickStart: {
       overviewTitle: '概览',
