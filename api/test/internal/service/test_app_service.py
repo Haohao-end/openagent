@@ -15,7 +15,7 @@ from internal.entity.conversation_entity import InvokeFrom
 from internal.entity.audio_entity import ALLOWED_AUDIO_VOICES
 from internal.core.language_model.entities.model_entity import ModelParameterType
 from internal.exception import FailException, ForbiddenException, NotFoundException, ValidateErrorException
-from internal.model import ApiTool, Workflow, Dataset, App, AppConfigVersion
+from internal.model import ApiTool, Workflow, Dataset, App, AppConfigVersion, AppDatasetJoin
 from internal.service.app_service import AppService, AutoCreateToolSelection
 
 
@@ -1537,10 +1537,14 @@ class TestAppService:
                 self.delete_query = delete_query
                 self.scalar_query = scalar_query
                 self.calls = 0
+                self.added = []
 
             def query(self, _model):
                 self.calls += 1
                 return self.delete_query if self.calls == 1 else self.scalar_query
+
+            def add(self, obj):
+                self.added.append(obj)
 
         class _DB:
             def __init__(self, session):
@@ -1554,9 +1558,10 @@ class TestAppService:
 
         delete_query = _DeleteQuery()
         scalar_query = _ScalarQuery(2)
+        session = _Session(delete_query, scalar_query)
         synced_app_ids = []
         service = _new_app_service(
-            db=_DB(_Session(delete_query, scalar_query)),
+            db=_DB(session),
             redis_client=SimpleNamespace(),
             cos_service=SimpleNamespace(),
             retrieval_service=SimpleNamespace(),
@@ -1747,7 +1752,7 @@ class TestAppService:
         assert delete_query.deleted is True
         assert service.db.auto_commit_count == 1
         assert any(payload.get("status") == AppStatus.PUBLISHED.value for _, payload in updates)
-        assert sum(1 for model, _ in create_calls if model.__name__ == "AppDatasetJoin") == 1
+        assert [join.dataset_id for join in session.added] == ["dataset-1"]
         app_config_call = [payload for model, payload in create_calls if model.__name__ == "AppConfig"][0]
         assert app_config_call["mcp_bindings"] == [
             {
@@ -1786,6 +1791,133 @@ class TestAppService:
         assert synced_app_ids == [str(app_id)]
         assert prewarm_calls == [(app.id, AppConfigType.PUBLISHED.value)]
 
+    def test_publish_draft_app_config_should_write_dataset_joins_in_one_transaction(self, monkeypatch):
+        """重写知识库绑定必须与删除处于同一事务，禁止逐条提交。"""
+
+        class _DeleteQuery:
+            def filter(self, *_args):
+                return self
+
+            def delete(self):
+                return 0
+
+        class _ScalarQuery:
+            def filter(self, *_args):
+                return self
+
+            def scalar(self):
+                return 0
+
+        class _Session:
+            def __init__(self):
+                self.calls = 0
+                self.added = []
+
+            def query(self, _model):
+                self.calls += 1
+                return _DeleteQuery() if self.calls == 1 else _ScalarQuery()
+
+            def add(self, obj):
+                self.added.append(obj)
+
+        class _DB:
+            def __init__(self, session):
+                self.session = session
+                self.auto_commit_count = 0
+
+            @contextmanager
+            def auto_commit(self):
+                self.auto_commit_count += 1
+                yield
+
+        session = _Session()
+        service = _new_app_service(
+            db=_DB(session),
+            redis_client=SimpleNamespace(),
+            cos_service=SimpleNamespace(),
+            retrieval_service=SimpleNamespace(),
+            app_config_service=SimpleNamespace(),
+            api_provider_manager=SimpleNamespace(),
+            conversation_service=SimpleNamespace(),
+            language_model_manager=SimpleNamespace(),
+            language_model_service=SimpleNamespace(),
+            builtin_provider_manager=SimpleNamespace(),
+            public_agent_registry_service=SimpleNamespace(),
+        )
+        monkeypatch.setattr(
+            "internal.service.app_service.sync_public_app_registry",
+            SimpleNamespace(delay=lambda _app_id: None),
+        )
+        app_id = uuid4()
+        draft_config = {
+            "model_config": {"provider": "openai", "model": "gpt-4o-mini"},
+            "dialog_round": 3,
+            "preset_prompt": "prompt",
+            "tools": [],
+            "workflows": [],
+            "datasets": [{"id": "dataset-1"}, {"id": "dataset-2"}],
+            "retrieval_config": {},
+            "long_term_memory": {},
+            "opening_statement": "",
+            "opening_questions": [],
+            "speech_to_text": {},
+            "text_to_speech": {},
+            "suggested_after_answer": {},
+            "review_config": {},
+            "mcp_bindings": [],
+            "agent_bindings": [],
+            "mcp_tool_snapshots": [],
+        }
+        app = SimpleNamespace(
+            id=app_id,
+            name="app",
+            description="",
+            tags=[],
+            published_at=None,
+            draft_app_config=SimpleNamespace(
+                id=uuid4(),
+                version=0,
+                config_type="draft",
+                updated_at=None,
+                created_at=None,
+                model_config=draft_config["model_config"],
+                dialog_round=3,
+                preset_prompt="prompt",
+                tools=[],
+                workflows=[],
+                datasets=[],
+                retrieval_config={},
+                long_term_memory={},
+                opening_statement="",
+                opening_questions=[],
+                speech_to_text={},
+                text_to_speech={},
+                suggested_after_answer={},
+                review_config={},
+                mcp_bindings=[],
+                agent_bindings=[],
+                mcp_tool_snapshots=[],
+            ),
+        )
+        monkeypatch.setattr(service, "get_app", lambda *_args, **_kwargs: app)
+        monkeypatch.setattr(service, "get_draft_app_config", lambda *_args, **_kwargs: draft_config)
+        created_models = []
+
+        def _create(model, **kwargs):
+            if model is AppDatasetJoin:
+                pytest.fail("dataset joins must not commit one by one")
+            created_models.append(model.__name__)
+            return SimpleNamespace(id=uuid4(), **kwargs)
+
+        monkeypatch.setattr(service, "create", _create)
+        monkeypatch.setattr(service, "update", lambda target, **_kwargs: target)
+        monkeypatch.setattr(service, "_enqueue_mcp_tool_snapshot_prewarm", lambda *_args: None)
+
+        service.publish_draft_app_config(app_id, SimpleNamespace(id=uuid4()), share_to_square=False)
+
+        assert [join.dataset_id for join in session.added] == ["dataset-1", "dataset-2"]
+        assert all(join.app_id == app_id for join in session.added)
+
     def test_publish_draft_app_config_should_skip_public_and_published_at_when_not_shared_and_already_published(self, monkeypatch):
         class _DeleteQuery:
             def __init__(self):
@@ -1812,10 +1944,14 @@ class TestAppService:
                 self.delete_query = delete_query
                 self.scalar_query = scalar_query
                 self.calls = 0
+                self.added = []
 
             def query(self, _model):
                 self.calls += 1
                 return self.delete_query if self.calls == 1 else self.scalar_query
+
+            def add(self, obj):
+                self.added.append(obj)
 
         class _DB:
             def __init__(self, session):

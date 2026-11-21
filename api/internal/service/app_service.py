@@ -776,15 +776,16 @@ class AppService(BaseService):
 
         self.update(app, **update_data)
 
-        # 4.先删除原有的知识库关联记录
+        # 4.在同一事务内完成知识库关联记录的覆盖：先删除旧记录再写入新记录
+        # 避免中途失败后出现"旧绑定已删除但新绑定未写入"的空绑定
         with self.db.auto_commit():
             self.db.session.query(AppDatasetJoin).filter(
                 AppDatasetJoin.app_id == app_id,
             ).delete()
-
-        # 5.新增新的知识库关联记录
-        for dataset in draft_app_config["datasets"]:
-            self.create(AppDatasetJoin, app_id=app_id, dataset_id=dataset["id"])
+            for dataset in draft_app_config["datasets"]:
+                self.db.session.add(
+                    AppDatasetJoin(app_id=app_id, dataset_id=dataset["id"])
+                )
 
         # 6.获取应用草稿记录，并移除id、version、config_type、updated_at、created_at字段
         draft_app_config_copy = app.draft_app_config.__dict__.copy()
