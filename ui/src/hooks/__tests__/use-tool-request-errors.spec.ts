@@ -166,6 +166,7 @@ describe('use-tool request feedback', () => {
 
     expect(callback).not.toHaveBeenCalled()
     expect(messageSuccessMock).not.toHaveBeenCalled()
+    expect(messageErrorMock).toHaveBeenCalledWith('delete failed')
   })
 
   it('keeps the latest tool provider search when requests resolve out of order', async () => {
