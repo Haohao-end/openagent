@@ -6,8 +6,9 @@ import { getReferencedVariables } from '@/utils/helper'
 import { apiPrefix } from '@/config'
 import { useGetBuiltinTool, useGetBuiltinTools, useGetCategories } from '@/hooks/use-builtin-tool'
 import { useGetApiToolProvidersWithPage } from '@/hooks/use-tool'
-import type { ValidatedError } from '@arco-design/web-vue'
+import { Message, type ValidatedError } from '@arco-design/web-vue'
 import { useI18n } from 'vue-i18n'
+import { getErrorMessage } from '@/utils/error'
 
 type ToolProvider = {
   id: string
@@ -168,8 +169,24 @@ const handleShowToolsModal = async () => {
   toolsModalVisible.value = true
 
   // 3.2 调用API接口获取响应
-  await loadApiToolProviders(true)
-  await loadBuiltinTools()
+  await loadApiToolProvidersSafely(true)
+  await loadBuiltinToolsSafely()
+}
+
+const loadApiToolProvidersSafely = async (init: boolean = false) => {
+  try {
+    await loadApiToolProviders(init)
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('workflowEditor.toolNode.loadFailed')))
+  }
+}
+
+const loadBuiltinToolsSafely = async () => {
+  try {
+    await loadBuiltinTools()
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('workflowEditor.toolNode.loadFailed')))
+  }
 }
 
 // 4.定义移除绑定工具的函数
@@ -254,7 +271,12 @@ const handleSelectTool = async (provider_idx: number, tool_idx: number) => {
     // 6.7 根据不同的工具类型调用API接口获取工具的输入
     if (selectTool.type === 'builtin_tool') {
       // 6.8 调用hooks获取内置工具信息，并提取inputs+params
-      if (!(await loadBuiltinTool(selectTool.provider.name, selectTool.tool.name))) return
+      try {
+        if (!(await loadBuiltinTool(selectTool.provider.name, selectTool.tool.name))) return
+      } catch (error: unknown) {
+        Message.error(getErrorMessage(error, t('workflowEditor.toolNode.loadFailed')))
+        return
+      }
       const inputs = builtin_tool.value.inputs
       const params = builtin_tool.value.params
 
@@ -302,7 +324,7 @@ const handleScroll = async (event: UIEvent) => {
     if (getApiToolProvidersLoading.value) {
       return
     }
-    await loadApiToolProviders()
+    await loadApiToolProvidersSafely()
   }
 }
 
@@ -425,8 +447,16 @@ onBeforeUnmount(() => {
 
 onMounted(() => {
   // 加载内置工具分类
-  loadCategories()
+  loadCategoriesSafely()
 })
+
+const loadCategoriesSafely = async () => {
+  try {
+    await loadCategories()
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('workflowEditor.toolNode.loadFailed')))
+  }
+}
 </script>
 
 <template>

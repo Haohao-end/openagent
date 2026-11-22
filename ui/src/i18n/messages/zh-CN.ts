@@ -857,6 +857,7 @@ export default {
       directInput: '直接输入',
       noBuiltinTools: '没有可用的内置插件',
       noApiTools: '没有可用的 API 插件',
+      loadFailed: '加载插件列表失败',
       loading: '加载中',
       loaded: '数据已加载完成',
       add: '添加',
