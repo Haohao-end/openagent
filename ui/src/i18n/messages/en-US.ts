@@ -873,6 +873,7 @@ export default {
       directInput: 'Direct input',
       noBuiltinTools: 'No built-in plugins available',
       noApiTools: 'No API plugins available',
+      loadFailed: 'Failed to load plugin list',
       loading: 'Loading',
       loaded: 'All data loaded',
       add: 'Add',
