@@ -22,7 +22,6 @@ import { uploadImage } from '@/services/upload-file'
 import { useAccountStore } from '@/stores/account'
 import { Message } from '@arco-design/web-vue'
 import AudioRecorder from 'js-audio-recorder'
-import type { GetConversationMessagesWithPageResponse } from '@/models/conversation'
 import type { GetWebAppConversationsResponse } from '@/models/web-app'
 import {
   applyChatStreamEvent,
@@ -35,7 +34,6 @@ import {
   buildChatMessageSizeDependencies,
 } from '@/views/shared/chat-message-size'
 import { normalizeMessageMetrics, type MessageMetrics } from '@/views/shared/chat-metrics'
-import { calculateScrollDuration, smoothScroll } from '@/utils/scrollAnimation'
 import { cloneDeep } from 'lodash'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -52,7 +50,6 @@ const compareMessagesModalRef = ref<InstanceType<typeof CompareMessagesModal> | 
 const updateConversationNameModalVisible = ref(false)
 const updateConversationNameId = ref('')
 type ConversationSummary = GetWebAppConversationsResponse['data'][number]
-type WebAppMessage = GetConversationMessagesWithPageResponse['data']['list'][number]
 type RecorderLike = {
   start: () => Promise<unknown>
   stop: () => Promise<unknown> | void
@@ -93,7 +90,6 @@ let webAppChatAbortController: AbortController | null = null
 const userStoppedWebAppStreams = new WeakSet<AbortSignal>()
 const scroller = ref<ScrollerLike | null>(null)
 const scrollHeight = ref(0)
-const showScrollToBottomButton = ref(false)
 
 const handleViewTrace = (message_id: string) => {
   messageTraceModalRef.value?.open(message_id)
@@ -104,9 +100,6 @@ const handleCompareMessages = (message_id: string) => {
 }
 
 
-const humanMessageElements = ref<HTMLElement[]>([])
-const currentHumanMessageIndex = ref(-1)
-const HUMAN_NAV_BOTTOM_DISTANCE_THRESHOLD = 500
 const accountStore = useAccountStore()
 const { loading: getWebAppLoading, web_app, loadWebApp } = useGetWebApp()
 const {
@@ -289,85 +282,6 @@ const restoreScrollPosition = () => {
   const scrollerElement = scroller.value?.$el
   if (!scrollerElement) return
   scrollerElement.scrollTop = scrollerElement.scrollHeight - scrollHeight.value
-}
-
-// 10.定义滚动函数
-const updateScrollToBottomButtonVisibility = () => {
-  const scrollerElement = scroller.value?.$el
-  if (!scrollerElement) {
-    showScrollToBottomButton.value = false
-    return
-  }
-
-  const distanceToBottom =
-    scrollerElement.scrollHeight - scrollerElement.scrollTop - scrollerElement.clientHeight
-  showScrollToBottomButton.value = distanceToBottom > HUMAN_NAV_BOTTOM_DISTANCE_THRESHOLD
-}
-
-const updateCurrentHumanMessageIndex = () => {
-  const scrollerElement = scroller.value?.$el
-  if (!scrollerElement || humanMessageElements.value.length === 0) {
-    currentHumanMessageIndex.value = -1
-    return
-  }
-
-  const containerRect = scrollerElement.getBoundingClientRect()
-  const targetTop = containerRect.top + containerRect.height * 0.35
-
-  let bestIndex = -1
-  let minDistance = Number.POSITIVE_INFINITY
-
-  humanMessageElements.value.forEach((node, index) => {
-    const rect = node.getBoundingClientRect()
-    const distance = Math.abs(rect.top - targetTop)
-    if (distance < minDistance) {
-      minDistance = distance
-      bestIndex = index
-    }
-  })
-
-  currentHumanMessageIndex.value = bestIndex
-}
-
-const collectHumanMessageElements = async () => {
-  await nextTick()
-  const scrollerElement = scroller.value?.$el
-  if (!scrollerElement) {
-    humanMessageElements.value = []
-    currentHumanMessageIndex.value = -1
-    return
-  }
-
-  humanMessageElements.value = Array.from(
-    scrollerElement.querySelectorAll('[data-human-message-anchor="true"]'),
-  ) as HTMLElement[]
-  updateCurrentHumanMessageIndex()
-}
-
-const scrollToBottomWithEasing = () => {
-  const scrollerElement = scroller.value?.$el
-  if (!scrollerElement) return
-
-  const targetTop = Math.max(scrollerElement.scrollHeight - scrollerElement.clientHeight, 0)
-  const distance = targetTop - scrollerElement.scrollTop
-  if (Math.abs(distance) < 2) return
-
-  const duration = calculateScrollDuration(distance)
-  smoothScroll(scrollerElement, targetTop, duration)
-}
-
-const scrollToHumanMessageByIndex = (index: number) => {
-  const scrollerElement = scroller.value?.$el
-  const targetElement = humanMessageElements.value[index]
-  if (!scrollerElement || !targetElement) return
-
-  const containerRect = scrollerElement.getBoundingClientRect()
-  const targetRect = targetElement.getBoundingClientRect()
-  const delta = targetRect.top - containerRect.top - 12
-  const targetTop = scrollerElement.scrollTop + delta
-  const duration = calculateScrollDuration(targetTop - scrollerElement.scrollTop)
-
-  smoothScroll(scrollerElement, targetTop, duration)
 }
 
 const handleScroll = async (event: UIEvent) => {
@@ -848,13 +762,11 @@ onUnmounted(() => {
               "
             >
               <div class="flex flex-col gap-6 py-6">
-                <div data-human-message-anchor="true">
-                  <human-message
-                    :query="item.query"
-                    :image_urls="item.image_urls"
-                    :account="accountStore.account"
-                  />
-                </div>
+                <human-message
+                  :query="item.query"
+                  :image_urls="item.image_urls"
+                  :account="accountStore.account"
+                />
                 <ai-message
                   :message_id="item.id"
                   :enable_text_to_speech="web_app?.app_config?.text_to_speech?.enable"
