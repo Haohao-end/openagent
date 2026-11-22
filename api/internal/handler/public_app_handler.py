@@ -1,4 +1,5 @@
 """公共应用Handler - 处理HTTP请求"""
+import logging
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -125,6 +126,9 @@ class PublicAppHandler:
             return jsonify({"error": str(exc) or "App or conversation not found"}), 404
         except ValidateErrorException as exc:
             return jsonify({"error": str(exc) or "Invalid request parameters"}), 400
-        except Exception:
+        except Exception as exc:
+            logging.getLogger(__name__).error(
+                "读取公共应用会话消息失败: error_type=%s", type(exc).__name__
+            )
             return jsonify({"error": "Failed to retrieve conversation messages"}), 500
         return success_json(messages)
