@@ -3,9 +3,11 @@ import moment from 'moment/moment'
 import { useDeleteWorkflow, useGetWorkflowsWithPage } from '@/hooks/use-workflow'
 import { onMounted, ref, watch } from 'vue'
 import { useAccountStore } from '@/stores/account'
+import { Message } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
 import CreateOrUpdateWorkflowModal from '@/views/space/workflows/components/CreateOrUpdateWorkflowModal.vue'
 import CardGridSkeleton from '@/components/skeletons/CardGridSkeleton.vue'
+import { getErrorMessage } from '@/utils/error'
 import { getUserAvatarUrl } from '@/utils/helper'
 import { useI18n } from 'vue-i18n'
 
@@ -34,6 +36,14 @@ const clearCreateTypeQuery = async () => {
 }
 
 // 2.定义滚动数据分页处理器
+const handleLoadWorkflows = async (searchWord: string = '', status: string = '', init: boolean = false) => {
+  try {
+    await loadWorkflows(searchWord, status, init)
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('space.workflows.list.loadFailed')))
+  }
+}
+
 const handleScroll = (event: Event) => {
   // 1.获取滚动距离、可滚动的最大距离、客户端/浏览器窗口的高度
   const target = event.target as HTMLElement | null
@@ -43,19 +53,19 @@ const handleScroll = (event: Event) => {
   // 2.判断是否滑动到底部
   if (scrollTop + clientHeight >= scrollHeight - 10) {
     if (getWorkflowsWithPageLoading.value) return
-    void loadWorkflows(String(route.query?.search_word ?? ''), '')
+    void handleLoadWorkflows(String(route.query?.search_word ?? ''), '')
   }
 }
 
 // 页面DOM加载完毕后执行
 onMounted(async () => {
   // 初始化工作流数据数据
-  await loadWorkflows(String(route.query?.search_word ?? ''), '', true)
+  await handleLoadWorkflows(String(route.query?.search_word ?? ''), '', true)
 })
 
 watch(
   () => route.query?.search_word,
-  async () => await loadWorkflows(String(route.query?.search_word ?? ''), '', true),
+  async () => await handleLoadWorkflows(String(route.query?.search_word ?? ''), '', true),
 )
 
 watch(
@@ -138,7 +148,7 @@ const handleCardClick = (workflowId: string) => {
                       @click="
                         async () =>
                           await handleDeleteWorkflow(workflow.id, async () => {
-                            await loadWorkflows(String(route.query?.search_word ?? ''), '', true)
+                            await handleLoadWorkflows(String(route.query?.search_word ?? ''), '', true)
                           })
                       "
                     >
@@ -191,7 +201,7 @@ const handleCardClick = (workflowId: string) => {
     <create-or-update-workflow-modal
       v-model:visible="createOrUpdateWorkflowModalVisible"
       v-model:workflow_id="updateWorkflowId"
-      :callback="async () => await loadWorkflows(String(route.query?.search_word ?? ''), '', true)"
+      :callback="async () => await handleLoadWorkflows(String(route.query?.search_word ?? ''), '', true)"
     />
   </div>
 </template>
