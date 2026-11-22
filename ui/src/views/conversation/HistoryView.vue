@@ -3,10 +3,13 @@ import { computed, ref, watch } from 'vue'
 import ScrollNavigator from '@/components/ScrollNavigation/ScrollNavigator.vue'
 import { useGetRecentConversations, useDeleteConversation } from '@/hooks/use-conversation'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { Message } from '@arco-design/web-vue'
 import type { RecentConversation } from '@/models/conversation'
 import UpdateConversationNameModal from '@/views/layouts/components/UpdateConversationNameModal.vue'
 
 const router = useRouter()
+const { t } = useI18n()
 const searchQuery = ref('')
 const selectedIds = ref(new Set<string>())
 const hoveredConversationId = ref<string | null>(null)
@@ -26,7 +29,10 @@ const { handleDeleteConversation } = useDeleteConversation()
 
 // 加载所有对话
 const loadConversations = async () => {
-  await loadRecentConversationsHook(1000)
+  const status = await loadRecentConversationsHook(1000)
+  if (status === 'ERROR') {
+    Message.error(t('conversationSearch.loadFailed'))
+  }
 }
 
 // 搜索过滤

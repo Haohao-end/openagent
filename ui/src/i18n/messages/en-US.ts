@@ -659,6 +659,7 @@ export default {
     title: 'Conversation Search',
     placeholder: 'Search conversations, messages, apps, or agents',
     searchFailed: 'Could not search conversations. Please try again.',
+    loadFailed: 'Failed to load conversation history. Please try again.',
     loading: 'Searching',
     empty: 'No results found',
     keywordMatch: 'Matched in: {labels}',
