@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { uploadFile, uploadImage } from '@/services/upload-file'
-import type { UploadFileResponse, UploadImageResponse } from '@/models/upload-file'
+import type { UploadFileResponse } from '@/models/upload-file'
 
 export const useUploadImage = () => {
   // 1.定义hooks所需数据
