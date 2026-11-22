@@ -1727,6 +1727,7 @@ export default {
       loading: 'Loading',
       loadedAll: 'All data loaded',
       unknownUser: 'Unknown user',
+      loadFailed: 'Failed to load apps',
     },
     createModal: {
       uploadIconSuccess: 'Icon uploaded',
