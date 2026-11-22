@@ -411,7 +411,7 @@ watch(
                     @click="
                       () =>
                         handleDeleteApiKey(record.id, async () => {
-                          await loadApiKeys()
+                          await loadApiKeysSafely()
                         })
                     "
                   >
@@ -436,7 +436,7 @@ watch(
       v-model:expires_at="updateApiKeyExpiresAt"
       v-model:scopes="updateApiKeyScopes"
       @update:visible="(value) => emits('update:create_api_key', value)"
-      :callback="async () => await loadApiKeys()"
+      :callback="async () => await loadApiKeysSafely()"
     />
   </div>
 </template>
