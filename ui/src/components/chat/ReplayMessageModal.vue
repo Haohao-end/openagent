@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Message } from '@arco-design/web-vue'
 import { useReplayMessage } from '@/hooks/use-conversation'
+import { getErrorMessage } from '@/utils/error'
 import type { ReplaySnapshotData } from '@/models/conversation'
 
 const emit = defineEmits<{
@@ -36,7 +38,10 @@ const handleReplay = async () => {
     patch.preset_prompt = presetPromptPatch.value.trim()
   }
 
-  const result = await executeReplay(currentMessageId.value, { patch })
+  const result = await executeReplay(currentMessageId.value, { patch }).catch((error) => {
+    Message.error(getErrorMessage(error, t('chat.replayMessage.executeFailed')))
+    return undefined
+  })
   if (result) {
     emit('replayed', result)
   }

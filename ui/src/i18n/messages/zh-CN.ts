@@ -1162,6 +1162,7 @@ export default {
       executeReplay: '执行重放',
       snapshotReady: '快照与补丁构建成功',
       noPatches: '未应用任何配置 Patch',
+      executeFailed: '执行重放失败',
     },
     feedback: {
       title: '提交反馈',
