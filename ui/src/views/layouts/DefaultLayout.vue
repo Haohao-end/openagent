@@ -358,7 +358,7 @@ watch(settingModalVisible, async (visible) => {
                 :size="32"
                 class="flex-shrink-0 text-sm bg-blue-700"
                 :image-url="
-                  getUserAvatarUrl(accountStore.account.avatar, accountStore.account.name)
+                  getUserAvatarUrl(accountStore.account.avatar)
                 "
               >
                 {{ accountStore.account.name[0] }}

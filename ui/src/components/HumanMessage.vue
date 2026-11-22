@@ -52,7 +52,7 @@ const handleCopyHumanMessage = async () => {
         </div>
       </div>
       <!-- 右侧头像 -->
-      <a-avatar :size="36" shape="circle" class="flex-shrink-0" :image-url="getUserAvatarUrl(props.account?.avatar, props.account?.name)" />
+      <a-avatar :size="36" shape="circle" class="flex-shrink-0" :image-url="getUserAvatarUrl(props.account?.avatar)" />
     </div>
   </div>
 </template>

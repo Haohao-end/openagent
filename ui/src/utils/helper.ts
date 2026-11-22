@@ -137,7 +137,7 @@ export const getReferencedVariables = (
 }
 
 // 获取用户头像 URL，如果没有设置则使用用户名首字母
-export const getUserAvatarUrl = (avatar: string | undefined, name: string): string => {
+export const getUserAvatarUrl = (avatar: string | undefined): string => {
   // 如果用户设置了自定义头像，直接返回
   if (avatar && avatar.trim()) {
     return avatar

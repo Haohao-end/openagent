@@ -236,7 +236,7 @@ onUnmounted(() => {
               <a-avatar
                 :size="18"
                 class="bg-blue-700"
-                :image-url="getUserAvatarUrl(provider.creator_avatar || accountStore.account.avatar, provider.creator_name || accountStore.account.name)"
+                :image-url="getUserAvatarUrl(provider.creator_avatar || accountStore.account.avatar)"
               >
                 {{ (provider.creator_name || accountStore.account.name || t('common.status.unknown'))[0] }}
               </a-avatar>
