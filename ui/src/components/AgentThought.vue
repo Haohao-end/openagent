@@ -133,8 +133,12 @@ const handleCopyThought = async (agentThought: Record<string, any>) => {
     Message.warning(t('chat.thought.noCopyableContent'))
     return
   }
-  await copyTextToClipboard(content)
-  Message.success(t('chat.thought.copied'))
+  try {
+    await copyTextToClipboard(content)
+    Message.success(t('chat.thought.copied'))
+  } catch {
+    Message.error(t('chat.messages.copyFailed'))
+  }
 }
 
 const isThoughtPlaying = (agentThoughtId: string) => {

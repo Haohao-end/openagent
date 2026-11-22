@@ -263,8 +263,12 @@ const resetForms = () => {
 const handleCancel = () => emits('update:visible', false)
 
 const handleCopyAccountId = async () => {
-  await copyTextToClipboard(accountStore.account.id)
-  Message.success(t('settings.messages.copyAccountIdSuccess'))
+  try {
+    await copyTextToClipboard(accountStore.account.id)
+    Message.success(t('settings.messages.copyAccountIdSuccess'))
+  } catch {
+    Message.error(t('chat.messages.copyFailed'))
+  }
 }
 
 const saveAvatarInOrder = (avatar: string, requestId: number) => {

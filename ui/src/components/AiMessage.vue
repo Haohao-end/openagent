@@ -234,8 +234,12 @@ const handleStopAudio = () => {
 
 const handleCopyAnswer = async () => {
   if (!props.answer) return
-  await copyTextToClipboard(props.answer)
-  Message.success(t('chat.messages.aiCopied'))
+  try {
+    await copyTextToClipboard(props.answer)
+    Message.success(t('chat.messages.aiCopied'))
+  } catch {
+    Message.error(t('chat.messages.copyFailed'))
+  }
 }
 
 const handleViewTrace = () => {
