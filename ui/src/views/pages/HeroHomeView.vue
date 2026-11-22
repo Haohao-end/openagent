@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import HeroSection from '@/components/HeroSection.vue'
 import GlassCard from '@/components/GlassCard.vue'
 import AiDynamicBackground from '@/components/AiDynamicBackground.vue'
@@ -10,16 +10,6 @@ const heroRef = ref<HTMLElement | null>(null)
 const handleScroll = (e: Event) => {
   const target = e.target as HTMLElement
   scrollPosition.value = target.scrollTop
-}
-
-const scrollToContent = () => {
-  if (heroRef.value) {
-    const heroHeight = heroRef.value.offsetHeight
-    window.scrollTo({
-      top: heroHeight,
-      behavior: 'smooth',
-    })
-  }
 }
 
 onMounted(() => {
