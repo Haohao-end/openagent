@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { Message } from '@arco-design/web-vue'
 import {
  useDeleteDocument,
  useGetDataset,
@@ -11,6 +12,7 @@ import {
 import UpdateDocumentNameModal from '@/views/space/datasets/documents/components/UpdateDocumentNameModal.vue'
 import HitTestingModal from '@/views/space/datasets/documents/components/HitTestingModal.vue'
 import { formatTimestampLong } from '@/utils/time-formatter'
+import { getErrorMessage } from '@/utils/error'
 import { parsePositiveIntegerQuery } from '@/utils/query'
 
 type DocumentRecord = Record<string, any>
@@ -160,7 +162,9 @@ watch(
  datasetId,
  (value) => {
  if (!value) return
- void loadDataset(value)
+ void loadDataset(value).catch((error: unknown) => {
+ Message.error(getErrorMessage(error, t('space.datasets.documents.loadFailed')))
+ })
  },
  { immediate: true },
 )
@@ -169,7 +173,9 @@ watch(
  () => [datasetId.value, req.value.current_page, req.value.page_size, req.value.search_word] as const,
  ([value]) => {
  if (!value) return
- void loadDocuments(value, req.value)
+ void loadDocuments(value, req.value).catch((error: unknown) => {
+ Message.error(getErrorMessage(error, t('space.datasets.documents.loadFailed')))
+ })
  },
  { immediate: true },
 )
@@ -471,8 +477,12 @@ watch(
  @click="
  () =>
  handleDelete(datasetId, record.id, () => {
- void loadDocuments(datasetId, req)
- void loadDataset(datasetId)
+ void loadDocuments(datasetId, req).catch((error: unknown) => {
+ Message.error(getErrorMessage(error, t('space.datasets.documents.loadFailed')))
+ })
+ void loadDataset(datasetId).catch((error: unknown) => {
+ Message.error(getErrorMessage(error, t('space.datasets.documents.loadFailed')))
+ })
  })
  "
  >
@@ -502,7 +512,9 @@ watch(
  :document_id="updateDocumentID"
  :dataset_id="datasetId"
  v-model:visible="updateDocumentNameModalVisible"
- :on-after-update="() => loadDocuments(datasetId, req)"
+ :on-after-update="() => loadDocuments(datasetId, req).catch((error: unknown) => {
+ Message.error(getErrorMessage(error, t('space.datasets.documents.loadFailed')))
+ })"
  />
  <hit-testing-modal v-model:visible="hitModalVisible" :dataset_id="datasetId" />
  </div>
