@@ -127,7 +127,6 @@ export function getAdaptiveParticleCount(baseCount: number): number {
   if (typeof window === 'undefined') return baseCount
 
   const width = window.innerWidth
-  const height = window.innerHeight
 
   // Reduce particles on mobile
   if (width < 768) {
