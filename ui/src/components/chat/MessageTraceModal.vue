@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Message } from '@arco-design/web-vue'
 import { useGetMessageTrace } from '@/hooks/use-conversation'
+import { getErrorMessage } from '@/utils/error'
 
 const { t } = useI18n()
 const visible = ref(false)
@@ -9,7 +11,11 @@ const { loading, trace, loadMessageTrace, clearMessageTrace } = useGetMessageTra
 
 const open = async (message_id: string) => {
   visible.value = true
-  await loadMessageTrace(message_id)
+  try {
+    await loadMessageTrace(message_id)
+  } catch (error) {
+    Message.error(getErrorMessage(error, t('chat.messageTrace.loadFailed')))
+  }
 }
 
 const close = () => {
