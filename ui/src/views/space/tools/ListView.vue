@@ -530,7 +530,7 @@ watch(
           </div>
           <!-- 提供商的发布信息 -->
           <div class="flex items-center gap-1.5">
-            <a-avatar :size="18" class="bg-blue-700" :image-url="getUserAvatarUrl(accountStore.account.avatar, accountStore.account.name)">
+            <a-avatar :size="18" class="bg-blue-700" :image-url="getUserAvatarUrl(accountStore.account.avatar)">
               {{ (accountStore.account.name || t('common.status.unknown'))[0] }}
             </a-avatar>
             <div class="text-xs text-gray-400">

@@ -285,7 +285,7 @@ const handleCardClick = (datasetId: string) => {
           </div>
           <!-- 知识库的归属者信息 -->
           <div class="flex items-center gap-1.5">
-            <a-avatar :size="18" class="bg-blue-700" :image-url="getUserAvatarUrl(accountStore.account.avatar, accountStore.account.name)">
+            <a-avatar :size="18" class="bg-blue-700" :image-url="getUserAvatarUrl(accountStore.account.avatar)">
               {{ (accountStore.account.name || t('space.datasets.unknownUser'))[0] }}
             </a-avatar>
             <div class="text-xs text-gray-400">

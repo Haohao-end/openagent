@@ -155,7 +155,7 @@ const handleCardClick = (appId: string) => {
             </div>
             <!-- 应用的归属者信息 -->
             <div class="flex items-center gap-1.5">
-              <a-avatar :size="18" class="bg-blue-700" :image-url="getUserAvatarUrl(accountStore.account.avatar, accountStore.account.name)">
+              <a-avatar :size="18" class="bg-blue-700" :image-url="getUserAvatarUrl(accountStore.account.avatar)">
                 {{ (accountStore.account.name || t('appStudio.list.unknownUser'))[0] }}
               </a-avatar>
               <div class="text-xs text-gray-400">
