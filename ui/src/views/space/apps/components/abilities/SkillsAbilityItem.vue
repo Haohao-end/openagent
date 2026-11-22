@@ -60,15 +60,6 @@ const skillDetailMarkdown = computed(() =>
   ),
 )
 
-const avatarPalettes = [
-  ['#334155', '#0f172a'],
-  ['#0369a1', '#1d4ed8'],
-  ['#047857', '#0f766e'],
-  ['#c2410c', '#d97706'],
-  ['#be123c', '#e11d48'],
-  ['#0f766e', '#14b8a6'],
-]
-
 const getCategoryLabel = (category: string) => {
   return getStoreCategoryDisplayName(category, locale.value === 'en-US' ? 'en-US' : 'zh-CN')
 }
