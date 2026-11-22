@@ -71,6 +71,14 @@ class _DummySession:
 
 
 class TestWechatService:
+    @pytest.fixture(autouse=True)
+    def _stub_check_signature(self, monkeypatch):
+        # 默认放行签名校验；需要验证签名行为的用例可再次 monkeypatch 覆盖。
+        monkeypatch.setattr(
+            "internal.service.wechat_service.check_signature",
+            lambda *_args, **_kwargs: None,
+        )
+
     def test_wechat_should_raise_for_get_when_app_not_published(self, monkeypatch):
         service = _build_service()
         monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: None)
@@ -1395,3 +1403,61 @@ class TestWechatService:
         assert updates == [(wechat_message, {"is_pushed": True})]
         assert created == []
         assert thread_starts["count"] == 0
+
+    def test_wechat_should_reject_post_when_signature_invalid(self, monkeypatch):
+        app = SimpleNamespace(
+            status=AppStatus.PUBLISHED,
+            wechat_config=SimpleNamespace(
+                status=WechatConfigStatus.CONFIGURED,
+                wechat_token="token",
+            ),
+        )
+        service = _build_service()
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: app)
+        monkeypatch.setattr("internal.service.wechat_service.parse_message", lambda _data: _message())
+        monkeypatch.setattr(
+            "internal.service.wechat_service.check_signature",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(InvalidSignatureException()),
+        )
+
+        flask_app = Flask(__name__)
+        with flask_app.test_request_context(
+            f"/wechat/{uuid4()}?signature=s&timestamp=t&nonce=n",
+            method="POST",
+            data=b"<xml/>",
+        ):
+            with pytest.raises(FailException):
+                service.wechat(uuid4())
+
+    def test_wechat_should_accept_post_when_signature_valid(self, monkeypatch):
+        app = SimpleNamespace(
+            status=AppStatus.PUBLISHED,
+            wechat_config=SimpleNamespace(
+                status=WechatConfigStatus.CONFIGURED,
+                wechat_token="token",
+            ),
+        )
+        service = _build_service()
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: app)
+        monkeypatch.setattr(
+            "internal.service.wechat_service.parse_message",
+            lambda _data: _message(msg_type="image"),
+        )
+        monkeypatch.setattr("internal.service.wechat_service.TextReply", _DummyTextReply)
+        calls = []
+        monkeypatch.setattr(
+            "internal.service.wechat_service.check_signature",
+            lambda *_args, **_kwargs: calls.append(_args),
+        )
+
+        flask_app = Flask(__name__)
+        with flask_app.test_request_context(
+            f"/wechat/{uuid4()}?signature=s&timestamp=t&nonce=n",
+            method="POST",
+            data=b"<xml/>",
+        ):
+            result = service.wechat(uuid4())
+
+        # 签名校验通过后才会进入消息类型分支，返回非文本提示
+        assert "只支持文本消息" in result
+        assert calls == [("token", "s", "t", "n")]
