@@ -63,6 +63,15 @@ vi.mock('vue-i18n', () => ({
   }),
 }))
 
+vi.mock('@arco-design/web-vue', () => ({
+  Message: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+    error: vi.fn(),
+  },
+}))
+
 describe('MessageTraceModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -128,5 +137,27 @@ describe('MessageTraceModal', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('chat.messageTrace.noSpans')
+  })
+
+  it('shows an error message instead of throwing when loading the trace fails', async () => {
+    const { Message } = await import('@arco-design/web-vue')
+    const loadError = new Error('trace request failed')
+    mockLoadMessageTrace.mockRejectedValueOnce(loadError)
+
+    const wrapper = mount(MessageTraceModal, {
+      global: {
+        stubs: {
+          'a-modal': { template: '<div><slot /></div>' },
+          'a-spin': { template: '<div><slot /></div>' },
+          'a-empty': { template: '<div class="empty-stub" />' },
+          'a-tag': { template: '<span><slot /></span>' },
+        },
+      },
+    })
+
+    await expect(wrapper.vm.open('msg-1')).resolves.toBeUndefined()
+    await flushPromises()
+
+    expect(Message.error).toHaveBeenCalledWith('trace request failed')
   })
 })
