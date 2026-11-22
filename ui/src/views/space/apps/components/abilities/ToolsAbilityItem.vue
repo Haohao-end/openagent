@@ -7,6 +7,7 @@ import { useGetBuiltinTool, useGetBuiltinTools, useGetCategories } from '@/hooks
 import { apiPrefix, typeMap } from '@/config'
 import { Message } from '@arco-design/web-vue'
 import { useI18n } from 'vue-i18n'
+import { getErrorMessage } from '@/utils/error'
 import { getStoreCategoryDisplayName } from '@/utils/store-display'
 type ToolProvider = {
   id: string
@@ -155,7 +156,12 @@ const handleShowToolInfoModal = async (idx: number) => {
 
   // 2.2 检测不同的工具类型调用不同API接口
   if (tool.type === 'builtin_tool') {
-    if (!(await loadBuiltinTool(tool.provider.name, tool.tool.name))) return
+    try {
+      if (!(await loadBuiltinTool(tool.provider.name, tool.tool.name))) return
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error, t('appStudio.abilities.tools.loadFailed')))
+      return
+    }
     toolInfo.value = {
       type: 'builtin_tool',
       provider: {
@@ -175,7 +181,12 @@ const handleShowToolInfoModal = async (idx: number) => {
       },
     }
   } else {
-    if (!(await loadApiTool(tool.provider.id, tool.tool.name))) return
+    try {
+      if (!(await loadApiTool(tool.provider.id, tool.tool.name))) return
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error, t('appStudio.abilities.tools.loadFailed')))
+      return
+    }
     toolInfo.value = {
       type: 'api_tool',
       provider: {
@@ -230,16 +241,21 @@ const handleSubmitToolInfo = async () => {
     ...selectedTool,
     tool: { ...selectedTool.tool, params: toolInfoSettingForm.value },
   }
-  await handleUpdateDraftAppConfig(props.app_id, {
-    tools: newTools.map((item) => {
-      return {
-        type: item.type,
-        params: item['tool']['params'],
-        provider_id: item['provider']['id'],
-        tool_id: item['tool']['name'],
-      }
-    }),
-  })
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, {
+      tools: newTools.map((item) => {
+        return {
+          type: item.type,
+          params: item['tool']['params'],
+          provider_id: item['provider']['id'],
+          tool_id: item['tool']['name'],
+        }
+      }),
+    })
+  } catch {
+    // 错误已在 hook 中提示
+    return
+  }
 
   // 4.4 更新成功触发同步事件
   emits('update:tools', newTools)
@@ -257,16 +273,21 @@ const handleDeleteTool = async (idx: number) => {
   newTools.splice(idx, 1)
 
   // 5.3 更新提交表单
-  await handleUpdateDraftAppConfig(props.app_id, {
-    tools: newTools.map((item) => {
-      return {
-        type: item.type,
-        params: item['tool']['params'],
-        provider_id: item['provider']['id'],
-        tool_id: item['tool']['name'],
-      }
-    }),
-  })
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, {
+      tools: newTools.map((item) => {
+        return {
+          type: item.type,
+          params: item['tool']['params'],
+          provider_id: item['provider']['id'],
+          tool_id: item['tool']['name'],
+        }
+      }),
+    })
+  } catch {
+    // 错误已在 hook 中提示
+    return
+  }
 
   // 5.4 触发时间更新props
   emits('update:tools', newTools)
@@ -278,8 +299,24 @@ const handleShowToolsModal = async () => {
   toolsModalVisible.value = true
 
   // 6.2 调用API接口获取响应
-  await loadApiToolProviders(true)
-  await loadBuiltinTools()
+  await loadApiToolProvidersSafely(true)
+  await loadBuiltinToolsSafely()
+}
+
+const loadApiToolProvidersSafely = async (init: boolean = false) => {
+  try {
+    await loadApiToolProviders(init)
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('appStudio.abilities.tools.loadFailed')))
+  }
+}
+
+const loadBuiltinToolsSafely = async () => {
+  try {
+    await loadBuiltinTools()
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('appStudio.abilities.tools.loadFailed')))
+  }
 }
 
 // 7.滚动加载api工具列表
@@ -292,7 +329,7 @@ const handleScroll = async (event: UIEvent) => {
     if (getApiToolProvidersLoading.value) {
       return
     }
-    await loadApiToolProviders()
+    await loadApiToolProvidersSafely()
   }
 }
 

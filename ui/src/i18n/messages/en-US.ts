@@ -1856,6 +1856,7 @@ export default {
         noBuiltinPlugins: 'No built-in plugins available',
         noApiPlugins: 'No API plugins available',
         maxReached: 'An agent can bind at most 5 plugins',
+        loadFailed: 'Failed to load plugin list',
       },
       mcp: {
         title: 'MCP',
