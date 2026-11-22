@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Message } from '@arco-design/web-vue'
 import { useCompareMessages } from '@/hooks/use-conversation'
+import { getErrorMessage } from '@/utils/error'
 
 const { t } = useI18n()
 const visible = ref(false)
@@ -14,7 +16,11 @@ const open = (message_id: string) => {
 }
 
 const handleCompare = async (targetMessageId: string) => {
-  await loadComparison(targetMessageId, baseMessageId.value)
+  try {
+    await loadComparison(targetMessageId, baseMessageId.value)
+  } catch (error) {
+    Message.error(getErrorMessage(error, t('chat.compareMessages.loadFailed')))
+  }
 }
 
 const close = () => {

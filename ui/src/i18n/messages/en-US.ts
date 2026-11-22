@@ -1169,6 +1169,7 @@ export default {
       same: 'Same',
       seconds: '{n}s',
       tokensUnit: '{n} tokens',
+      loadFailed: 'Failed to load message comparison',
     },
     replayMessage: {
       title: 'Replay Message & Config Patch',
