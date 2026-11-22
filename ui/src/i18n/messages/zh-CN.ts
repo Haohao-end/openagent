@@ -1571,6 +1571,8 @@ export default {
         appSecretPlaceholder: '请填写微信开发者秘钥',
         tokenLabel: '令牌（Token）随机生成',
         tokenPlaceholder: '请填写微信公众号令牌',
+        saveFailed: '保存微信公众号配置失败，请重试',
+        loadFailed: '加载微信公众号配置失败',
       },
     },
     versions: {

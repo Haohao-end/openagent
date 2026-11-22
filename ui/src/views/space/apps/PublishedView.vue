@@ -60,16 +60,32 @@ const getFullPath = (name: string, params = {}, query = {}) => {
 
 const loadPageData = async (appId: string) => {
   await Promise.all([
-    loadPublishedConfig(appId),
-    loadWechatConfig(appId),
+    loadPublishedConfigSafely(appId),
+    loadWechatConfigSafely(appId),
   ])
+}
+
+const loadPublishedConfigSafely = async (appId: string) => {
+  try {
+    await loadPublishedConfig(appId)
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('appStudio.published.square.loadTagsFailed')))
+  }
+}
+
+const loadWechatConfigSafely = async (appId: string) => {
+  try {
+    await loadWechatConfig(appId)
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('appStudio.published.wechat.loadFailed')))
+  }
 }
 
 // 3.定义打开微信配置模态窗处理器
 const handleShowWechatConfigModal = async () => {
   const requestId = appRouteRequestId
   // 3.1 调用api接口获取微信配置
-  await loadWechatConfig(String(route.params?.app_id))
+  await loadWechatConfigSafely(String(route.params?.app_id))
   if (requestId !== appRouteRequestId) return
 
   // 3.2 更新表单配置
@@ -91,17 +107,22 @@ const handleCancelWechatConfigModal = () => {
 // 5.定义提交微信配置模态窗处理器
 const handleSubmitWechatConfigModal = async () => {
   // 5.1 调用hooks完成数据上传
-  await handleUpdateWechatConfig(String(route.params?.app_id), {
-    wechat_app_id: wechatConfigForm.value.wechat_app_id,
-    wechat_app_secret: wechatConfigForm.value.wechat_app_secret,
-    wechat_token: wechatConfigForm.value.wechat_token,
-  })
+  try {
+    await handleUpdateWechatConfig(String(route.params?.app_id), {
+      wechat_app_id: wechatConfigForm.value.wechat_app_id,
+      wechat_app_secret: wechatConfigForm.value.wechat_app_secret,
+      wechat_token: wechatConfigForm.value.wechat_token,
+    })
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('appStudio.published.wechat.saveFailed')))
+    return
+  }
 
   // 5.2 隐藏模态窗
   handleCancelWechatConfigModal()
 
   // 5.3 重新调用获取微信公众号配置接口
-  await loadWechatConfig(String(route.params?.app_id))
+  await loadWechatConfigSafely(String(route.params?.app_id))
 }
 
 // 6.加载应用标签
