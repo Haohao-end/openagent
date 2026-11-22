@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, type PropType, ref, watch } from 'vue'
 import { useUpdateDraftAppConfig } from '@/hooks/use-app'
-import { cloneDeep, isEqual } from 'lodash'
+import { cloneDeep, isEqual, omit } from 'lodash'
 import { Message } from '@arco-design/web-vue'
 import { apiPrefix } from '@/config'
 import type { McpBinding, McpToolSnapshot } from '@/models/app'
@@ -61,8 +61,7 @@ const showMarketplacePickerModal = ref(false)
 const hasLocalMcpBindingChanges = computed(() => !isEqual(activateMcpBindings.value, originMcpBindings.value))
 
 const stripBindingForm = (binding: McpBindingForm): McpBinding => {
-  const { headers_text, tool_names_text, args_text, env_text, ...rest } = binding
-  return rest
+  return omit(binding, ['headers_text', 'tool_names_text', 'args_text', 'env_text'])
 }
 
 const normalizeBindingToForm = (binding: McpBinding): McpBindingForm => {
