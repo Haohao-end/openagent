@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 from flask import Flask
 
-from internal.exception import NotFoundException
+from internal.exception import NotFoundException, ValidateErrorException
 from internal.handler.public_app_handler import PublicAppHandler
 
 
@@ -74,3 +74,39 @@ def test_a2a_card_should_return_404_when_app_is_not_found():
         response = handler.get_public_app_a2a_card("missing")
     assert response[1] == 404
     assert response[0].get_json() == {"error": "Agent not found"}
+
+
+def test_a2a_conversation_messages_should_log_unexpected_error_and_return_500(caplog):
+    def raise_unexpected(_app_id, _conversation_id):
+        raise RuntimeError("db boom")
+
+    handler = PublicAppHandler(None, SimpleNamespace(list_public_app_conversation_messages=raise_unexpected))
+    with Flask(__name__).test_request_context("/public/apps/app-id/a2a/conversations/conv-id/messages"):
+        response, status_code = handler.get_public_app_a2a_conversation_messages("app-id", "conv-id")
+
+    assert status_code == 500
+    assert response.get_json() == {"error": "Failed to retrieve conversation messages"}
+    assert any(
+        record.levelname == "ERROR" and "读取公共应用会话消息失败" in record.message and "RuntimeError" in record.message
+        for record in caplog.records
+    )
+
+
+def test_a2a_conversation_messages_should_return_404_and_400_without_logging(caplog):
+    def raise_not_found(_app_id, _conversation_id):
+        raise NotFoundException("not found")
+
+    def raise_validate(_app_id, _conversation_id):
+        raise ValidateErrorException("invalid")
+
+    handler = PublicAppHandler(None, SimpleNamespace(list_public_app_conversation_messages=raise_not_found))
+    with Flask(__name__).test_request_context("/public/apps/app-id/a2a/conversations/conv-id/messages"):
+        response, status_code = handler.get_public_app_a2a_conversation_messages("app-id", "conv-id")
+    assert status_code == 404
+
+    handler = PublicAppHandler(None, SimpleNamespace(list_public_app_conversation_messages=raise_validate))
+    with Flask(__name__).test_request_context("/public/apps/app-id/a2a/conversations/conv-id/messages"):
+        response, status_code = handler.get_public_app_a2a_conversation_messages("app-id", "conv-id")
+    assert status_code == 400
+
+    assert not any("读取公共应用会话消息失败" in record.message for record in caplog.records)
