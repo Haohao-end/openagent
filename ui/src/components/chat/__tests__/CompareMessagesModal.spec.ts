@@ -57,6 +57,15 @@ vi.mock('vue-i18n', () => ({
   }),
 }))
 
+vi.mock('@arco-design/web-vue', () => ({
+  Message: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+    error: vi.fn(),
+  },
+}))
+
 describe('CompareMessagesModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -117,5 +126,27 @@ describe('CompareMessagesModal', () => {
     await wrapper.vm.handleCompare('target-msg-456')
 
     expect(mockLoadComparison).toHaveBeenCalledWith('target-msg-456', 'base-msg-123')
+  })
+
+  it('shows an error message instead of throwing when the comparison request fails', async () => {
+    const { Message } = await import('@arco-design/web-vue')
+    const loadError = new Error('compare request failed')
+    mockLoadComparison.mockRejectedValueOnce(loadError)
+
+    const wrapper = mount(CompareMessagesModal, {
+      global: {
+        stubs: {
+          'a-modal': { template: '<div><slot /></div>' },
+          'a-spin': { template: '<div><slot /></div>' },
+          'a-empty': { template: '<div class="empty-stub" />' },
+        },
+      },
+    })
+
+    wrapper.vm.open('base-msg-123')
+    await expect(wrapper.vm.handleCompare('target-msg-456')).resolves.toBeUndefined()
+    await flushPromises()
+
+    expect(Message.error).toHaveBeenCalledWith('compare request failed')
   })
 })

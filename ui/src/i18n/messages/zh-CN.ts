@@ -1151,6 +1151,7 @@ export default {
       same: '无变化',
       seconds: '{n} 秒',
       tokensUnit: '{n} tokens',
+      loadFailed: '加载消息对比失败',
     },
     replayMessage: {
       title: '重放运行与配置 Patch',
