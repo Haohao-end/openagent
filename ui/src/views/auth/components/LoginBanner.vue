@@ -4,6 +4,7 @@ import { onMounted, onUnmounted } from 'vue'
 let canvas: HTMLCanvasElement
 let ctx: CanvasRenderingContext2D
 let particles: any[] = []
+let animationFrameId: number | null = null
 const PARTICLE_COUNT = 80
 
 onMounted(() => {
@@ -17,6 +18,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (animationFrameId !== null) cancelAnimationFrame(animationFrameId)
+  animationFrameId = null
   window.removeEventListener('resize', resizeCanvas)
   window.removeEventListener('mousemove', handleMouseMove)
 })
@@ -96,7 +99,7 @@ function animate() {
 
 
 
-  requestAnimationFrame(animate)
+  animationFrameId = requestAnimationFrame(animate)
 }
 </script>
 
