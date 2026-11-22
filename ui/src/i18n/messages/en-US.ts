@@ -361,6 +361,7 @@ export default {
         loading: 'Loading',
         loaded: 'All data loaded',
         nodeCount: '{count} nodes',
+        loadFailed: 'Failed to load workflows',
       },
     },
     datasets: {

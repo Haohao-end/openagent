@@ -350,6 +350,7 @@ export default {
         loading: '加载中',
         loaded: '数据已加载完成',
         nodeCount: '{count} 节点数',
+        loadFailed: '加载工作流列表失败',
       },
     },
     datasets: {
