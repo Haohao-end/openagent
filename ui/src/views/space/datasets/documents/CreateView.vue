@@ -52,7 +52,7 @@ const {
   create_documents_result,
   handleCreateDocuments,
 } = useCreateDocuments()
-const { upload_file, handleUploadFile } = useUploadFile()
+const { handleUploadFile } = useUploadFile()
 const { loadDocumentsStatus } = useGetDocumentsStatus()
 const currentStep = ref(1)
 const createDocumentsForm = ref<CreateDocumentsForm>({
