@@ -63,6 +63,7 @@ export default {
       openApi: 'Open API',
       recentConversations: 'Recent Conversations',
       noRecentConversations: 'No recent conversations',
+      recentConversationsLoadFailed: 'Failed to load recent conversations. Please try again.',
       recentConversationsCount: 'Recent Conversations ({count})',
       searchHistory: 'Conversation History',
       collapse: 'Collapse',

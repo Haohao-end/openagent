@@ -1,6 +1,10 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const mocks2 = vi.hoisted(() => ({ messageError: vi.fn() }))
+
+vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks2.messageError, info: vi.fn(), success: vi.fn(), warning: vi.fn() } }))
+
 import LayoutSidebar from '@/views/layouts/components/LayoutSidebar.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -552,5 +556,12 @@ describe('LayoutSidebar home navigation', () => {
 
     expect(mocks.loadRecentConversations).toHaveBeenCalledTimes(3)
     expect(mocks.loadRecentConversations).not.toHaveBeenCalledWith(80)
+  })
+
+  it('shows an error toast when loading recent conversations fails', async () => {
+    mocks.loadRecentConversations.mockResolvedValue('ERROR')
+    mountSidebar()
+    await flushPromises()
+    expect(mocks2.messageError).toHaveBeenCalledWith('加载最近对话失败，请重试。')
   })
 })

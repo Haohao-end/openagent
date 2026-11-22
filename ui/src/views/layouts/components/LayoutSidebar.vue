@@ -8,6 +8,7 @@ import {
 import { useCredentialStore } from '@/stores/credential'
 import { isCredentialLoggedIn } from '@/utils/auth'
 import UpdateConversationNameModal from '@/views/layouts/components/UpdateConversationNameModal.vue'
+import { Message } from '@arco-design/web-vue'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -179,6 +180,9 @@ const loadRecentConversations = async (
   const previousCount = reset ? 0 : recentConversations.value.length
   const status = await loadRecentConversationsHook(limit)
   if (session !== sidebarSessionId || status !== 'APPLIED') {
+    if (status === 'ERROR' && session === sidebarSessionId) {
+      Message.error(t('layout.sidebar.recentConversationsLoadFailed'))
+    }
     return status === 'ERROR' && session === sidebarSessionId ? 'ERROR' : 'STALE'
   }
 

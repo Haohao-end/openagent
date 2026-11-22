@@ -63,6 +63,7 @@ export default {
       openApi: '开放 API',
       recentConversations: '最近对话',
       noRecentConversations: '暂无最近对话',
+      recentConversationsLoadFailed: '加载最近对话失败，请重试。',
       recentConversationsCount: '最近对话 ({count})',
       searchHistory: '历史对话',
       collapse: '折叠',
