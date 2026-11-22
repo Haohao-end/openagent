@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, computed } from 'vue'
+import { ref, nextTick } from 'vue'
 
 interface Message {
   id: string
@@ -73,8 +73,6 @@ const handleKeydown = (e: KeyboardEvent) => {
     handleSendMessage()
   }
 }
-
-const messageCount = computed(() => messages.value.length)
 </script>
 
 <template>
