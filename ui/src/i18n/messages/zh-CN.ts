@@ -1708,6 +1708,7 @@ export default {
       loading: '加载中',
       loadedAll: '数据已加载完成',
       unknownUser: '未知用户',
+      loadFailed: '加载应用列表失败',
     },
     createModal: {
       uploadIconSuccess: '图标上传成功',

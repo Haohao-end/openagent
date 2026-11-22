@@ -3,10 +3,12 @@ import moment from 'moment/moment'
 import { useCopyApp, useDeleteApp, useGetAppsWithPage } from '@/hooks/use-app'
 import { onMounted, ref, watch } from 'vue'
 import { useAccountStore } from '@/stores/account'
+import { Message } from '@arco-design/web-vue'
 import CreateOrUpdateAppModal from './components/CreateOrUpdateAppModal.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import CardGridSkeleton from '@/components/skeletons/CardGridSkeleton.vue'
+import { getErrorMessage } from '@/utils/error'
 import { getUserAvatarUrl } from '@/utils/helper'
 
 // 1.定义页面所需数据
@@ -30,6 +32,14 @@ const clearCreateTypeQuery = async () => {
 }
 
 // 2.定义滚动数据分页处理器
+const handleLoadApps = async (init: boolean, searchWord: string = '') => {
+  try {
+    await loadApps(init, searchWord)
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('appStudio.list.loadFailed')))
+  }
+}
+
 const handleScroll = (event: Event) => {
   // 1.获取滚动距离、可滚动的最大距离、客户端/浏览器窗口的高度
   const target = event.target as HTMLElement | null
@@ -39,19 +49,19 @@ const handleScroll = (event: Event) => {
   // 2.判断是否滑动到底部
   if (scrollTop + clientHeight >= scrollHeight - 10) {
     if (getAppsWithPageLoading.value) return
-    void loadApps(false, String(route.query?.search_word ?? ''))
+    void handleLoadApps(false, String(route.query?.search_word ?? ''))
   }
 }
 
 // 页面DOM加载完毕后执行
 onMounted(async () => {
   // 初始化apps数据
-  await loadApps(true, String(route.query?.search_word ?? ''))
+  await handleLoadApps(true, String(route.query?.search_word ?? ''))
 })
 
 watch(
   () => route.query?.search_word,
-  (newValue) => loadApps(true, String(newValue ?? '')),
+  (newValue) => handleLoadApps(true, String(newValue ?? '')),
 )
 
 watch(
@@ -139,7 +149,7 @@ const handleCardClick = (appId: string) => {
                         () =>
                           handleDeleteApp(
                             app.id,
-                            async () => await loadApps(true, String(route.query?.search_word ?? '')),
+                            async () => await handleLoadApps(true, String(route.query?.search_word ?? '')),
                           )
                       "
                     >
@@ -198,7 +208,7 @@ const handleCardClick = (appId: string) => {
       v-model:app_id="updateAppId"
       :callback="
         () => {
-          return loadApps(true, String(route.query?.search_word ?? ''))
+          return handleLoadApps(true, String(route.query?.search_word ?? ''))
         }
       "
     />
