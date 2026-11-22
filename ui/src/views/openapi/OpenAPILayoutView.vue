@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
 import { computed, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { useCredentialStore } from '@/stores/credential'
 import { AUTH_REQUIRED_EVENT } from '@/utils/request'
 import { isCredentialLoggedIn } from '@/utils/auth'
 
 const route = useRoute()
-const { t } = useI18n()
 const credentialStore = useCredentialStore()
 const create_api_key = ref(false)
 const isLoggedIn = computed(() => isCredentialLoggedIn(credentialStore.credential))
