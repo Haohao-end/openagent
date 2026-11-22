@@ -306,15 +306,6 @@ const shouldShowMessageField = (conversation: SearchableConversation, field: 'hu
   return matchedFields.includes(field)
 }
 
-const truncateConversationName = (name: string, hasAgent: boolean) => {
-  // 如果有agent名称，对话名称最多保留30个字符，否则保留50个字符
-  const maxLength = hasAgent ? 30 : 50
-  if (name.length > maxLength) {
-    return name.substring(0, maxLength) + '...'
-  }
-  return name
-}
-
 const changeConversation = async (conversation: SearchableConversation) => {
   if (!conversation.id) return
 
