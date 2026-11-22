@@ -1590,6 +1590,8 @@ export default {
         appSecretPlaceholder: 'Enter the WeChat AppSecret',
         tokenLabel: 'Token (randomly generated)',
         tokenPlaceholder: 'Enter the WeChat token',
+        saveFailed: 'Failed to save the WeChat config. Please try again.',
+        loadFailed: 'Failed to load the WeChat config',
       },
     },
     versions: {
