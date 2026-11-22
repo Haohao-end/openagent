@@ -3,7 +3,6 @@ import { computed, ref, watch } from 'vue'
 import ScrollNavigator from '@/components/ScrollNavigation/ScrollNavigator.vue'
 import { useGetRecentConversations, useDeleteConversation } from '@/hooks/use-conversation'
 import { useRouter } from 'vue-router'
-import { Message } from '@arco-design/web-vue'
 import type { RecentConversation } from '@/models/conversation'
 import UpdateConversationNameModal from '@/views/layouts/components/UpdateConversationNameModal.vue'
 
