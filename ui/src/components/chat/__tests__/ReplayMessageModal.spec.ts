@@ -23,6 +23,15 @@ vi.mock('vue-i18n', () => ({
   }),
 }))
 
+vi.mock('@arco-design/web-vue', () => ({
+  Message: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+    error: vi.fn(),
+  },
+}))
+
 describe('ReplayMessageModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -119,5 +128,34 @@ describe('ReplayMessageModal', () => {
     await vm.handleReplay()
 
     expect(mockExecuteReplay).not.toHaveBeenCalled()
+  })
+
+  it('shows an error message instead of throwing when the replay request fails', async () => {
+    const { Message } = await import('@arco-design/web-vue')
+    const replayError = new Error('replay request failed')
+    mockExecuteReplay.mockRejectedValueOnce(replayError)
+
+    const wrapper = mount(ReplayMessageModal, {
+      global: {
+        stubs: {
+          'a-modal': { template: '<div><slot /></div>' },
+          'a-spin': { template: '<div><slot /></div>' },
+          'a-button': true,
+          'a-textarea': true,
+          'a-tag': true,
+          'icon-check-circle': true,
+        },
+      },
+    })
+
+    const vm = wrapper.vm as any
+    vm.open('msg-123', 'query text')
+    await flushPromises()
+
+    await expect(vm.handleReplay()).resolves.toBeUndefined()
+    await flushPromises()
+
+    expect(Message.error).toHaveBeenCalledWith('replay request failed')
+    expect(wrapper.emitted('replayed')).toBeFalsy()
   })
 })

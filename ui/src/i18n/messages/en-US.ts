@@ -1180,6 +1180,7 @@ export default {
       executeReplay: 'Execute Replay',
       snapshotReady: 'Snapshot and patch built successfully',
       noPatches: 'No config patch applied',
+      executeFailed: 'Failed to execute replay',
     },
     feedback: {
       title: 'Submit Feedback',
