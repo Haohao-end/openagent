@@ -23,8 +23,12 @@ const handleCopyHumanMessage = async () => {
   const humanMessage = [...imageUrls, props.query].filter((item) => item.trim() !== '').join('\n')
   if (!humanMessage) return
 
-  await copyTextToClipboard(humanMessage)
-  Message.success(t('chat.messages.humanCopied'))
+  try {
+    await copyTextToClipboard(humanMessage)
+    Message.success(t('chat.messages.humanCopied'))
+  } catch {
+    Message.error(t('chat.messages.copyFailed'))
+  }
 }
 </script>
 
