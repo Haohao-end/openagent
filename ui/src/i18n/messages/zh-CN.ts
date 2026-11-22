@@ -1837,6 +1837,7 @@ export default {
         noBuiltinPlugins: '没有可用的内置插件',
         noApiPlugins: '没有可用的 API 插件',
         maxReached: '一个 Agent 应用最多关联 5 个扩展插件',
+        loadFailed: '加载插件列表失败',
       },
       mcp: {
         title: 'MCP',
