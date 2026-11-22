@@ -72,7 +72,12 @@ const clearCreateTypeQuery = async () => {
 // 2.定义上传图标处理器
 const handleUploadIcon = async (file: File) => {
   const requestId = ++iconUploadRequestId
-  await handleUploadImage(file)
+  try {
+    await handleUploadImage(file)
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('space.datasets.uploadFailed')))
+    throw error
+  }
   if (requestId !== iconUploadRequestId) return
   form.value.icon = image_url.value
   form.value.fileList = [{ uid: '1', name: t('space.datasets.modal.iconPlaceholder'), url: image_url.value }]
