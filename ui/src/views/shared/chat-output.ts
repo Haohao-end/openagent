@@ -326,5 +326,5 @@ export const groupChatImageArtifacts = (artifacts: unknown[] = []): ChatImageGal
     }
   }
 
-  return groups.map(({ seenUrls: _seenUrls, ...group }) => group)
+  return groups.map(({ id, title, images }) => ({ id, title, images }))
 }
