@@ -213,14 +213,13 @@ const changeIsPinned = async (idx: number, origin_is_pinned: boolean) => {
 
   // 3.2 调用hooks发起api请求
   await handleUpdateConversationIsPinned(conversation.id, !origin_is_pinned, () => {
-    // 3.3 执行成功调用回调，更新会话位置
-    if (origin_is_pinned) {
-      pinned_conversations.value.splice(idx, 1)
-      unpinned_conversations.value.push(conversation)
-    } else {
-      unpinned_conversations.value.splice(idx, 1)
-      pinned_conversations.value.push(conversation)
-    }
+    // 3.3 执行成功调用回调，按 id 重新定位会话，避免请求期间列表变化导致移除错误的条目
+    const sourceList = origin_is_pinned ? pinned_conversations.value : unpinned_conversations.value
+    const targetList = origin_is_pinned ? unpinned_conversations.value : pinned_conversations.value
+    const currentIndex = sourceList.findIndex((item) => item.id === conversation.id)
+    if (currentIndex === -1) return
+    sourceList.splice(currentIndex, 1)
+    if (!targetList.some((item) => item.id === conversation.id)) targetList.push(conversation)
   })
 }
 
