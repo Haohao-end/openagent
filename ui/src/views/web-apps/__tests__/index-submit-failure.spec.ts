@@ -338,6 +338,46 @@ describe('web-app chat submit failure', () => {
     )
   })
 
+  it('moves the pinned conversation by id when the list changes during the request', async () => {
+    let finishPin!: () => void
+    mocks.handleUpdateConversationIsPinned.mockImplementationOnce(
+      (_id: string, _value: boolean, callback?: () => void) =>
+        new Promise<void>((resolve) => {
+          finishPin = () => {
+            callback && callback()
+            resolve()
+          }
+        }),
+    )
+    const wrapper = shallowMount(WebAppsIndexView)
+    await flushPromises()
+
+    mocks.state.pinnedConversations!.value = [
+      { id: 'pin-a', name: 'A' },
+      { id: 'pin-b', name: 'B' },
+    ]
+    mocks.state.unpinnedConversations!.value = []
+    await flushPromises()
+
+    const state = (wrapper.vm.$ as any).setupState
+    const pinRequest = state.changeIsPinned(0, true)
+
+    // While the request is in flight, the list is refreshed and 'pin-a' is no longer at index 0.
+    mocks.state.pinnedConversations!.value = [
+      { id: 'pin-new', name: 'New' },
+      { id: 'pin-a', name: 'A' },
+      { id: 'pin-b', name: 'B' },
+    ]
+    await flushPromises()
+
+    finishPin()
+    await pinRequest
+
+    expect(mocks.state.pinnedConversations!.value.map((item) => item.id)).toEqual(['pin-new', 'pin-b'])
+    expect(mocks.state.unpinnedConversations!.value.map((item) => item.id)).toEqual(['pin-a'])
+    wrapper.unmount()
+  })
+
   it('preserves composer edits made while voice transcription is pending', async () => {
     let finishTranscription!: () => void
     mocks.handleAudioToText.mockImplementationOnce(() => new Promise<void>((resolve) => {
