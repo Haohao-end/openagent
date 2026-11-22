@@ -222,11 +222,9 @@ const parameterEntries = computed(() => {
   }))
 })
 
-const promptText = computed(() => renderText(props.value))
 const dialogRoundValue = computed(() => renderText(props.value))
 const dialogRoundChanged = computed(() => isDifferent(props.value, props.compareValue))
 const promptSegments = computed(() => buildTextDiffSegments(props.value, props.compareValue))
-const openingStatement = computed(() => renderText(objectValue.value.opening_statement))
 const openingQuestions = computed(() =>
   Array.isArray(objectValue.value.opening_questions) ? objectValue.value.opening_questions : [],
 )
