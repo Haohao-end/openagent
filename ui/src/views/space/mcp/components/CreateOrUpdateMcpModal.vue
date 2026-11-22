@@ -162,7 +162,12 @@ const loadProvider = async (providerId: string) => {
 
 const handleUploadIcon = async (file: File) => {
   const requestId = latestProviderRequest
-  await handleUploadImage(file)
+  try {
+    await handleUploadImage(file)
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('space.mcp.iconUploadFailed')))
+    throw error
+  }
   if (requestId !== latestProviderRequest) return
   form.value.icon = image_url.value
   form.value.fileList = [{ uid: '1', name: t('space.mcp.iconPlaceholder'), url: image_url.value }]

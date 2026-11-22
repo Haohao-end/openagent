@@ -9,6 +9,7 @@ import { useCreateApiToolProvider, useGenerateIconPreview, useValidateOpenAPISch
 import { formatTimestampShort } from '@/utils/time-formatter'
 import IconUploadGenerator from '@/components/IconUploadGenerator.vue'
 import type { CreateApiToolProviderRequest } from '@/models/api-tool'
+import { getErrorMessage } from '@/utils/error'
 import { getStoreCategoryDisplayName, getStoreTypeDisplayName } from '@/utils/store-display'
 
 // 1.定义页面所需数据
@@ -40,7 +41,12 @@ const form = ref<{
 })
 
 const handleUploadIcon = async (file: File) => {
-  await handleUploadImage(file)
+  try {
+    await handleUploadImage(file)
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('space.tools.iconUploadFailed')))
+    throw error
+  }
   form.value.icon = image_url.value
   form.value.fileList = [{ uid: '1', name: t('space.tools.iconPlaceholder'), url: image_url.value }]
   Message.success(t('space.tools.iconUploadSuccess'))
