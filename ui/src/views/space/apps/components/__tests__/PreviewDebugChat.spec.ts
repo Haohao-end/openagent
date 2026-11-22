@@ -73,13 +73,6 @@ const dynamicScrollerItemStub = {
     '<div class="vue-recycle-scroller__item-view" style="transform: translateY(0px) translateX(0px);"><div class="dynamic-scroller-item-stub" :data-index="item.id" :data-size-dependencies="JSON.stringify(sizeDependencies)"><slot /></div></div>',
 }
 
-const dynamicScrollerItemNoTargetStub = {
-  inheritAttrs: false,
-  props: ['item', 'active', 'sizeDependencies'],
-  template:
-    '<div class="dynamic-scroller-item-stub-no-target" :data-size-dependencies="JSON.stringify(sizeDependencies)"><slot /></div>',
-}
-
 const dynamicScrollerItemHiddenTargetStub = {
   props: ['item', 'active', 'sizeDependencies'],
   setup() {
