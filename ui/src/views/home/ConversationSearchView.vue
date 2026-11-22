@@ -377,7 +377,11 @@ onUnmounted(() => {
 
 onMounted(() => {
   handleSearch()
-  loadRecentConversationsHook(20)
+  void loadRecentConversationsHook(20).then((status) => {
+    if (status === 'ERROR') {
+      Message.error(t('conversationSearch.loadFailed'))
+    }
+  })
 })
 </script>
 

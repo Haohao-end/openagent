@@ -100,7 +100,7 @@ describe('ConversationSearchView', () => {
  vi.mocked(conversationHooks.useGetRecentConversations).mockReturnValue({
  loading: ref(false),
  conversations: ref([]),
- loadRecentConversations: vi.fn(),
+ loadRecentConversations: vi.fn().mockResolvedValue('APPLIED'),
  } as never)
  vi.mocked(conversationHooks.useDeleteConversation).mockReturnValue({
  handleDeleteConversation: vi.fn(),
@@ -111,7 +111,7 @@ describe('ConversationSearchView', () => {
  })
 
  it('renders recent conversations when the search box is empty', async () => {
- const loadRecentConversations = vi.fn()
+ const loadRecentConversations = vi.fn().mockResolvedValue('APPLIED')
  vi.mocked(conversationHooks.useGetRecentConversations).mockReturnValue({
  loading: ref(false),
  conversations: ref([buildConversation()]),
@@ -304,7 +304,7 @@ describe('ConversationSearchView', () => {
     vi.mocked(conversationHooks.useGetRecentConversations).mockReturnValue({
       loading: ref(false),
       conversations: ref([buildConversation({ name: '1234567890123456789012345' })]),
-      loadRecentConversations: vi.fn(),
+      loadRecentConversations: vi.fn().mockResolvedValue('APPLIED'),
     } as never)
 
     const wrapper = mountView()
@@ -374,7 +374,7 @@ describe('ConversationSearchView', () => {
  buildConversation({ id: 'conversation-1' }),
  buildConversation({ id: 'conversation-2', name: '第二个会话' }),
  ]),
- loadRecentConversations: vi.fn(),
+ loadRecentConversations: vi.fn().mockResolvedValue('APPLIED'),
  } as never)
 
  const wrapper = mountView()
