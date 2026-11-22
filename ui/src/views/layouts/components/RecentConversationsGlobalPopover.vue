@@ -30,12 +30,6 @@ const formatRelativeTime = (timestamp: number) => {
   return `${Math.floor(diff / 604800)}周前`
 }
 
-// 获取消息预览
-const getMessagePreview = (conversation: RecentConversation) => {
-  const message = conversation.human_message || conversation.ai_message || '暂无消息'
-  return message.length > 40 ? `${message.substring(0, 40)}...` : message
-}
-
 // 获取用户消息预览
 const getHumanMessagePreview = (conversation: RecentConversation) => {
   if (!conversation.human_message) return ''
