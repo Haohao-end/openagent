@@ -34,7 +34,7 @@ onBeforeUnmount(() => {
   datasetEditRequestId += 1
 })
 const showCreateModal = ref(false)
-const { dataset, loadDataset } = useGetDataset()
+const { loadDataset } = useGetDataset()
 const { loading, datasets, paginator, loadDatasets } = useGetDatasetsWithPage()
 const { image_url, handleUploadImage } = useUploadImage()
 const {
