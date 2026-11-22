@@ -79,7 +79,16 @@ class WechatService(BaseService):
             except InvalidSignatureException:
                 raise FailException("微信公众号服务器配置接入失败")
         else:
-            # 7.校验发送的消息类型，仅支持传递文本消息
+            # 7.校验POST消息推送的签名信息，防止伪造请求消耗资源
+            signature = request.args.get("signature")
+            timestamp = request.args.get("timestamp")
+            nonce = request.args.get("nonce")
+            try:
+                check_signature(wechat_config.wechat_token, signature, timestamp, nonce)
+            except InvalidSignatureException:
+                raise FailException("微信公众号服务器配置接入失败")
+
+            # 8.校验发送的消息类型，仅支持传递文本消息
             if msg.type != "text":
                 reply = TextReply(content="抱歉，该Agent目前暂时只支持文本消息。", message=msg)
                 return reply.render()
