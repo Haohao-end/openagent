@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import moment from 'moment/moment'
 import { useCopyApp, useDeleteApp, useGetAppsWithPage } from '@/hooks/use-app'
-import { onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAccountStore } from '@/stores/account'
 import { Message } from '@arco-design/web-vue'
 import CreateOrUpdateAppModal from './components/CreateOrUpdateAppModal.vue'
@@ -15,6 +15,10 @@ import { getUserAvatarUrl } from '@/utils/helper'
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+let isUnmounted = false
+onBeforeUnmount(() => {
+  isUnmounted = true
+})
 const createOrUpdateAppModalVisible = ref(false)
 const updateAppId = ref('')
 const accountStore = useAccountStore()
@@ -36,11 +40,14 @@ const handleLoadApps = async (init: boolean, searchWord: string = '') => {
   try {
     await loadApps(init, searchWord)
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('appStudio.list.loadFailed')))
+    if (!isUnmounted) {
+      Message.error(getErrorMessage(error, t('appStudio.list.loadFailed')))
+    }
   }
 }
 
 const handleScroll = (event: Event) => {
+  if (isUnmounted) return
   // 1.获取滚动距离、可滚动的最大距离、客户端/浏览器窗口的高度
   const target = event.target as HTMLElement | null
   if (!target) return
@@ -147,10 +154,11 @@ const handleCardClick = (appId: string) => {
                       class="text-red-700"
                       @click="
                         () =>
-                          handleDeleteApp(
-                            app.id,
-                            async () => await handleLoadApps(true, String(route.query?.search_word ?? '')),
-                          )
+                          handleDeleteApp(app.id, async () => {
+                            if (!isUnmounted) {
+                              await handleLoadApps(true, String(route.query?.search_word ?? ''))
+                            }
+                          })
                       "
                     >
                       {{ t('appStudio.list.delete') }}
@@ -207,8 +215,10 @@ const handleCardClick = (appId: string) => {
       v-model:visible="createOrUpdateAppModalVisible"
       v-model:app_id="updateAppId"
       :callback="
-        () => {
-          return handleLoadApps(true, String(route.query?.search_word ?? ''))
+        async () => {
+          if (!isUnmounted) {
+            await handleLoadApps(true, String(route.query?.search_word ?? ''))
+          }
         }
       "
     />
