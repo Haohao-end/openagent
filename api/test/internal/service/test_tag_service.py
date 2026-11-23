@@ -130,6 +130,36 @@ def test_delete_tag_should_refuse_cross_account_delete(monkeypatch):
     assert delete_calls == []
 
 
+def test_delete_tag_should_cascade_delete_app_and_workflow_tags(monkeypatch):
+    account_id = uuid4()
+    tag_id = uuid4()
+    tag = SimpleNamespace(id=tag_id, account_id=account_id)
+    app_tag = SimpleNamespace(id=uuid4(), tag_id=tag_id, account_id=account_id)
+    wf_tag = SimpleNamespace(id=uuid4(), tag_id=tag_id, account_id=account_id)
+
+    app_tag_query = _QueryStub(all_result=[app_tag])
+    wf_tag_query = _QueryStub(all_result=[wf_tag])
+
+    def _query(*args):
+        target = args[0]
+        if target is AppTag or getattr(target, "class_", None) is AppTag:
+            return app_tag_query
+        if target is WorkflowTag or getattr(target, "class_", None) is WorkflowTag:
+            return wf_tag_query
+        raise AssertionError(f"unexpected query: {args}")
+
+    service = TagService(db=SimpleNamespace(session=SimpleNamespace(query=_query)))
+    monkeypatch.setattr(service, "_get_owned_tag", lambda *_args: tag)
+
+    deleted_items = []
+    monkeypatch.setattr(service, "delete", lambda item: deleted_items.append(item) or item)
+
+    result = service.delete_tag(tag_id, account_id)
+
+    assert result is tag
+    assert deleted_items == [app_tag, wf_tag, tag]
+
+
 def test_get_tags_with_page_should_filter_owner_and_build_paginator(monkeypatch):
     owner_id = uuid4()
     query = _QueryStub()
