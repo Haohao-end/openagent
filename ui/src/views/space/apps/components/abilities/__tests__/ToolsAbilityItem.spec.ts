@@ -356,4 +356,20 @@ describe('ToolsAbilityItem', () => {
     resolveUpdate()
     await flushPromises()
   })
+
+  it('suppresses update:tools emit when tool toggle save fails', async () => {
+    mocks.builtinTools = [{ name: 'provider', label: 'Provider', category: 'all', tools: [
+      { name: 'first', label: 'First', params: [] },
+    ] }]
+    mocks.updateDraftAppConfig.mockReset().mockRejectedValueOnce(new Error('Save failed'))
+    const wrapper = mountToolsAbilityItem()
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('.cursor-pointer').find(item => item.text().includes('内置插件'))!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === '添加')!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('update:tools')).toBeUndefined()
+  })
 })

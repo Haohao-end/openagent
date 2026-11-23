@@ -393,19 +393,22 @@ const handleSelectTool = async (provider_idx: number, tool_idx: number) => {
     const newTools = [...props.tools].filter((item) => {
       return item.provider.id !== selectTool.provider.id || item.tool.name !== selectTool.tool.name
     })
-    await handleUpdateDraftAppConfig(props.app_id, {
-      tools: newTools.map((item) => {
-        return {
-          type: item.type,
-          params: item.tool.params,
-          provider_id: item.provider.id,
-          tool_id: item.tool.name,
-        }
-      }),
-    })
-
-    // 8.5 双向更新数据，不关闭模态窗
-    emits('update:tools', newTools)
+    try {
+      await handleUpdateDraftAppConfig(props.app_id, {
+        tools: newTools.map((item) => {
+          return {
+            type: item.type,
+            params: item.tool.params,
+            provider_id: item.provider.id,
+            tool_id: item.tool.name,
+          }
+        }),
+      })
+      // 8.5 双向更新数据，不关闭模态窗
+      emits('update:tools', newTools)
+    } catch {
+      return
+    }
     return
   } else {
     // 8.6 新增数据，检测关联插件数是否大于等于5
@@ -417,19 +420,22 @@ const handleSelectTool = async (provider_idx: number, tool_idx: number) => {
     // 8.7 添加数据后同步草稿配置
     const newTools = [...props.tools]
     newTools.push(selectTool)
-    await handleUpdateDraftAppConfig(props.app_id, {
-      tools: newTools.map((item) => {
-        return {
-          type: item.type,
-          params: item.tool.params,
-          provider_id: item.provider.id,
-          tool_id: item.tool.name,
-        }
-      }),
-    })
-
-    // 8.8 双向更新数据，不关闭模态窗
-    emits('update:tools', newTools)
+    try {
+      await handleUpdateDraftAppConfig(props.app_id, {
+        tools: newTools.map((item) => {
+          return {
+            type: item.type,
+            params: item.tool.params,
+            provider_id: item.provider.id,
+            tool_id: item.tool.name,
+          }
+        }),
+      })
+      // 8.8 双向更新数据，不关闭模态窗
+      emits('update:tools', newTools)
+    } catch {
+      return
+    }
   }
 }
 
