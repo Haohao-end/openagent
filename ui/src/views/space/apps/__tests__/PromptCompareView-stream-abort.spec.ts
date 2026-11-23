@@ -6,13 +6,14 @@ const mocks = vi.hoisted(() => ({
   ssePost: vi.fn(),
   signals: [] as AbortSignal[],
   loadDraftAppConfig: vi.fn(),
+  updateDraftAppConfig: vi.fn(),
   messageError: vi.fn(),
   messageWarning: vi.fn(),
 }))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route })); vi.mock('@/utils/request', () => ({ get: vi.fn(), post: vi.fn(), ssePost: mocks.ssePost }))
 vi.mock('@/hooks/use-app', () => ({
   useGetDraftAppConfig: () => ({ draftAppConfigForm: { value: { model_config: { provider: 'p', model: 'm', parameters: {} }, preset_prompt: 'prompt' } }, loadDraftAppConfig: mocks.loadDraftAppConfig }),
-  useUpdateDraftAppConfig: () => ({ handleUpdateDraftAppConfig: vi.fn() }),
+  useUpdateDraftAppConfig: () => ({ handleUpdateDraftAppConfig: mocks.updateDraftAppConfig }),
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) })); vi.mock('@/stores/account', () => ({ useAccountStore: () => ({ account: {} }) })); vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError, warning: mocks.messageWarning } }))
 
@@ -62,4 +63,14 @@ it('aborts both prompt comparison streams when the page unmounts', async () => {
   await wrapper.get('textarea').setValue('hello'); await wrapper.get('textarea').trigger('keydown.enter')
   await flushPromises(); wrapper.unmount()
   expect(mocks.signals).toHaveLength(2); expect(mocks.signals.every((signal) => signal?.aborted)).toBe(true)
+})
+
+it('does not mark preset prompt applied when draft app config update fails', async () => {
+  mocks.updateDraftAppConfig.mockRejectedValueOnce(new Error('Update failed'))
+  const wrapper = shallowMount(PromptCompareView, { props: { app: { id: 'app-1', name: 'App' } } })
+  await flushPromises()
+  const state = (wrapper.vm.$ as any).setupState
+  await state.handleApplyPrompt(state.lanes[0])
+  expect(state.appliedPresetPrompt).toBe('prompt')
+  wrapper.unmount()
 })
