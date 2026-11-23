@@ -3,9 +3,19 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import CreateOrUpdateWorkflowModal from '../CreateOrUpdateWorkflowModal.vue'
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), update: vi.fn(), load: vi.fn(), generate: vi.fn(), upload: vi.fn(), notify: vi.fn(), error: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  create: vi.fn(),
+  update: vi.fn(),
+  load: vi.fn(),
+  generate: vi.fn(),
+  upload: vi.fn(),
+  notify: vi.fn(),
+  error: vi.fn(),
+  createLoading: { value: false },
+  updateLoading: { value: false },
+}))
 vi.mock('@/hooks/use-workflow', () => ({
-  useCreateWorkflow: () => ({ loading: false, handleCreateWorkflow: mocks.create }),
+  useCreateWorkflow: () => ({ loading: mocks.createLoading, handleCreateWorkflow: mocks.create }),
   useGetWorkflow: () => ({ workflow: ref({}), loading: ref(false), loadWorkflow: mocks.load }),
   useRegenerateIcon: () => ({ loading: false, handleRegenerateIcon: vi.fn() }),
   useGenerateIconPreview: () => ({
@@ -20,7 +30,7 @@ vi.mock('@/hooks/use-workflow', () => ({
       }
     },
   }),
-  useUpdateWorkflow: () => ({ loading: false, handleUpdateWorkflow: mocks.update }),
+  useUpdateWorkflow: () => ({ loading: mocks.updateLoading, handleUpdateWorkflow: mocks.update }),
 }))
 vi.mock('@/hooks/use-upload-file', () => ({ useUploadImage: () => ({ image_url: ref(''), handleUploadImage: mocks.upload }) }))
 vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error, success: vi.fn(), warning: vi.fn() } }))
@@ -216,4 +226,31 @@ it('drops stale icon uploads when a newer upload or clear occurs', async () => {
   expect(state.form.icon).toBe('')
 
   wrapper.unmount()
+})
+
+it('blocks submission while an update or creation is already in progress', async () => {
+  mocks.create.mockReset()
+  mocks.update.mockReset()
+
+  mocks.createLoading.value = true
+  const createWrapper = mount(CreateOrUpdateWorkflowModal, {
+    props: { workflow_id: '', visible: true },
+    global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-button': true, 'a-input': true, 'a-textarea': true, 'a-space': true, 'icon-close': true, IconUploadGenerator: true } },
+  })
+  await createWrapper.get('form').trigger('submit')
+  await flushPromises()
+  expect(mocks.create).not.toHaveBeenCalled()
+  mocks.createLoading.value = false
+  createWrapper.unmount()
+
+  mocks.updateLoading.value = true
+  const updateWrapper = mount(CreateOrUpdateWorkflowModal, {
+    props: { workflow_id: 'workflow-1', visible: true },
+    global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-button': true, 'a-input': true, 'a-textarea': true, 'a-space': true, 'icon-close': true, IconUploadGenerator: true } },
+  })
+  await updateWrapper.get('form').trigger('submit')
+  await flushPromises()
+  expect(mocks.update).not.toHaveBeenCalled()
+  mocks.updateLoading.value = false
+  updateWrapper.unmount()
 })
