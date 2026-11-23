@@ -46,12 +46,12 @@ class WechatService(BaseService):
         """微信公众号(订阅号/服务号)校验与消息推送, 运行逻辑参考`Agent对接微信公众号思路.drawio`"""
         # 1.根据传递的app_id获取应用信息，并校验应用是否已发布
         app = self.get(App, app_id)
-        msg = parse_message(request.data)
         if not app or app.status != AppStatus.PUBLISHED:
             # 2.根据不同的请求方法返回不同的数据，GET请求抛出错误、POST请求返回提示信息
             if request.method == "GET":
                 raise FailException("该应用未发布或不存在，无法使用，请核实后重试")
             else:
+                msg = parse_message(request.data) if request.data else None
                 reply = TextReply(content="该应用未发布或不存在，无法使用，请核实后重试", message=msg)
                 return reply.render()
 
@@ -61,6 +61,7 @@ class WechatService(BaseService):
             if request.method == "GET":
                 raise FailException("该应用未发布到微信公众号，无法使用，请核实后重试")
             else:
+                msg = parse_message(request.data) if request.data else None
                 reply = TextReply(content="该应用未发布到微信公众号，无法使用，请核实后重试", message=msg)
                 return reply.render()
 
@@ -88,8 +89,9 @@ class WechatService(BaseService):
             except InvalidSignatureException:
                 raise FailException("微信公众号服务器配置接入失败")
 
-            # 8.校验发送的消息类型，仅支持传递文本消息
-            if msg.type != "text":
+            # 8.签名校验通过后再解析消息体并校验消息类型，仅支持传递文本消息
+            msg = parse_message(request.data)
+            if not msg or msg.type != "text":
                 reply = TextReply(content="抱歉，该Agent目前暂时只支持文本消息。", message=msg)
                 return reply.render()
 
