@@ -8,7 +8,7 @@ from flask_login import current_user, login_required
 from injector import inject
 
 from pkg.response import success_json, success_message, validate_error_json, compact_generate_response
-from internal.exception import NotFoundException, ValidateErrorException
+from internal.exception import NotFoundException, ValidateErrorException, UnauthorizedException
 from internal.schema.public_app_schema import (
     ShareAppToSquareReq,
     GetPublicAppsWithPageReq,
@@ -57,7 +57,7 @@ class PublicAppHandler:
         # 2.调用服务获取列表(如果用户已登录则传入current_user,否则传None)
         try:
             account = current_user if current_user.is_authenticated else None
-        except:
+        except (UnauthorizedException, AttributeError, RuntimeError):
             account = None
 
         apps, paginator = self.public_app_service.get_public_apps_with_page(req, account)
@@ -82,7 +82,7 @@ class PublicAppHandler:
         # 1.判断用户是否登录
         try:
             account = current_user if current_user.is_authenticated else None
-        except:
+        except (UnauthorizedException, AttributeError, RuntimeError):
             account = None
 
         # 2.获取应用详情
