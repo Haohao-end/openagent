@@ -3,6 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import PromptCompareView from '../PromptCompareView.vue'
 const mocks = vi.hoisted(() => ({
   route: { params: { app_id: 'app-1' } },
+  post: vi.fn(),
   ssePost: vi.fn(),
   signals: [] as AbortSignal[],
   loadDraftAppConfig: vi.fn(),
@@ -10,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   messageError: vi.fn(),
   messageWarning: vi.fn(),
 }))
-vi.mock('vue-router', () => ({ useRoute: () => mocks.route })); vi.mock('@/utils/request', () => ({ get: vi.fn(), post: vi.fn(), ssePost: mocks.ssePost }))
+vi.mock('vue-router', () => ({ useRoute: () => mocks.route })); vi.mock('@/utils/request', () => ({ get: vi.fn(), post: mocks.post, ssePost: mocks.ssePost }))
 vi.mock('@/hooks/use-app', () => ({
   useGetDraftAppConfig: () => ({ draftAppConfigForm: { value: { model_config: { provider: 'p', model: 'm', parameters: {} }, preset_prompt: 'prompt' } }, loadDraftAppConfig: mocks.loadDraftAppConfig }),
   useUpdateDraftAppConfig: () => ({ handleUpdateDraftAppConfig: mocks.updateDraftAppConfig }),
@@ -21,6 +22,7 @@ beforeEach(() => {
   mocks.loadDraftAppConfig.mockReset().mockResolvedValue(undefined)
   mocks.messageError.mockReset()
   mocks.messageWarning.mockReset()
+  mocks.post.mockReset().mockResolvedValue({ code: 'success', data: {} })
   mocks.ssePost.mockReset()
   mocks.signals.length = 0
 })
@@ -102,5 +104,53 @@ it('marks preset prompt applied when draft app config update succeeds', async ()
   })
   expect(state.appliedPresetPrompt).toBe('candidate new prompt')
   expect(state.isAppliedPromptLane(candidateLane)).toBe(true)
+  wrapper.unmount()
+})
+
+it('aborts active streams on handleStop and preserves partial response without error', async () => {
+  mocks.ssePost.mockImplementation((_url, options, onData) => {
+    mocks.signals.push(options.signal)
+    if (onData) {
+      onData({
+        event: 'agent_message',
+        data: { message_id: 'm1', task_id: 'task-123', thought: 'Partial...' },
+      })
+    }
+    return new Promise<void>((_resolve, reject) =>
+      options.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true }),
+    )
+  })
+  const wrapper = shallowMount(PromptCompareView, { props: { app: { id: 'app-1', name: 'App' } } })
+  await flushPromises()
+
+  await wrapper.get('textarea').setValue('hello')
+  await wrapper.get('textarea').trigger('keydown.enter')
+  await flushPromises()
+
+  const state = (wrapper.vm.$ as any).setupState
+  expect(state.anyLaneLoading).toBe(true)
+
+  await state.handleStop()
+  await flushPromises()
+
+  expect(mocks.signals).toHaveLength(2)
+  expect(mocks.signals.every((signal: AbortSignal) => signal?.aborted)).toBe(true)
+  expect(state.anyLaneLoading).toBe(false)
+  for (const lane of state.lanes) {
+    expect(lane.loading).toBe(false)
+    const msg = lane.messages[0]
+    expect(msg.errorType).toBeUndefined()
+    expect(msg.answer).toBe('Partial...')
+  }
+  wrapper.unmount()
+})
+
+it('guards against concurrent handleStop execution', async () => {
+  const wrapper = shallowMount(PromptCompareView, { props: { app: { id: 'app-1', name: 'App' } } })
+  await flushPromises()
+  const state = (wrapper.vm.$ as any).setupState
+  state.stopLoading = true
+  await state.handleStop()
+  expect(mocks.post).not.toHaveBeenCalled()
   wrapper.unmount()
 })
