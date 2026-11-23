@@ -76,6 +76,17 @@ def test_a2a_card_should_return_404_when_app_is_not_found():
     assert response[0].get_json() == {"error": "Agent not found"}
 
 
+def test_a2a_card_should_return_400_when_app_id_is_invalid():
+    def raise_validate(_app_id):
+        raise ValidateErrorException("Invalid agent ID")
+
+    handler = PublicAppHandler(None, SimpleNamespace(get_agent_card=raise_validate))
+    with Flask(__name__).test_request_context("/public/apps/invalid-id/a2a/card"):
+        response = handler.get_public_app_a2a_card("invalid-id")
+    assert response[1] == 400
+    assert response[0].get_json() == {"error": "Invalid agent ID"}
+
+
 def test_a2a_conversation_messages_should_log_unexpected_error_and_return_500(caplog):
     def raise_unexpected(_app_id, _conversation_id):
         raise RuntimeError("db boom")

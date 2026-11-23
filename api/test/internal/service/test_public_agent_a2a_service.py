@@ -893,3 +893,14 @@ class TestPublicAgentA2AService:
         list(service._stream_public_agent_events(SimpleNamespace(id=uuid4(), account_id=uuid4()), "private query", "", {}))
 
         assert secret not in caplog.text
+
+    def test_get_public_app_should_distinguish_invalid_uuid_and_missing(self):
+        query_stub = SimpleNamespace(filter=lambda *_args: SimpleNamespace(one_or_none=lambda: None))
+        db = SimpleNamespace(session=SimpleNamespace(query=lambda *_args: query_stub))
+        service = _build_service(db=db)
+
+        with pytest.raises(ValidateErrorException, match="公共Agent ID格式无效"):
+            service._get_public_app("not-a-valid-uuid")
+
+        with pytest.raises(NotFoundException, match="公共Agent不存在或未公开"):
+            service._get_public_app(str(uuid4()))

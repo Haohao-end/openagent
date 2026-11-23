@@ -99,6 +99,8 @@ class PublicAppHandler:
             card = self.public_agent_a2a_service.get_agent_card(app_id)
         except NotFoundException as exc:
             return jsonify({"error": str(exc) or "Agent not found"}), 404
+        except ValidateErrorException as exc:
+            return jsonify({"error": str(exc) or "Invalid agent ID"}), 400
         return jsonify(card)
 
     def send_public_app_a2a_message(self, app_id: str):
