@@ -40,13 +40,17 @@ const form = ref<{
   headers: [],
 })
 
+let iconUploadRequestId = 0
+
 const handleUploadIcon = async (file: File) => {
+  const requestId = ++iconUploadRequestId
   try {
     await handleUploadImage(file)
   } catch (error: unknown) {
     Message.error(getErrorMessage(error, t('space.tools.iconUploadFailed')))
     throw error
   }
+  if (requestId !== iconUploadRequestId) return
   form.value.icon = image_url.value
   form.value.fileList = [{ uid: '1', name: t('space.tools.iconPlaceholder'), url: image_url.value }]
   Message.success(t('space.tools.iconUploadSuccess'))
@@ -58,7 +62,9 @@ const handleGenerateIcon = async () => {
     return
   }
 
+  const requestId = ++iconUploadRequestId
   const iconUrl = await handleGenerateIconPreview(form.value.name, '')
+  if (requestId !== iconUploadRequestId) return
   if (iconUrl) {
     form.value.icon = iconUrl
     form.value.fileList = [{ uid: '1', name: t('space.tools.iconPlaceholder'), url: iconUrl }]
@@ -67,7 +73,11 @@ const handleGenerateIcon = async () => {
 }
 
 const handleCreateCancel = () => {
-  formRef.value?.resetFields()
+  iconUploadRequestId += 1
+  image_url.value = ''
+  if (typeof formRef.value?.resetFields === 'function') {
+    formRef.value.resetFields()
+  }
   showCreateModal.value = false
 }
 
@@ -78,7 +88,7 @@ const handleCreateSubmit = async ({
   values: { fileList: FileItem[]; icon: string; name: string; openapi_schema: string; headers: Array<{ key: string; value: string }> }
   errors: Record<string, ValidatedError> | undefined
 }) => {
-  if (errors) return
+  if (errors || createApiToolProviderLoading.value || validateOpenapiSchemaLoading.value) return
   const isSaved = await handleCreateApiToolProvider(values as CreateApiToolProviderRequest)
   if (!isSaved) return
   handleCreateCancel()
