@@ -21,7 +21,7 @@ vi.mock('@/hooks/use-workflow', async () => {
     return { loading: ref(false), paginator: ref({ current_page: 1, total_page: 1 }), workflows, loadWorkflows: mocks.load }
   } }
 })
-vi.mock('@arco-design/web-vue', () => ({ Message: { warning: vi.fn() } }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { warning: vi.fn(), error: vi.fn() } }))
 
 const WrapperStub = { template: '<div><slot /><slot name="header" /><slot name="extra" /></div>' }
 const ButtonStub = defineComponent({ props: ['disabled', 'loading'], emits: ['click'], template: '<button :disabled="disabled || loading" @click="$emit(\'click\', $event)"><slot /></button>' })
@@ -145,5 +145,19 @@ it('keeps the saved workflow selection unchanged while a save is pending', async
   expect(wrapper.emitted('update:workflows')?.[0][0]).toEqual([
     { id: 'wf-1', name: 'First workflow', icon: '', description: '' },
   ])
+  wrapper.unmount()
+})
+
+it('does not emit update when workflow draft update fails', async () => {
+  mocks.update.mockReset().mockRejectedValueOnce(new Error('draft update failed'))
+  const wrapper = mount(WorkflowsAbilityItem, {
+    props: { app_id: 'app-1', workflows: [] },
+    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true } },
+  })
+  await flushPromises()
+  const state = (wrapper.vm.$ as any).setupState
+  await state.handleSubmitWorkflows()
+
+  expect(wrapper.emitted('update:workflows')).toBeUndefined()
   wrapper.unmount()
 })

@@ -5,6 +5,7 @@ import { cloneDeep, isEqual } from 'lodash'
 import { Message } from '@arco-design/web-vue'
 import { useGetWorkflowsWithPage } from '@/hooks/use-workflow'
 import { useI18n } from 'vue-i18n'
+import { getErrorMessage } from '@/utils/error'
 
 type WorkflowSelection = {
   id: string
@@ -32,6 +33,14 @@ const isWorkflowsInit = ref(false)
 const activateWorkflows = ref<WorkflowSelection[]>([])
 const originWorkflows = ref<WorkflowSelection[]>([])
 
+const loadWorkflowsSafely = async (init: boolean = false) => {
+  try {
+    await loadWorkflows('', 'published', init)
+  } catch (error: unknown) {
+    Message.error(getErrorMessage(error, t('appStudio.abilities.workflows.loadFailed')))
+  }
+}
+
 // 2.定义滚动数据分页处理器
 const handleScroll = async (event: UIEvent) => {
   // 2.1 获取滚动距离、可滚动的最大距离、客户端/浏览器窗口的高度
@@ -40,7 +49,7 @@ const handleScroll = async (event: UIEvent) => {
   // 2.2 判断是否滑动到底部
   if (scrollTop + clientHeight >= scrollHeight - 10) {
     if (loading.value) return
-    await loadWorkflows('', 'published')
+    await loadWorkflowsSafely()
   }
 }
 
@@ -92,9 +101,14 @@ const handleSelectWorkflow = (idx: number) => {
 // 8.提交更新关联工作流
 const handleSubmitWorkflows = async () => {
   // 8.1 处理数据并完成API接口提交
-  await handleUpdateDraftAppConfig(props.app_id, {
-    workflows: activateWorkflows.value.map((activateWorkflow) => activateWorkflow.id),
-  })
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, {
+      workflows: activateWorkflows.value.map((activateWorkflow) => activateWorkflow.id),
+    })
+  } catch {
+    // 错误已在 hook 中提示
+    return
+  }
 
   // 8.2 接口更新更新成功，同步表单信息
   originWorkflows.value = activateWorkflows.value
@@ -135,13 +149,13 @@ watch(
   { immediate: true, deep: true },
 )
 
-// 12.监听知识库模态窗显示or隐藏
+// 12.监听工作流模态窗显示or隐藏
 watch(
   () => workflowsModalVisible.value,
   async (newValue) => {
-    // 12.1 显示状态，重新加载数据，获取最新的知识库列表
+    // 12.1 显示状态，重新加载数据，获取最新工作流列表
     if (newValue) {
-      await loadWorkflows('', 'published', true)
+      await loadWorkflowsSafely(true)
     } else {
       // 12.2 隐藏状态，清空数据
       apiWorkflows.value.splice(0, apiWorkflows.value.length)
@@ -206,9 +220,14 @@ watch(
                 newWorkflows.splice(idx, 1)
 
                 // 2.提交草稿配置到接口
-                await handleUpdateDraftAppConfig(props.app_id, {
-                  workflows: newWorkflows.map((item) => item.id),
-                })
+                try {
+                  await handleUpdateDraftAppConfig(props.app_id, {
+                    workflows: newWorkflows.map((item) => item.id),
+                  })
+                } catch {
+                  // 错误已在 hook 中提示
+                  return
+                }
 
                 // 3.更新数据并确保数据完成更新
                 isWorkflowsInit = false

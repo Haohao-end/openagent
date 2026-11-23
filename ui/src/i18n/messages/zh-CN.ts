@@ -1968,6 +1968,7 @@ export default {
         maxReached: '关联工作流已超过 5 个，无法继续关联',
         selectTitle: '选择关联工作流',
         noAvailable: '没有可用的工作流',
+        loadFailed: '加载工作流列表失败',
         selectedCount: '{count} 个工作流被选中',
         add: '添加',
       },
