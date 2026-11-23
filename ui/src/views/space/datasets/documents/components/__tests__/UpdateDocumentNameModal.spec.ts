@@ -77,3 +77,20 @@ it('ignores a detail load failure after the modal unmounts', async () => {
   expect(mocks.messageError).not.toHaveBeenCalled()
   expect(unhandled).toHaveLength(0)
 })
+
+it('keeps the modal open and suppresses callback when renaming fails', async () => {
+  const onAfterUpdate = vi.fn()
+  mocks.saveName.mockReset().mockRejectedValueOnce(new Error('rename failed'))
+  const wrapper = shallowMount(UpdateDocumentNameModal, {
+    global: { stubs: { 'a-form': { methods: { resetFields: vi.fn() }, template: '<div><slot /></div>' } } },
+    props: { visible: true, dataset_id: 'dataset', document_id: 'doc-1', onAfterUpdate },
+  })
+  const state = (wrapper.vm.$ as any).setupState
+  state.form.name = 'New Name'
+  await state.handleSubmit({ errors: undefined })
+  await flushPromises()
+
+  expect(wrapper.emitted('update:visible')).toBeUndefined()
+  expect(onAfterUpdate).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
