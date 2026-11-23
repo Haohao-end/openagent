@@ -2,12 +2,19 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CreateOrUpdateSegmentModal from '../CreateOrUpdateSegmentModal.vue'
 
-const mocks = vi.hoisted(() => ({ loadSegment: vi.fn(), updateSegment: vi.fn(), createSegment: vi.fn(), error: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  loadSegment: vi.fn(),
+  updateSegment: vi.fn(),
+  createSegment: vi.fn(),
+  error: vi.fn(),
+  createLoading: { value: false },
+  updateLoading: { value: false },
+}))
 
 vi.mock('@/hooks/use-dataset', () => ({
-  useCreateSegment: () => ({ loading: false, handleCreateSegment: mocks.createSegment }),
+  useCreateSegment: () => ({ loading: mocks.createLoading, handleCreateSegment: mocks.createSegment }),
   useGetSegment: () => ({ loadSegment: (...args: unknown[]) => mocks.loadSegment(...args) }),
-  useUpdateSegment: () => ({ loading: false, handleUpdateSegment: mocks.updateSegment }),
+  useUpdateSegment: () => ({ loading: mocks.updateLoading, handleUpdateSegment: mocks.updateSegment }),
 }))
 
 vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error } }))
@@ -18,7 +25,18 @@ const modalStub = { props: ['visible'], template: '<div v-if="visible"><slot/></
 const textareaStub = { props: ['modelValue'], template: '<textarea :value="modelValue" />' }
 const mountEditor = (segment_id = 'segment-1', visible = true) => mount(CreateOrUpdateSegmentModal, {
   props: { dataset_id: 'dataset-1', document_id: 'document-1', segment_id, visible },
-  global: { stubs: { 'a-modal': modalStub, 'a-form': formStub, 'a-textarea': textareaStub } },
+  global: {
+    stubs: {
+      'a-modal': modalStub,
+      'a-form': formStub,
+      'a-textarea': textareaStub,
+      'a-button': { template: '<button type="button"><slot/></button>' },
+      'a-form-item': { template: '<div><slot/></div>' },
+      'a-input-tag': { template: '<div class="a-input-tag"><slot/></div>' },
+      'a-space': { template: '<div class="a-space"><slot/></div>' },
+      'icon-close': { template: '<span class="icon-close" />' },
+    },
+  },
 })
 const getSaveSegment = (wrapper: ReturnType<typeof mount>) =>
   (wrapper.vm.$ as unknown as { setupState: { saveSegment: (payload: { errors: undefined }) => Promise<void> } }).setupState.saveSegment
@@ -109,10 +127,7 @@ describe('CreateOrUpdateSegmentModal', () => {
   })
 
   it('clears edited values before opening a new segment form', async () => {
-    const wrapper = mount(CreateOrUpdateSegmentModal, {
-      props: { dataset_id: 'dataset-1', document_id: 'document-1', segment_id: '', visible: false },
-      global: { stubs: { 'a-modal': modalStub, 'a-form': formStub, 'a-textarea': textareaStub } },
-    })
+    const wrapper = mountEditor('', false)
 
     await wrapper.setProps({ segment_id: 'segment-1', visible: true })
     await flushPromises()
@@ -123,15 +138,13 @@ describe('CreateOrUpdateSegmentModal', () => {
     await flushPromises()
 
     expect(wrapper.get('textarea').element.value).toBe('')
+    wrapper.unmount()
   })
 
   it('keeps a reopened segment editor open after an earlier save completes', async () => {
     let resolve!: () => void
     mocks.updateSegment.mockReturnValueOnce(new Promise<void>((done) => { resolve = done }))
-    const wrapper = mount(CreateOrUpdateSegmentModal, {
-      props: { dataset_id: 'dataset-1', document_id: 'document-1', segment_id: 'segment-1', visible: true },
-      global: { stubs: { 'a-modal': modalStub, 'a-form': formStub, 'a-textarea': textareaStub } },
-    })
+    const wrapper = mountEditor('segment-1', true)
     const { saveSegment } = (wrapper.vm.$ as unknown as {
       setupState: { saveSegment: (payload: { errors: undefined }) => Promise<void> }
     }).setupState
@@ -141,6 +154,26 @@ describe('CreateOrUpdateSegmentModal', () => {
     resolve()
     await save
     expect(wrapper.emitted('update:visible')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('blocks submission while an update or creation is already in progress', async () => {
+    const wrapper = mountEditor('segment-1', true)
+    await flushPromises()
+    mocks.updateSegment.mockReset()
+    mocks.createSegment.mockReset()
+
+    mocks.updateLoading.value = true
+    await getSaveSegment(wrapper)({ errors: undefined })
+    expect(mocks.updateSegment).not.toHaveBeenCalled()
+    mocks.updateLoading.value = false
+
+    const createWrapper = mountEditor('', true)
+    mocks.createLoading.value = true
+    await getSaveSegment(createWrapper)({ errors: undefined })
+    expect(mocks.createSegment).not.toHaveBeenCalled()
+    mocks.createLoading.value = false
+    createWrapper.unmount()
     wrapper.unmount()
   })
 })
