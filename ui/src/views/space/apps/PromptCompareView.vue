@@ -280,6 +280,9 @@ const streamLane = async (lane: CompareLane, userQuery: string) => {
       throw new Error(String(apiResp.message || t('appStudio.promptCompare.debugFailed')))
     }
   } catch (error) {
+    if (abortController.signal.aborted) {
+      return
+    }
     currentMessage.errorType = 'error'
     currentMessage.answer = getErrorMessage(error, t('appStudio.promptCompare.debugFailed'))
   } finally {
@@ -300,16 +303,20 @@ const handleSubmit = async () => {
 }
 
 const handleStop = async () => {
+  if (stopLoading.value) return
+
   const taskIds = lanes.value
     .map((lane) => lane.task_id)
     .filter((taskId) => taskId.trim() !== '')
 
-  if (!taskIds.length) return
-
   try {
     stopLoading.value = true
-    await Promise.all(taskIds.map((taskId) => stopPromptCompareChat(appId.value, taskId)))
+    if (taskIds.length) {
+      await Promise.all(taskIds.map((taskId) => stopPromptCompareChat(appId.value, taskId)))
+    }
   } finally {
+    activeStreamControllers.forEach((controller) => controller.abort())
+    activeStreamControllers.clear()
     stopLoading.value = false
   }
 }
