@@ -59,8 +59,8 @@ const {
 } = useGetAccountLoginHistory()
 const { loading: sessionsLoading, session_state, loadAccountSessions } = useGetAccountSessions()
 const { handleUpdateAvatar } = useUpdateAvatar()
-const { handleUpdateName } = useUpdateName()
-const { handleUpdatePassword } = useUpdatePassword()
+const { loading: updateNameLoading, handleUpdateName } = useUpdateName()
+const { loading: updatePasswordLoading, handleUpdatePassword } = useUpdatePassword()
 const { loading: sendEmailCodeLoading, handleSendChangeEmailCode } = useSendChangeEmailCode()
 const { loading: updateEmailLoading, handleUpdateEmail } = useUpdateEmail()
 const { handleUnbindOAuth } = useUnbindOAuth()
@@ -306,6 +306,7 @@ const handleAvatarCustomRequest = (option: any) => {
 }
 
 const handleSaveName = async () => {
+  if (updateNameLoading.value) return
   await handleUpdateName(accountForm.value.name)
   await updateAccount()
   updateName.value = false
@@ -323,6 +324,7 @@ const handleCancelUpdateEmail = () => {
 }
 
 const handleSendEmailCode = async () => {
+  if (sendEmailCodeLoading.value) return
   const email = emailForm.value.email.trim()
   if (!email) {
     Message.error(t('settings.messages.enterNewEmail'))
@@ -344,6 +346,7 @@ const handleSendEmailCode = async () => {
 }
 
 const handleSaveEmail = async () => {
+  if (updateEmailLoading.value) return
   const email = emailForm.value.email.trim()
   const code = emailForm.value.code.trim()
   const currentPassword = emailForm.value.current_password.trim()
@@ -375,6 +378,7 @@ const handleSaveEmail = async () => {
 }
 
 const handleSavePassword = async () => {
+  if (updatePasswordLoading.value) return
   const { current_password, new_password, confirm_password } = securityForm.value
   if (!new_password) {
     Message.error(t('settings.messages.enterNewPassword'))
@@ -671,7 +675,12 @@ onBeforeUnmount(() => {
                   >
                     {{ $t('common.actions.cancel') }}
                   </a-button>
-                  <a-button type="primary" class="rounded-lg" @click="handleSaveName">
+                  <a-button
+                    :loading="updateNameLoading"
+                    type="primary"
+                    class="rounded-lg"
+                    @click="handleSaveName"
+                  >
                     {{ $t('common.actions.save') }}
                   </a-button>
                 </div>
@@ -868,7 +877,12 @@ onBeforeUnmount(() => {
             <div class="text-sm text-amber-900">
               {{ $t('settings.security.forgotPasswordHint') }}
             </div>
-            <a-button type="primary" class="rounded-lg" @click="handleSavePassword">
+            <a-button
+              :loading="updatePasswordLoading"
+              type="primary"
+              class="rounded-lg"
+              @click="handleSavePassword"
+            >
               {{
                 needsPasswordSetup
                   ? $t('settings.security.submitSetPassword')

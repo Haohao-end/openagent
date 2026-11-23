@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   updateAvatar: vi.fn(),
   uploadImage: vi.fn(),
+  updateName: vi.fn(),
+  updatePassword: vi.fn(),
 }))
 
 vi.mock('@/stores/account', () => ({
@@ -24,6 +26,8 @@ vi.mock('@/services/account', () => ({
   getAccountLoginHistory: mocks.loadHistory,
   getCurrentUser: mocks.getCurrentUser,
   updateAvatar: mocks.updateAvatar,
+  updateName: mocks.updateName,
+  updatePassword: mocks.updatePassword,
 }))
 
 vi.mock('@/services/upload-file', () => ({ uploadImage: mocks.uploadImage, uploadFile: vi.fn() }))
@@ -161,6 +165,54 @@ describe('SettingModal device request ordering', () => {
     await flushPromises()
 
     expect(persistedAvatar).toBe('new-icon')
+    wrapper.unmount()
+  })
+
+  it('blocks concurrent name saves while an update is in progress', async () => {
+    let resolveSave!: (value: any) => void
+    mocks.updateName.mockReturnValue(new Promise((resolve) => { resolveSave = resolve }))
+    mocks.getCurrentUser.mockResolvedValue({ data: { id: 'account', name: 'New Name' } })
+
+    const wrapper = shallowMount(SettingModal, {
+      props: { visible: true, initialTab: 'profile' },
+      global: { plugins: [createTestI18n(), createPinia()], stubs: { 'a-modal': { template: '<div><slot /></div>' } } },
+    })
+    const state = (wrapper.vm.$ as any).setupState
+    state.accountForm.name = 'New Name'
+
+    const firstSave = state.handleSaveName()
+    expect(mocks.updateName).toHaveBeenCalledTimes(1)
+
+    await state.handleSaveName()
+    expect(mocks.updateName).toHaveBeenCalledTimes(1)
+
+    resolveSave({ message: 'success' })
+    await firstSave
+    wrapper.unmount()
+  })
+
+  it('blocks concurrent password saves while an update is in progress', async () => {
+    let resolveSave!: (value: any) => void
+    mocks.updatePassword.mockReturnValue(new Promise((resolve) => { resolveSave = resolve }))
+    mocks.getCurrentUser.mockResolvedValue({ data: { id: 'account', name: 'User' } })
+
+    const wrapper = shallowMount(SettingModal, {
+      props: { visible: true, initialTab: 'security' },
+      global: { plugins: [createTestI18n(), createPinia()], stubs: { 'a-modal': { template: '<div><slot /></div>' } } },
+    })
+    const state = (wrapper.vm.$ as any).setupState
+    state.securityForm.current_password = 'old'
+    state.securityForm.new_password = 'ValidPassword123'
+    state.securityForm.confirm_password = 'ValidPassword123'
+
+    const firstSave = state.handleSavePassword()
+    expect(mocks.updatePassword).toHaveBeenCalledTimes(1)
+
+    await state.handleSavePassword()
+    expect(mocks.updatePassword).toHaveBeenCalledTimes(1)
+
+    resolveSave({ message: 'success' })
+    await firstSave
     wrapper.unmount()
   })
 })
