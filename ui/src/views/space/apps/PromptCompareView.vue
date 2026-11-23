@@ -191,10 +191,14 @@ const handleApplyPrompt = async (lane: CompareLane) => {
     return
   }
 
-  await handleUpdateDraftAppConfig(appId.value, {
-    preset_prompt: lane.preset_prompt,
-  })
-  appliedPresetPrompt.value = lane.preset_prompt
+  try {
+    await handleUpdateDraftAppConfig(appId.value, {
+      preset_prompt: lane.preset_prompt,
+    })
+    appliedPresetPrompt.value = lane.preset_prompt
+  } catch {
+    return
+  }
 }
 
 const isAppliedPromptLane = (lane: CompareLane) => lane.preset_prompt === appliedPresetPrompt.value
