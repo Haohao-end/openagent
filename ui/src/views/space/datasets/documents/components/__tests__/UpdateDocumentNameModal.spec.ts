@@ -2,20 +2,37 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import UpdateDocumentNameModal from '../UpdateDocumentNameModal.vue'
 
-const mocks = vi.hoisted(() => ({ loadDocument: vi.fn(), saveName: vi.fn(), messageError: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  loadDocument: vi.fn(),
+  saveName: vi.fn(),
+  messageError: vi.fn(),
+  updateLoading: { value: false },
+}))
 vi.mock('@/hooks/use-dataset', async () => {
   const { ref } = await import('vue')
-  return { useGetDocument: () => ({ document: ref({ name: '' }), loading: ref(false), loadDocument: mocks.loadDocument }), useUpdateDocumentName: () => ({ loading: ref(false), handleUpdateDocumentName: mocks.saveName }) }
+  return {
+    useGetDocument: () => ({ document: ref({ name: '' }), loading: ref(false), loadDocument: mocks.loadDocument }),
+    useUpdateDocumentName: () => ({ loading: mocks.updateLoading, handleUpdateDocumentName: mocks.saveName }),
+  }
 })
 vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError, success: vi.fn() } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+
+const defaultStubs = {
+  'a-modal': { props: ['visible'], template: '<div v-if="visible"><slot /></div>' },
+  'a-form': { methods: { resetFields: vi.fn() }, template: '<div><slot /></div>' },
+  'a-form-item': true,
+  'a-button': true,
+  'a-input': true,
+  'a-space': true,
+  'icon-close': true,
+}
 
 describe('UpdateDocumentNameModal', () => {
   it('does not close a reopened modal when an earlier save finishes', async () => {
     let resolveSave!: () => void
     mocks.saveName.mockReturnValueOnce(new Promise<void>((resolve) => { resolveSave = resolve }))
-    const formStub = { methods: { resetFields: vi.fn() }, template: '<div><slot /></div>' }
-    const wrapper = shallowMount(UpdateDocumentNameModal, { global: { stubs: { 'a-form': formStub } }, props: { visible: false, dataset_id: 'dataset', document_id: 'first' } })
+    const wrapper = shallowMount(UpdateDocumentNameModal, { global: { stubs: defaultStubs }, props: { visible: false, dataset_id: 'dataset', document_id: 'first' } })
     const state = (wrapper.vm.$ as any).setupState
     await wrapper.setProps({ visible: true }); await flushPromises()
     state.form.name = 'first'
@@ -37,7 +54,7 @@ it('reports a document detail failure without saving a blank name', async () => 
   const wrapper = shallowMount(UpdateDocumentNameModal, {
     global: {
       config: { errorHandler: (error) => unhandled.push(error) },
-      stubs: { 'a-form': { methods: { resetFields: vi.fn() }, template: '<div><slot /></div>' } },
+      stubs: defaultStubs,
     },
     props: { visible: false, dataset_id: 'dataset', document_id: 'document' },
   })
@@ -63,7 +80,7 @@ it('ignores a detail load failure after the modal unmounts', async () => {
   const wrapper = shallowMount(UpdateDocumentNameModal, {
     global: {
       config: { errorHandler: (error) => unhandled.push(error) },
-      stubs: { 'a-form': { methods: { resetFields: vi.fn() }, template: '<div><slot /></div>' } },
+      stubs: defaultStubs,
     },
     props: { visible: false, dataset_id: 'dataset', document_id: 'document' },
   })
@@ -82,7 +99,7 @@ it('keeps the modal open and suppresses callback when renaming fails', async () 
   const onAfterUpdate = vi.fn()
   mocks.saveName.mockReset().mockRejectedValueOnce(new Error('rename failed'))
   const wrapper = shallowMount(UpdateDocumentNameModal, {
-    global: { stubs: { 'a-form': { methods: { resetFields: vi.fn() }, template: '<div><slot /></div>' } } },
+    global: { stubs: defaultStubs },
     props: { visible: true, dataset_id: 'dataset', document_id: 'doc-1', onAfterUpdate },
   })
   const state = (wrapper.vm.$ as any).setupState
@@ -92,5 +109,20 @@ it('keeps the modal open and suppresses callback when renaming fails', async () 
 
   expect(wrapper.emitted('update:visible')).toBeUndefined()
   expect(onAfterUpdate).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+it('blocks concurrent submission while an update is already pending', async () => {
+  mocks.updateLoading.value = true
+  mocks.saveName.mockReset()
+  const wrapper = shallowMount(UpdateDocumentNameModal, {
+    props: { visible: true, dataset_id: 'dataset', document_id: 'doc' },
+    global: { stubs: defaultStubs },
+  })
+  const state = (wrapper.vm.$ as any).setupState
+  await state.handleSubmit({ errors: undefined })
+
+  expect(mocks.saveName).not.toHaveBeenCalled()
+  mocks.updateLoading.value = false
   wrapper.unmount()
 })
