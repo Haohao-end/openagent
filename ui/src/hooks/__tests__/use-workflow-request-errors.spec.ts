@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Modal } from '@arco-design/web-vue'
 import { createRequestError } from '@/utils/error'
 import {
+  useCancelPublishWorkflow,
   useDebugWorkflow,
   useDeleteWorkflow,
   useGenerateIconPreview,
   useGetPublicWorkflows,
   useGetWorkflowsWithPage,
   useRegenerateIcon,
+  useShareWorkflow,
   useUpdateDraftGraph,
 } from '@/hooks/use-workflow'
 
@@ -368,6 +370,30 @@ describe('useGetWorkflowsWithPage', () => {
       await req2
 
       expect(workflows.value).toEqual([{ id: 'wf-second' }])
+      expect(loading.value).toBe(false)
+    })
+  })
+
+  describe('useCancelPublishWorkflow', () => {
+    it('surfaces error toast and rethrows when cancel publish fails', async () => {
+      mocks.cancelPublishWorkflow.mockRejectedValueOnce(new Error('cancel publish failed'))
+      const { loading, handleCancelPublish } = useCancelPublishWorkflow()
+
+      await expect(handleCancelPublish('wf-1')).rejects.toThrow('cancel publish failed')
+      expect(messageErrorMock).toHaveBeenCalledWith('cancel publish failed')
+      expect(messageSuccessMock).not.toHaveBeenCalled()
+      expect(loading.value).toBe(false)
+    })
+  })
+
+  describe('useShareWorkflow', () => {
+    it('surfaces error toast and rethrows when share workflow fails', async () => {
+      mocks.shareWorkflow.mockRejectedValueOnce(new Error('share failed'))
+      const { loading, handleShareWorkflow } = useShareWorkflow()
+
+      await expect(handleShareWorkflow('wf-1', true)).rejects.toThrow('share failed')
+      expect(messageErrorMock).toHaveBeenCalledWith('share failed')
+      expect(messageSuccessMock).not.toHaveBeenCalled()
       expect(loading.value).toBe(false)
     })
   })
