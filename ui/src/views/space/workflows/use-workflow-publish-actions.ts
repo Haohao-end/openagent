@@ -118,6 +118,7 @@ export const useWorkflowPublishActions = (options: UseWorkflowPublishActionsOpti
     const workflowId = buildWorkflowId(options.workflow.value)
     if (!workflowId) return
     await options.handleCancelPublish(workflowId)
+    await options.loadWorkflow(workflowId)
   }
 
   return {

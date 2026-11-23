@@ -50,4 +50,15 @@ describe('useWorkflowPublishActions error feedback', () => {
     expect(messageSuccess).toHaveBeenCalled()
     expect(messageError).not.toHaveBeenCalled()
   })
+
+  it('reloads workflow after cancelling publish to keep UI state in sync', async () => {
+    const loadWorkflow = vi.fn().mockResolvedValue(undefined)
+    const handleCancelPublish = vi.fn().mockResolvedValue(undefined)
+    const { handleCancelPublishAction } = buildActions({ loadWorkflow, handleCancelPublish })
+
+    await handleCancelPublishAction()
+
+    expect(handleCancelPublish).toHaveBeenCalledWith('wf-1')
+    expect(loadWorkflow).toHaveBeenCalledWith('wf-1')
+  })
 })
