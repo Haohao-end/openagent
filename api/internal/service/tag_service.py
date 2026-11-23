@@ -67,6 +67,10 @@ class TagService(BaseService):
         if len(description) > 200:
             raise ValidateErrorException("标签描述长度不能超过 200 个字符")
 
+        tag_type = str(tag_type or TagType.CUSTOM.value).strip()
+        if tag_type not in {t.value for t in TagType}:
+            raise ValidateErrorException("标签类型不支持")
+
         return self.create(
             Tag,
             account_id=account_id,

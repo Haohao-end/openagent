@@ -370,9 +370,13 @@ def test_create_tag_should_validate_and_normalize_name_and_description():
     with pytest.raises(ValidateErrorException, match="长度不能超过 200 个字符"):
         service.create_tag(account_id, "valid-name", "d" * 201)
 
+    with pytest.raises(ValidateErrorException, match="标签类型不支持"):
+        service.create_tag(account_id, "valid-name", "desc", tag_type="unsupported")
+
     res = service.create_tag(account_id, "  trimmed-name  ", "  trimmed-desc  ")
     assert res["name"] == "trimmed-name"
     assert res["description"] == "trimmed-desc"
+    assert res["tag_type"] == "custom"
 
 
 def test_get_app_and_workflow_tags_account_isolation(monkeypatch):
