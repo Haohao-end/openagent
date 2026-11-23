@@ -196,4 +196,18 @@ describe('SkillsAbilityItem', () => {
     expect(state.activateSkills.map((item: any) => item.skill_id)).toEqual(['skill-1', 'skill-2'])
     wrapper.unmount()
   })
+
+  it('does not show success message or mutate skills when draft update fails', async () => {
+    const { Message } = await import('@arco-design/web-vue')
+    mocks.updateDraftAppConfig.mockReset().mockRejectedValueOnce(new Error('draft update failed'))
+    const wrapper = mount(SkillsAbilityItem, { props: { app_id: 'app-1', skills: [] }, global: { stubs: globalStubs } })
+    const state = (wrapper.vm.$ as any).setupState
+    const skill = makeSkillBinding({ id: 'skill-1', skill_id: 'skill-1' })
+    await state.handleSelectMarketplaceSkill(skill)
+
+    expect(Message.success).not.toHaveBeenCalled()
+    expect(state.activateSkills).toEqual([])
+    expect(wrapper.emitted('update:skills')).toBeUndefined()
+    wrapper.unmount()
+  })
 })

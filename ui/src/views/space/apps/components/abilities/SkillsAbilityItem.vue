@@ -151,15 +151,21 @@ onUnmounted(() => {
 })
 
 const persistSkills = async (newSkills: SkillBindingForm[]) => {
-  await handleUpdateDraftAppConfig(props.app_id, {
-    skills: newSkills.map((item) => stripBindingForm(item)),
-  })
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, {
+      skills: newSkills.map((item) => stripBindingForm(item)),
+    })
+  } catch {
+    // 错误已在 hook 中提示
+    return false
+  }
 
   activateSkills.value = cloneDeep(newSkills)
   originSkills.value = cloneDeep(newSkills)
   isSkillsInit.value = true
   await nextTick()
   emits('update:skills', cloneDeep(newSkills.map((item) => stripBindingForm(item))))
+  return true
 }
 
 const handleDeleteSkill = async (idx: number) => {
@@ -183,8 +189,10 @@ const saveMarketplaceSkill = async (skill: SkillPackage) => {
     skill_id: skillId,
   })
 
-  await persistSkills([...activateSkills.value, nextSkill])
-  Message.success(t('appStudio.abilities.skills.addedSuccess'))
+  const isSaved = await persistSkills([...activateSkills.value, nextSkill])
+  if (isSaved) {
+    Message.success(t('appStudio.abilities.skills.addedSuccess'))
+  }
 }
 
 let marketplaceSkillSaveQueue: Promise<void> = Promise.resolve()
