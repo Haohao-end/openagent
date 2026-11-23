@@ -30,7 +30,7 @@ const hideModal = () => emits('update:visible', false)
 // 3.定义表单提交函数
 const saveSegment = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断表单是否出错
-  if (errors) return
+  if (errors || updateSegmentLoading.value || createSegmentLoading.value) return
   const session = modalSession
 
   // 3.2 检测是保存还是新增，调用不同的API接口
