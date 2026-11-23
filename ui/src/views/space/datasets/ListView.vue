@@ -142,17 +142,24 @@ const handleUpdate = (dataset_id: string) => {
   const requestId = ++datasetEditRequestId
   iconUploadRequestId += 1
   updateShowUpdateModal(true, async () => {
-    // 1.调用api获取知识库详情
-    const loadedDataset = await loadDataset(dataset_id)
-    if (requestId !== datasetEditRequestId || !loadedDataset) return
-    updateDatasetID = dataset_id
+    try {
+      // 1.调用api获取知识库详情
+      const loadedDataset = await loadDataset(dataset_id)
+      if (requestId !== datasetEditRequestId || !loadedDataset) return
+      updateDatasetID = dataset_id
 
-    // 2.更新表单数据
-    formRef.value?.resetFields()
-    form.value.fileList = [{ uid: '1', name: t('space.datasets.modal.iconPlaceholder'), url: loadedDataset.icon }]
-    form.value.icon = loadedDataset.icon
-    form.value.name = loadedDataset.name
-    form.value.description = loadedDataset.description
+      // 2.更新表单数据
+      formRef.value?.resetFields()
+      form.value.fileList = [{ uid: '1', name: t('space.datasets.modal.iconPlaceholder'), url: loadedDataset.icon }]
+      form.value.icon = loadedDataset.icon
+      form.value.name = loadedDataset.name
+      form.value.description = loadedDataset.description
+    } catch (error: unknown) {
+      if (requestId === datasetEditRequestId) {
+        Message.error(getErrorMessage(error, t('space.datasets.loadFailed')))
+        updateShowUpdateModal(false)
+      }
+    }
   })
 }
 
