@@ -80,25 +80,29 @@ const openReviewConfigModal = () => {
 // 4.提交审核配置模态窗存储的内容
 const handleSubmitReviewConfig = async () => {
   const session = reviewModalSession
-  // 4.1 处理数据并完成API接口提交
-  await handleUpdateDraftAppConfig(props.app_id, {
-    review_config: {
-      enable: reviewConfigForm.value.enable,
-      keywords: reviewConfigForm.value.keywords
-        .split(/\r?\n/)
-        .filter((item: string) => item.trim() !== ''),
-      inputs_config: reviewConfigForm.value.inputs_config,
-      outputs_config: reviewConfigForm.value.outputs_config,
-    },
-  })
-  if (session !== reviewModalSession) return
+  try {
+    // 4.1 处理数据并完成API接口提交
+    await handleUpdateDraftAppConfig(props.app_id, {
+      review_config: {
+        enable: reviewConfigForm.value.enable,
+        keywords: reviewConfigForm.value.keywords
+          .split(/\r?\n/)
+          .filter((item: string) => item.trim() !== ''),
+        inputs_config: reviewConfigForm.value.inputs_config,
+        outputs_config: reviewConfigForm.value.outputs_config,
+      },
+    })
+    if (session !== reviewModalSession) return
 
-  // 4.2 接口更新更新成功，同步表单信息
-  originReviewConfigForm.value = cloneDeep(reviewConfigForm.value)
-  await nextTick()
+    // 4.2 接口更新更新成功，同步表单信息
+    originReviewConfigForm.value = cloneDeep(reviewConfigForm.value)
+    await nextTick()
 
-  // 4.3 隐藏模态窗
-  handleCancelReviewConfigModal()
+    // 4.3 隐藏模态窗
+    handleCancelReviewConfigModal()
+  } catch {
+    return
+  }
 }
 
 // 5.监听review_config变化并同步到表单
