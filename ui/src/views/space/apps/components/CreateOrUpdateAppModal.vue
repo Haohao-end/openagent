@@ -108,7 +108,13 @@ const handleGenerateIcon = async () => {
 // 3.定义表单提交函数
 const saveApp = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断表单是否出错
-  if (errors || appDetailLoading.value || appDetailLoadFailed.value) return
+  if (
+    errors ||
+    appDetailLoading.value ||
+    appDetailLoadFailed.value ||
+    createAppLoading.value ||
+    updateAppLoading.value
+  ) return
 
   const requestId = detailRequest
 
