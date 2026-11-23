@@ -242,4 +242,20 @@ describe('dataset icon upload lifecycle', () => {
     expect(mocks.loadDatasets).not.toHaveBeenCalled()
     wrapper.unmount()
   })
+
+  it('reports dataset detail load failures when opening edit modal and closes modal', async () => {
+    mocks.route = reactive({ path: '/space/datasets', query: {} })
+    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    await flushPromises()
+    mocks.loadDataset.mockReset().mockRejectedValueOnce(new Error('detail load failed'))
+    mocks.error.mockReset()
+    const state = (wrapper.vm.$ as any).setupState
+
+    state.handleUpdate('ds-1')
+    await flushPromises()
+
+    expect(mocks.error).toHaveBeenCalledWith('detail load failed')
+    expect(state.showUpdateModal).toBe(false)
+    wrapper.unmount()
+  })
 })
