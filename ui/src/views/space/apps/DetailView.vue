@@ -79,8 +79,11 @@ onUnmounted(() => {
         <div class="flex items-center h-16 border-b p-4 gap-4">
           <div class="text-lg text-gray-700">{{ t('appStudio.detail.title') }}</div>
           <!-- LLM模型配置 -->
-          <model-config :dialog_round="draftAppConfigForm.dialog_round"
-            v-model:model_config="draftAppConfigForm.model_config" :app_id="String(route.params?.app_id)" />
+          <model-config
+            v-model:dialog_round="draftAppConfigForm.dialog_round"
+            v-model:model_config="draftAppConfigForm.model_config"
+            :app_id="String(route.params?.app_id)"
+          />
         </div>
         <!-- 底部编排区域 -->
         <div class="grid flex-1 min-h-0 grid-cols-[minmax(0,13fr)_minmax(0,12fr)] overflow-hidden">
