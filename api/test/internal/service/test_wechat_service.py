@@ -1461,3 +1461,51 @@ class TestWechatService:
         # 签名校验通过后才会进入消息类型分支，返回非文本提示
         assert "只支持文本消息" in result
         assert calls == [("token", "s", "t", "n")]
+
+    def test_wechat_get_should_not_parse_xml(self, monkeypatch):
+        app = SimpleNamespace(
+            status=AppStatus.PUBLISHED,
+            wechat_config=SimpleNamespace(
+                status=WechatConfigStatus.CONFIGURED,
+                wechat_token="token",
+            ),
+        )
+        service = _build_service()
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: app)
+        monkeypatch.setattr(
+            "internal.service.wechat_service.parse_message",
+            lambda _data: (_ for _ in ()).throw(AssertionError("parse_message must not be called on GET")),
+        )
+        flask_app = Flask(__name__)
+        with flask_app.test_request_context(
+            f"/wechat/{uuid4()}?signature=s&timestamp=t&nonce=n&echostr=hello_echo",
+            method="GET",
+        ):
+            assert service.wechat(uuid4()) == "hello_echo"
+
+    def test_wechat_post_invalid_signature_should_not_parse_xml(self, monkeypatch):
+        app = SimpleNamespace(
+            status=AppStatus.PUBLISHED,
+            wechat_config=SimpleNamespace(
+                status=WechatConfigStatus.CONFIGURED,
+                wechat_token="token",
+            ),
+        )
+        service = _build_service()
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: app)
+        monkeypatch.setattr(
+            "internal.service.wechat_service.check_signature",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(InvalidSignatureException()),
+        )
+        monkeypatch.setattr(
+            "internal.service.wechat_service.parse_message",
+            lambda _data: (_ for _ in ()).throw(AssertionError("parse_message must not be called on invalid signature")),
+        )
+        flask_app = Flask(__name__)
+        with flask_app.test_request_context(
+            f"/wechat/{uuid4()}?signature=bad&timestamp=t&nonce=n",
+            method="POST",
+            data=b"<malformed-xml",
+        ):
+            with pytest.raises(FailException, match="微信公众号服务器配置接入失败"):
+                service.wechat(uuid4())
