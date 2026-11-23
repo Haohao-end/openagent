@@ -3,12 +3,18 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import CreateOrUpdateApiKeyModal from '../CreateOrUpdateApiKeyModal.vue'
 
-const mocks = vi.hoisted(() => ({ update: vi.fn(), create: vi.fn(), showOnce: vi.fn(), error: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  update: vi.fn(),
+  create: vi.fn(),
+  showOnce: vi.fn(),
+  error: vi.fn(),
+  createLoading: { value: false },
+  updateLoading: { value: false },
+}))
 vi.mock('@/hooks/use-api-key', async () => {
-  const { ref } = await import('vue')
   return {
-    useUpdateApiKey: () => ({ loading: ref(false), handleUpdateApiKey: mocks.update }),
-    useCreateApiKey: () => ({ loading: ref(false), handleCreateApiKey: mocks.create }),
+    useUpdateApiKey: () => ({ loading: mocks.updateLoading, handleUpdateApiKey: mocks.update }),
+    useCreateApiKey: () => ({ loading: mocks.createLoading, handleCreateApiKey: mocks.create }),
   }
 })
 vi.mock('@arco-design/web-vue', () => ({
@@ -205,4 +211,25 @@ it.each(['create', 'update'] as const)('reports an API key %s failure', async (a
   expect(wrapper.emitted('update:visible')).toBeUndefined()
   expect(callback).not.toHaveBeenCalled()
   wrapper.unmount()
+})
+
+it('blocks submission while a create or update is already in progress', async () => {
+  mocks.create.mockReset()
+  mocks.update.mockReset()
+
+  mocks.createLoading.value = true
+  const createWrapper = mountEditor({ visible: true, api_key_id: '' }, vi.fn())
+  const createState = (createWrapper.vm as any).$.setupState
+  await createState.saveApiKey({ errors: undefined })
+  expect(mocks.create).not.toHaveBeenCalled()
+  mocks.createLoading.value = false
+  createWrapper.unmount()
+
+  mocks.updateLoading.value = true
+  const updateWrapper = mountEditor({ visible: true, api_key_id: 'key-1' }, vi.fn())
+  const updateState = (updateWrapper.vm as any).$.setupState
+  await updateState.saveApiKey({ errors: undefined })
+  expect(mocks.update).not.toHaveBeenCalled()
+  mocks.updateLoading.value = false
+  updateWrapper.unmount()
 })
