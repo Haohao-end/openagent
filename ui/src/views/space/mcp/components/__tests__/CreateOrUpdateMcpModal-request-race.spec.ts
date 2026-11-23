@@ -35,6 +35,7 @@ const stubs = {
   'a-modal': ModalStub, 'a-spin': SpinStub, 'a-form': FormStub, 'a-form-item': SlotStub,
   'a-button': SlotStub, 'a-textarea': SlotStub, 'a-select': SlotStub,
   'a-input-number': SlotStub, 'a-input': SlotStub, 'a-option': OptionStub, IconUploadGenerator: IconStub,
+  'icon-close': true,
 }
 const mountModal = () => mount(CreateOrUpdateMcpModal, {
   props: { visible: false, mcp_provider_id: '' }, global: { stubs },
@@ -239,5 +240,53 @@ it('blocks provider updates while edit details are still loading', async () => {
   resolveCategories({ data: { categories: [] } })
   await flushPromises()
   expect(mocks.getMcpProvider).toHaveBeenCalledWith('provider-1')
+  wrapper.unmount()
+})
+
+it('drops stale icon uploads when a newer upload completes first or icon is cleared', async () => {
+  mocks.getMcpCategories.mockResolvedValue({ data: { categories: [] } })
+  const wrapper = mountModal()
+  await wrapper.setProps({ visible: true })
+  await flushPromises()
+
+  const iconComp = wrapper.findComponent(IconStub)
+  const onUpload = iconComp.props('onUpload') as (file: File) => Promise<void>
+  const state = (wrapper.vm.$ as any).setupState
+
+  const upload1 = deferred<void>()
+  const upload2 = deferred<void>()
+  mocks.uploadImage
+    .mockImplementationOnce(async () => {
+      await upload1.promise
+      mocks.uploadImageUrl.value = 'icon-1'
+    })
+    .mockImplementationOnce(async () => {
+      await upload2.promise
+      mocks.uploadImageUrl.value = 'icon-2'
+    })
+
+  const p1 = onUpload(new File(['1'], 'icon-1.png'))
+  const p2 = onUpload(new File(['2'], 'icon-2.png'))
+
+  upload2.resolve()
+  await p2
+  expect(state.form.icon).toBe('icon-2')
+
+  state.form.icon = 'icon-current'
+  upload1.resolve()
+  await p1
+  expect(state.form.icon).toBe('icon-current')
+
+  const upload3 = deferred<void>()
+  mocks.uploadImage.mockImplementationOnce(async () => {
+    await upload3.promise
+    mocks.uploadImageUrl.value = 'icon-3'
+  })
+  const p3 = onUpload(new File(['3'], 'icon-3.png'))
+  state.handleIconChange('')
+  upload3.resolve()
+  await p3
+  expect(state.form.icon).toBe('')
+
   wrapper.unmount()
 })

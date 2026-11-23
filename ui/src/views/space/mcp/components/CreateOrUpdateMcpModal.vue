@@ -66,6 +66,12 @@ const defaultForm = (): McpForm => ({
 
 const form = ref<McpForm>(defaultForm())
 let latestProviderRequest = 0
+let iconOperationRequest = 0
+
+const handleIconChange = (icon: string) => {
+  if (!icon) iconOperationRequest += 1
+  form.value.icon = icon
+}
 let latestAiRequest = 0
 let aiAbortController: AbortController | undefined
 
@@ -161,14 +167,19 @@ const loadProvider = async (providerId: string) => {
 }
 
 const handleUploadIcon = async (file: File) => {
-  const requestId = latestProviderRequest
+  const requestId = ++iconOperationRequest
+  const providerRequestId = latestProviderRequest
+  const isCurrentRequest = () =>
+    requestId === iconOperationRequest && providerRequestId === latestProviderRequest
   try {
     await handleUploadImage(file)
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('space.mcp.iconUploadFailed')))
+    if (isCurrentRequest()) {
+      Message.error(getErrorMessage(error, t('space.mcp.iconUploadFailed')))
+    }
     throw error
   }
-  if (requestId !== latestProviderRequest) return
+  if (!isCurrentRequest()) return
   form.value.icon = image_url.value
   form.value.fileList = [{ uid: '1', name: t('space.mcp.iconPlaceholder'), url: image_url.value }]
   Message.success(t('space.mcp.iconUploadSuccess'))
@@ -180,13 +191,16 @@ const handleGenerateIcon = async () => {
     return
   }
 
-  const requestId = latestProviderRequest
+  const requestId = ++iconOperationRequest
+  const providerRequestId = latestProviderRequest
+  const isCurrentRequest = () =>
+    requestId === iconOperationRequest && providerRequestId === latestProviderRequest
   try {
     generateLoading.value = true
     if (isEditMode.value) {
       const providerId = props.mcp_provider_id
       const res = await regenerateMcpIcon(providerId)
-      if (requestId !== latestProviderRequest) return
+      if (!isCurrentRequest()) return
       if (res.data.icon) {
         form.value.icon = res.data.icon
         form.value.fileList = [{ uid: '1', name: t('space.mcp.iconPlaceholder'), url: res.data.icon }]
@@ -194,7 +208,7 @@ const handleGenerateIcon = async () => {
       }
     } else {
       const res = await generateMcpIconPreview(form.value.name, form.value.description)
-      if (requestId !== latestProviderRequest) return
+      if (!isCurrentRequest()) return
       if (res.data.icon) {
         form.value.icon = res.data.icon
         form.value.fileList = [{ uid: '1', name: t('space.mcp.iconPlaceholder'), url: res.data.icon }]
@@ -202,9 +216,9 @@ const handleGenerateIcon = async () => {
       }
     }
   } catch (error: unknown) {
-    if (requestId === latestProviderRequest) Message.error(getErrorMessage(error, t('space.mcp.iconGenerateFailed')))
+    if (isCurrentRequest()) Message.error(getErrorMessage(error, t('space.mcp.iconGenerateFailed')))
   } finally {
-    if (requestId === latestProviderRequest) generateLoading.value = false
+    if (isCurrentRequest()) generateLoading.value = false
   }
 }
 
@@ -321,6 +335,7 @@ watch(
   () => [props.visible, props.mcp_provider_id] as const,
   async ([visible, providerId]) => {
     const requestId = ++latestProviderRequest
+    iconOperationRequest += 1
     latestAiRequest += 1
     aiAbortController?.abort()
     aiAbortController = undefined
@@ -345,6 +360,7 @@ watch(
 )
 onUnmounted(() => {
   latestProviderRequest += 1
+  iconOperationRequest += 1
   latestAiRequest += 1
   aiAbortController?.abort()
   aiAbortController = undefined
@@ -394,7 +410,7 @@ onUnmounted(() => {
               :placeholder="t('space.mcp.iconPlaceholder')"
               :on-upload="handleUploadIcon"
               :on-generate="handleGenerateIcon"
-              @update:icon="(val) => (form.icon = val)"
+              @update:icon="handleIconChange"
               @update:fileList="(val) => (form.fileList = val)"
             />
           </div>
