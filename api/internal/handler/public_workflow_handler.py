@@ -7,6 +7,7 @@ from flask_login import current_user, login_required
 from injector import inject
 
 from pkg.response import success_json, success_message, validate_error_json
+from internal.exception import UnauthorizedException
 from internal.schema.public_workflow_schema import (
     ShareWorkflowToSquareReq,
     GetPublicWorkflowsWithPageReq,
@@ -47,7 +48,7 @@ class PublicWorkflowHandler:
 
         try:
             account = current_user if current_user.is_authenticated else None
-        except:
+        except (UnauthorizedException, AttributeError, RuntimeError):
             account = None
 
         workflows, paginator = self.public_workflow_service.get_public_workflows_with_page(req, account)
@@ -64,7 +65,7 @@ class PublicWorkflowHandler:
         """获取公共工作流详情（支持未登录访问）"""
         try:
             account = current_user if current_user.is_authenticated else None
-        except:
+        except (UnauthorizedException, AttributeError, RuntimeError):
             account = None
 
         workflow_detail = self.public_workflow_service.get_public_workflow_detail(workflow_id, account)
