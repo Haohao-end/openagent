@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import hljs from 'highlight.js/lib/common'
 import { useI18n } from 'vue-i18n'
+import { copyTextToClipboard } from '@/utils/clipboard'
 import 'highlight.js/styles/github.css'
 
 // 1.定义自定义组件所需数据
@@ -19,13 +20,14 @@ onMounted(() => {
 })
 
 // 3.复制代码功能
-const copyCode = () => {
+const copyCode = async () => {
   const code = codeElement.value?.textContent || ''
-  navigator.clipboard.writeText(code).then(() => {
+  try {
+    await copyTextToClipboard(code)
     Message.success(t('chat.messages.codeCopied'))
-  }).catch(() => {
+  } catch {
     Message.error(t('chat.messages.copyFailed'))
-  })
+  }
 }
 </script>
 
