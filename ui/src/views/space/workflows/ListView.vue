@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import moment from 'moment/moment'
 import { useDeleteWorkflow, useGetWorkflowsWithPage } from '@/hooks/use-workflow'
-import { onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAccountStore } from '@/stores/account'
 import { Message } from '@arco-design/web-vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -14,6 +14,10 @@ import { useI18n } from 'vue-i18n'
 // 1.定义页面所需数据
 const route = useRoute()
 const router = useRouter()
+let isUnmounted = false
+onBeforeUnmount(() => {
+  isUnmounted = true
+})
 const createOrUpdateWorkflowModalVisible = ref(false)
 const updateWorkflowId = ref('')
 const accountStore = useAccountStore()
@@ -40,11 +44,14 @@ const handleLoadWorkflows = async (searchWord: string = '', status: string = '',
   try {
     await loadWorkflows(searchWord, status, init)
   } catch (error: unknown) {
-    Message.error(getErrorMessage(error, t('space.workflows.list.loadFailed')))
+    if (!isUnmounted) {
+      Message.error(getErrorMessage(error, t('space.workflows.list.loadFailed')))
+    }
   }
 }
 
 const handleScroll = (event: Event) => {
+  if (isUnmounted) return
   // 1.获取滚动距离、可滚动的最大距离、客户端/浏览器窗口的高度
   const target = event.target as HTMLElement | null
   if (!target) return
@@ -148,7 +155,9 @@ const handleCardClick = (workflowId: string) => {
                       @click="
                         async () =>
                           await handleDeleteWorkflow(workflow.id, async () => {
-                            await handleLoadWorkflows(String(route.query?.search_word ?? ''), '', true)
+                            if (!isUnmounted) {
+                              await handleLoadWorkflows(String(route.query?.search_word ?? ''), '', true)
+                            }
                           })
                       "
                     >
@@ -201,7 +210,13 @@ const handleCardClick = (workflowId: string) => {
     <create-or-update-workflow-modal
       v-model:visible="createOrUpdateWorkflowModalVisible"
       v-model:workflow_id="updateWorkflowId"
-      :callback="async () => await handleLoadWorkflows(String(route.query?.search_word ?? ''), '', true)"
+      :callback="
+        async () => {
+          if (!isUnmounted) {
+            await handleLoadWorkflows(String(route.query?.search_word ?? ''), '', true)
+          }
+        }
+      "
     />
   </div>
 </template>
