@@ -259,7 +259,12 @@ const handleGenerateByAI = async () => {
 }
 
 const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
-  if (errors || loadingProvider.value || (isEditMode.value && providerDetailLoadFailed.value)) return
+  if (
+    errors ||
+    loadingProvider.value ||
+    (isEditMode.value && providerDetailLoadFailed.value) ||
+    submitLoading.value
+  ) return
 
   let headers: HeaderItem[] = []
   let env: Record<string, string> = {}

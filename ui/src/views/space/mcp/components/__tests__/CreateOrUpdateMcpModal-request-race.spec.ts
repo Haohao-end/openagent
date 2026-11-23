@@ -290,3 +290,28 @@ it('drops stale icon uploads when a newer upload completes first or icon is clea
 
   wrapper.unmount()
 })
+
+it('blocks concurrent submission while a save operation is in flight', async () => {
+  mocks.getMcpCategories.mockResolvedValue({ data: { categories: [] } })
+  const saving = deferred<void>()
+  mocks.createMcpProvider.mockReset().mockReturnValue(saving.promise)
+  mocks.updateMcpProvider.mockReset()
+
+  const wrapper = mountModal()
+  await wrapper.setProps({ visible: true })
+  await flushPromises()
+
+  const state = (wrapper.vm.$ as any).setupState
+  state.form.name = 'Provider Concurrent'
+  state.form.url = 'https://provider.example/mcp'
+
+  const firstSubmit = state.handleSubmit({ errors: undefined })
+  expect(mocks.createMcpProvider).toHaveBeenCalledTimes(1)
+
+  await state.handleSubmit({ errors: undefined })
+  expect(mocks.createMcpProvider).toHaveBeenCalledTimes(1)
+
+  saving.resolve()
+  await firstSubmit
+  wrapper.unmount()
+})
