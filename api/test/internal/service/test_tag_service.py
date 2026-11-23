@@ -478,3 +478,34 @@ def test_get_app_and_workflow_tags_account_isolation(monkeypatch):
     # 3. 未传 account_id 保持兼容
     assert service.get_app_tags(app_id) == [tag]
     assert service.get_workflow_tags(wf_id) == [tag]
+
+
+def test_get_app_and_workflow_tags_filter_inactive_and_stable_sort():
+    app_id = uuid4()
+    wf_id = uuid4()
+    tag_id = uuid4()
+
+    tag_query = _QueryStub(all_result=[SimpleNamespace(id=tag_id, name="demo", status="active")])
+
+    def _query(model):
+        if model is AppTag:
+            return _QueryStub(all_result=[SimpleNamespace(tag_id=tag_id)])
+        if model is WorkflowTag:
+            return _QueryStub(all_result=[SimpleNamespace(tag_id=tag_id)])
+        if model is Tag:
+            return tag_query
+        return _QueryStub()
+
+    service = TagService(db=SimpleNamespace(session=SimpleNamespace(query=_query)))
+
+    app_tags = service.get_app_tags(app_id)
+    assert len(app_tags) == 1
+    assert any("status" in str(f) for f in tag_query.filters)
+    assert Tag.name in tag_query.order_bys
+    assert Tag.id in tag_query.order_bys
+
+    wf_tags = service.get_workflow_tags(wf_id)
+    assert len(wf_tags) == 1
+    assert any("status" in str(f) for f in tag_query.filters)
+    assert Tag.name in tag_query.order_bys
+    assert Tag.id in tag_query.order_bys

@@ -352,7 +352,17 @@ class TagService(BaseService):
         tag_ids = [at.tag_id for at in app_tags]
         if not tag_ids:
             return []
-        return self.db.session.query(Tag).filter(Tag.id.in_(tag_ids)).all()
+        return (
+            self.db.session.query(Tag)
+            .filter(
+                and_(
+                    Tag.id.in_(tag_ids),
+                    Tag.status == TagStatus.ACTIVE.value,
+                )
+            )
+            .order_by(Tag.name, Tag.id)
+            .all()
+        )
 
     def add_workflow_tag(self, account_id: UUID, workflow_id: UUID, tag_id: UUID) -> Optional[WorkflowTag]:
         """
@@ -450,4 +460,14 @@ class TagService(BaseService):
         tag_ids = [wt.tag_id for wt in workflow_tags]
         if not tag_ids:
             return []
-        return self.db.session.query(Tag).filter(Tag.id.in_(tag_ids)).all()
+        return (
+            self.db.session.query(Tag)
+            .filter(
+                and_(
+                    Tag.id.in_(tag_ids),
+                    Tag.status == TagStatus.ACTIVE.value,
+                )
+            )
+            .order_by(Tag.name, Tag.id)
+            .all()
+        )
