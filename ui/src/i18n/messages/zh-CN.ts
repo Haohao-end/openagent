@@ -1556,7 +1556,6 @@ export default {
           '取消分享后，应用将从应用广场移除，但不会影响已发布的 WebApp 和 API。',
         confirmShare: '确认共享',
         loadTagsFailed: '加载标签失败',
-        shareFailed: '共享失败',
         actionFailed: '操作失败',
       },
       wechat: {

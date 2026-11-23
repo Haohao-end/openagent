@@ -1575,7 +1575,6 @@ export default {
           'After removing it from the marketplace, the app will no longer appear there, but existing WebApp and API publishing will not be affected.',
         confirmShare: 'Confirm Share',
         loadTagsFailed: 'Failed to load tags',
-        shareFailed: 'Failed to share',
         actionFailed: 'Action failed',
       },
       wechat: {
