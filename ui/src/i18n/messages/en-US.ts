@@ -1988,6 +1988,7 @@ export default {
         maxReached: 'At most 5 workflows can be linked',
         selectTitle: 'Select Linked Workflows',
         noAvailable: 'No workflows available',
+        loadFailed: 'Failed to load workflow list',
         selectedCount: '{count} workflows selected',
         add: 'Add',
       },
