@@ -127,6 +127,19 @@ class TagService(BaseService):
         tag = self._get_owned_tag(tag_id, account_id)
         if not tag:
             return None
+
+        app_tags = self.db.session.query(AppTag).filter(
+            and_(AppTag.account_id == account_id, AppTag.tag_id == tag_id)
+        ).all()
+        for at in app_tags:
+            self.delete(at)
+
+        wf_tags = self.db.session.query(WorkflowTag).filter(
+            and_(WorkflowTag.account_id == account_id, WorkflowTag.tag_id == tag_id)
+        ).all()
+        for wt in wf_tags:
+            self.delete(wt)
+
         return self.delete(tag)
 
     def get_tag_by_id(self, tag_id: UUID, account_id: UUID) -> Optional[Tag]:
