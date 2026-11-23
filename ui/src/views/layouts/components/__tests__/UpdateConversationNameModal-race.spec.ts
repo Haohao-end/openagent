@@ -3,10 +3,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
 import UpdateConversationNameModal from '../UpdateConversationNameModal.vue'
 
-const mocks = vi.hoisted(() => ({ update: vi.fn(), error: vi.fn() }))
+const mocks = vi.hoisted(() => ({ update: vi.fn(), error: vi.fn(), loading: { value: false } }))
 vi.mock('@/hooks/use-conversation', async () => {
-  const { ref } = await import('vue')
-  return { useUpdateConversationName: () => ({ loading: ref(false), handleUpdateConversationName: mocks.update }) }
+  return { useUpdateConversationName: () => ({ loading: mocks.loading, handleUpdateConversationName: mocks.update }) }
 })
 vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -61,5 +60,21 @@ it('reports a failed rename while the modal is still active', async () => {
   expect(mocks.error).toHaveBeenCalledWith('common.conversation.renameFailed')
   expect(wrapper.emitted('saved')).toBeUndefined()
   expect(wrapper.emitted('update:visible')).toBeUndefined()
+  wrapper.unmount()
+})
+
+it('blocks submission while an update is already in progress', async () => {
+  mocks.update.mockReset()
+  mocks.loading.value = true
+  const wrapper = mount(UpdateConversationNameModal, {
+    props: { visible: true, conversation_id: 'conversation-1', conversation_name: 'Old name' },
+    global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-input': true, 'a-button': true, 'icon-close': true } },
+  })
+  const state = (wrapper.vm as any).$.setupState
+
+  await state.saveName({ errors: undefined })
+
+  expect(mocks.update).not.toHaveBeenCalled()
+  mocks.loading.value = false
   wrapper.unmount()
 })

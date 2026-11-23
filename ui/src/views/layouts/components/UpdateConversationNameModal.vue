@@ -30,7 +30,7 @@ const hideModal = () => {
 
 // 3.定义保存会话名称函数
 const saveName = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
-  if (errors) return
+  if (errors || updateConversationNameLoading.value) return
 
   const requestSession = ++saveSession
   const conversationId = props.conversation_id
