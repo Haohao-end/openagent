@@ -66,11 +66,41 @@ it('aborts both prompt comparison streams when the page unmounts', async () => {
 })
 
 it('does not mark preset prompt applied when draft app config update fails', async () => {
+  const errors: unknown[] = []
   mocks.updateDraftAppConfig.mockRejectedValueOnce(new Error('Update failed'))
+  const wrapper = shallowMount(PromptCompareView, {
+    props: { app: { id: 'app-1', name: 'App' } },
+    global: { config: { errorHandler: (error) => errors.push(error) } },
+  })
+  await flushPromises()
+  const state = (wrapper.vm.$ as any).setupState
+  const candidateLane = state.lanes.find((lane: any) => lane.key === 'candidate') || state.lanes[1]
+  candidateLane.preset_prompt = 'candidate new prompt'
+
+  await state.handleApplyPrompt(candidateLane)
+  await flushPromises()
+
+  expect(state.appliedPresetPrompt).toBe('prompt')
+  expect(state.isAppliedPromptLane(candidateLane)).toBe(false)
+  expect(errors).toEqual([])
+  wrapper.unmount()
+})
+
+it('marks preset prompt applied when draft app config update succeeds', async () => {
+  mocks.updateDraftAppConfig.mockResolvedValueOnce(undefined)
   const wrapper = shallowMount(PromptCompareView, { props: { app: { id: 'app-1', name: 'App' } } })
   await flushPromises()
   const state = (wrapper.vm.$ as any).setupState
-  await state.handleApplyPrompt(state.lanes[0])
-  expect(state.appliedPresetPrompt).toBe('prompt')
+  const candidateLane = state.lanes.find((lane: any) => lane.key === 'candidate') || state.lanes[1]
+  candidateLane.preset_prompt = 'candidate new prompt'
+
+  await state.handleApplyPrompt(candidateLane)
+  await flushPromises()
+
+  expect(mocks.updateDraftAppConfig).toHaveBeenCalledWith('app-1', {
+    preset_prompt: 'candidate new prompt',
+  })
+  expect(state.appliedPresetPrompt).toBe('candidate new prompt')
+  expect(state.isAppliedPromptLane(candidateLane)).toBe(true)
   wrapper.unmount()
 })
