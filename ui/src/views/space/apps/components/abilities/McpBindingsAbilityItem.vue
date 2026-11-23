@@ -309,6 +309,9 @@ const handleSubmitBinding = async () => {
     emits('update:mcp_bindings', cloneDeep(newBindings.map((item) => stripBindingForm(item))))
     emits('reload-draft-app-config')
     closeMcpBindingsModal()
+  } catch {
+    // 错误已在 hook 中提示
+    return
   } finally {
     isSavingMcpBinding.value = false
   }
@@ -328,6 +331,9 @@ const handleDeleteBinding = async (idx: number) => {
     syncLocalBindings(newBindings)
     emits('update:mcp_bindings', cloneDeep(newBindings.map((item) => stripBindingForm(item))))
     emits('reload-draft-app-config')
+  } catch {
+    // 错误已在 hook 中提示
+    return
   } finally {
     isDeletingMcpBinding.value = false
   }
@@ -347,9 +353,14 @@ const saveMarketplaceBinding = async (binding: McpBinding) => {
   }
 
   const newBindings = [...activateMcpBindings.value, nextBinding]
-  await handleUpdateDraftAppConfig(props.app_id, {
-    mcp_bindings: newBindings.map((item) => stripBindingForm(item)),
-  })
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, {
+      mcp_bindings: newBindings.map((item) => stripBindingForm(item)),
+    })
+  } catch {
+    // 错误已在 hook 中提示
+    return
+  }
 
   syncLocalBindings(newBindings)
   await nextTick()

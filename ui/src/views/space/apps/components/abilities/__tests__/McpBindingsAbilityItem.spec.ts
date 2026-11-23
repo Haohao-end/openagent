@@ -205,4 +205,21 @@ describe('McpBindingsAbilityItem', () => {
     expect(state.activateMcpBindings.map((item: any) => item.provider_key)).toEqual(['catalog::second'])
     wrapper.unmount()
   })
+
+  it('does not show success message or mutate bindings when marketplace save fails', async () => {
+    const { Message } = await import('@arco-design/web-vue')
+    mocks.updateDraftAppConfig.mockReset().mockRejectedValueOnce(new Error('draft update failed'))
+    const wrapper = mount(McpBindingsAbilityItem, {
+      props: { app_id: 'app-1', mcp_bindings: [], mcp_tool_snapshots: [] },
+      global: { stubs: globalStubs },
+    })
+    const state = (wrapper.vm.$ as any).setupState
+    const binding = makeBinding({ provider_key: 'catalog::new' })
+    await state.handleSelectMarketplaceBinding(binding)
+
+    expect(Message.success).not.toHaveBeenCalled()
+    expect(state.activateMcpBindings).toEqual([])
+    expect(wrapper.emitted('update:mcp_bindings')).toBeUndefined()
+    wrapper.unmount()
+  })
 })
