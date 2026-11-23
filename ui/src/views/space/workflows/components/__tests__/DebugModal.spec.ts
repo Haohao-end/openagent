@@ -1,8 +1,39 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { config, flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick, reactive } from 'vue'
+import { defineComponent, h, nextTick, reactive } from 'vue'
 import DebugModal from '@/views/space/workflows/components/DebugModal.vue'
 import { copyTextToClipboard } from '@/utils/clipboard'
+
+const FormStub = defineComponent({
+  name: 'a-form',
+  emits: ['submit'],
+  setup(_, { emit, slots }) {
+    return () => h('a-form', {
+      onSubmit: (e: Event) => {
+        e.preventDefault()
+        emit('submit', { values: {}, errors: undefined })
+      },
+    }, slots.default?.())
+  },
+})
+
+config.global.stubs = {
+  'a-form': FormStub,
+  'a-form-item': { template: '<div><slot /></div>' },
+  'a-button': { template: '<button><slot /></button>' },
+  'a-empty': true,
+  'a-input': true,
+  'a-input-number': true,
+  'a-radio': true,
+  'a-radio-group': true,
+  'a-tabs': { template: '<div><slot /></div>' },
+  'a-tab-pane': { template: '<div><slot /></div>' },
+  'icon-check-circle-fill': true,
+  'icon-close': true,
+  'icon-exclamation-circle-fill': true,
+  'icon-loading': true,
+  'icon-play-arrow': true,
+}
 
 vi.mock('@/utils/clipboard', () => ({
   copyTextToClipboard: vi.fn().mockResolvedValue(undefined),
@@ -561,6 +592,7 @@ describe('DebugModal node outputs', () => {
     ])
     expect(mocks.canvas.edges.every(({ class: className }) => !className)).toBe(true)
     expect(wrapper.findAll('[data-testid="workflow-node-result"]')).toHaveLength(0)
+    expect(wrapper.text()).not.toContain('stale')
     finishStream?.()
     await flushPromises()
     wrapper.unmount()
