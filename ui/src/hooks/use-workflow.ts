@@ -26,6 +26,10 @@ import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import { getErrorMessage } from '@/utils/error'
 import { isValidWorkflowToolCallName } from '@/utils/workflow'
+import { i18n } from '@/i18n'
+
+const t = (key: string, params?: Record<string, unknown>) =>
+  params ? i18n.global.t(key, params) : i18n.global.t(key)
 
 export const useGetWorkflowsWithPage = () => {
   // 1.定义hooks所需数据
@@ -361,6 +365,9 @@ export const useCancelPublishWorkflow = () => {
       loading.value = true
       const resp = await cancelPublishWorkflow(workflow_id)
       Message.success(resp.message)
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error, t('appStudio.shell.workflowActionFailed')))
+      throw error
     } finally {
       loading.value = false
     }
@@ -509,6 +516,9 @@ export const useShareWorkflow = () => {
       loading.value = true
       const resp = await shareWorkflow(workflow_id, is_public)
       Message.success(resp.message)
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error, t('appStudio.shell.workflowActionFailed')))
+      throw error
     } finally {
       loading.value = false
     }
