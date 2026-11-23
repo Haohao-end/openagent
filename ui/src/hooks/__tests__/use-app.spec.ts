@@ -513,15 +513,19 @@ describe('useShareAppToSquare', () => {
     expect(callback).toHaveBeenCalledTimes(1)
   })
 
-  it('does not call the callback when sharing fails', async () => {
+  it('does not call the callback and shows error toast when sharing fails', async () => {
     const originalError = new Error('share failed')
     vi.mocked(appService.shareAppToSquare).mockRejectedValueOnce(originalError)
+    const successSpy = vi.spyOn(Message, 'success').mockImplementation(() => undefined as never)
+    const errorSpy = vi.spyOn(Message, 'error').mockImplementation(() => undefined as never)
     const callback = vi.fn()
     const { loading, handleShareAppToSquare } = useShareAppToSquare()
 
     await expect(handleShareAppToSquare('app-1', 'agents', callback)).rejects.toBe(originalError)
 
     expect(callback).not.toHaveBeenCalled()
+    expect(successSpy).not.toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalledWith('share failed')
     expect(loading.value).toBe(false)
   })
 })
