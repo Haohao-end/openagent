@@ -537,9 +537,30 @@ describe('HitTestingModal request lifecycle', () => {
     const requests = Array.from({ length: 5 }, () => createDeferred<{ data: any[] }>())
     let requestId = 0
     mocks.hit.mockImplementation(() => requests[requestId++].promise)
-    const stubs = { 'a-modal': { props: ['visible'], template: '<div v-if="visible"><slot /></div>' },
+    const stubs = {
+      'a-modal': { props: ['visible'], template: '<div v-if="visible"><slot /></div>' },
       'a-button': { props: ['loading'], emits: ['click'], template: '<button :data-loading="loading" @click="$emit(\'click\')"><slot /></button>' },
-      'a-textarea': { props: ['modelValue'], emits: ['update:modelValue'], template: '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' } }
+      'a-textarea': { props: ['modelValue'], emits: ['update:modelValue'], template: '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' },
+      'a-table': true,
+      'a-table-column': true,
+      'a-tag': true,
+      'a-divider': true,
+      'a-progress': true,
+      'a-spin': true,
+      'a-empty': true,
+      'a-row': true,
+      'a-col': true,
+      'a-form': true,
+      'a-form-item': true,
+      'a-radio-group': true,
+      'a-slider': true,
+      'a-input-number': true,
+      'a-space': true,
+      'icon-close': true,
+      'icon-language': true,
+      'icon-pushpin': true,
+      'icon-file': true,
+    }
     const wrapper = mount(HitTestingModal, { props: { visible: true, dataset_id: 'a' }, global: { renderStubDefaultSlot: true, stubs } })
     const search = async () => { await wrapper.find('textarea').setValue('search'); await wrapper.findAll('button').at(-1)!.trigger('click') }
     await search(); await search()
@@ -549,7 +570,7 @@ describe('HitTestingModal request lifecycle', () => {
     expect(wrapper.findAll('button').at(-1)!.attributes('data-loading')).toBe('true')
     expect(mocks.messageError).not.toHaveBeenCalled()
     requests[2].resolve({ data: [{ id: 'b-hit', content: 'b-hit', score: 1, document: { name: 'doc' } }] }); requests[0].resolve({ data: [{ id: 'a-hit', content: 'a-hit', score: 1, document: { name: 'doc' } }] }); await flushPromises()
-    expect(wrapper.text()).toContain('b-hit'); expect(wrapper.text()).not.toContain('a-hit')
+    expect(wrapper.text()).toContain('b-hit'); expect(wrapper.text()).toContain('doc'); expect(wrapper.text()).not.toContain('a-hit')
     expect(mocks.getDatasetQueries.mock.calls.map(([id]) => id)).toEqual(['b', 'b'])
     expect(mocks.hit.mock.calls[2]).toEqual(['b', { query: 'search', retrieval_strategy: 'semantic', k: 5, score: 0.5 }])
     await search()
@@ -557,6 +578,7 @@ describe('HitTestingModal request lifecycle', () => {
     requests[3].resolve({ data: [{ id: 'closed', content: 'closed', score: 1, document: { name: 'doc' } }] }); await flushPromises()
     await wrapper.setProps({ visible: true }); await flushPromises()
     expect(wrapper.text()).not.toContain('closed')
+    expect(wrapper.text()).not.toContain('b-hit')
     await search()
     wrapper.unmount()
     requests[4].resolve({ data: [{ id: 'unmounted', content: 'unmounted', score: 1, document: { name: 'doc' } }] }); await flushPromises()
