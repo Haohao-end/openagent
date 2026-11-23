@@ -72,3 +72,35 @@ def test_revision_chain_should_extend_current_head():
     module = _load_module()
     assert module.revision == "a3b4c5d6e7f8"
     assert module.down_revision == "7ffffccfd101"
+
+
+def test_real_postgresql_upgrade_and_downgrade():
+    import os
+    import pytest
+    import sqlalchemy as sa
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    dsn = os.environ.get("TEST_POSTGRES_DSN", "postgresql://postgres:test_pass@127.0.0.1:54339/test_db")
+    try:
+        engine = sa.create_engine(dsn, connect_args={"connect_timeout": 2})
+        with engine.connect() as conn:
+            conn.execute(sa.text("SELECT 1"))
+    except Exception as exc:
+        pytest.skip(f"Isolated PostgreSQL instance not available: {exc}")
+
+    module = _load_module()
+    with engine.begin() as conn:
+        module.op = Operations(MigrationContext.configure(conn))
+        module.upgrade()
+
+    insp = sa.inspect(engine)
+    assert set(insp.get_table_names()) >= {"tag", "app_tag", "workflow_tag"}
+    assert {c["name"] for c in insp.get_columns("tag")} >= {"id", "account_id", "name", "tag_type", "status"}
+
+    with engine.begin() as conn:
+        module.op = Operations(MigrationContext.configure(conn))
+        module.downgrade()
+
+    insp_after = sa.inspect(engine)
+    assert not ({"tag", "app_tag", "workflow_tag"} & set(insp_after.get_table_names()))
