@@ -90,7 +90,10 @@ class WechatService(BaseService):
                 raise FailException("微信公众号服务器配置接入失败")
 
             # 8.签名校验通过后再解析消息体并校验消息类型，仅支持传递文本消息
-            msg = parse_message(request.data)
+            try:
+                msg = parse_message(request.data)
+            except Exception:
+                raise FailException("微信消息格式解析失败")
             if not msg or msg.type != "text":
                 reply = TextReply(content="抱歉，该Agent目前暂时只支持文本消息。", message=msg)
                 return reply.render()
