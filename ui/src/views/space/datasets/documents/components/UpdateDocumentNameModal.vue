@@ -41,19 +41,23 @@ const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError>
 
   // 3.3 调用处理器发起请求
   const generation = modalGeneration
-  await handleUpdateDocumentName(
-    props.dataset_id,
-    props.document_id,
-    form.value.name,
-    t('space.datasets.documents.renameModal.saveFailed'),
-  )
-  if (generation !== modalGeneration) return
+  try {
+    await handleUpdateDocumentName(
+      props.dataset_id,
+      props.document_id,
+      form.value.name,
+      t('space.datasets.documents.renameModal.saveFailed'),
+    )
+    if (generation !== modalGeneration) return
 
-  // 3.4 隐藏模态窗并重置表单
-  hideModal()
+    // 3.4 隐藏模态窗并重置表单
+    hideModal()
 
-  // 3.5 调用完成后的回调函数
-  props.onAfterUpdate()
+    // 3.5 调用完成后的回调函数
+    props.onAfterUpdate()
+  } catch {
+    return
+  }
 }
 
 // 4.监听visible，当模态窗开启的时候，我们需要调用接口获取数据并填充到表单中
