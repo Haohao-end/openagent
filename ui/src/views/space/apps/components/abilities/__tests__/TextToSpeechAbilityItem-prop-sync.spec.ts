@@ -34,3 +34,16 @@ it('keeps reopened speech settings open after an earlier save completes', async 
   expect(state.textToSpeechForm.voice).toBe('new session')
   wrapper.unmount()
 })
+
+it('keeps the dialog open and preserves form state when save fails', async () => {
+  mocks.update.mockRejectedValueOnce(new Error('Update failed'))
+  const wrapper = shallowMount(TextToSpeechAbilityItem, { props: { app_id: 'app-1', text_to_speech: { enable: false, voice: 'original', auto_play: false } } })
+  const state = (wrapper.vm.$ as any).setupState
+  state.textToSpeechModalVisible = true
+  state.textToSpeechForm.voice = 'failed voice'
+  await state.handleSubmitTextToSpeech()
+  expect(state.textToSpeechModalVisible).toBe(true)
+  expect(state.textToSpeechForm.voice).toBe('failed voice')
+  expect(state.originTextToSpeechForm.voice).toBe('original')
+  wrapper.unmount()
+})

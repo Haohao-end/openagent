@@ -56,22 +56,26 @@ const openTextToSpeechModal = () => {
 // 4.提交模态窗存储的内容
 const handleSubmitTextToSpeech = async () => {
     const session = textToSpeechModalSession
-    // 4.1 处理数据并完成API接口提交
-    await handleUpdateDraftAppConfig(props.app_id, {
-        text_to_speech: {
-            enable: textToSpeechForm.value.enable,
-            voice: textToSpeechForm.value.voice,
-            auto_play: textToSpeechForm.value.auto_play,
-        },
-    })
-    if (session !== textToSpeechModalSession) return
+    try {
+        // 4.1 处理数据并完成API接口提交
+        await handleUpdateDraftAppConfig(props.app_id, {
+            text_to_speech: {
+                enable: textToSpeechForm.value.enable,
+                voice: textToSpeechForm.value.voice,
+                auto_play: textToSpeechForm.value.auto_play,
+            },
+        })
+        if (session !== textToSpeechModalSession) return
 
-    // 4.2 接口更新更新成功，同步表单信息
-    originTextToSpeechForm.value = cloneDeep(textToSpeechForm.value)
-    await nextTick()
+        // 4.2 接口更新更新成功，同步表单信息
+        originTextToSpeechForm.value = cloneDeep(textToSpeechForm.value)
+        await nextTick()
 
-    // 4.3 隐藏模态窗
-    handleCancelTextToSpeechModal()
+        // 4.3 隐藏模态窗
+        handleCancelTextToSpeechModal()
+    } catch {
+        return
+    }
 }
 
 // 5.监听text_to_speech变化并同步到表单
