@@ -45,3 +45,21 @@ it('syncs the review quick toggle when its save starts outside the dialog', asyn
   expect(state.originReviewConfigForm.enable).toBe(true)
   wrapper.unmount()
 })
+
+it('keeps the dialog open and preserves form state when save fails', async () => {
+  mocks.update.mockRejectedValueOnce(new Error('Update failed'))
+  const wrapper = shallowMount(ReviewConfigAbilityItem, {
+    props: {
+      app_id: 'app-1',
+      review_config: { enable: false, keywords: [], inputs_config: { enable: false, preset_response: '' }, outputs_config: { enable: false } },
+    },
+  })
+  const state = (wrapper.vm.$ as any).setupState
+  state.reviewConfigModalVisible = true
+  state.reviewConfigForm.keywords = 'failed keyword'
+  await state.handleSubmitReviewConfig()
+  expect(state.reviewConfigModalVisible).toBe(true)
+  expect(state.reviewConfigForm.keywords).toBe('failed keyword')
+  expect(state.originReviewConfigForm.keywords).toBe('')
+  wrapper.unmount()
+})
