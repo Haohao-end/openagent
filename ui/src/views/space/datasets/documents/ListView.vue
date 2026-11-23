@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
@@ -20,6 +20,10 @@ type DocumentRecord = Record<string, any>
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+let isUnmounted = false
+onBeforeUnmount(() => {
+  isUnmounted = true
+})
 const hitModalVisible = ref(false)
 const updateDocumentNameModalVisible = ref(false)
 const updateDocumentID = ref('')
@@ -163,7 +167,9 @@ watch(
  (value) => {
  if (!value) return
  void loadDataset(value).catch((error: unknown) => {
+ if (!isUnmounted) {
  Message.error(getErrorMessage(error, t('space.datasets.documents.loadFailed')))
+ }
  })
  },
  { immediate: true },
@@ -174,7 +180,9 @@ watch(
  ([value]) => {
  if (!value) return
  void loadDocuments(value, req.value).catch((error: unknown) => {
+ if (!isUnmounted) {
  Message.error(getErrorMessage(error, t('space.datasets.documents.loadFailed')))
+ }
  })
  },
  { immediate: true },
@@ -478,10 +486,14 @@ watch(
  () =>
  handleDelete(datasetId, record.id, () => {
  void loadDocuments(datasetId, req).catch((error: unknown) => {
+ if (!isUnmounted) {
  Message.error(getErrorMessage(error, t('space.datasets.documents.loadFailed')))
+ }
  })
  void loadDataset(datasetId).catch((error: unknown) => {
+ if (!isUnmounted) {
  Message.error(getErrorMessage(error, t('space.datasets.documents.loadFailed')))
+ }
  })
  })
  "
@@ -513,7 +525,9 @@ watch(
  :dataset_id="datasetId"
  v-model:visible="updateDocumentNameModalVisible"
  :on-after-update="() => loadDocuments(datasetId, req).catch((error: unknown) => {
+ if (!isUnmounted) {
  Message.error(getErrorMessage(error, t('space.datasets.documents.loadFailed')))
+ }
  })"
  />
  <hit-testing-modal v-model:visible="hitModalVisible" :dataset_id="datasetId" />

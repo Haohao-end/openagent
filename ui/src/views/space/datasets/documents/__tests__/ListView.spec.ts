@@ -28,4 +28,17 @@ describe('dataset document pagination query', () => {
     await flushPromises()
     expect(mocks.loadDocuments).toHaveBeenCalledWith('dataset-1', { current_page: 1, page_size: 20, search_word: '' })
   })
+
+  it('does not report document load errors after component unmounts', async () => {
+    let rejectDocs!: (err: Error) => void
+    mocks.loadDocuments.mockReturnValueOnce(new Promise((_, reject) => { rejectDocs = reject }))
+    const { Message } = await import('@arco-design/web-vue')
+    const { default: ListView } = await import('../ListView.vue')
+    const wrapper = mount(ListView, { global: { stubs: { '*': true, HitTestingModal: true, UpdateDocumentNameModal: true } } })
+    await flushPromises()
+    wrapper.unmount()
+    rejectDocs(new Error('late document load failure'))
+    await flushPromises()
+    expect(Message.error).not.toHaveBeenCalledWith('late document load failure')
+  })
 })
