@@ -104,13 +104,19 @@ const openMarketplacePicker = () => {
 }
 
 const persistAgentBindings = async (newBindings: AgentBindingForm[]) => {
-  await handleUpdateDraftAppConfig(props.app_id, {
-    agent_bindings: newBindings.map((binding) => stripBindingForm(binding)),
-  })
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, {
+      agent_bindings: newBindings.map((binding) => stripBindingForm(binding)),
+    })
+  } catch {
+    // 错误已在 hook 中提示
+    return false
+  }
 
   syncLocalBindings(newBindings)
   await nextTick()
   emits('update:agent_bindings', cloneDeep(newBindings))
+  return true
 }
 
 let agentBindingSaveQueue: Promise<void> = Promise.resolve()
@@ -147,8 +153,10 @@ const saveMarketplaceAgentBinding = async (binding: AgentBindingTarget) => {
     status: binding.status,
   })
 
-  await persistAgentBindings([...activateAgentBindings.value, nextBinding])
-  Message.success(t('appStudio.abilities.agents.addedSuccess'))
+  const isSaved = await persistAgentBindings([...activateAgentBindings.value, nextBinding])
+  if (isSaved) {
+    Message.success(t('appStudio.abilities.agents.addedSuccess'))
+  }
 }
 
 const handleSelectMarketplaceBinding = (binding: AgentBindingTarget) => {

@@ -56,3 +56,19 @@ it('serializes agent binding removals against the latest selection', async () =>
   expect(state.activateAgentBindings).toEqual([])
   wrapper.unmount()
 })
+
+it('does not show success message or mutate bindings when draft update fails', async () => {
+  const { Message } = await import('@arco-design/web-vue')
+  mocks.update.mockReset().mockRejectedValueOnce(new Error('draft update failed'))
+  const wrapper = shallowMount(AgentBindingsAbilityItem, {
+    props: { app_id: 'app-1', agent_bindings: [] },
+  })
+  const state = (wrapper.vm.$ as any).setupState
+  const agent = { app_id: 'agent-1', name: 'Failed Agent', source_scope: 'public' }
+  await state.handleSelectMarketplaceBinding(agent)
+
+  expect(Message.success).not.toHaveBeenCalled()
+  expect(state.activateAgentBindings).toEqual([])
+  expect(wrapper.emitted('update:agent_bindings')).toBeUndefined()
+  wrapper.unmount()
+})
