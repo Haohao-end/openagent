@@ -807,6 +807,9 @@ export const useShareAppToSquare = () => {
       await shareAppToSquare(app_id, category)
       Message.success(t('appStudio.published.square.sharedSuccess'))
       callback && callback()
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error, t('appStudio.published.square.shareFailed')))
+      throw error
     } finally {
       loading.value = false
     }

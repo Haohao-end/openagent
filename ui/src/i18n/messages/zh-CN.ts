@@ -1544,6 +1544,7 @@ export default {
         viewSquare: '查看广场',
         categoryRequired: '请选择应用分类',
         sharedSuccess: '已共享到应用广场',
+        shareFailed: '共享到应用广场失败',
         unsharedSuccess: '已从应用广场取消共享',
         unshareFailed: '取消共享到应用广场失败',
         shareModalTitle: '共享到应用广场',

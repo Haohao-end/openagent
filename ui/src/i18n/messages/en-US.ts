@@ -1563,6 +1563,7 @@ export default {
         viewSquare: 'Open Marketplace',
         categoryRequired: 'Please choose an app category',
         sharedSuccess: 'Shared to the app marketplace',
+        shareFailed: 'Failed to share to the app marketplace',
         unsharedSuccess: 'Removed from the app marketplace',
         unshareFailed: 'Failed to remove from the app marketplace',
         shareModalTitle: 'Share to App Marketplace',
