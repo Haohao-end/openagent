@@ -1509,3 +1509,23 @@ class TestWechatService:
         ):
             with pytest.raises(FailException, match="微信公众号服务器配置接入失败"):
                 service.wechat(uuid4())
+
+    def test_wechat_post_malformed_xml_should_raise_fail_exception(self, monkeypatch):
+        app = SimpleNamespace(
+            status=AppStatus.PUBLISHED,
+            wechat_config=SimpleNamespace(
+                status=WechatConfigStatus.CONFIGURED,
+                wechat_token="token",
+            ),
+        )
+        service = _build_service()
+        monkeypatch.setattr(service, "get", lambda *_args, **_kwargs: app)
+        monkeypatch.setattr("internal.service.wechat_service.check_signature", lambda *_args, **_kwargs: None)
+        flask_app = Flask(__name__)
+        with flask_app.test_request_context(
+            f"/wechat/{uuid4()}?signature=valid&timestamp=t&nonce=n",
+            method="POST",
+            data=b"not-xml-payload",
+        ):
+            with pytest.raises(FailException, match="微信消息格式解析失败"):
+                service.wechat(uuid4())
