@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { Message } from '@arco-design/web-vue'
 import { useCancelPublish, useGetApp, usePublish, useShareAppToSquare, useUnshareAppFromSquare } from '@/hooks/use-app'
 import { useI18n } from 'vue-i18n'
 import PublishHistoryDrawer from '@/views/space/apps/components/PublishHistoryDrawer.vue'
 import { formatTimestampTime } from '@/utils/time-formatter'
+import { getErrorMessage } from '@/utils/error'
 
 const route = useRoute()
 const publishHistoryDrawerVisible = ref(false)
@@ -16,10 +18,21 @@ const { handleCancelPublish } = useCancelPublish()
 const { loading: shareLoading, handleShareAppToSquare } = useShareAppToSquare()
 const { handleUnshareAppFromSquare } = useUnshareAppFromSquare()
 const { t } = useI18n()
+let isUnmounted = false
+onBeforeUnmount(() => {
+  isUnmounted = true
+})
 
 const getAppId = () => String(route.params?.app_id ?? '').trim()
 const loadApp = async (appId: string) => {
-  if (appId === getAppId()) await loadAppById(appId)
+  if (!appId || appId !== getAppId()) return
+  try {
+    await loadAppById(appId)
+  } catch (error: unknown) {
+    if (!isUnmounted && appId === getAppId()) {
+      Message.error(getErrorMessage(error, t('appStudio.shell.loadAppFailed')))
+    }
+  }
 }
 
 onMounted(async () => await loadApp(getAppId()))

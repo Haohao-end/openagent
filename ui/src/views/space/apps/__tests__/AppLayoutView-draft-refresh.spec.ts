@@ -9,6 +9,11 @@ const state = vi.hoisted(() => ({
   loadApp: vi.fn(),
   loadedAppId: '',
   handlePublish: vi.fn(),
+  error: vi.fn(),
+}))
+
+vi.mock('@arco-design/web-vue', () => ({
+  Message: { error: state.error, success: vi.fn(), warning: vi.fn() },
 }))
 
 vi.mock('vue-router', async () => {
@@ -36,10 +41,28 @@ const DrawerStub = defineComponent({
 })
 const ButtonStub = defineComponent({ emits: ['click'], template: `<button @click="$emit('click')"><slot /></button>` })
 
+const commonStubs = {
+  'router-view': RouterViewStub,
+  'publish-history-drawer': DrawerStub,
+  'a-button': ButtonStub,
+  'router-link': { template: '<a><slot /></a>' },
+  'a-avatar': true,
+  'a-skeleton-line': true,
+  'a-tag': true,
+  'a-space': { template: '<div><slot /></div>' },
+  'a-doption': { template: '<div><slot /></div>' },
+  'a-dropdown': { template: '<div><slot /><slot name="content" /></div>' },
+  'a-button-group': { template: '<div><slot /></div>' },
+  'icon-left': true,
+  'icon-user': true,
+  'icon-schedule': true,
+  'icon-down': true,
+}
+
 it('refreshes the active view after rolling a history version back to draft', async () => {
   state.childMounts = 0
   const wrapper = mount(AppLayoutView, {
-    global: { stubs: { 'router-view': RouterViewStub, 'publish-history-drawer': DrawerStub } },
+    global: { stubs: commonStubs },
   })
   await flushPromises()
   expect(state.childMounts).toBe(1)
@@ -58,7 +81,7 @@ it('does not reload the old app when a publish action completes after route chan
   let finishPublish!: () => void
   state.handlePublish.mockImplementationOnce(() => new Promise<void>(resolve => { finishPublish = resolve }))
   const wrapper = mount(AppLayoutView, {
-    global: { stubs: { 'router-view': RouterViewStub, 'publish-history-drawer': DrawerStub, 'a-button': ButtonStub } },
+    global: { stubs: commonStubs },
   })
   await flushPromises()
   await wrapper.findAll('button').find(button => button.text().includes('publishUpdate'))!.trigger('click')
@@ -73,4 +96,36 @@ it('does not reload the old app when a publish action completes after route chan
 
   expect(state.loadedAppId).toBe('app-2')
   wrapper.unmount()
+})
+
+it('reports load failures for the active app and handles unmount safely', async () => {
+  state.error.mockReset()
+  state.route.params.app_id = 'app-err'
+  state.loadApp.mockRejectedValueOnce(new Error('app not found'))
+
+  const wrapper = mount(AppLayoutView, {
+    global: { stubs: commonStubs },
+  })
+  await flushPromises()
+
+  expect(state.error).toHaveBeenCalledWith('app not found')
+  wrapper.unmount()
+})
+
+it('ignores load failures after the layout has unmounted', async () => {
+  state.error.mockReset()
+  state.route.params.app_id = 'app-unmount'
+  let rejectLoad!: (error: Error) => void
+  state.loadApp.mockReturnValueOnce(new Promise((_, reject) => { rejectLoad = reject }))
+
+  const wrapper = mount(AppLayoutView, {
+    global: { stubs: commonStubs },
+  })
+  await flushPromises()
+
+  wrapper.unmount()
+  rejectLoad(new Error('late app failure'))
+  await flushPromises()
+
+  expect(state.error).not.toHaveBeenCalled()
 })
