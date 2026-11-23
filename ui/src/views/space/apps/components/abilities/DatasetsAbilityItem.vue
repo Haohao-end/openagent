@@ -155,20 +155,24 @@ const handleSelectDataset = (idx: number) => {
 
 // 8.提交更新关联知识库
 const handleSubmitDatasets = async () => {
-  // 8.1 处理数据并完成API接口提交
-  await handleUpdateDraftAppConfig(props.app_id, {
-    datasets: activateDatasets.value.map((activateDataset) => activateDataset.id),
-  })
+  try {
+    // 8.1 处理数据并完成API接口提交
+    await handleUpdateDraftAppConfig(props.app_id, {
+      datasets: activateDatasets.value.map((activateDataset) => activateDataset.id),
+    })
 
-  // 8.2 接口更新更新成功，同步表单信息
-  originDatasets.value = activateDatasets.value
-  await nextTick()
+    // 8.2 接口更新更新成功，同步表单信息
+    originDatasets.value = activateDatasets.value
+    await nextTick()
 
-  // 8.3 双向同步更新props中的数据
-  emits('update:datasets', activateDatasets.value)
+    // 8.3 双向同步更新props中的数据
+    emits('update:datasets', activateDatasets.value)
 
-  // 8.4 隐藏模态窗
-  handleCancelDatasetsModal()
+    // 8.4 隐藏模态窗
+    handleCancelDatasetsModal()
+  } catch {
+    return
+  }
 }
 
 // 9.提交更新检索配置
@@ -180,20 +184,40 @@ const handleSubmitRetrievalConfig = async () => {
     score: Number(retrievalConfigForm.value.score ?? 0),
   }
 
-  // 9.1 处理数据并完成API接口提交
-  await handleUpdateDraftAppConfig(props.app_id, {
-    retrieval_config: retrievalConfig,
-  })
-  if (session !== retrievalConfigModalSession) return
+  try {
+    // 9.1 处理数据并完成API接口提交
+    await handleUpdateDraftAppConfig(props.app_id, {
+      retrieval_config: retrievalConfig,
+    })
+    if (session !== retrievalConfigModalSession) return
 
-  // 9.2 接口更新更新成功，同步表单信息
-  originRetrievalConfigForm.value = retrievalConfig
+    // 9.2 接口更新更新成功，同步表单信息
+    originRetrievalConfigForm.value = retrievalConfig
 
-  // 9.3 双向同步更新props中的数据
-  emits('update:retrieval_config', retrievalConfig)
+    // 9.3 双向同步更新props中的数据
+    emits('update:retrieval_config', retrievalConfig)
 
-  // 9.4 隐藏模态窗
-  handleCancelRetrievalConfigModal()
+    // 9.4 隐藏模态窗
+    handleCancelRetrievalConfigModal()
+  } catch {
+    return
+  }
+}
+
+const handleDeleteDataset = async (idx: number) => {
+  if (updateDraftAppConfigLoading.value) return
+  const newDatasets = [...props.datasets]
+  newDatasets.splice(idx, 1)
+
+  try {
+    await handleUpdateDraftAppConfig(props.app_id, {
+      datasets: newDatasets.map((item) => item.id),
+    })
+    isDatasetsInit.value = false
+    emits('update:datasets', newDatasets)
+  } catch {
+    return
+  }
 }
 
 // 10.监听草稿配置关联的知识库列表
@@ -323,23 +347,7 @@ onMounted(() => {
             type="text"
             class="hidden group-hover:block flex-shrink-0 ml-2 !text-red-700 rounded"
             :disabled="updateDraftAppConfigLoading"
-            @click="
-              async () => {
-                if (updateDraftAppConfigLoading) return
-                // 1.清除props中指定的数据
-                const newDatasets = [...props.datasets]
-                newDatasets.splice(idx, 1)
-
-                // 2.提交草稿配置到接口
-                await handleUpdateDraftAppConfig(props.app_id, {
-                  datasets: newDatasets.map((item) => item.id),
-                })
-
-                // 3.更新数据并确保数据完成更新
-                isDatasetsInit = false
-                emits('update:datasets', newDatasets)
-              }
-            "
+            @click="handleDeleteDataset(idx)"
           >
             <template #icon>
               <icon-delete />
