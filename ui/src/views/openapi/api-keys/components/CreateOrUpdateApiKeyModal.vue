@@ -77,7 +77,7 @@ const hideModal = () => {
 // 3.定义表单提交函数
 const saveApiKey = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断表单是否出错
-  if (errors) return
+  if (errors || updateApiKeyLoading.value || createApiKeyLoading.value) return
   const requestSession = ++modalSession
   const apiKeyId = props.api_key_id
   const callback = props.callback
