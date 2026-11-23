@@ -980,8 +980,8 @@ class PublicAgentA2AService(BaseService):
         """获取已发布且公开的应用。"""
         try:
             app_uuid = UUID(str(app_id))
-        except Exception as exc:
-            raise NotFoundException("公共Agent不存在") from exc
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise ValidateErrorException("公共Agent ID格式无效") from exc
 
         app = self.db.session.query(App).filter(
             App.id == app_uuid,
