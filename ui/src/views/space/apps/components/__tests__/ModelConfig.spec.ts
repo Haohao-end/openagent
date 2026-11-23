@@ -90,6 +90,7 @@ describe('ModelConfig', () => {
       model: 'second-model',
       parameters: { temperature: 0.2 },
     }]])
+    expect(wrapper.emitted('update:dialog_round')).toEqual([[3]])
     wrapper.unmount()
   })
 

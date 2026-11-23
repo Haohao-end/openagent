@@ -31,7 +31,7 @@ const props = defineProps({
   },
   dialog_round: { type: Number, default: 3, required: true },
 })
-const emits = defineEmits(['update:model_config'])
+const emits = defineEmits(['update:model_config', 'update:dialog_round'])
 const form = ref<ModelForm>({
   selectValue: '',
   provider: '',
@@ -113,7 +113,10 @@ const hideModelTrigger = async () => {
       model_config: model_config,
       dialog_round: form.value.dialog_round,
     })
-    if (requestId === modelSelectionRequest) emits('update:model_config', model_config)
+    if (requestId === modelSelectionRequest) {
+      emits('update:model_config', model_config)
+      emits('update:dialog_round', form.value.dialog_round)
+    }
   } catch {
     // The update hook already reports save failures.
   }
