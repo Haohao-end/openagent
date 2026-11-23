@@ -1410,6 +1410,7 @@ export default {
       cancelPublishSuccess: '应用已取消发布并从应用广场移除',
       cancelPublishFailed: '取消发布应用失败',
       updateDraftFailed: '更新应用草稿配置失败',
+      loadAppFailed: '获取应用详情失败',
       loadGraphFailed: '加载工作流图失败',
       workflowNotDebuggedTitle: '工作流未调试',
       workflowNotDebuggedContent:

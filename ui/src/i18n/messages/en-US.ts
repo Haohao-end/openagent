@@ -1428,6 +1428,7 @@ export default {
       cancelPublishSuccess: 'The app has been unpublished and removed from the marketplace.',
       cancelPublishFailed: 'Failed to unpublish the app',
       updateDraftFailed: 'Failed to update the draft app configuration',
+      loadAppFailed: 'Failed to load app details',
       loadGraphFailed: 'Failed to load the workflow graph',
       workflowNotDebuggedTitle: 'Workflow not debugged',
       workflowNotDebuggedContent:
