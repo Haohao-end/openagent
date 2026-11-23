@@ -1,6 +1,6 @@
 import pytest
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from internal.entity.tag_entity import TagType
 from internal.exception import ValidateErrorException
@@ -231,6 +231,35 @@ def test_get_hot_tags_should_group_by_dimension_and_count_usage():
     assert workflow_counts_query.group_bys == [WorkflowTag.tag_id]
     assert "app_tag.account_id" in str(app_counts_query.filters[0])
     assert "workflow_tag.account_id" in str(workflow_counts_query.filters[0])
+
+
+def test_get_hot_tags_tiebreaker_by_id_when_use_count_and_name_equal():
+    account_id = uuid4()
+    id_1 = UUID("00000000-0000-0000-0000-000000000001")
+    id_2 = UUID("00000000-0000-0000-0000-000000000002")
+    tag_1 = SimpleNamespace(id=id_1, name="same-name", tag_type=TagType.CUSTOM.value)
+    tag_2 = SimpleNamespace(id=id_2, name="same-name", tag_type=TagType.CUSTOM.value)
+
+    tags_query = _QueryStub(all_result=[tag_2, tag_1])
+    app_query = _QueryStub(all_result=[])
+    wf_query = _QueryStub(all_result=[])
+
+    def _query(*args):
+        target = args[0]
+        if getattr(target, "class_", None) is AppTag:
+            return app_query
+        if getattr(target, "class_", None) is WorkflowTag:
+            return wf_query
+        if target is Tag:
+            return tags_query
+        raise AssertionError(f"unexpected query target: {args}")
+
+    service = TagService(db=SimpleNamespace(session=SimpleNamespace(query=_query)))
+
+    hot_tags = service.get_hot_tags(account_id=account_id)
+    assert [item["id"] for item in hot_tags["custom"]] == [str(id_1), str(id_2)]
+
+
 
 
 def test_get_tag_dimensions_should_return_expected_labels():

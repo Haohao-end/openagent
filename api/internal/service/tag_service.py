@@ -237,7 +237,7 @@ class TagService(BaseService):
         for dimension, records in grouped_tags.items():
             sorted_records = sorted(
                 records,
-                key=lambda item: (-item["use_count"], item["name"]),
+                key=lambda item: (-item["use_count"], item["name"], str(item["id"])),
             )
             normalized_hot_tags[dimension] = sorted_records[:limit_per_dimension]
 
