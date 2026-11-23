@@ -153,6 +153,9 @@ class ApiKeyService(BaseService):
         if not api_key_record or not getattr(api_key_record, "id", None):
             return False, 0, 0
 
+        if max_requests <= 0 or window_seconds <= 0:
+            return False, 0, 0
+
         account_id = getattr(api_key_record, "account_id", None)
         api_key_id = api_key_record.id
         cache_key = f"rate_limit:apikey:{account_id}:{api_key_id}"

@@ -781,6 +781,14 @@ class TestApiKeyService:
         assert service.check_rate_limit(key, client=_FailingRedis(), fail_closed=False)[0] is True
         assert service.check_rate_limit(key, client=_FailingRedis(), fail_closed=True)[0] is False
 
+    def test_check_rate_limit_should_block_non_positive_max_requests_or_window(self):
+        service = ApiKeyService(db=SimpleNamespace())
+        key = SimpleNamespace(id=uuid4(), account_id=uuid4())
+        assert service.check_rate_limit(key, max_requests=0) == (False, 0, 0)
+        assert service.check_rate_limit(key, max_requests=-1) == (False, 0, 0)
+        assert service.check_rate_limit(key, window_seconds=0) == (False, 0, 0)
+        assert service.check_rate_limit(key, window_seconds=-5) == (False, 0, 0)
+
     def test_check_rate_limit_should_use_atomic_lua_when_supported(self):
         service = ApiKeyService(db=SimpleNamespace())
         key = SimpleNamespace(id=uuid4(), account_id=uuid4())
