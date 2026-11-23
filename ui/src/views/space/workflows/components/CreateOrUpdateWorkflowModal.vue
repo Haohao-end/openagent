@@ -113,7 +113,13 @@ const hideModal = () => emits('update:visible', false)
 // 5.定义表单提交函数
 const saveWorkflow = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断表单是否出错
-  if (errors || workflowDetailLoading.value || workflowDetailLoadFailed.value) return
+  if (
+    errors ||
+    workflowDetailLoading.value ||
+    workflowDetailLoadFailed.value ||
+    createWorkflowLoading.value ||
+    updateWorkflowLoading.value
+  ) return
 
   const requestId = detailRequest
 
