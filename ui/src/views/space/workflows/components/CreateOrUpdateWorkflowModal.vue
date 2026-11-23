@@ -40,19 +40,28 @@ const createDefaultForm = () => ({
 const form = ref(createDefaultForm())
 const formRef = ref<InstanceType<typeof Form>>()
 let detailRequest = 0
+let iconOperationRequest = 0
 let isUnmounted = false
+
+const handleIconChange = (icon: string) => {
+  if (!icon) iconOperationRequest += 1
+  form.value.icon = icon
+}
 
 // 2.定义上传图标处理器
 const handleUploadIcon = async (file: File) => {
-  const requestId = detailRequest
+  const requestId = ++iconOperationRequest
+  const detailRequestId = detailRequest
+  const isCurrentRequest = () =>
+    !isUnmounted && requestId === iconOperationRequest && detailRequestId === detailRequest
   try {
     await handleUploadImage(file)
-    if (requestId !== detailRequest) return
+    if (!isCurrentRequest()) return
     form.value.icon = image_url.value
     form.value.fileList = [{ uid: '1', name: t('workflowEditor.workflowModal.iconName'), url: image_url.value }]
     Message.success(t('workflowEditor.workflowModal.iconUploadSuccess'))
   } catch (error: unknown) {
-    if (!isUnmounted && requestId === detailRequest) {
+    if (isCurrentRequest()) {
       Message.error(getErrorMessage(error, t('workflowEditor.workflowModal.iconUploadFailed')))
     }
     throw error
@@ -66,12 +75,15 @@ const handleGenerateIcon = async () => {
     return
   }
 
-  const requestId = detailRequest
+  const requestId = ++iconOperationRequest
+  const detailRequestId = detailRequest
+  const isCurrentRequest = () =>
+    !isUnmounted && requestId === iconOperationRequest && detailRequestId === detailRequest
   try {
     // 更新模式：调用 regenerateIcon
     if (props.workflow_id) {
-      const iconUrl = await handleRegenerateIcon(props.workflow_id, () => false)
-      if (requestId !== detailRequest) return
+      const iconUrl = await handleRegenerateIcon(props.workflow_id, isCurrentRequest)
+      if (!isCurrentRequest()) return
       if (iconUrl) {
         form.value.icon = iconUrl
         form.value.fileList = [{ uid: '1', name: t('workflowEditor.workflowModal.iconName'), url: iconUrl }]
@@ -80,8 +92,8 @@ const handleGenerateIcon = async () => {
     }
     // 创建模式：调用 generateIconPreview
     else {
-      const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description, () => false)
-      if (requestId !== detailRequest) return
+      const iconUrl = await handleGenerateIconPreview(form.value.name, form.value.description, isCurrentRequest)
+      if (!isCurrentRequest()) return
       if (iconUrl) {
         form.value.icon = iconUrl
         form.value.fileList = [{ uid: '1', name: t('workflowEditor.workflowModal.iconName'), url: iconUrl }]
@@ -89,7 +101,7 @@ const handleGenerateIcon = async () => {
       }
     }
   } catch (error: unknown) {
-    if (requestId === detailRequest && !isUnmounted) {
+    if (isCurrentRequest()) {
       Message.error(getErrorMessage(error, t('workflowEditor.workflowModal.iconGenerateFailed')))
     }
   }
@@ -127,6 +139,7 @@ watch(
   () => [props.visible, props.workflow_id] as const,
   async ([newValue, workflowId]) => {
     const requestId = ++detailRequest
+    iconOperationRequest += 1
     // 4.1 清除表单校验信息
     formRef.value?.resetFields()
 
@@ -168,6 +181,7 @@ watch(
 onUnmounted(() => {
   isUnmounted = true
   detailRequest += 1
+  iconOperationRequest += 1
 })
 </script>
 
@@ -208,7 +222,7 @@ onUnmounted(() => {
             :placeholder="t('workflowEditor.workflowModal.iconName')"
             :on-upload="handleUploadIcon"
             :on-generate="handleGenerateIcon"
-            @update:icon="(val) => (form.icon = val)"
+            @update:icon="handleIconChange"
             @update:fileList="(val) => (form.fileList = val)"
           />
         </a-form-item>

@@ -23,7 +23,7 @@ vi.mock('@/hooks/use-workflow', () => ({
   useUpdateWorkflow: () => ({ loading: false, handleUpdateWorkflow: mocks.update }),
 }))
 vi.mock('@/hooks/use-upload-file', () => ({ useUploadImage: () => ({ image_url: ref(''), handleUploadImage: mocks.upload }) }))
-vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error } }))
+vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.error, success: vi.fn(), warning: vi.fn() } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 const FormStub = defineComponent({
@@ -179,5 +179,41 @@ it('reports an icon upload failure in the active workflow modal', async () => {
   await expect(state.handleUploadIcon(new File(['icon'], 'icon.png'))).rejects.toThrow()
 
   expect(mocks.error).toHaveBeenCalledWith('workflowEditor.workflowModal.iconUploadFailed')
+  wrapper.unmount()
+})
+
+it('drops stale icon uploads when a newer upload or clear occurs', async () => {
+  let finishUpload1!: () => void
+  let finishUpload2!: () => void
+  mocks.upload
+    .mockImplementationOnce(() => new Promise<void>((resolve) => { finishUpload1 = resolve }))
+    .mockImplementationOnce(() => new Promise<void>((resolve) => { finishUpload2 = resolve }))
+
+  const wrapper = mount(CreateOrUpdateWorkflowModal, {
+    props: { workflow_id: '', visible: true },
+    global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': true, 'a-button': true, 'a-input': true, 'a-textarea': true, 'a-space': true, 'icon-close': true, IconUploadGenerator: true } },
+  })
+  const state = (wrapper.vm as any).$.setupState
+
+  const upload1 = state.handleUploadIcon(new File(['1'], 'first.png'))
+  const upload2 = state.handleUploadIcon(new File(['2'], 'second.png'))
+
+  finishUpload2()
+  await upload2
+  expect(state.form.fileList).toHaveLength(1)
+
+  state.form.icon = 'newer-icon'
+  finishUpload1()
+  await upload1
+  expect(state.form.icon).toBe('newer-icon')
+
+  let finishUpload3!: () => void
+  mocks.upload.mockImplementationOnce(() => new Promise<void>((resolve) => { finishUpload3 = resolve }))
+  const upload3 = state.handleUploadIcon(new File(['3'], 'third.png'))
+  state.handleIconChange('')
+  finishUpload3()
+  await upload3
+  expect(state.form.icon).toBe('')
+
   wrapper.unmount()
 })
