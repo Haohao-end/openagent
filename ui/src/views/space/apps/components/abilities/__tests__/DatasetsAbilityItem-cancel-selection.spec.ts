@@ -170,3 +170,41 @@ it('keeps the saved dataset selection unchanged while a save is pending', async 
   ])
   wrapper.unmount()
 })
+
+it('suppresses update:datasets emit when draft app config update fails', async () => {
+  mocks.update.mockReset().mockRejectedValueOnce(new Error('Network error'))
+  const wrapper = mount(DatasetsAbilityItem, {
+    props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
+    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
+  })
+  await flushPromises()
+  mocks.datasets.value = [{ id: 'ds-1', name: 'First dataset', icon: '', description: '' }]
+  await wrapper.findAll('button')[1].trigger('click')
+  await flushPromises()
+  await wrapper.find('.cursor-pointer').trigger('click')
+  await (wrapper.vm.$ as any).setupState.handleSubmitDatasets()
+  await flushPromises()
+
+  expect(wrapper.emitted('update:datasets')).toBeUndefined()
+  expect((wrapper.vm.$ as any).setupState.datasetsModalVisible).toBe(true)
+  wrapper.unmount()
+})
+
+it('suppresses update:datasets emit when deleting a dataset fails', async () => {
+  mocks.update.mockReset().mockRejectedValueOnce(new Error('Delete error'))
+  const wrapper = mount(DatasetsAbilityItem, {
+    props: {
+      app_id: 'app-1',
+      datasets: [{ id: 'ds-1', name: 'Bound dataset', icon: '', description: '' }],
+      retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 },
+    },
+    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
+  })
+  await flushPromises()
+  const remove = wrapper.findAll('button').find((button) => button.classes().includes('!text-red-700'))!
+  await remove.trigger('click')
+  await flushPromises()
+
+  expect(wrapper.emitted('update:datasets')).toBeUndefined()
+  wrapper.unmount()
+})
