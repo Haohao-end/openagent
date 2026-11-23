@@ -37,7 +37,7 @@ const hideModal = () => {
 // 3.定义表单提交函数
 const handleSubmit = async ({ errors }: { errors: Record<string, ValidatedError> | undefined }) => {
   // 3.1 判断数据校验是否成功
-  if (errors || documentLoading.value || detailLoadFailed.value) return
+  if (errors || documentLoading.value || detailLoadFailed.value || updateDocumentNameLoading.value) return
 
   // 3.3 调用处理器发起请求
   const generation = modalGeneration
