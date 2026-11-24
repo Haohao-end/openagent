@@ -18,6 +18,28 @@ vi.mock('@/hooks/use-app', () => ({
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) })); vi.mock('@/stores/account', () => ({ useAccountStore: () => ({ account: {} }) })); vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError, warning: mocks.messageWarning } }))
 
+const defaultStubs = {
+  'a-button': { template: '<button><slot name="icon" /><slot /></button>' },
+  'a-space': { template: '<div><slot /></div>' },
+  'a-tag': { template: '<span><slot /></span>' },
+  'icon-check': { template: '<span class="icon-check" />' },
+  'icon-send': { template: '<span class="icon-send" />' },
+}
+
+const mountCompareView = (options: Parameters<typeof shallowMount>[1] = {}) => {
+  return shallowMount(PromptCompareView, {
+    ...options,
+    props: { app: { id: 'app-1', name: 'App' }, ...options.props },
+    global: {
+      ...options.global,
+      stubs: {
+        ...defaultStubs,
+        ...options.global?.stubs,
+      },
+    },
+  })
+}
+
 beforeEach(() => {
   mocks.loadDraftAppConfig.mockReset().mockResolvedValue(undefined)
   mocks.messageError.mockReset()
@@ -30,8 +52,7 @@ beforeEach(() => {
 it('reports draft configuration load failures instead of rejecting the mount hook', async () => {
   mocks.loadDraftAppConfig.mockRejectedValueOnce('private draft response details')
   const errors: unknown[] = []
-  const wrapper = shallowMount(PromptCompareView, {
-    props: { app: { id: 'app-1', name: 'App' } },
+  const wrapper = mountCompareView({
     global: { config: { errorHandler: (error) => errors.push(error) } },
   })
 
@@ -45,7 +66,7 @@ it('reports draft configuration load failures instead of rejecting the mount hoo
 it('does not report a draft load failure after the page unmounts', async () => {
   let rejectLoad!: (error: Error) => void
   mocks.loadDraftAppConfig.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectLoad = reject }))
-  const wrapper = shallowMount(PromptCompareView, { props: { app: { id: 'app-1', name: 'App' } } })
+  const wrapper = mountCompareView()
 
   await flushPromises()
   wrapper.unmount()
@@ -60,8 +81,9 @@ it('aborts both prompt comparison streams when the page unmounts', async () => {
     mocks.signals.push(options.signal)
     return new Promise<void>((_resolve, reject) => options.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true }))
   })
-  const wrapper = shallowMount(PromptCompareView, { props: { app: { id: 'app-1', name: 'App' } } })
+  const wrapper = mountCompareView()
   await flushPromises()
+  expect(wrapper.find('.icon-send').exists()).toBe(true)
   await wrapper.get('textarea').setValue('hello'); await wrapper.get('textarea').trigger('keydown.enter')
   await flushPromises(); wrapper.unmount()
   expect(mocks.signals).toHaveLength(2); expect(mocks.signals.every((signal) => signal?.aborted)).toBe(true)
@@ -70,8 +92,7 @@ it('aborts both prompt comparison streams when the page unmounts', async () => {
 it('does not mark preset prompt applied when draft app config update fails', async () => {
   const errors: unknown[] = []
   mocks.updateDraftAppConfig.mockRejectedValueOnce(new Error('Update failed'))
-  const wrapper = shallowMount(PromptCompareView, {
-    props: { app: { id: 'app-1', name: 'App' } },
+  const wrapper = mountCompareView({
     global: { config: { errorHandler: (error) => errors.push(error) } },
   })
   await flushPromises()
@@ -90,7 +111,7 @@ it('does not mark preset prompt applied when draft app config update fails', asy
 
 it('marks preset prompt applied when draft app config update succeeds', async () => {
   mocks.updateDraftAppConfig.mockResolvedValueOnce(undefined)
-  const wrapper = shallowMount(PromptCompareView, { props: { app: { id: 'app-1', name: 'App' } } })
+  const wrapper = mountCompareView()
   await flushPromises()
   const state = (wrapper.vm.$ as any).setupState
   const candidateLane = state.lanes.find((lane: any) => lane.key === 'candidate') || state.lanes[1]
@@ -120,7 +141,7 @@ it('aborts active streams on handleStop and preserves partial response without e
       options.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true }),
     )
   })
-  const wrapper = shallowMount(PromptCompareView, { props: { app: { id: 'app-1', name: 'App' } } })
+  const wrapper = mountCompareView()
   await flushPromises()
 
   await wrapper.get('textarea').setValue('hello')
@@ -146,7 +167,7 @@ it('aborts active streams on handleStop and preserves partial response without e
 })
 
 it('guards against concurrent handleStop execution', async () => {
-  const wrapper = shallowMount(PromptCompareView, { props: { app: { id: 'app-1', name: 'App' } } })
+  const wrapper = mountCompareView()
   await flushPromises()
   const state = (wrapper.vm.$ as any).setupState
   state.stopLoading = true
