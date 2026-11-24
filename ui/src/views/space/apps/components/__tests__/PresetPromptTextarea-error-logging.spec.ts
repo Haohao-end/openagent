@@ -11,6 +11,9 @@ const stubs = {
   MarkdownEditor: defineComponent({ emits: ['blur'], template: '<textarea data-testid="editor" @blur="$emit(\'blur\')" />' }),
   PromptOptimizeTrigger: defineComponent({ emits: ['apply'], template: '<button data-testid="optimize" @click="$emit(\'apply\', \'optimized\')" />' }),
   'a-space': defineComponent({ template: '<div><slot /></div>' }),
+  'a-button': defineComponent({ template: '<button><slot /><slot name="icon" /></button>' }),
+  'icon-experiment': true,
+  'router-link': defineComponent({ props: ['to'], template: '<a><slot /></a>' }),
 }
 it('does not print raw prompt save errors', async () => {
   updateDraft.mockRejectedValue(new Error('token=private-prompt-detail'))
@@ -19,6 +22,7 @@ it('does not print raw prompt save errors', async () => {
     props: { app_id: 'app-1', preset_prompt: 'private prompt' },
     global: { stubs },
   })
+  expect(wrapper.text()).toContain('appStudio.presetPrompt.compareDebug')
   await wrapper.get('[data-testid="optimize"]').trigger('click')
   await flushPromises()
   await wrapper.get('[data-testid="editor"]').trigger('blur')
