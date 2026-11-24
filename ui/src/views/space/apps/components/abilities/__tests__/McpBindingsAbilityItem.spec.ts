@@ -27,6 +27,7 @@ const slotStub = {
 }
 
 const globalStubs = {
+  'a-avatar': slotStub,
   'a-collapse-item': slotStub,
   'a-button': slotStub,
   'a-tag': slotStub,
