@@ -57,6 +57,35 @@ vi.mock('@/components/skeletons/CardGridSkeleton.vue', () => ({
   default: { name: 'CardGridSkeleton', template: '<div />' },
 }))
 
+const defaultStubs = {
+  'a-avatar': true,
+  'a-button': true,
+  'a-card': true,
+  'a-col': true,
+  'a-doption': true,
+  'a-dropdown': true,
+  'a-empty': true,
+  'a-row': true,
+  'a-space': true,
+  'a-spin': true,
+  'icon-check-circle-fill': true,
+  'icon-more': true,
+  'router-link': true,
+}
+
+const mountListView = (options: Parameters<typeof shallowMount>[1] = {}) => {
+  return shallowMount(ListView, {
+    ...options,
+    global: {
+      ...options.global,
+      stubs: {
+        ...defaultStubs,
+        ...options.global?.stubs,
+      },
+    },
+  })
+}
+
 describe('App ListView unmounted safety', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -68,9 +97,10 @@ describe('App ListView unmounted safety', () => {
 
   it('loads apps on mount and reports error if still mounted', async () => {
     mocks.loadApps.mockRejectedValueOnce(new Error('Network error'))
-    shallowMount(ListView)
+    const wrapper = mountListView()
     await flushPromises()
 
+    expect(wrapper.exists()).toBe(true)
     expect(mocks.loadApps).toHaveBeenCalledWith(true, '')
     expect(mocks.messageError).toHaveBeenCalledWith('Network error')
   })
@@ -83,7 +113,7 @@ describe('App ListView unmounted safety', () => {
       }),
     )
 
-    const wrapper = shallowMount(ListView)
+    const wrapper = mountListView()
     await flushPromises()
 
     wrapper.unmount()
@@ -94,7 +124,7 @@ describe('App ListView unmounted safety', () => {
   })
 
   it('ignores scroll events when component is unmounted', async () => {
-    const wrapper = shallowMount(ListView)
+    const wrapper = mountListView()
     await flushPromises()
     mocks.loadApps.mockClear()
 
