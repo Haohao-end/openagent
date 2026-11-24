@@ -28,12 +28,34 @@ vi.mock('@/hooks/use-app', () => ({
   }),
 }))
 
+const defaultStubs = {
+  'a-avatar': true,
+  'a-button': true,
+  'a-card': true,
+  'a-col': true,
+  'a-doption': true,
+  'a-dropdown': true,
+  'a-empty': true,
+  'a-row': true,
+  'a-space': true,
+  'a-spin': true,
+  'icon-check-circle-fill': true,
+  'icon-more': true,
+  'router-link': true,
+}
+
 describe('app list search route', () => {
   it('uses an empty search when route navigation removes the query', async () => {
     mocks.route = reactive({ path: '/space/apps', query: { search_word: 'northwind' } })
     mocks.loadApps.mockReset()
-    const wrapper = shallowMount(AppListView)
+    const wrapper = shallowMount(AppListView, {
+      global: {
+        stubs: defaultStubs,
+      },
+    })
     await flushPromises()
+
+    expect(wrapper.exists()).toBe(true)
 
     mocks.loadApps.mockClear()
     mocks.route.query = {}
