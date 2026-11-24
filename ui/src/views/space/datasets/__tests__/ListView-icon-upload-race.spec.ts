@@ -36,6 +36,39 @@ const ModalStub = defineComponent({ props: ['visible'], emits: ['cancel'], templ
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }
 const deferredValue = () => { let resolve!: (value: string) => void; const promise = new Promise<string>(done => { resolve = done }); return { promise, resolve } }
 
+const defaultStubs = {
+  'a-modal': ModalStub,
+  'a-form': FormStub,
+  'a-form-item': SlotStub,
+  'a-spin': SlotStub,
+  'a-avatar': true,
+  'a-button': true,
+  'a-card': true,
+  'a-col': true,
+  'a-doption': true,
+  'a-dropdown': true,
+  'a-empty': true,
+  'a-input': true,
+  'a-row': true,
+  'a-space': true,
+  'a-textarea': true,
+  'icon-close': true,
+  'icon-more': true,
+}
+
+const mountDatasetListView = (options: Parameters<typeof mount>[1] = {}) => {
+  return mount(DatasetListView, {
+    ...options,
+    global: {
+      ...options.global,
+      stubs: {
+        ...defaultStubs,
+        ...options.global?.stubs,
+      },
+    },
+  })
+}
+
 describe('dataset icon upload lifecycle', () => {
   it('reports an initial list failure instead of treating it as an empty dataset list', async () => {
     mocks.route = reactive({ path: '/space/datasets', query: {} })
@@ -46,13 +79,13 @@ describe('dataset icon upload lifecycle', () => {
       .mockReturnValueOnce(lateRequest)
     mocks.error.mockReset()
     const unhandledErrors: unknown[] = []
-    const wrapper = mount(DatasetListView, {
+    const wrapper = mountDatasetListView({
       global: {
         config: { errorHandler: error => unhandledErrors.push(error) },
-        stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub },
       },
     })
     await flushPromises()
+    expect(wrapper.exists()).toBe(true)
 
     expect(mocks.error).toHaveBeenCalledWith('network unavailable')
     expect(unhandledErrors).toHaveLength(0)
@@ -68,7 +101,7 @@ describe('dataset icon upload lifecycle', () => {
   it('uses an empty search when browser navigation removes the route query', async () => {
     mocks.route = reactive({ path: '/space/datasets', query: { search_word: 'northwind' } })
     mocks.loadDatasets.mockReset()
-    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    const wrapper = mountDatasetListView()
     await flushPromises()
 
     mocks.loadDatasets.mockClear()
@@ -83,7 +116,7 @@ describe('dataset icon upload lifecycle', () => {
     const pending = deferred()
     mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
     mocks.uploadImage.mockReset().mockImplementation(async () => { await pending.promise; mocks.imageUrl.value = 'icon-from-old-form' })
-    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    const wrapper = mountDatasetListView()
     await flushPromises()
 
     const upload = wrapper.findComponent(IconUploadGenerator).props('onUpload') as (file: File) => Promise<void>
@@ -104,7 +137,7 @@ describe('dataset icon upload lifecycle', () => {
     const pending = deferredValue()
     mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
     mocks.generateIconPreview.mockReset().mockReturnValueOnce(pending.promise)
-    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    const wrapper = mountDatasetListView()
     await flushPromises()
     const state = (wrapper.vm.$ as any).setupState
     state.form.name = 'Old dataset'
@@ -128,7 +161,7 @@ describe('dataset icon upload lifecycle', () => {
     const pending = new Promise<string>((_, rejectPromise) => { reject = rejectPromise })
     mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
     mocks.generateIconPreview.mockReset().mockReturnValueOnce(pending)
-    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    const wrapper = mountDatasetListView()
     await flushPromises()
     const state = (wrapper.vm.$ as any).setupState
     state.form.name = 'Old dataset'
@@ -148,7 +181,7 @@ describe('dataset icon upload lifecycle', () => {
     mocks.route = reactive({ path: '/space/datasets', query: {} })
     mocks.loadDataset.mockReset().mockReturnValueOnce(pending)
     mocks.saveDataset.mockReset()
-    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    const wrapper = mountDatasetListView()
     await flushPromises()
     const state = (wrapper.vm.$ as any).setupState
     state.handleUpdate('dataset-a')
@@ -173,7 +206,7 @@ describe('dataset icon upload lifecycle', () => {
     mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
     mocks.success.mockReset()
     mocks.uploadImage.mockReset().mockImplementation(async () => { await pending.promise; mocks.imageUrl.value = 'late-icon' })
-    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    const wrapper = mountDatasetListView()
     await flushPromises()
     const upload = wrapper.findComponent(IconUploadGenerator).props('onUpload') as (file: File) => Promise<void>
     const staleUpload = upload(new File(['icon'], 'icon.png'))
@@ -188,7 +221,7 @@ describe('dataset icon upload lifecycle', () => {
   it('does not let an earlier save close a reopened dataset form', async () => {
     const pending = deferred()
     mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
-    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    const wrapper = mountDatasetListView()
     await flushPromises()
     mocks.saveDataset.mockReset().mockReturnValueOnce(pending.promise)
     const state = (wrapper.vm.$ as any).setupState
@@ -212,7 +245,7 @@ describe('dataset icon upload lifecycle', () => {
   it('does not refresh datasets when a save completes after unmount', async () => {
     const pending = deferred()
     mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
-    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    const wrapper = mountDatasetListView()
     await flushPromises()
     mocks.saveDataset.mockReset().mockReturnValueOnce(pending.promise)
     const state = (wrapper.vm.$ as any).setupState
@@ -228,7 +261,7 @@ describe('dataset icon upload lifecycle', () => {
 
   it('reports dataset save failures and keeps the form open', async () => {
     mocks.route = reactive({ path: '/space/datasets', query: { create_type: 'dataset' } })
-    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    const wrapper = mountDatasetListView()
     await flushPromises()
     mocks.saveDataset.mockReset().mockRejectedValueOnce(new Error('dataset save unavailable'))
     mocks.error.mockReset()
@@ -245,7 +278,7 @@ describe('dataset icon upload lifecycle', () => {
 
   it('reports dataset detail load failures when opening edit modal and closes modal', async () => {
     mocks.route = reactive({ path: '/space/datasets', query: {} })
-    const wrapper = mount(DatasetListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': SlotStub, 'a-spin': SlotStub } } })
+    const wrapper = mountDatasetListView()
     await flushPromises()
     mocks.loadDataset.mockReset().mockRejectedValueOnce(new Error('detail load failed'))
     mocks.error.mockReset()
