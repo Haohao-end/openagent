@@ -39,7 +39,31 @@ const searchStub = defineComponent({
   template: '<input data-testid="segment-search" :value="value" />',
 })
 
-const mountView = () => shallowMount(SegmentListView, { global: { stubs: { 'a-switch': switchStub, 'a-input-search': searchStub } } })
+const SlotStub = { template: '<div><slot /></div>' }
+
+const defaultStubs = {
+  'a-avatar': true,
+  'a-button': true,
+  'a-card': SlotStub,
+  'a-col': SlotStub,
+  'a-divider': true,
+  'a-empty': true,
+  'a-input-search': searchStub,
+  'a-row': SlotStub,
+  'a-skeleton-line': true,
+  'a-space': SlotStub,
+  'a-spin': SlotStub,
+  'a-switch': switchStub,
+  'a-tag': true,
+  'icon-bookmark': true,
+  'icon-delete': true,
+  'icon-file': true,
+  'icon-left': true,
+  'icon-pushpin': true,
+  'router-link': true,
+}
+
+const mountView = () => shallowMount(SegmentListView, { global: { stubs: defaultStubs } })
 
 beforeEach(() => {
   mocks.route = reactive({
