@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, shallowMount } from '@vue/test-utils'
+import { config, flushPromises, shallowMount } from '@vue/test-utils'
 import { nextTick, reactive, ref } from 'vue'
 
 import PreviewDebugChat from '../PreviewDebugChat.vue'
+
+config.global.stubs = {
+  'a-avatar': true,
+  'a-button': true,
+  'icon-poweroff': true,
+}
 
 const mocks = vi.hoisted(() => ({
   route: {
@@ -11,10 +17,10 @@ const mocks = vi.hoisted(() => ({
     fullPath: '/space/apps/app-1',
   } as Record<string, any>,
   replace: vi.fn().mockResolvedValue(undefined),
-  query: { value: '' },
-  suggestedQuestions: { value: [] as string[] },
-  messages: { value: [] as Record<string, any>[] },
-  targetVisible: { value: false } as { value: boolean },
+  query: { value: '', __v_isRef: true },
+  suggestedQuestions: { value: [] as string[], __v_isRef: true },
+  messages: { value: [] as Record<string, any>[] } as any,
+  targetVisible: { value: false, __v_isRef: true } as { value: boolean; __v_isRef: boolean },
   paginator: {
     value: {
       current_page: 1,
@@ -22,16 +28,17 @@ const mocks = vi.hoisted(() => ({
       total_page: 0,
       total_record: 0,
     },
+    __v_isRef: true,
   },
-  debugChatLoading: { value: false },
-  deleteDebugConversationLoading: { value: false },
-  getDebugConversationMessagesWithPageLoading: { value: false },
-  stopDebugChatLoading: { value: false },
-  audioToTextLoading: { value: false },
-  audioText: { value: '' },
+  debugChatLoading: { value: false, __v_isRef: true },
+  deleteDebugConversationLoading: { value: false, __v_isRef: true },
+  getDebugConversationMessagesWithPageLoading: { value: false, __v_isRef: true },
+  stopDebugChatLoading: { value: false, __v_isRef: true },
+  audioToTextLoading: { value: false, __v_isRef: true },
+  audioText: { value: '', __v_isRef: true },
   audioSuccess: vi.fn(),
-  isRecording: { value: false },
-  uploadFileLoading: { value: false },
+  isRecording: { value: false, __v_isRef: true },
+  uploadFileLoading: { value: false, __v_isRef: true },
   handleDebugChat: vi.fn().mockResolvedValue(undefined),
   handleDeleteDebugConversation: vi.fn().mockResolvedValue(undefined),
   loadDebugConversationMessages: vi.fn().mockResolvedValue(undefined),
