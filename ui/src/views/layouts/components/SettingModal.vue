@@ -307,9 +307,13 @@ const handleAvatarCustomRequest = (option: any) => {
 
 const handleSaveName = async () => {
   if (updateNameLoading.value) return
-  await handleUpdateName(accountForm.value.name)
-  await updateAccount()
-  updateName.value = false
+  try {
+    await handleUpdateName(accountForm.value.name)
+    await updateAccount()
+    updateName.value = false
+  } catch {
+    return
+  }
 }
 
 const handleStartUpdateEmail = () => {
@@ -341,8 +345,12 @@ const handleSendEmailCode = async () => {
     return
   }
 
-  await handleSendChangeEmailCode(email)
-  startEmailCodeCountdown()
+  try {
+    await handleSendChangeEmailCode(email)
+    startEmailCodeCountdown()
+  } catch {
+    return
+  }
 }
 
 const handleSaveEmail = async () => {
@@ -370,11 +378,15 @@ const handleSaveEmail = async () => {
     return
   }
 
-  await handleUpdateEmail(email, code, currentPassword)
-  await updateAccount()
-  updateEmailMode.value = false
-  emailForm.value = createEmailForm()
-  clearEmailCodeCountdown()
+  try {
+    await handleUpdateEmail(email, code, currentPassword)
+    await updateAccount()
+    updateEmailMode.value = false
+    emailForm.value = createEmailForm()
+    clearEmailCodeCountdown()
+  } catch {
+    return
+  }
 }
 
 const handleSavePassword = async () => {
@@ -396,9 +408,13 @@ const handleSavePassword = async () => {
     return
   }
 
-  await handleUpdatePassword(current_password, new_password)
-  securityForm.value = createSecurityForm()
-  await updateAccount()
+  try {
+    await handleUpdatePassword(current_password, new_password)
+    securityForm.value = createSecurityForm()
+    await updateAccount()
+  } catch {
+    return
+  }
 }
 
 const handleBindProvider = async (providerName: string) => {
