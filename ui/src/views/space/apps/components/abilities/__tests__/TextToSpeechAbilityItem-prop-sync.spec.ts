@@ -9,8 +9,29 @@ vi.mock('@/hooks/use-app', async () => {
   return { useUpdateDraftAppConfig: () => ({ loading: ref(false), handleUpdateDraftAppConfig: mocks.update }) }
 })
 
+const defaultStubs = {
+  'a-button': true,
+  'a-collapse-item': true,
+  'a-doption': true,
+  'a-dropdown': true,
+  'a-modal': true,
+  'a-option': true,
+  'a-select': true,
+  'a-space': true,
+  'a-switch': true,
+  'icon-close': true,
+  'icon-down': true,
+  'icon-settings': true,
+}
+
+const mountAbilityItem = (props: { app_id: string; text_to_speech: Record<string, any> }) =>
+  shallowMount(TextToSpeechAbilityItem, {
+    props,
+    global: { stubs: defaultStubs },
+  })
+
 it('preserves unsaved voice settings when refreshed props arrive', async () => {
-  const wrapper = shallowMount(TextToSpeechAbilityItem, { props: { app_id: 'app-1', text_to_speech: { enable: false, voice: 'original', auto_play: false } } })
+  const wrapper = mountAbilityItem({ app_id: 'app-1', text_to_speech: { enable: false, voice: 'original', auto_play: false } })
   const state = (wrapper.vm.$ as any).setupState
   state.textToSpeechForm.voice = 'unsaved voice'
   await wrapper.setProps({ text_to_speech: { enable: true, voice: 'server voice', auto_play: true } })
@@ -21,7 +42,7 @@ it('preserves unsaved voice settings when refreshed props arrive', async () => {
 it('keeps reopened speech settings open after an earlier save completes', async () => {
   let resolve!: () => void
   mocks.update.mockReturnValueOnce(new Promise<void>((done) => { resolve = done }))
-  const wrapper = shallowMount(TextToSpeechAbilityItem, { props: { app_id: 'app-1', text_to_speech: { enable: false, voice: 'original', auto_play: false } } })
+  const wrapper = mountAbilityItem({ app_id: 'app-1', text_to_speech: { enable: false, voice: 'original', auto_play: false } })
   const state = (wrapper.vm.$ as any).setupState
   state.textToSpeechModalVisible = true
   const save = state.handleSubmitTextToSpeech()
@@ -37,7 +58,7 @@ it('keeps reopened speech settings open after an earlier save completes', async 
 
 it('keeps the dialog open and preserves form state when save fails', async () => {
   mocks.update.mockRejectedValueOnce(new Error('Update failed'))
-  const wrapper = shallowMount(TextToSpeechAbilityItem, { props: { app_id: 'app-1', text_to_speech: { enable: false, voice: 'original', auto_play: false } } })
+  const wrapper = mountAbilityItem({ app_id: 'app-1', text_to_speech: { enable: false, voice: 'original', auto_play: false } })
   const state = (wrapper.vm.$ as any).setupState
   state.textToSpeechModalVisible = true
   state.textToSpeechForm.voice = 'failed voice'
