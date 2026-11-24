@@ -20,7 +20,9 @@ const mountDrawer = (errorHandler?: (error: unknown) => void) => mount(PublishHi
   props: { visible: false, app: app('app-a') },
   global: {
     config: { errorHandler },
-    stubs: Object.fromEntries(['a-drawer', 'a-spin', 'a-card', 'a-tag', 'a-space'].map((name) => [name, stub])),
+    stubs: Object.fromEntries(
+      ['a-drawer', 'a-spin', 'a-card', 'a-tag', 'a-space', 'a-divider', 'a-avatar', 'a-button'].map((name) => [name, stub]),
+    ),
   },
 })
 it('reloads for a new app and ignores stale requests after app changes and reopen', async () => {
@@ -33,6 +35,7 @@ it('reloads for a new app and ignores stale requests after app changes and reope
   pending[1].resolve(response(2)); await flushPromises()
   pending[0].resolve(response(1)); await flushPromises()
   expect(wrapper.text()).toContain('# 002')
+  expect(wrapper.text()).toContain('回退')
   expect(wrapper.text()).not.toContain('# 001')
   for (const visible of [false, true, false, true]) await wrapper.setProps({ visible })
   expect(getHistories).toHaveBeenCalledTimes(4)
