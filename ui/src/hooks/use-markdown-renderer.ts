@@ -10,6 +10,7 @@ type MarkdownRendererOptions = {
 
 type CopyHandlerOptions = {
   successMessage?: string
+  errorMessage?: string
 }
 
 const ALLOWED_LINK_PROTOCOLS = new Set(['http:', 'https:'])
@@ -89,7 +90,12 @@ export const useMarkdownRenderer = (options: MarkdownRendererOptions = {}) => {
     event.preventDefault()
     const encodedCode = copyButton.getAttribute('data-copy-code') || ''
     const code = decodeURIComponent(encodedCode)
-    await copyTextToClipboard(code)
+    try {
+      await copyTextToClipboard(code)
+    } catch {
+      Message.error(copyOptions.errorMessage || translate('chat.messages.copyFailed'))
+      return false
+    }
 
     const defaultCopyText = translate('chat.markdown.copyCode')
     const copiedText = translate('chat.messages.codeCopied')
