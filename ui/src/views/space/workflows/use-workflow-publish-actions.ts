@@ -110,15 +110,23 @@ export const useWorkflowPublishActions = (options: UseWorkflowPublishActionsOpti
     const workflowId = buildWorkflowId(options.workflow.value)
     if (!workflowId) return
 
-    await options.handleShareWorkflow(workflowId, !isPublicWorkflow(options.workflow.value))
-    await options.loadWorkflow(workflowId)
+    try {
+      await options.handleShareWorkflow(workflowId, !isPublicWorkflow(options.workflow.value))
+      await options.loadWorkflow(workflowId)
+    } catch {
+      return
+    }
   }
 
   const handleCancelPublishAction = async () => {
     const workflowId = buildWorkflowId(options.workflow.value)
     if (!workflowId) return
-    await options.handleCancelPublish(workflowId)
-    await options.loadWorkflow(workflowId)
+    try {
+      await options.handleCancelPublish(workflowId)
+      await options.loadWorkflow(workflowId)
+    } catch {
+      return
+    }
   }
 
   return {
