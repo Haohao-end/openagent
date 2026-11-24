@@ -43,6 +43,37 @@ const UploadStub = defineComponent({
   },
 })
 
+const defaultStubs = {
+  'a-button': ButtonStub,
+  'a-upload': UploadStub,
+  'a-avatar': true,
+  'a-checkbox': true,
+  'a-checkbox-group': true,
+  'a-divider': true,
+  'a-form': true,
+  'a-form-item': true,
+  'a-input-number': true,
+  'a-input-tag': true,
+  'a-step': true,
+  'a-steps': true,
+  'icon-file': true,
+  'icon-left': true,
+  'router-link': true,
+}
+
+const mountCreateView = (CreateView: any, options: Parameters<typeof mount>[1] = {}) => {
+  return mount(CreateView, {
+    ...options,
+    global: {
+      ...options.global,
+      stubs: {
+        ...defaultStubs,
+        ...options.global?.stubs,
+      },
+    },
+  })
+}
+
 describe('document creation status', () => {
   beforeEach(() => {
     handleCreateDocuments.mockReset().mockResolvedValue(undefined)
@@ -52,7 +83,7 @@ describe('document creation status', () => {
 
   it('shows parsing errors when the document has no segments', async () => {
     const { default: CreateView } = await import('../CreateView.vue')
-    const wrapper = mount(CreateView, { global: { stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub } } })
+    const wrapper = mountCreateView(CreateView)
     const nextButton = () => wrapper.findAll('button').find((button) => button.text().includes('.next'))!
 
     await wrapper.get('[data-testid="upload"]').trigger('click')
@@ -72,7 +103,7 @@ describe('document creation status', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const { default: CreateView } = await import('../CreateView.vue')
-    const wrapper = mount(CreateView, { global: { stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub } } })
+    const wrapper = mountCreateView(CreateView)
     const customRequest = wrapper.findComponent(UploadStub).props('customRequest') as (option: any) => unknown
     const onSuccess = vi.fn()
     const onError = vi.fn()
@@ -98,7 +129,7 @@ describe('document creation status', () => {
     let signal: AbortSignal | undefined, resolveUpload!: (value: { data: { id: string } }) => void
     handleUploadFile.mockImplementationOnce((_file, nextSignal) => { signal = nextSignal; return new Promise((resolve) => { resolveUpload = resolve }) })
     const { default: CreateView } = await import('../CreateView.vue')
-    const wrapper = mount(CreateView, { global: { stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub } } })
+    const wrapper = mountCreateView(CreateView)
     const customRequest = wrapper.findComponent(UploadStub).props('customRequest') as (option: any) => { abort: () => void }
     const onSuccess = vi.fn(), onError = vi.fn()
     const request = customRequest({ fileItem: { file: new File(['content'], 'doc.txt') }, onSuccess, onError })
@@ -111,10 +142,9 @@ describe('document creation status', () => {
   it('does not submit document creation again when the first status lookup fails', async () => {
     loadDocumentsStatus.mockRejectedValueOnce(new Error('status unavailable'))
     const { default: CreateView } = await import('../CreateView.vue')
-    const wrapper = mount(CreateView, {
+    const wrapper = mountCreateView(CreateView, {
       global: {
         config: { errorHandler: () => {} },
-        stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub },
       },
     })
     const nextButton = () => wrapper.findAll('button').find((button) => button.text().includes('.next'))!
@@ -139,11 +169,7 @@ describe('document creation status', () => {
     const intervalSpy = vi.spyOn(globalThis, 'setInterval')
       .mockReturnValue(1 as unknown as ReturnType<typeof setInterval>)
     const { default: CreateView } = await import('../CreateView.vue')
-    const wrapper = mount(CreateView, {
-      global: {
-        stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub },
-      },
-    })
+    const wrapper = mountCreateView(CreateView)
     const nextButton = () => wrapper.findAll('button').find((button) => button.text().includes('.next'))!
 
     try {
@@ -171,10 +197,9 @@ describe('document creation status', () => {
     loadDocumentsStatus.mockReturnValueOnce(new Promise((_, reject) => { rejectStatus = reject }))
     const errors: unknown[] = []
     const { default: CreateView } = await import('../CreateView.vue')
-    const wrapper = mount(CreateView, {
+    const wrapper = mountCreateView(CreateView, {
       global: {
-        config: { errorHandler: (error) => errors.push(error) },
-        stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub },
+        config: { errorHandler: (error: unknown) => errors.push(error) },
       },
     })
     const nextButton = () => wrapper.findAll('button').find((button) => button.text().includes('.next'))!
@@ -196,10 +221,9 @@ describe('document creation status', () => {
     handleCreateDocuments.mockReturnValueOnce(new Promise((_, reject) => { rejectCreate = reject }))
     const errors: unknown[] = []
     const { default: CreateView } = await import('../CreateView.vue')
-    const wrapper = mount(CreateView, {
+    const wrapper = mountCreateView(CreateView, {
       global: {
-        config: { errorHandler: (error) => errors.push(error) },
-        stubs: { '*': true, 'a-button': ButtonStub, 'a-upload': UploadStub },
+        config: { errorHandler: (error: unknown) => errors.push(error) },
       },
     })
     const nextButton = () => wrapper.findAll('button').find((button) => button.text().includes('.next'))!
