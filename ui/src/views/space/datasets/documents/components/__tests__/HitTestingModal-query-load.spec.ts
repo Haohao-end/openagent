@@ -19,18 +19,60 @@ vi.mock('@/hooks/use-dataset', async () => {
 vi.mock('@arco-design/web-vue', () => ({ Message: { error: mocks.messageError } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
+const defaultStubs = {
+  'a-modal': { template: '<div><slot /></div>' },
+  'a-button': { template: '<button><slot name="icon" /><slot /></button>' },
+  'a-col': { template: '<div><slot /></div>' },
+  'a-divider': { template: '<hr />' },
+  'a-empty': { template: '<div><slot /></div>' },
+  'a-form': { template: '<form><slot /></form>' },
+  'a-form-item': { template: '<div><slot /></div>' },
+  'a-input-number': { template: '<input type="number" />' },
+  'a-progress': { template: '<div />' },
+  'a-radio-group': { template: '<div><slot /></div>' },
+  'a-row': { template: '<div><slot /></div>' },
+  'a-slider': { template: '<div />' },
+  'a-space': { template: '<div><slot /></div>' },
+  'a-spin': { template: '<div><slot /></div>' },
+  'a-table': { template: '<table><slot /></table>' },
+  'a-table-column': { template: '<col />' },
+  'a-tag': { template: '<span><slot /></span>' },
+  'a-textarea': { template: '<textarea />' },
+  'icon-close': { template: '<span class="icon-close" />' },
+  'icon-file': { template: '<span class="icon-file" />' },
+  'icon-language': { template: '<span class="icon-language" />' },
+  'icon-pushpin': { template: '<span class="icon-pushpin" />' },
+}
+
+const mountHitTestingModal = (options: {
+  props: { visible: boolean; dataset_id: string }
+  global?: Record<string, any>
+}) => {
+  return shallowMount(HitTestingModal, {
+    ...options,
+    global: {
+      ...options.global,
+      stubs: {
+        ...defaultStubs,
+        ...options.global?.stubs,
+      },
+    },
+  })
+}
+
 it('reports recent-query failures on open and after a successful hit', async () => {
   const unhandled: unknown[] = []
   mocks.loadQueries.mockReset().mockRejectedValue(new Error('recent queries unavailable'))
   mocks.handleHit.mockReset().mockResolvedValue(true)
   mocks.messageError.mockReset()
-  const wrapper = shallowMount(HitTestingModal, {
-    global: { config: { errorHandler: (error) => unhandled.push(error) } },
+  const wrapper = mountHitTestingModal({
+    global: { config: { errorHandler: (error: unknown) => unhandled.push(error) } },
     props: { visible: false, dataset_id: 'dataset-1' },
   })
 
   await wrapper.setProps({ visible: true })
   await flushPromises()
+  expect(wrapper.exists()).toBe(true)
   const state = (wrapper.vm.$ as any).setupState
   state.hitTestingForm.query = 'test query'
   try {
@@ -48,7 +90,7 @@ it('reports recent-query failures on open and after a successful hit', async () 
 
 it('resets retrieval settings after the modal is reopened', async () => {
   mocks.loadQueries.mockReset().mockResolvedValue({ data: [] })
-  const wrapper = shallowMount(HitTestingModal, {
+  const wrapper = mountHitTestingModal({
     props: { visible: false, dataset_id: 'dataset-1' },
   })
   await wrapper.setProps({ visible: true })
@@ -71,7 +113,7 @@ it('resets retrieval settings after the modal is reopened', async () => {
 })
 
 it('keeps cancelled settings edits separate from the active retrieval settings', async () => {
-  const wrapper = shallowMount(HitTestingModal, {
+  const wrapper = mountHitTestingModal({
     props: { visible: true, dataset_id: 'dataset-1' },
   })
   const state = (wrapper.vm.$ as any).setupState
