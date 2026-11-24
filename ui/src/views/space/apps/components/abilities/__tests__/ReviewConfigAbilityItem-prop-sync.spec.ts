@@ -9,9 +9,29 @@ vi.mock('@/hooks/use-app', async () => {
   return { useUpdateDraftAppConfig: () => ({ loading: ref(false), handleUpdateDraftAppConfig: mocks.update }) }
 })
 
+const defaultStubs = {
+  'a-button': true,
+  'a-collapse-item': true,
+  'a-doption': true,
+  'a-dropdown': true,
+  'a-modal': true,
+  'a-space': true,
+  'a-switch': true,
+  'a-textarea': true,
+  'icon-close': true,
+  'icon-down': true,
+  'icon-settings': true,
+}
+
+const mountAbilityItem = (props: { app_id: string; review_config: Record<string, any> }) =>
+  shallowMount(ReviewConfigAbilityItem, {
+    props,
+    global: { stubs: defaultStubs },
+  })
+
 it('preserves unsaved review settings when refreshed props arrive', async () => {
   const config = { enable: false, keywords: ['original'], inputs_config: { enable: false, preset_response: 'original' }, outputs_config: { enable: true } }
-  const wrapper = shallowMount(ReviewConfigAbilityItem, { props: { app_id: 'app-1', review_config: config } })
+  const wrapper = mountAbilityItem({ app_id: 'app-1', review_config: config })
   const state = (wrapper.vm.$ as any).setupState
   state.reviewConfigForm.keywords = 'unsaved keyword'
   await wrapper.setProps({ review_config: { ...config, keywords: ['server'] } })
@@ -22,7 +42,7 @@ it('preserves unsaved review settings when refreshed props arrive', async () => 
 it('keeps reopened review settings open after an earlier save completes', async () => {
   let resolve!: () => void
   mocks.update.mockReturnValueOnce(new Promise<void>((done) => { resolve = done }))
-  const wrapper = shallowMount(ReviewConfigAbilityItem, { props: { app_id: 'app-1', review_config: { enable: false, keywords: [], inputs_config: { enable: false, preset_response: '' }, outputs_config: { enable: false } } } })
+  const wrapper = mountAbilityItem({ app_id: 'app-1', review_config: { enable: false, keywords: [], inputs_config: { enable: false, preset_response: '' }, outputs_config: { enable: false } } })
   const state = (wrapper.vm.$ as any).setupState
   state.reviewConfigModalVisible = true
   const save = state.handleSubmitReviewConfig()
@@ -38,7 +58,7 @@ it('keeps reopened review settings open after an earlier save completes', async 
 
 it('syncs the review quick toggle when its save starts outside the dialog', async () => {
   mocks.update.mockResolvedValueOnce(undefined)
-  const wrapper = shallowMount(ReviewConfigAbilityItem, { props: { app_id: 'app-1', review_config: { enable: false, keywords: [], inputs_config: { enable: false, preset_response: '' }, outputs_config: { enable: false } } } })
+  const wrapper = mountAbilityItem({ app_id: 'app-1', review_config: { enable: false, keywords: [], inputs_config: { enable: false, preset_response: '' }, outputs_config: { enable: false } } })
   const state = (wrapper.vm.$ as any).setupState
   state.reviewConfigForm.enable = true
   await state.handleSubmitReviewConfig()
@@ -48,11 +68,9 @@ it('syncs the review quick toggle when its save starts outside the dialog', asyn
 
 it('keeps the dialog open and preserves form state when save fails', async () => {
   mocks.update.mockRejectedValueOnce(new Error('Update failed'))
-  const wrapper = shallowMount(ReviewConfigAbilityItem, {
-    props: {
-      app_id: 'app-1',
-      review_config: { enable: false, keywords: [], inputs_config: { enable: false, preset_response: '' }, outputs_config: { enable: false } },
-    },
+  const wrapper = mountAbilityItem({
+    app_id: 'app-1',
+    review_config: { enable: false, keywords: [], inputs_config: { enable: false, preset_response: '' }, outputs_config: { enable: false } },
   })
   const state = (wrapper.vm.$ as any).setupState
   state.reviewConfigModalVisible = true
