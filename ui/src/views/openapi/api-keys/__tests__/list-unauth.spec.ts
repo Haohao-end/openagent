@@ -84,6 +84,32 @@ const switchStub = defineComponent({
   },
 })
 
+const baseStubs = {
+  'a-button': buttonStub,
+  'a-table': true,
+  'a-table-column': true,
+  'a-tooltip': { template: '<div><slot /></div>' },
+  'a-switch': true,
+  'icon-user': true,
+  'icon-safe': true,
+  'icon-plus': true,
+  'icon-clock-circle': true,
+  'icon-edit': true,
+  'icon-delete': true,
+  'create-or-update-api-key-modal': true,
+}
+
+const mountView = (options: { props?: Record<string, any>; global?: Record<string, any> } = {}) => shallowMount(ApiKeysListView, {
+  props: { create_api_key: false, ...options.props },
+  global: {
+    ...options.global,
+    stubs: {
+      ...baseStubs,
+      ...options.global?.stubs,
+    },
+  },
+})
+
 describe('openapi api-keys credential state', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -92,27 +118,7 @@ describe('openapi api-keys credential state', () => {
   })
 
   it('does not request while logged out and isolates keys across account changes', async () => {
-    const wrapper = shallowMount(ApiKeysListView, {
-      props: {
-        create_api_key: false,
-      },
-      global: {
-        stubs: {
-          'a-button': buttonStub,
-          'a-table': true,
-          'a-table-column': true,
-          'a-tooltip': true,
-          'a-switch': true,
-          'icon-user': true,
-          'icon-safe': true,
-          'icon-plus': true,
-          'icon-clock-circle': true,
-          'icon-edit': true,
-          'icon-delete': true,
-          'create-or-update-api-key-modal': true,
-        },
-      },
-    })
+    const wrapper = mountView()
 
     await flushPromises()
 
@@ -131,20 +137,11 @@ describe('openapi api-keys credential state', () => {
   })
 
   it('displays metadata, expired status, and keys without recorded use', async () => {
-    const wrapper = shallowMount(ApiKeysListView, {
-      props: { create_api_key: false },
+    const wrapper = mountView({
       global: {
         stubs: {
-          'a-button': buttonStub,
           'a-table': tableStub,
           'a-table-column': tableColumnStub,
-          'a-tooltip': true,
-          'a-switch': true,
-          'icon-safe': true,
-          'icon-clock-circle': true,
-          'icon-edit': true,
-          'icon-delete': true,
-          'create-or-update-api-key-modal': true,
         },
       },
     })
@@ -170,20 +167,11 @@ describe('openapi api-keys credential state', () => {
   })
 
   it('displays cumulative request count, falls back to 0 for unused or legacy keys, and hides raw secret', async () => {
-    const wrapper = shallowMount(ApiKeysListView, {
-      props: { create_api_key: false },
+    const wrapper = mountView({
       global: {
         stubs: {
-          'a-button': buttonStub,
           'a-table': tableStub,
           'a-table-column': tableColumnStub,
-          'a-tooltip': true,
-          'a-switch': true,
-          'icon-safe': true,
-          'icon-clock-circle': true,
-          'icon-edit': true,
-          'icon-delete': true,
-          'create-or-update-api-key-modal': true,
         },
       },
     })
@@ -212,8 +200,7 @@ describe('openapi api-keys credential state', () => {
     const expiresAt = 1893456000
     vi.setSystemTime(expiresAt * 1000 - 1000)
     mocks.credentialState.credential = { access_token: 'token', expire_at: 4102444800 }
-    const wrapper = shallowMount(ApiKeysListView, {
-      props: { create_api_key: false },
+    const wrapper = mountView({
       global: { stubs: { 'a-table': tableStub, 'a-table-column': tableColumnStub, 'a-switch': switchStub } },
     })
 
@@ -232,8 +219,7 @@ describe('openapi api-keys credential state', () => {
   })
 
   it('does not apply a late toggle result to the next account row', async () => {
-    const wrapper = shallowMount(ApiKeysListView, {
-      props: { create_api_key: false },
+    const wrapper = mountView({
       global: { stubs: { 'a-table': tableStub, 'a-table-column': tableColumnStub, 'a-switch': switchStub } },
     })
     mocks.credentialState.credential = { access_token: 'token-a', expire_at: 4102444800 }
@@ -253,27 +239,7 @@ describe('openapi api-keys credential state', () => {
   it('dispatches auth-required event when clicking login button', async () => {
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
 
-    const wrapper = shallowMount(ApiKeysListView, {
-      props: {
-        create_api_key: false,
-      },
-      global: {
-        stubs: {
-          'a-button': buttonStub,
-          'a-table': true,
-          'a-table-column': true,
-          'a-tooltip': true,
-          'a-switch': true,
-          'icon-user': true,
-          'icon-safe': true,
-          'icon-plus': true,
-          'icon-clock-circle': true,
-          'icon-edit': true,
-          'icon-delete': true,
-          'create-or-update-api-key-modal': true,
-        },
-      },
-    })
+    const wrapper = mountView()
 
     await flushPromises()
     await wrapper.find('button').trigger('click')
@@ -294,8 +260,7 @@ describe('openapi api-keys credential state', () => {
     const errorSpy = vi.spyOn(Message, 'error').mockImplementation(() => undefined as never)
     mocks.handleUpdateApiKeyIsActive.mockRejectedValueOnce(new Error('toggle failed'))
 
-    const wrapper = shallowMount(ApiKeysListView, {
-      props: { create_api_key: false },
+    const wrapper = mountView({
       global: { stubs: { 'a-table': tableStub, 'a-table-column': tableColumnStub, 'a-switch': switchStub } },
     })
     mocks.credentialState.credential = { access_token: 'token-a', expire_at: 4102444800 }
@@ -320,8 +285,7 @@ describe('openapi api-keys credential state', () => {
     })
     mocks.handleUpdateApiKeyIsActive.mockImplementationOnce(() => updatePromise)
 
-    const wrapper = shallowMount(ApiKeysListView, {
-      props: { create_api_key: false },
+    const wrapper = mountView({
       global: { stubs: { 'a-table': tableStub, 'a-table-column': tableColumnStub, 'a-switch': switchStub } },
     })
     mocks.credentialState.credential = { access_token: 'token-a', expire_at: 4102444800 }
