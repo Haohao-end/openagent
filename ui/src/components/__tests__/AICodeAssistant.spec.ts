@@ -10,6 +10,14 @@ vi.mock('@arco-design/web-vue', () => ({ Message: { error: vi.fn(), warning: vi.
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ locale: { value: 'en-US' } }) }))
 
 const ButtonStub = defineComponent({ emits: ['click'], setup(_props, { emit, slots }) { return () => h('button', { onClick: () => emit('click') }, slots.default?.()) } })
+const stubs = {
+  'a-button': ButtonStub,
+  'a-spin': true,
+  'icon-robot': true,
+  'icon-close': true,
+  'icon-plus': true,
+  'icon-send': true,
+}
 
 it('aborts and ignores a stream after closing and reopening', async () => {
   codeAssistantChat.mockReset()
@@ -23,7 +31,8 @@ it('aborts and ignores a stream after closing and reopening', async () => {
       requestSignal?.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')) })
     })
   })
-  const wrapper = mount(AICodeAssistant, { attachTo: document.body, props: { visible: true }, global: { stubs: { '*': true, 'a-button': ButtonStub } } })
+  const wrapper = mount(AICodeAssistant, { attachTo: document.body, props: { visible: true }, global: { stubs } })
+  expect(document.body.textContent).toContain('Python Code Generation AI Assistant')
   const input = document.body.querySelector('input')!
   input.value = 'generate a helper'
   input.dispatchEvent(new Event('input', { bubbles: true }))
