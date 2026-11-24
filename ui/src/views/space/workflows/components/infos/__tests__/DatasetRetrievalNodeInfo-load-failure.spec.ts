@@ -24,14 +24,50 @@ const node = {
   data: { title: 'Dataset', description: '', inputs: [], meta: { datasets: [] }, retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
 }
 
+const defaultStubs = {
+  'a-avatar': true,
+  'a-button': true,
+  'a-col': true,
+  'a-divider': true,
+  'a-empty': true,
+  'a-form': true,
+  'a-input': true,
+  'a-input-number': true,
+  'a-modal': true,
+  'a-radio-group': true,
+  'a-row': true,
+  'a-select': true,
+  'a-slider': true,
+  'a-space': true,
+  'a-spin': true,
+  'a-textarea': true,
+  'a-tooltip': true,
+  'icon-close': true,
+  'icon-delete': true,
+  'icon-lock': true,
+  'icon-plus': true,
+  'icon-question-circle': true,
+  'icon-storage': true,
+}
+
+const mountNodeInfo = (options: { props?: Record<string, any>; global?: Record<string, any> } = {}) =>
+  shallowMount(DatasetRetrievalNodeInfo, {
+    props: { visible: true, node, loading: false, ...options.props },
+    global: {
+      ...options.global,
+      stubs: {
+        ...defaultStubs,
+        ...options.global?.stubs,
+      },
+    },
+  })
+
 it('reports dataset load failures and ignores a late scroll failure after unmount', async () => {
   let rejectLateLoad!: (error: Error) => void
   const lateLoad = new Promise<void>((_, reject) => { rejectLateLoad = reject })
   mocks.load.mockReset().mockRejectedValueOnce(new Error('network unavailable')).mockReturnValueOnce(lateLoad)
   mocks.error.mockReset()
-  const wrapper = shallowMount(DatasetRetrievalNodeInfo, {
-    props: { visible: true, node, loading: false },
-  })
+  const wrapper = mountNodeInfo()
   await flushPromises()
 
   expect(mocks.error).toHaveBeenCalledWith('network unavailable')
@@ -45,9 +81,7 @@ it('reports dataset load failures and ignores a late scroll failure after unmoun
 
 it('flushes pending edits to the node they came from after a node switch', async () => {
   mocks.load.mockReset().mockResolvedValue(undefined)
-  const wrapper = shallowMount(DatasetRetrievalNodeInfo, {
-    props: { visible: true, node, loading: false },
-  })
+  const wrapper = mountNodeInfo()
   const state = (wrapper.vm.$ as any).setupState
   state.form.title = 'Edited first node'
   await wrapper.setProps({ node: { ...node, id: 'node-2', data: { ...node.data, title: 'Second node' } } })
