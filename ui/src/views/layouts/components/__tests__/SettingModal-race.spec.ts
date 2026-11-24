@@ -52,6 +52,34 @@ const deferredSave = () => {
   return { promise, resolve }
 }
 
+const defaultStubs = {
+  'a-modal': { template: '<div><slot /></div>' },
+  'a-button': { template: '<button><slot name="icon" /><slot /></button>' },
+  'a-upload': { template: '<div><slot /></div>' },
+  'a-form': { template: '<form><slot /></form>' },
+  'a-form-item': { template: '<div><slot /></div>' },
+  'a-input': { template: '<input />' },
+  'a-input-password': { template: '<input type="password" />' },
+  'a-input-search': { template: '<input />' },
+  'a-pagination': { template: '<div class="pagination"><slot /></div>' },
+  'a-select': { template: '<div class="a-select"><slot /></div>' },
+  'a-tag': { template: '<span><slot /></span>' },
+  'icon-close': { template: '<span class="icon-close" />' },
+  'icon-copy': { template: '<span class="icon-copy" />' },
+  'icon-edit': { template: '<span class="icon-edit" />' },
+  'icon-language': { template: '<span class="icon-language" />' },
+}
+
+const mountSettingModal = (props: { visible: boolean; initialTab?: string }) => {
+  return shallowMount(SettingModal, {
+    props,
+    global: {
+      plugins: [createTestI18n(), createPinia()],
+      stubs: defaultStubs,
+    },
+  })
+}
+
 describe('SettingModal device request ordering', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -70,13 +98,8 @@ describe('SettingModal device request ordering', () => {
           page_size: 5,
         },
       })
-    const wrapper = shallowMount(SettingModal, {
-      props: { visible: true, initialTab: 'devices' },
-      global: {
-        plugins: [createTestI18n(), createPinia()],
-        stubs: { 'a-modal': { template: '<div><slot /></div>' } },
-      },
-    })
+    const wrapper = mountSettingModal({ visible: true, initialTab: 'devices' })
+    expect(wrapper.find('.icon-close').exists()).toBe(true)
     const { handleHistoryStatusChange } = (
       wrapper.vm.$ as unknown as {
         setupState: { handleHistoryStatusChange: (value: string | number | boolean) => Promise<void> }
@@ -98,10 +121,7 @@ describe('SettingModal device request ordering', () => {
     mocks.uploadImage.mockReset().mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise)
     mocks.updateAvatar.mockReset().mockResolvedValue({ message: 'updated' })
     mocks.getCurrentUser.mockResolvedValue({ data: { id: 'account', avatar: 'new-icon' } })
-    const wrapper = shallowMount(SettingModal, {
-      props: { visible: true, initialTab: 'profile' },
-      global: { plugins: [createTestI18n(), createPinia()], stubs: { 'a-modal': { template: '<div><slot /></div>' } } },
-    })
+    const wrapper = mountSettingModal({ visible: true, initialTab: 'profile' })
     const { handleAvatarCustomRequest } = (
       wrapper.vm.$ as unknown as {
         setupState: { handleAvatarCustomRequest: (option: any) => unknown }
@@ -141,10 +161,7 @@ describe('SettingModal device request ordering', () => {
       })
     })
     mocks.getCurrentUser.mockReset().mockImplementation(async () => ({ data: { id: 'account', avatar: persistedAvatar } }))
-    const wrapper = shallowMount(SettingModal, {
-      props: { visible: true, initialTab: 'profile' },
-      global: { plugins: [createTestI18n(), createPinia()], stubs: { 'a-modal': { template: '<div><slot /></div>' } } },
-    })
+    const wrapper = mountSettingModal({ visible: true, initialTab: 'profile' })
     const { handleAvatarCustomRequest } = (
       wrapper.vm.$ as unknown as { setupState: { handleAvatarCustomRequest: (option: any) => unknown } }
     ).setupState
@@ -173,10 +190,7 @@ describe('SettingModal device request ordering', () => {
     mocks.updateName.mockReturnValue(new Promise((resolve) => { resolveSave = resolve }))
     mocks.getCurrentUser.mockResolvedValue({ data: { id: 'account', name: 'New Name' } })
 
-    const wrapper = shallowMount(SettingModal, {
-      props: { visible: true, initialTab: 'profile' },
-      global: { plugins: [createTestI18n(), createPinia()], stubs: { 'a-modal': { template: '<div><slot /></div>' } } },
-    })
+    const wrapper = mountSettingModal({ visible: true, initialTab: 'profile' })
     const state = (wrapper.vm.$ as any).setupState
     state.accountForm.name = 'New Name'
 
@@ -196,10 +210,7 @@ describe('SettingModal device request ordering', () => {
     mocks.updatePassword.mockReturnValue(new Promise((resolve) => { resolveSave = resolve }))
     mocks.getCurrentUser.mockResolvedValue({ data: { id: 'account', name: 'User' } })
 
-    const wrapper = shallowMount(SettingModal, {
-      props: { visible: true, initialTab: 'security' },
-      global: { plugins: [createTestI18n(), createPinia()], stubs: { 'a-modal': { template: '<div><slot /></div>' } } },
-    })
+    const wrapper = mountSettingModal({ visible: true, initialTab: 'security' })
     const state = (wrapper.vm.$ as any).setupState
     state.securityForm.current_password = 'old'
     state.securityForm.new_password = 'ValidPassword123'
@@ -218,10 +229,7 @@ describe('SettingModal device request ordering', () => {
 
   it('does not close name edit and does not throw when name save fails', async () => {
     mocks.updateName.mockRejectedValue(new Error('Update name failed'))
-    const wrapper = shallowMount(SettingModal, {
-      props: { visible: true, initialTab: 'profile' },
-      global: { plugins: [createTestI18n(), createPinia()], stubs: { 'a-modal': { template: '<div><slot /></div>' } } },
-    })
+    const wrapper = mountSettingModal({ visible: true, initialTab: 'profile' })
     const state = (wrapper.vm.$ as any).setupState
     state.updateName = true
     state.accountForm.name = 'Failed Name'
@@ -233,10 +241,7 @@ describe('SettingModal device request ordering', () => {
 
   it('does not reset security form and does not throw when password save fails', async () => {
     mocks.updatePassword.mockRejectedValue(new Error('Update password failed'))
-    const wrapper = shallowMount(SettingModal, {
-      props: { visible: true, initialTab: 'security' },
-      global: { plugins: [createTestI18n(), createPinia()], stubs: { 'a-modal': { template: '<div><slot /></div>' } } },
-    })
+    const wrapper = mountSettingModal({ visible: true, initialTab: 'security' })
     const state = (wrapper.vm.$ as any).setupState
     state.securityForm.current_password = 'old'
     state.securityForm.new_password = 'ValidPassword123'
