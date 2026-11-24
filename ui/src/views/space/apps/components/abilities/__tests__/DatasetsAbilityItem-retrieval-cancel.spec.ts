@@ -17,15 +17,51 @@ const ButtonStub = defineComponent({ emits: ['click'], template: '<button @click
 const ModalStub = defineComponent({ props: ['visible'], template: '<div v-if="visible"><slot /></div>' })
 const SliderStub = defineComponent({ props: ['modelValue'], emits: ['update:modelValue'], template: '<input :value="modelValue" />' })
 
+const defaultStubs = {
+  'a-collapse-item': WrapperStub,
+  'a-button': ButtonStub,
+  'a-modal': ModalStub,
+  'a-space': WrapperStub,
+  'a-spin': WrapperStub,
+  'a-avatar': WrapperStub,
+  'a-empty': WrapperStub,
+  'a-row': WrapperStub,
+  'a-col': WrapperStub,
+  'a-form': WrapperStub,
+  'a-form-item': WrapperStub,
+  'a-radio-group': WrapperStub,
+  'a-radio': WrapperStub,
+  'a-slider': SliderStub,
+  'a-input-number': WrapperStub,
+  'icon-plus': true,
+  'icon-delete': true,
+  'icon-close': true,
+  'icon-language': true,
+}
+
+const mountAbilityItem = (options: { props?: Record<string, any>; global?: Record<string, any> } = {}) =>
+  mount(DatasetsAbilityItem, {
+    props: {
+      app_id: 'app-1',
+      datasets: [],
+      retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 },
+      ...options.props,
+    },
+    global: {
+      ...options.global,
+      stubs: {
+        ...defaultStubs,
+        ...options.global?.stubs,
+      },
+    },
+  })
+
 it('reports dataset load failures and ignores late failures after unmount', async () => {
   let rejectLateLoad!: (error: Error) => void
   const lateLoad = new Promise<void>((_, reject) => { rejectLateLoad = reject })
   mocks.load.mockReset().mockRejectedValueOnce(new Error('network unavailable')).mockReturnValueOnce(lateLoad)
   mocks.error.mockReset()
-  const wrapper = mount(DatasetsAbilityItem, {
-    props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
-    global: { config: { errorHandler: vi.fn() }, stubs: { 'a-collapse-item': WrapperStub } },
-  })
+  const wrapper = mountAbilityItem({ global: { config: { errorHandler: vi.fn() } } })
   await flushPromises()
 
   expect(mocks.error).toHaveBeenCalledWith('network unavailable')
@@ -39,10 +75,7 @@ it('reports dataset load failures and ignores late failures after unmount', asyn
 })
 
 it('restores the saved retrieval settings after a later cancelled edit', async () => {
-  const wrapper = mount(DatasetsAbilityItem, {
-    props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
-    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': SliderStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
-  })
+  const wrapper = mountAbilityItem()
   await flushPromises()
   const open = () => wrapper.findAll('button')[0].trigger('click')
   const cancel = () => wrapper.findAll('button').find(button => button.text() === 'common.actions.cancel')!.trigger('click')
@@ -64,7 +97,7 @@ it('restores the saved retrieval settings after a later cancelled edit', async (
 it('keeps reopened retrieval settings open after an earlier save completes', async () => {
   let resolve!: () => void
   mocks.update.mockReturnValueOnce(new Promise<void>((done) => { resolve = done }))
-  const wrapper = mount(DatasetsAbilityItem, { props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } }, global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': SliderStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } } })
+  const wrapper = mountAbilityItem()
   const state = (wrapper.vm.$ as any).setupState
   state.retrievalConfigModalVisible = true
   state.retrievalConfigForm.k = 6
