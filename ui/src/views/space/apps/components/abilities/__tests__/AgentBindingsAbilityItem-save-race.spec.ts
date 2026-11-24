@@ -10,11 +10,27 @@ vi.mock('@/hooks/use-app', async () => {
 })
 vi.mock('@arco-design/web-vue', () => ({ Message: { warning: vi.fn(), success: vi.fn() } }))
 
+const defaultStubs = {
+  'a-avatar': true,
+  'a-button': true,
+  'a-collapse-item': true,
+  'a-tag': true,
+  'agent-bindings-marketplace-picker-modal': true,
+  'icon-delete': true,
+  'icon-plus': true,
+}
+
+const mountAbilityItem = (props: { app_id: string; agent_bindings: any[] }) =>
+  shallowMount(AgentBindingsAbilityItem, {
+    props,
+    global: { stubs: defaultStubs },
+  })
+
 it('includes an earlier agent selection when a second save overlaps', async () => {
   let resolveFirst!: () => void
   const firstSave = new Promise<void>((resolve) => { resolveFirst = resolve })
   mocks.update.mockReset().mockReturnValueOnce(firstSave).mockResolvedValue({})
-  const wrapper = shallowMount(AgentBindingsAbilityItem, { props: { app_id: 'app-1', agent_bindings: [] } })
+  const wrapper = mountAbilityItem({ app_id: 'app-1', agent_bindings: [] })
   const state = (wrapper.vm.$ as any).setupState
   const first = { app_id: 'agent-1', name: 'First', source_scope: 'public' }
   const second = { app_id: 'agent-2', name: 'Second', source_scope: 'public' }
@@ -34,11 +50,12 @@ it('includes an earlier agent selection when a second save overlaps', async () =
 it('serializes agent binding removals against the latest selection', async () => {
   const resolveUpdates: Array<() => void> = []
   mocks.update.mockReset().mockImplementation(() => new Promise<void>((resolve) => { resolveUpdates.push(resolve) }))
-  const wrapper = shallowMount(AgentBindingsAbilityItem, {
-    props: { app_id: 'app-1', agent_bindings: [
+  const wrapper = mountAbilityItem({
+    app_id: 'app-1',
+    agent_bindings: [
       { app_id: 'agent-1', invoke_mode: 'tool', name: 'First', source_scope: 'own' },
       { app_id: 'agent-2', invoke_mode: 'tool', name: 'Second', source_scope: 'own' },
-    ] },
+    ],
   })
   const state = (wrapper.vm.$ as any).setupState
   const firstDelete = state.handleDeleteBinding('agent-1')
@@ -60,9 +77,7 @@ it('serializes agent binding removals against the latest selection', async () =>
 it('does not show success message or mutate bindings when draft update fails', async () => {
   const { Message } = await import('@arco-design/web-vue')
   mocks.update.mockReset().mockRejectedValueOnce(new Error('draft update failed'))
-  const wrapper = shallowMount(AgentBindingsAbilityItem, {
-    props: { app_id: 'app-1', agent_bindings: [] },
-  })
+  const wrapper = mountAbilityItem({ app_id: 'app-1', agent_bindings: [] })
   const state = (wrapper.vm.$ as any).setupState
   const agent = { app_id: 'agent-1', name: 'Failed Agent', source_scope: 'public' }
   await state.handleSelectMarketplaceBinding(agent)
