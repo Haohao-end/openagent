@@ -34,6 +34,25 @@ const IconStub = defineComponent({ props: ['icon', 'onUpload', 'onGenerate'], em
 const ModalStub = defineComponent({ props: ['visible'], emits: ['cancel'], template: '<div v-if="visible"><slot /><button data-cancel @click="$emit(\'cancel\')">close</button></div>' })
 const DrawerStub = defineComponent({ props: ['visible'], emits: ['cancel'], template: '<div v-if="visible"><slot /><button data-drawer-cancel @click="$emit(\'cancel\')">close</button></div>' })
 const FormStub = { template: '<div><slot /></div>', methods: { resetFields() {} } }
+const defaultStubs = {
+  'a-avatar': true, 'a-button': true, 'a-card': true, 'a-col': true,
+  'a-drawer': DrawerStub, 'a-empty': true, 'a-form': FormStub, 'a-form-item': FormStub,
+  'a-input': true, 'a-modal': ModalStub, 'a-radio': true, 'a-radio-group': true,
+  'a-row': true, 'a-space': true, 'a-spin': FormStub, 'a-table': true,
+  'a-tab-pane': true, 'a-tabs': true, 'a-textarea': true, 'a-typography-text': true,
+  'icon-close': true, 'icon-delete': true, 'icon-plus': true, 'icon-settings': true,
+  IconUploadGenerator: IconStub,
+}
+const mountToolView = (options: Parameters<typeof mount>[1] = {}) => mount(ToolListView, {
+  ...options,
+  global: {
+    ...options.global,
+    stubs: {
+      ...defaultStubs,
+      ...options.global?.stubs,
+    },
+  },
+})
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done }); return { promise, resolve } }
 const setupProviderListMocks = () => {
   mocks.route = reactive({ path: '/space/tools', query: {} })
@@ -46,7 +65,7 @@ describe('space tools icon upload lifecycle', () => {
   it('reports provider detail failures without opening the editor', async () => {
     setupProviderListMocks()
     mocks.loadProvider.mockReset().mockRejectedValueOnce(new Error('details unavailable'))
-    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const wrapper = mountToolView()
     await flushPromises()
     const state = (wrapper.vm.$ as any).setupState
     state.showIdx = 0
@@ -66,7 +85,7 @@ describe('space tools icon upload lifecycle', () => {
     const pending = new Promise<void>((_, reject) => { rejectDetails = reject })
     setupProviderListMocks()
     mocks.loadProvider.mockReset().mockReturnValueOnce(pending)
-    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const wrapper = mountToolView()
     await flushPromises()
     const state = (wrapper.vm.$ as any).setupState
     state.showIdx = 0
@@ -89,7 +108,7 @@ describe('space tools icon upload lifecycle', () => {
     mocks.route = reactive({ path: '/space/tools', query: {} })
     mocks.loadProviders.mockReset().mockRejectedValueOnce(new Error('network unavailable')).mockReturnValueOnce(lateLoad)
     mocks.error.mockReset()
-    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const wrapper = mountToolView()
     await flushPromises()
 
     expect(mocks.error).toHaveBeenCalledWith('network unavailable')
@@ -114,7 +133,7 @@ describe('space tools icon upload lifecycle', () => {
     })
     mocks.validateOpenapi.mockResolvedValue(true)
     mocks.success.mockReset()
-    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const wrapper = mountToolView()
     await flushPromises()
     const state = (wrapper.vm.$ as any).setupState
     state.openapiAssistantQuestion = 'Create a schema'
@@ -137,7 +156,7 @@ describe('space tools icon upload lifecycle', () => {
   it('uses an empty search when route navigation removes the query', async () => {
     mocks.route = reactive({ path: '/space/tools', query: { search_word: 'northwind' } })
     mocks.loadProviders.mockReset()
-    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const wrapper = mountToolView()
     await flushPromises()
 
     mocks.loadProviders.mockClear()
@@ -153,7 +172,7 @@ describe('space tools icon upload lifecycle', () => {
     mocks.route = reactive({ path: '/space/tools', query: { create_type: 'tool' } })
     mocks.generatePreview.mockReset().mockImplementation(async () => { await pending.promise; return 'old-icon' })
     mocks.success.mockReset()
-    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const wrapper = mountToolView()
     await flushPromises()
     const state = (wrapper.vm.$ as any).setupState
     state.form.name = 'Old tool'
@@ -180,7 +199,7 @@ describe('space tools icon upload lifecycle', () => {
     const pending = new Promise<string>((_, rejectPromise) => { reject = rejectPromise })
     mocks.route = reactive({ path: '/space/tools', query: { create_type: 'tool' } })
     mocks.generatePreview.mockReset().mockReturnValueOnce(pending)
-    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const wrapper = mountToolView()
     await flushPromises()
     const state = (wrapper.vm.$ as any).setupState
     state.form.name = 'Old tool'
@@ -197,7 +216,7 @@ describe('space tools icon upload lifecycle', () => {
     const pending = deferred()
     mocks.route = reactive({ path: '/space/tools', query: { create_type: 'tool' } })
     mocks.upload.mockReset().mockImplementation(async () => { await pending.promise; mocks.imageUrl.value = 'old-icon' })
-    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const wrapper = mountToolView()
     await flushPromises()
     const upload = wrapper.findComponent(IconStub).props('onUpload') as (file: File) => Promise<void>
     const oldUpload = upload(new File(['old'], 'old.png'))
@@ -216,7 +235,7 @@ describe('space tools icon upload lifecycle', () => {
     mocks.route = reactive({ path: '/space/tools', query: {} })
     mocks.providers = [{ id: 'provider-1', name: 'Provider', description: '', icon: '', tools: [], created_at: 0 }]
     mocks.loadProvider.mockReset().mockReturnValueOnce(pending.promise)
-    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const wrapper = mountToolView()
     const state = (wrapper.vm.$ as any).setupState
     state.showIdx = 0
     await nextTick()
@@ -238,7 +257,7 @@ describe('space tools icon upload lifecycle', () => {
       await pending.promise
       mocks.imageUrl.value = 'late-icon'
     })
-    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const wrapper = mountToolView()
     await flushPromises()
     const upload = wrapper.findComponent(IconStub).props('onUpload') as (file: File) => Promise<void>
     const oldUpload = upload(new File(['old'], 'old.png'))
@@ -255,7 +274,7 @@ describe('space tools icon upload lifecycle', () => {
     mocks.route = reactive({ path: '/space/tools', query: {} })
     mocks.providers = [{ id: 'provider-1', name: 'Provider', description: '', icon: '', tools: [], created_at: 0 }]
     mocks.loadProvider.mockReset().mockReturnValueOnce(pending.promise)
-    const wrapper = mount(ToolListView, { global: { stubs: { 'a-modal': ModalStub, 'a-drawer': DrawerStub, 'a-form': FormStub, 'a-form-item': FormStub, 'a-spin': FormStub, IconUploadGenerator: IconStub } } })
+    const wrapper = mountToolView()
     const state = (wrapper.vm.$ as any).setupState
     state.showIdx = 0
     await nextTick()
