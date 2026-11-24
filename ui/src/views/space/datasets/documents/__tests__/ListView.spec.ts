@@ -16,6 +16,24 @@ vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@arco-design/web-vue', () => ({ Message: { info: vi.fn(), success: vi.fn(), warning: vi.fn(), error: vi.fn() } }))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ push: vi.fn() }) }))
 
+const defaultStubs = {
+  HitTestingModal: true,
+  UpdateDocumentNameModal: true,
+  'a-avatar': true,
+  'a-button': true,
+  'a-doption': true,
+  'a-dropdown': true,
+  'a-empty': true,
+  'a-skeleton-line': true,
+  'a-table': true,
+  'a-table-column': true,
+  'a-tag': true,
+  'a-tooltip': true,
+  'icon-left': true,
+  'icon-more': true,
+  'router-link': true,
+}
+
 describe('dataset document pagination query', () => {
   beforeEach(() => {
     mocks.loadDocuments.mockResolvedValue(undefined)
@@ -24,8 +42,9 @@ describe('dataset document pagination query', () => {
 
   it('uses valid defaults when the URL pagination values are invalid', async () => {
     const { default: ListView } = await import('../ListView.vue')
-    mount(ListView, { global: { stubs: { '*': true, HitTestingModal: true, UpdateDocumentNameModal: true } } })
+    const wrapper = mount(ListView, { global: { stubs: defaultStubs } })
     await flushPromises()
+    expect(wrapper.exists()).toBe(true)
     expect(mocks.loadDocuments).toHaveBeenCalledWith('dataset-1', { current_page: 1, page_size: 20, search_word: '' })
   })
 
@@ -34,7 +53,7 @@ describe('dataset document pagination query', () => {
     mocks.loadDocuments.mockReturnValueOnce(new Promise((_, reject) => { rejectDocs = reject }))
     const { Message } = await import('@arco-design/web-vue')
     const { default: ListView } = await import('../ListView.vue')
-    const wrapper = mount(ListView, { global: { stubs: { '*': true, HitTestingModal: true, UpdateDocumentNameModal: true } } })
+    const wrapper = mount(ListView, { global: { stubs: defaultStubs } })
     await flushPromises()
     wrapper.unmount()
     rejectDocs(new Error('late document load failure'))
