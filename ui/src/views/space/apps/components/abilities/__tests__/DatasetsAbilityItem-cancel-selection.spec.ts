@@ -1,4 +1,4 @@
-import { flushPromises, mount, shallowMount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { expect, it, vi } from 'vitest'
 import DatasetsAbilityItem from '../DatasetsAbilityItem.vue'
@@ -29,12 +29,48 @@ const WrapperStub = { template: '<div><slot /><slot name="header" /><slot name="
 const ButtonStub = defineComponent({ props: ['disabled'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>' })
 const ModalStub = defineComponent({ props: ['visible'], template: '<div v-if="visible"><slot /></div>' })
 
+const defaultStubs = {
+  'a-collapse-item': WrapperStub,
+  'a-button': ButtonStub,
+  'a-modal': ModalStub,
+  'a-space': WrapperStub,
+  'a-spin': WrapperStub,
+  'a-avatar': WrapperStub,
+  'a-empty': WrapperStub,
+  'a-row': WrapperStub,
+  'a-col': WrapperStub,
+  'a-form': WrapperStub,
+  'a-form-item': WrapperStub,
+  'a-radio-group': WrapperStub,
+  'a-radio': WrapperStub,
+  'a-slider': WrapperStub,
+  'a-input-number': WrapperStub,
+  'icon-plus': true,
+  'icon-delete': true,
+  'icon-close': true,
+  'icon-language': true,
+}
+
+const mountAbilityItem = (options: { props?: Record<string, any>; global?: Record<string, any> } = {}) =>
+  mount(DatasetsAbilityItem, {
+    props: {
+      app_id: 'app-1',
+      datasets: [],
+      retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 },
+      ...options.props,
+    },
+    global: {
+      ...options.global,
+      stubs: {
+        ...defaultStubs,
+        ...options.global?.stubs,
+      },
+    },
+  })
+
 it('does not retain an unsaved dataset after cancelling a later selection', async () => {
   mocks.load.mockImplementation(async () => { mocks.datasets.value = [{ id: 'ds-1', name: 'Available dataset', icon: '', description: '' }] })
-  const wrapper = mount(DatasetsAbilityItem, {
-    props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
-    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
-  })
+  const wrapper = mountAbilityItem()
   await flushPromises()
   const open = () => wrapper.findAll('button')[1].trigger('click')
   const cancel = () => wrapper.findAll('button').find(button => button.text() === 'common.actions.cancel')!.trigger('click')
@@ -54,9 +90,8 @@ it('does not retain an unsaved dataset after cancelling a later selection', asyn
 })
 
 it('clears the picker baseline when the last bound dataset is removed', async () => {
-  const wrapper = mount(DatasetsAbilityItem, {
-    props: { app_id: 'app-1', datasets: [{ id: 'ds-1', name: 'Bound dataset', icon: '', description: '' }], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
-    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
+  const wrapper = mountAbilityItem({
+    props: { datasets: [{ id: 'ds-1', name: 'Bound dataset', icon: '', description: '' }] },
   })
   await flushPromises()
   const remove = wrapper.findAll('button').find(button => button.classes().includes('!text-red-700'))!
@@ -73,10 +108,7 @@ it('keeps the dataset picker open while a submitted selection is saving', async 
   let resolveUpdate!: () => void
   const pending = new Promise<void>((resolve) => { resolveUpdate = resolve })
   mocks.update.mockReset().mockReturnValue(pending)
-  const wrapper = mount(DatasetsAbilityItem, {
-    props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
-    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
-  })
+  const wrapper = mountAbilityItem()
   await flushPromises()
   await wrapper.findAll('button')[1].trigger('click')
   await flushPromises()
@@ -102,12 +134,13 @@ it('keeps the dataset picker open while a submitted selection is saving', async 
 it('does not submit stale dataset lists for concurrent removals', async () => {
   const pending = new Promise<void>(() => {})
   mocks.update.mockReset().mockReturnValue(pending)
-  const wrapper = mount(DatasetsAbilityItem, {
-    props: { app_id: 'app-1', datasets: [
-      { id: 'ds-1', name: 'First', icon: '', description: '' },
-      { id: 'ds-2', name: 'Second', icon: '', description: '' },
-    ], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
-    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
+  const wrapper = mountAbilityItem({
+    props: {
+      datasets: [
+        { id: 'ds-1', name: 'First', icon: '', description: '' },
+        { id: 'ds-2', name: 'Second', icon: '', description: '' },
+      ],
+    },
   })
   await flushPromises()
   const removals = wrapper.findAll('button').filter((button) => button.classes().includes('!text-red-700'))
@@ -121,7 +154,7 @@ it('does not submit stale dataset lists for concurrent removals', async () => {
 })
 
 it('syncs datasets that arrive after the ability first renders', async () => {
-  const wrapper = shallowMount(DatasetsAbilityItem, { props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } } })
+  const wrapper = mountAbilityItem()
   const state = (wrapper.vm.$ as any).setupState
   const dataset = { id: 'ds-1', name: 'Loaded dataset', icon: '', description: '' }
 
@@ -132,7 +165,7 @@ it('syncs datasets that arrive after the ability first renders', async () => {
 })
 
 it('preserves unsaved retrieval settings when parent props change', async () => {
-  const wrapper = shallowMount(DatasetsAbilityItem, { props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } } })
+  const wrapper = mountAbilityItem()
   const state = (wrapper.vm.$ as any).setupState
   state.retrievalConfigForm.k = 7
 
@@ -145,10 +178,7 @@ it('preserves unsaved retrieval settings when parent props change', async () => 
 it('keeps the saved dataset selection unchanged while a save is pending', async () => {
   let resolveUpdate!: () => void
   mocks.update.mockReset().mockReturnValue(new Promise<void>((resolve) => { resolveUpdate = resolve }))
-  const wrapper = mount(DatasetsAbilityItem, {
-    props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
-    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
-  })
+  const wrapper = mountAbilityItem()
   await flushPromises()
   mocks.datasets.value = [
     { id: 'ds-1', name: 'First dataset', icon: '', description: '' },
@@ -173,10 +203,7 @@ it('keeps the saved dataset selection unchanged while a save is pending', async 
 
 it('suppresses update:datasets emit when draft app config update fails', async () => {
   mocks.update.mockReset().mockRejectedValueOnce(new Error('Network error'))
-  const wrapper = mount(DatasetsAbilityItem, {
-    props: { app_id: 'app-1', datasets: [], retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 } },
-    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
-  })
+  const wrapper = mountAbilityItem()
   await flushPromises()
   mocks.datasets.value = [{ id: 'ds-1', name: 'First dataset', icon: '', description: '' }]
   await wrapper.findAll('button')[1].trigger('click')
@@ -192,13 +219,10 @@ it('suppresses update:datasets emit when draft app config update fails', async (
 
 it('suppresses update:datasets emit when deleting a dataset fails', async () => {
   mocks.update.mockReset().mockRejectedValueOnce(new Error('Delete error'))
-  const wrapper = mount(DatasetsAbilityItem, {
+  const wrapper = mountAbilityItem({
     props: {
-      app_id: 'app-1',
       datasets: [{ id: 'ds-1', name: 'Bound dataset', icon: '', description: '' }],
-      retrieval_config: { retrieval_strategy: 'semantic', k: 4, score: 0 },
     },
-    global: { stubs: { 'a-collapse-item': WrapperStub, 'a-button': ButtonStub, 'a-modal': ModalStub, 'a-space': WrapperStub, 'a-spin': WrapperStub, 'a-avatar': WrapperStub, 'a-empty': WrapperStub, 'a-row': WrapperStub, 'a-col': WrapperStub, 'a-form': WrapperStub, 'a-form-item': WrapperStub, 'a-radio-group': WrapperStub, 'a-radio': WrapperStub, 'a-slider': WrapperStub, 'a-input-number': WrapperStub, 'icon-plus': true, 'icon-delete': true, 'icon-close': true, 'icon-language': true } },
   })
   await flushPromises()
   const remove = wrapper.findAll('button').find((button) => button.classes().includes('!text-red-700'))!
