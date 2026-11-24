@@ -61,4 +61,22 @@ describe('useWorkflowPublishActions error feedback', () => {
     expect(handleCancelPublish).toHaveBeenCalledWith('wf-1')
     expect(loadWorkflow).toHaveBeenCalledWith('wf-1')
   })
+
+  it('does not reload workflow and does not throw when toggling share fails', async () => {
+    const loadWorkflow = vi.fn().mockResolvedValue(undefined)
+    const handleShareWorkflow = vi.fn().mockRejectedValue(new Error('share failed'))
+    const { handleToggleShare } = buildActions({ loadWorkflow, handleShareWorkflow })
+
+    await expect(handleToggleShare()).resolves.toBeUndefined()
+    expect(loadWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('does not reload workflow and does not throw when cancelling publish fails', async () => {
+    const loadWorkflow = vi.fn().mockResolvedValue(undefined)
+    const handleCancelPublish = vi.fn().mockRejectedValue(new Error('cancel publish failed'))
+    const { handleCancelPublishAction } = buildActions({ loadWorkflow, handleCancelPublish })
+
+    await expect(handleCancelPublishAction()).resolves.toBeUndefined()
+    expect(loadWorkflow).not.toHaveBeenCalled()
+  })
 })
