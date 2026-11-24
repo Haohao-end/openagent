@@ -198,6 +198,48 @@ const chatComposerStub = defineComponent({
   `,
 })
 
+const defaultStubs = {
+  AiMessage: true,
+  HumanMessage: true,
+  ChatConversationSkeleton: true,
+  UpdateNameModal: true,
+  DynamicScroller: true,
+  DynamicScrollerItem: true,
+  'a-button': buttonStub,
+  'chat-composer': chatComposerStub,
+  'a-avatar': true,
+  'a-empty': true,
+  'a-dropdown': true,
+  'a-doption': true,
+  'a-skeleton': true,
+  'a-skeleton-line': true,
+  'a-tooltip': true,
+  'icon-edit': true,
+  'icon-message': true,
+  'icon-more': true,
+  'icon-plus': true,
+  'icon-voice': true,
+  'icon-pause': true,
+  'icon-send': true,
+  'icon-loading': true,
+  'icon-close': true,
+  'icon-empty': true,
+  'icon-poweroff': true,
+}
+
+const mountView = (options: Parameters<typeof shallowMount>[1] = {}) => {
+  return shallowMount(WebAppsIndexView, {
+    ...options,
+    global: {
+      ...options.global,
+      stubs: {
+        ...defaultStubs,
+        ...options.global?.stubs,
+      },
+    },
+  })
+}
+
 describe('web-app chat submit failure', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -218,38 +260,7 @@ describe('web-app chat submit failure', () => {
   })
 
   it('removes temporary blank message when chat request fails', async () => {
-    const wrapper = shallowMount(WebAppsIndexView, {
-      global: {
-        stubs: {
-          AiMessage: true,
-          HumanMessage: true,
-          ChatConversationSkeleton: true,
-          UpdateNameModal: true,
-          DynamicScroller: true,
-          DynamicScrollerItem: true,
-          'a-button': buttonStub,
-          'chat-composer': chatComposerStub,
-          'a-avatar': true,
-          'a-empty': true,
-          'a-dropdown': true,
-          'a-doption': true,
-          'a-skeleton': true,
-          'a-skeleton-line': true,
-          'a-tooltip': true,
-          'icon-edit': true,
-          'icon-message': true,
-          'icon-more': true,
-          'icon-plus': true,
-          'icon-voice': true,
-          'icon-pause': true,
-          'icon-send': true,
-          'icon-loading': true,
-          'icon-close': true,
-          'icon-empty': true,
-          'icon-poweroff': true,
-        },
-      },
-    })
+    const wrapper = mountView()
 
     await flushPromises()
 
@@ -287,38 +298,7 @@ describe('web-app chat submit failure', () => {
   it('passes enable_deep_thinking when toggle is enabled', async () => {
     mocks.handleWebAppChat.mockResolvedValue(undefined)
 
-    const wrapper = shallowMount(WebAppsIndexView, {
-      global: {
-        stubs: {
-          AiMessage: true,
-          HumanMessage: true,
-          ChatConversationSkeleton: true,
-          UpdateNameModal: true,
-          DynamicScroller: true,
-          DynamicScrollerItem: true,
-          'a-button': buttonStub,
-          'chat-composer': chatComposerStub,
-          'a-avatar': true,
-          'a-empty': true,
-          'a-dropdown': true,
-          'a-doption': true,
-          'a-skeleton': true,
-          'a-skeleton-line': true,
-          'a-tooltip': true,
-          'icon-edit': true,
-          'icon-message': true,
-          'icon-more': true,
-          'icon-plus': true,
-          'icon-voice': true,
-          'icon-pause': true,
-          'icon-send': true,
-          'icon-loading': true,
-          'icon-close': true,
-          'icon-empty': true,
-          'icon-poweroff': true,
-        },
-      },
-    })
+    const wrapper = mountView()
 
     await flushPromises()
 
@@ -349,8 +329,9 @@ describe('web-app chat submit failure', () => {
           }
         }),
     )
-    const wrapper = shallowMount(WebAppsIndexView)
+    const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(chatComposerStub).exists()).toBe(true)
 
     mocks.state.pinnedConversations!.value = [
       { id: 'pin-a', name: 'A' },
@@ -386,8 +367,9 @@ describe('web-app chat submit failure', () => {
         resolve()
       }
     }))
-    const wrapper = shallowMount(WebAppsIndexView)
+    const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(chatComposerStub).exists()).toBe(true)
 
     const state = (wrapper.vm.$ as any).setupState
     state.recorder = { stop: vi.fn(), getWAVBlob: () => new Blob(['voice']) }
@@ -406,8 +388,9 @@ describe('web-app chat submit failure', () => {
       mocks.audioText.value = 'voice transcription'
       mocks.audioSuccess('hook success')
     })
-    const wrapper = shallowMount(WebAppsIndexView)
+    const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(chatComposerStub).exists()).toBe(true)
 
     const state = (wrapper.vm.$ as any).setupState
     state.recorder = { stop: vi.fn(), getWAVBlob: () => new Blob(['voice']) }
@@ -443,8 +426,9 @@ describe('web-app chat submit failure', () => {
       return new Promise((resolve) => { resolveStream = resolve })
     })
 
-    const wrapper = shallowMount(WebAppsIndexView)
+    const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(chatComposerStub).exists()).toBe(true)
 
     const setupState = (wrapper.vm.$ as any).setupState
     await setupState.changeConversation('conversation-a')
@@ -476,8 +460,9 @@ describe('web-app chat submit failure', () => {
       })
     })
 
-    const wrapper = shallowMount(WebAppsIndexView)
+    const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(chatComposerStub).exists()).toBe(true)
     const setupState = (wrapper.vm.$ as any).setupState
     mocks.state.query!.value = 'show trace events'
     const submitPromise = setupState.handleSubmit()
@@ -510,8 +495,9 @@ describe('web-app chat submit failure', () => {
       })
     })
 
-    const wrapper = shallowMount(WebAppsIndexView)
+    const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(chatComposerStub).exists()).toBe(true)
     const setupState = (wrapper.vm.$ as any).setupState
     mocks.state.query!.value = 'create and stop'
     const submitPromise = setupState.handleSubmit()
@@ -540,8 +526,9 @@ describe('web-app chat submit failure', () => {
     })
     mocks.handleStopWebAppChat.mockRejectedValueOnce(new Error('stop failed'))
 
-    const wrapper = shallowMount(WebAppsIndexView)
+    const wrapper = mountView()
     await flushPromises()
+    expect(wrapper.findComponent(chatComposerStub).exists()).toBe(true)
     const setupState = (wrapper.vm.$ as any).setupState
     mocks.state.query!.value = 'keep the original stream'
     const submitPromise = setupState.handleSubmit()
