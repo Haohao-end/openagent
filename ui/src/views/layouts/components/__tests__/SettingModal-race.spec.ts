@@ -215,4 +215,35 @@ describe('SettingModal device request ordering', () => {
     await firstSave
     wrapper.unmount()
   })
+
+  it('does not close name edit and does not throw when name save fails', async () => {
+    mocks.updateName.mockRejectedValue(new Error('Update name failed'))
+    const wrapper = shallowMount(SettingModal, {
+      props: { visible: true, initialTab: 'profile' },
+      global: { plugins: [createTestI18n(), createPinia()], stubs: { 'a-modal': { template: '<div><slot /></div>' } } },
+    })
+    const state = (wrapper.vm.$ as any).setupState
+    state.updateName = true
+    state.accountForm.name = 'Failed Name'
+
+    await expect(state.handleSaveName()).resolves.toBeUndefined()
+    expect(state.updateName).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('does not reset security form and does not throw when password save fails', async () => {
+    mocks.updatePassword.mockRejectedValue(new Error('Update password failed'))
+    const wrapper = shallowMount(SettingModal, {
+      props: { visible: true, initialTab: 'security' },
+      global: { plugins: [createTestI18n(), createPinia()], stubs: { 'a-modal': { template: '<div><slot /></div>' } } },
+    })
+    const state = (wrapper.vm.$ as any).setupState
+    state.securityForm.current_password = 'old'
+    state.securityForm.new_password = 'ValidPassword123'
+    state.securityForm.confirm_password = 'ValidPassword123'
+
+    await expect(state.handleSavePassword()).resolves.toBeUndefined()
+    expect(state.securityForm.current_password).toBe('old')
+    wrapper.unmount()
+  })
 })
